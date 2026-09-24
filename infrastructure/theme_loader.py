@@ -686,6 +686,18 @@ def adapt_qss_colors(qss: str, theme) -> str:
         # 禁用/危险按钮
         ('#5a5a5a', c.border),
         ('#8f1e1e', c.error),
+
+        # A(最终): 补齐 QSS 遗漏的颜色
+        # #007acc 是 QCheckBox::indicator:checked / :focus、
+        # QLineEdit:focus 等大量控件的聚焦色，之前未覆盖
+        ('#007acc', c.input_focus),
+        # 更多常见遗漏
+        ('#0a4d7a', c.button_pressed),
+        ('#0e639c', c.button_bg),   # 重复保险
+        ('#2196f3', c.info),
+        ('#4caf50', c.success),
+        ('#f44336', c.error),
+        ('#ff9800', c.warning),
     ]
 
     for old, new in replacements:
