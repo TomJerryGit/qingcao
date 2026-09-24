@@ -31,6 +31,15 @@ class VimMode(QObject):
         self.count_buffer = ""  # 数字前缀
         self.enabled = False
 
+        # v2 补全: 多寄存器 + 操作符/文本对象状态
+        self.registers = {'"': ''}
+        self._pending_operator = None
+        self._operator_count = 1
+        self._pending_register = None
+        self._pending_textobj_prefix = None
+        # B(v2): 独立"等待寄存器名"状态
+        self._waiting_for_register = False
+
     def set_enabled(self, enabled):
         """启用/禁用"""
         self.enabled = enabled
@@ -98,63 +107,81 @@ class VimMode(QObject):
         return False
 
     def _handle_normal(self, key, text, modifiers) -> bool:
-        """处理 Normal 模式按键"""
+        """处理 Normal 模式按键（v2: 支持操作符 + 文本对象 + 寄存器）"""
         from PyQt5.QtCore import Qt
 
-        # 数字前缀
-        if text and text.isdigit() and not (text == "0" and not self.count_buffer):
+        # ==== A3: v2 操作符 + 文本对象 ====
+        if self._pending_textobj_prefix is not None:
+            return self._handle_textobj(text)
+
+        if self._pending_operator is not None:
+            return self._handle_after_operator(key, text)
+
+        # B(v2): 等待寄存器名输入
+        if self._waiting_for_register:
+            self._waiting_for_register = False
+            if text and (text.isalnum() or
+                          text in ('"', '+', '-', '*', '0', '_')):
+                self._pending_register = text
+                return True
+            self._pending_register = None
+            self.status_message.emit("")
+            return True
+
+        if (text and text.isdigit()
+                and not (text == "0" and not self.count_buffer)):
             self.count_buffer += text
             self.status_message.emit("计数: " + self.count_buffer)
             return True
 
-        # 获取计数
         count = int(self.count_buffer) if self.count_buffer else 1
         self.count_buffer = ""
 
-        # 数字 0：行首
-        if text == "0":
-            self._goto_line_start()
+        # 寄存器前缀
+        if text == '"':
+            self._waiting_for_register = True
+            self.status_message.emit('"')
             return True
 
-        # ========== 移动 ==========
+        # 操作符前缀
+        if text in ('d', 'c', 'y', '>', '<'):
+            self._pending_operator = text
+            self._operator_count = count
+            self.status_message.emit(text)
+            return True
+
+        # ===== 原有按键 =====
         if text == 'h' or key == Qt.Key_Left:
-            self._move_cursor(-count, 0)
-            return True
+            self._move_cursor(-count, 0); return True
         if text == 'j' or key == Qt.Key_Down:
-            self._move_cursor(0, count)
-            return True
+            self._move_cursor(0, count); return True
         if text == 'k' or key == Qt.Key_Up:
-            self._move_cursor(0, -count)
-            return True
+            self._move_cursor(0, -count); return True
         if text == 'l' or key == Qt.Key_Right:
-            self._move_cursor(count, 0)
-            return True
+            self._move_cursor(count, 0); return True
 
         if text == 'w':
-            for _ in range(count):
-                self._move_word_forward()
+            for _ in range(count): self._move_word_forward()
             return True
         if text == 'b':
-            for _ in range(count):
-                self._move_word_backward()
+            for _ in range(count): self._move_word_backward()
             return True
         if text == 'e':
-            for _ in range(count):
-                self._move_word_end()
+            for _ in range(count): self._move_word_end()
             return True
 
         if text == '0':
-            self._goto_line_start()
-            return True
+            self._goto_line_start(); return True
         if text == '$':
-            self._goto_line_end()
-            return True
+            self._goto_line_end(); return True
 
         if text == 'g':
-            # 等待 gg
             self.command_buffer = 'g'
             self.status_message.emit("g...")
             return True
+        if self.command_buffer == 'g' and text == 'g':
+            self.command_buffer = ""
+            self._goto_line(0); return True
         if text == 'G':
             line_count = self.editor.SendScintilla(
                 self.editor.SCI_GETLINECOUNT
@@ -162,36 +189,23 @@ class VimMode(QObject):
             self._goto_line(line_count - 1)
             return True
 
-        # gg 组合
-        if self.command_buffer == 'g' and text == 'g':
-            self.command_buffer = ""
-            self._goto_line(0)
-            return True
-
-        # ========== 编辑 ==========
         if text == 'i':
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
         if text == 'a':
             self._move_cursor(1, 0)
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
         if text == 'I':
             self._goto_line_start()
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
         if text == 'A':
             self._goto_line_end()
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
         if text == 'o':
             self._open_line_below()
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
         if text == 'O':
             self._open_line_above()
-            self._switch_to(VimState.INSERT)
-            return True
+            self._switch_to(VimState.INSERT); return True
 
         if text == 'x':
             for _ in range(count):
@@ -202,36 +216,10 @@ class VimMode(QObject):
                 self._delete_char_backward()
             return True
 
-        if text == 'd':
-            # 等待 dd
-            self.command_buffer = 'd'
-            self.status_message.emit("d...")
-            return True
-
-        if self.command_buffer == 'd':
-            self.command_buffer = ""
-            if text == 'd':
-                for _ in range(count):
-                    self._delete_line()
-                return True
-
-        if text == 'y':
-            self.command_buffer = 'y'
-            self.status_message.emit("y...")
-            return True
-
-        if self.command_buffer == 'y':
-            self.command_buffer = ""
-            if text == 'y':
-                self._yank_line()
-                return True
-
         if text == 'p':
-            self._paste_after()
-            return True
+            self._paste_after(); return True
         if text == 'P':
-            self._paste_before()
-            return True
+            self._paste_before(); return True
 
         if text == 'u':
             for _ in range(count):
@@ -239,32 +227,39 @@ class VimMode(QObject):
             return True
 
         if text == 'r':
-            self._switch_to(VimState.REPLACE)
-            return True
+            self._switch_to(VimState.REPLACE); return True
 
-        # ========== 视觉模式 ==========
         if text == 'v':
-            self._switch_to(VimState.VISUAL)
-            return True
+            self._switch_to(VimState.VISUAL); return True
         if text == 'V':
-            self._switch_to(VimState.VISUAL_LINE)
-            return True
+            self._switch_to(VimState.VISUAL_LINE); return True
 
-        # ========== 搜索 ==========
-        if text == '/' or text == '?':
+        if text == '/':
             self._switch_to(VimState.COMMAND)
             self.command_buffer = "/"
             self.status_message.emit("搜索...")
             return True
+        if text == '?':
+            self._switch_to(VimState.COMMAND)
+            self.command_buffer = "?"
+            self.status_message.emit("搜索...")
+            return True
 
-        # ========== 命令模式 ==========
+        if text == 'n':
+            for _ in range(count):
+                self._search_next()
+            return True
+        if text == 'N':
+            for _ in range(count):
+                self._search_prev()
+            return True
+
         if text == ':':
             self._switch_to(VimState.COMMAND)
             self.command_buffer = ":"
             self.status_message.emit(":")
             return True
 
-        # Esc 清除命令缓冲
         if key == Qt.Key_Escape:
             self.command_buffer = ""
             self.count_buffer = ""
@@ -272,6 +267,349 @@ class VimMode(QObject):
             return True
 
         return False
+
+    # ============================================================
+    # A3: v2 操作符 / 文本对象 / 寄存器
+    # ============================================================
+    def _handle_after_operator(self, key, text) -> bool:
+        from PyQt5.QtCore import Qt
+        op = self._pending_operator
+        count = self._operator_count
+
+        if text and text.isdigit():
+            self.count_buffer += text
+            self._operator_count = int(self.count_buffer)
+            return True
+
+        if text == op:
+            if op in ('d', 'c', 'y'):
+                for _ in range(count):
+                    self._apply_line_operator(op)
+            elif op in ('>', '<'):
+                for _ in range(count):
+                    self._indent_line(op == '>')
+            self._clear_pending()
+            return True
+
+        if text in ('i', 'a'):
+            self._pending_textobj_prefix = text
+            self.status_message.emit(op + text)
+            return True
+
+        rng = self._resolve_motion(text, key, count)
+        if rng is None:
+            self._clear_pending()
+            return True
+
+        start, end = rng
+        self._apply_operator(op, start, end)
+        self._clear_pending()
+        return True
+
+    def _handle_textobj(self, text) -> bool:
+        prefix = self._pending_textobj_prefix
+        self._pending_textobj_prefix = None
+        op = self._pending_operator
+
+        if not text:
+            self._clear_pending()
+            return True
+
+        rng = None
+        if text in ('w', 'W'):
+            rng = self._textobj_word(prefix == 'a')
+        elif text in ('"', "'", '`'):
+            rng = self._textobj_quote(text, prefix == 'a')
+        elif text in ('(', ')', 'b'):
+            rng = self._textobj_bracket('(', ')', prefix == 'a')
+        elif text in ('[', ']'):
+            rng = self._textobj_bracket('[', ']', prefix == 'a')
+        elif text in ('{', '}', 'B'):
+            rng = self._textobj_bracket('{', '}', prefix == 'a')
+        elif text in ('<', '>'):
+            rng = self._textobj_bracket('<', '>', prefix == 'a')
+
+        if rng is None or rng[0] is None:
+            self._clear_pending()
+            return True
+
+        if op:
+            self._apply_operator(op, rng[0], rng[1])
+        self._clear_pending()
+        return True
+
+    def _clear_pending(self):
+        self._pending_operator = None
+        self._operator_count = 1
+        self._pending_register = None
+        self._pending_textobj_prefix = None
+        self._waiting_for_register = False
+        self.count_buffer = ""
+        self.status_message.emit("")
+
+    def _resolve_motion(self, text, key, count):
+        from PyQt5.QtCore import Qt
+        pos = self._get_pos()
+        length = self._get_length()
+
+        if text == 'w':
+            end = pos
+            for _ in range(count):
+                end = self._find_word_forward(end)
+            return pos, end
+        if text == 'b':
+            start = pos
+            for _ in range(count):
+                start = self._find_word_backward(start)
+            return start, pos
+        if text == 'e':
+            end = pos
+            for _ in range(count):
+                end = self._find_word_end(end)
+            return pos, min(end + 1, length)
+        if text == '$':
+            line, _ = self.editor.getCursorPosition()
+            end = self.editor.SendScintilla(
+                self.editor.SCI_GETLINEENDPOSITION, line
+            )
+            return pos, end
+        if text == '0':
+            line, _ = self.editor.getCursorPosition()
+            start = self.editor.SendScintilla(
+                self.editor.SCI_POSITIONFROMLINE, line
+            )
+            return start, pos
+        if text == 'G':
+            return pos, length
+        if text == 'g' and self.command_buffer == 'g':
+            self.command_buffer = ""
+            return 0, pos
+        if text == 'g':
+            self.command_buffer = 'g'
+            return None
+        return None
+
+    def _textobj_word(self, include_space: bool):
+        pos = self._get_pos()
+        start = self.editor.SendScintilla(
+            self.editor.SCI_WORDSTARTPOSITION, pos, True
+        )
+        end = self.editor.SendScintilla(
+            self.editor.SCI_WORDENDPOSITION, pos, True
+        )
+        if include_space:
+            length = self._get_length()
+            while end < length:
+                ch = self.editor.SendScintilla(
+                    self.editor.SCI_GETCHARAT, end
+                )
+                if ch not in (0x20, 0x09, 0x0A, 0x0D):
+                    break
+                end += 1
+        return start, end
+
+    def _textobj_quote(self, quote: str, include_quote: bool):
+        pos = self._get_pos()
+        line, _ = self.editor.getCursorPosition()
+        line_start = self.editor.SendScintilla(
+            self.editor.SCI_POSITIONFROMLINE, line
+        )
+        line_text = self.editor.text(line)
+        col_in_line = pos - line_start
+
+        left_idx = -1
+        for i in range(col_in_line - 1, -1, -1):
+            if line_text[i] == quote:
+                left_idx = i
+                break
+
+        right_idx = -1
+        for i in range(col_in_line, len(line_text)):
+            if line_text[i] == quote:
+                right_idx = i
+                break
+
+        if left_idx < 0 or right_idx < 0:
+            return None, None
+
+        if include_quote:
+            return (line_start + left_idx, line_start + right_idx + 1)
+        return (line_start + left_idx + 1, line_start + right_idx)
+
+    def _textobj_bracket(self, open_ch: str, close_ch: str,
+                          include_bracket: bool):
+        pos = self._get_pos()
+        length = self._get_length()
+
+        depth = 0
+        open_pos = -1
+        for i in range(pos, -1, -1):
+            ch = chr(self.editor.SendScintilla(
+                self.editor.SCI_GETCHARAT, i
+            ))
+            if ch == close_ch:
+                depth += 1
+            elif ch == open_ch:
+                depth -= 1
+                if depth < 0:
+                    open_pos = i
+                    break
+        if open_pos < 0:
+            return None, None
+
+        depth = 0
+        close_pos = -1
+        for i in range(open_pos, length):
+            ch = chr(self.editor.SendScintilla(
+                self.editor.SCI_GETCHARAT, i
+            ))
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    close_pos = i
+                    break
+        if close_pos < 0:
+            return None, None
+
+        if include_bracket:
+            return open_pos, close_pos + 1
+        return open_pos + 1, close_pos
+
+    def _apply_operator(self, op: str, start: int, end: int):
+        if start is None or end is None or start >= end:
+            return
+
+        text = self.editor.text()[start:end]
+        reg = self._pending_register or '"'
+        if reg:
+            self.registers[reg] = text
+            self.registers['"'] = text
+            self.register = text  # v3: 同步旧属性
+            self.register_is_line = False
+
+        if op == 'y':
+            self.editor.SendScintilla(self.editor.SCI_GOTOPOS, start)
+        elif op == 'd':
+            self.editor.SendScintilla(
+                self.editor.SCI_DELETERANGE, start, end - start
+            )
+        elif op == 'c':
+            self.editor.SendScintilla(
+                self.editor.SCI_DELETERANGE, start, end - start
+            )
+            self._switch_to(VimState.INSERT)
+
+    def _apply_line_operator(self, op: str):
+        line, _ = self.editor.getCursorPosition()
+        start = self.editor.SendScintilla(
+            self.editor.SCI_POSITIONFROMLINE, line
+        )
+        end = self.editor.SendScintilla(
+            self.editor.SCI_GETLINEENDPOSITION, line
+        )
+        total = self._get_length()
+        has_nl = end < total
+
+        if op == 'y':
+            end_with = end + 1 if has_nl else end
+            text = self.editor.text()[start:end_with]
+            reg = self._pending_register or '"'
+            if reg:
+                self.registers[reg] = text
+                self.registers['"'] = text
+                self.register = text  # v3: 同步旧属性
+                self.register_is_line = True
+            self.editor.SendScintilla(self.editor.SCI_GOTOPOS, start)
+        elif op == 'd':
+            del_len = end - start + (1 if has_nl else 0)
+            self.editor.SendScintilla(
+                self.editor.SCI_DELETERANGE, start, del_len
+            )
+        elif op == 'c':
+            line_text = self.editor.text(line)
+            stripped = line_text.lstrip()
+            indent = len(line_text) - len(stripped)
+            indent_bytes = len(line_text[:indent].encode('utf-8'))
+            del_start = start + indent_bytes
+            del_len = end - del_start
+            if del_len > 0:
+                self.editor.SendScintilla(
+                    self.editor.SCI_DELETERANGE, del_start, del_len
+                )
+            self.editor.SendScintilla(
+                self.editor.SCI_GOTOPOS, del_start
+            )
+            self._switch_to(VimState.INSERT)
+
+    def _indent_line(self, increase: bool):
+        if increase:
+            self.editor.SendScintilla(self.editor.SCI_TAB)
+        else:
+            self.editor.SendScintilla(self.editor.SCI_BACKTAB)
+
+    def _get_pos(self) -> int:
+        return self.editor.SendScintilla(self.editor.SCI_GETCURRENTPOS)
+
+    def _get_length(self) -> int:
+        return self.editor.SendScintilla(self.editor.SCI_GETLENGTH)
+
+    def _find_word_forward(self, pos: int) -> int:
+        length = self._get_length()
+        try:
+            new_pos = self.editor.SendScintilla(
+                self.editor.SCI_WORDRIGHT, pos, True
+            )
+        except Exception:
+            new_pos = self.editor.SendScintilla(
+                self.editor.SCI_WORDRIGHTEND, pos, True
+            )
+        return min(max(new_pos, pos + 1), length)
+
+    def _find_word_backward(self, pos: int) -> int:
+        try:
+            return self.editor.SendScintilla(
+                self.editor.SCI_WORDLEFT, pos, True
+            )
+        except Exception:
+            return self.editor.SendScintilla(
+                self.editor.SCI_WORDSTARTPOSITION, pos, True
+            )
+
+    def _find_word_end(self, pos: int) -> int:
+        return self.editor.SendScintilla(
+            self.editor.SCI_WORDENDPOSITION, pos, True
+        )
+
+    def _search_prev(self):
+        if not self.last_search:
+            return
+        pos = self.editor.SendScintilla(self.editor.SCI_GETCURRENTPOS)
+        target = self.last_search.encode('utf-8')
+        self.editor.SendScintilla(self.editor.SCI_SETTARGETSTART, 0)
+        self.editor.SendScintilla(self.editor.SCI_SETTARGETEND, pos)
+        found = self.editor.SendScintilla(
+            self.editor.SCI_SEARCHINTARGET, len(target), target
+        )
+        if found >= 0:
+            last_found = found
+            while found >= 0:
+                last_found = found
+                self.editor.SendScintilla(
+                    self.editor.SCI_SETTARGETSTART, found + 1
+                )
+                self.editor.SendScintilla(
+                    self.editor.SCI_SETTARGETEND, pos
+                )
+                found = self.editor.SendScintilla(
+                    self.editor.SCI_SEARCHINTARGET,
+                    len(target), target
+                )
+            self.editor.SendScintilla(
+                self.editor.SCI_GOTOPOS, last_found
+            )
+
 
     def _handle_command(self, key, text, modifiers) -> bool:
         """处理命令模式"""
@@ -416,41 +754,48 @@ class VimMode(QObject):
         self.status_message.emit("已复制行")
 
     def _paste_after(self):
-        if not self.register:
+        # v3: 统一从 self.registers['"'] 读
+        # 原实现读 self.register，但 v2 起 yank 写入 registers['"']，
+        # 导致 yy 后 p 无效。
+        text = self.registers.get('"') or self.register
+        if not text:
             return
-        if self.register_is_line:
+        if self.register_is_line or text.endswith('\n'):
+            # 行粘贴：在下一行插入
             line, _ = self.editor.getCursorPosition()
             end = self.editor.SendScintilla(
                 self.editor.SCI_GETLINEENDPOSITION, line
             )
             self.editor.SendScintilla(
                 self.editor.SCI_INSERTTEXT, end,
-                ("\n" + self.register).encode('utf-8')
+                ("\n" + text.rstrip('\n')).encode('utf-8')
             )
         else:
             pos = self.editor.SendScintilla(self.editor.SCI_GETCURRENTPOS)
             self.editor.SendScintilla(
                 self.editor.SCI_INSERTTEXT, pos + 1,
-                self.register.encode('utf-8')
+                text.encode('utf-8')
             )
 
     def _paste_before(self):
-        if not self.register:
+        # v3: 统一从 self.registers['"'] 读
+        text = self.registers.get('"') or self.register
+        if not text:
             return
-        if self.register_is_line:
+        if self.register_is_line or text.endswith('\n'):
             line, _ = self.editor.getCursorPosition()
             start = self.editor.SendScintilla(
                 self.editor.SCI_POSITIONFROMLINE, line
             )
             self.editor.SendScintilla(
                 self.editor.SCI_INSERTTEXT, start,
-                (self.register + "\n").encode('utf-8')
+                (text.rstrip('\n') + "\n").encode('utf-8')
             )
         else:
             pos = self.editor.SendScintilla(self.editor.SCI_GETCURRENTPOS)
             self.editor.SendScintilla(
                 self.editor.SCI_INSERTTEXT, pos,
-                self.register.encode('utf-8')
+                text.encode('utf-8')
             )
 
     def _open_line_below(self):
@@ -478,17 +823,24 @@ class VimMode(QObject):
         self.editor.setCursorPosition(max(0, line + dy), max(0, col + dx))
 
     def _move_word_forward(self):
+        # A2: 用 SCI_WORDRIGHT 替代不存在的 SCI_WORDRIGHTPOSITION
+        # （Scintilla 没有 SCI_WORDRIGHTPOSITION，PyQt5 也不导出）
         pos = self.editor.SendScintilla(self.editor.SCI_GETCURRENTPOS)
-        new_pos = self.editor.SendScintilla(
-            self.editor.SCI_WORDENDPOSITION, pos, True
-        )
-        if new_pos <= pos:
-            self.editor.SendScintilla(
-                self.editor.SCI_WORDRIGHTPOSITION, pos, True
+        # 优先用 SCI_WORDRIGHT 一步到位
+        try:
+            new_pos = self.editor.SendScintilla(
+                self.editor.SCI_WORDRIGHT, pos, True
             )
-        else:
+        except Exception:
+            # 回退：用 WORDRIGHTEND 再走一步
+            new_pos = self.editor.SendScintilla(
+                self.editor.SCI_WORDRIGHTEND, pos, True
+            )
+            if new_pos <= pos:
+                new_pos = pos + 1
+        if new_pos > pos:
             self.editor.SendScintilla(
-                self.editor.SCI_WORDRIGHTPOSITION, new_pos, True
+                self.editor.SCI_GOTOPOS, new_pos
             )
 
     def _move_word_backward(self):
@@ -527,6 +879,7 @@ class VimMode(QObject):
         self.editor.setCursorPosition(line, end - start)
 
     def _search_next(self):
+        # A(v2): 从 pos+1 开始，避免命中当前匹配
         if self.last_search:
             pos = self.editor.SendScintilla(
                 self.editor.SCI_GETCURRENTPOS
@@ -535,8 +888,12 @@ class VimMode(QObject):
             length = self.editor.SendScintilla(
                 self.editor.SCI_GETLENGTH
             )
+            start = pos + 1
+            if start >= length:
+                # 循环到开头
+                start = 0
             self.editor.SendScintilla(
-                self.editor.SCI_SETTARGETSTART, pos
+                self.editor.SCI_SETTARGETSTART, start
             )
             self.editor.SendScintilla(
                 self.editor.SCI_SETTARGETEND, length
@@ -544,6 +901,18 @@ class VimMode(QObject):
             found = self.editor.SendScintilla(
                 self.editor.SCI_SEARCHINTARGET, len(target), target
             )
+            if found < 0 and start > 0:
+                # 到末尾未找到 → 从头再搜一次
+                self.editor.SendScintilla(
+                    self.editor.SCI_SETTARGETSTART, 0
+                )
+                self.editor.SendScintilla(
+                    self.editor.SCI_SETTARGETEND, start
+                )
+                found = self.editor.SendScintilla(
+                    self.editor.SCI_SEARCHINTARGET,
+                    len(target), target
+                )
             if found >= 0:
                 self.editor.SendScintilla(
                     self.editor.SCI_GOTOPOS, found

@@ -489,6 +489,13 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "📊 性能监控", None,
                           self._show_perf_monitor)
+        # C: Vim 模式菜单开关
+        self.vim_mode_action = QAction("Vim 模式", self)
+        self.vim_mode_action.setCheckable(True)
+        # B: Ctrl+Alt+V 在 Windows 被解释为 AltGr+V，改为 Ctrl+Shift+V
+        self.vim_mode_action.setShortcut(QKeySequence("Ctrl+Shift+V"))
+        self.vim_mode_action.toggled.connect(self._toggle_vim_mode)
+        self.tools_menu.addAction(self.vim_mode_action)
         # --- 首选项入口 ---
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "⚙ 首选项...", "Ctrl+,",
@@ -556,8 +563,21 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             for f in sorted(os.listdir(themes_dir)):
                 if f.endswith('.json'):
                     name = os.path.splitext(f)[0]
+                    # B(主题): 菜单显示 display_name
+                    # 读取 display_name 用于展示，name 保留给回调用
+                    display = name
+                    try:
+                        import json as _json
+                        with open(
+                            os.path.join(themes_dir, f),
+                            'r', encoding='utf-8'
+                        ) as _fp:
+                            _data = _json.load(_fp)
+                        display = _data.get('display_name', name)
+                    except Exception:
+                        pass
                     self._add_action(
-                        self.theme_menu, name, None,
+                        self.theme_menu, display, None,
                         lambda checked=False, n=name:
                         self._apply_theme_by_name(n)
                     )
@@ -609,11 +629,42 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
             for i in range(self.tabs.count()):
                 loader.apply(self.tabs.widget(i), theme)
-            if theme.qss:
-                self.setStyleSheet(theme.qss)
+
+            # A(主题): 用 loader.apply_qss 处理无 qss 主题
+            # 原实现只在 `if theme.qss:` 时才 setStyleSheet，而
+            # themes/*.json 里都没有 qss 字段，导致 QSS 从未应用。
+            # apply_qss 会在 qss 为空时从 colors 生成 QSS。
+            try:
+                from PyQt5.QtWidgets import QApplication
+                _app = QApplication.instance()
+                if _app is not None:
+                    loader.apply_qss(_app, theme)
+                    # 有些 QSS 选择器（QMainWindow 等）需要重设
+                    _app.setStyleSheet(_app.styleSheet())
+            except Exception as _e:
+                print(f"[Theme] apply_qss 失败: {_e}")
+                if theme.qss:
+                    self.setStyleSheet(theme.qss)
 
             # v3.0: 通知所有面板刷新样式
             loader.notify_widgets(self, theme)
+
+            # B: 遍历所有顶层窗口（含独立对话框）
+            # notify_widgets 只处理 self.findChildren，独立打开的
+            # 对话框（AI 配置、Git 提交、快捷键编辑器等）不在其中
+            try:
+                from PyQt5.QtWidgets import QApplication
+                for w in QApplication.topLevelWidgets():
+                    if w is self:
+                        continue
+                    fn = getattr(w, 'refresh_theme', None)
+                    if callable(fn):
+                        try:
+                            fn(theme)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
             # 持久化
             from PyQt5.QtCore import QSettings
@@ -1378,6 +1429,71 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 self.perf_monitor.raise_()
         except Exception as e:
             self._show_error("性能监控失败", str(e))
+
+    # VimMode 实例（增强：信号连接 + setFocus）
+    def _toggle_vim_mode(self, checked: bool):
+        """切换 Vim 模式
+
+        为当前编辑器附加/移除 VimMode 实例。
+        """
+        try:
+            from core.vim_mode import VimMode
+
+            proxy = self.tabs.current_proxy()
+            if not proxy or not proxy.sc:
+                self.status_bar.showMessage("没有活动的编辑器", 2000)
+                self.vim_mode_action.setChecked(False)
+                return
+
+            editor = proxy.sc
+
+            if checked:
+                vim = getattr(editor, '_vim_mode', None)
+                if vim is None:
+                    vim = VimMode(editor)
+                    editor._vim_mode = vim
+
+                # 首次创建时连接信号（状态栏显示模式）
+                if not getattr(vim, '_signal_connected', False):
+                    try:
+                        vim.status_message.connect(
+                            lambda msg:
+                            self.status_bar.showMessage(msg, 2000)
+                            if msg else None
+                        )
+                        vim.state_changed.connect(
+                            lambda st:
+                            self.status_bar.showMessage(
+                                f"Vim: {st}", 1500
+                            )
+                        )
+                        vim._signal_connected = True
+                    except Exception:
+                        pass
+
+                vim.set_enabled(True)
+
+                # 焦点给编辑器，否则按键进不来
+                try:
+                    editor.setFocus()
+                except Exception:
+                    pass
+
+                # A: 缩短启用提示，避免覆盖 VimMode 的状态显示
+                # 原来显示 4000ms，会盖住 VimMode 的 "-- 普通 --"
+                self.status_bar.showMessage("Vim 模式已启用", 1500)
+                print("[MainWindow] Vim 模式已启用")
+            else:
+                vim = getattr(editor, '_vim_mode', None)
+                if vim is not None:
+                    vim.set_enabled(False)
+                self.status_bar.showMessage("Vim 模式已禁用", 2000)
+                print("[MainWindow] Vim 模式已禁用")
+        except Exception as e:
+            print(f"[MainWindow] Vim 切换失败: {e}")
+            import traceback
+            traceback.print_exc()
+            self.status_bar.showMessage(f"Vim 切换失败: {e}", 3000)
 
     def _export_config(self):
         """导出配置"""

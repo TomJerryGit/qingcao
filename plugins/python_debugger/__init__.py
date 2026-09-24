@@ -15,15 +15,16 @@ class Plugin(PluginBase):
     def on_activate(self):
         self.api.log("Python 调试器插件已激活")
 
+        # C3: 避开主窗口的 F5（插入日期时间）
         self.api.add_menu(
             "工具/Python 调试/运行当前文件",
             self.run_current,
-            shortcut="F5"
+            shortcut="F6"
         )
         self.api.add_menu(
             "工具/Python 调试/调试当前文件 (pdb)",
             self.debug_current,
-            shortcut="F6"
+            shortcut="F7"
         )
         self.api.add_menu(
             "工具/Python 调试/带参数运行...",

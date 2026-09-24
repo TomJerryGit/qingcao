@@ -1447,6 +1447,36 @@ class PythonConsole(QDockWidget):
     # ========================================================
     # 调试
     # ========================================================
+    # D: PythonConsole 主题刷新
+    def refresh_theme(self, theme):
+        """主题变更时刷新样式"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+
+            if not hasattr(self, '_original_qss'):
+                self._original_qss = self.styleSheet()
+                self._original_output_qss = (
+                    self.output.styleSheet() if self.output else ""
+                )
+                self._original_input_qss = (
+                    self.input_edit.styleSheet() if self.input_edit else ""
+                )
+
+            if self._original_qss:
+                self.setStyleSheet(
+                    adapt_qss_colors(self._original_qss, theme)
+                )
+            if self.output and self._original_output_qss:
+                self.output.setStyleSheet(
+                    adapt_qss_colors(self._original_output_qss, theme)
+                )
+            if self.input_edit and self._original_input_qss:
+                self.input_edit.setStyleSheet(
+                    adapt_qss_colors(self._original_input_qss, theme)
+                )
+        except Exception as e:
+            print(f"[PythonConsole] refresh_theme 失败: {e}")
+
     def dump(self) -> str:
         """导出控制台信息"""
         lines = ["PythonConsole", "=" * 60]

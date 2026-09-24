@@ -59,10 +59,11 @@ class Plugin(PluginBase):
         self.api.log("Markdown 预览插件已激活")
         self._panel = None
 
+        # C2: 避开主窗口的 Ctrl+Shift+M（回放宏）
         self.api.add_menu(
             "视图/Markdown 预览",
             self.toggle_preview,
-            shortcut="Ctrl+Shift+M"
+            shortcut="Ctrl+Alt+M"
         )
 
         # 定时刷新

@@ -644,7 +644,11 @@ def adapt_qss_colors(qss: str, theme) -> str:
         return qss
 
     # 老深色 → 主题色（按优先级，先长后短）
+    #
+    # A: 补充终端/控制台/次要文字等颜色
+    # 顺序重要：6 位色必须在 3 位色之前，避免误伤
     replacements = [
+        # ==== 原表 ====
         ('#252526', c.panel_bg),
         ('#1e1e1e', c.background),
         ('#2d2d2d', c.menubar_bg),
@@ -664,6 +668,24 @@ def adapt_qss_colors(qss: str, theme) -> str:
         ('#f14c4c', c.error),
         ('#f0ad4e', c.warning),
         ('#4dabf7', c.info),
+
+        # ==== A: 补充 ====
+        # 终端/控制台背景（关键）
+        ('#0d0d0d', c.background),
+        # 目录树 hover
+        ('#2a2d2e', c.panel_bg),
+        # 面板变体
+        ('#333333', c.panel_bg),
+        ('#4c4c4c', c.border),
+        # 次要文字
+        ('#858585', c.line_number_fg),
+        ('#808080', c.line_number_fg),
+        ('#c0c0c0', c.tab_fg),
+        # 缩进辅助线
+        ('#404040', c.indent_guide),
+        # 禁用/危险按钮
+        ('#5a5a5a', c.border),
+        ('#8f1e1e', c.error),
     ]
 
     for old, new in replacements:

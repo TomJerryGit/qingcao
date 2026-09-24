@@ -1029,9 +1029,11 @@ class Plugin(PluginBase):
     # --------------------------------------------------------
     def _register_menus(self):
         """注册菜单项"""
+        # C1: 避开主窗口的 Ctrl+Shift+E / Ctrl+Shift+R
         menu_items = [
-            ("工具/AI 助手/💡 解释代码", self._on_explain, "Ctrl+Shift+E"),
-            ("工具/AI 助手/🔧 重构代码", self._on_refactor, "Ctrl+Shift+R"),
+            ("工具/AI 助手/💡 解释代码", self._on_explain, "Ctrl+Alt+E"),
+            ("工具/AI 助手/🔧 重构代码", self._on_refactor,
+             "Ctrl+Alt+Shift+R"),
             ("工具/AI 助手/🐛 修复 Bug", self._on_fix, None),
             ("工具/AI 助手/💬 添加注释", self._on_comment, None),
             ("工具/AI 助手/📖 生成 Docstring", self._on_docstring, None),
@@ -1088,8 +1090,8 @@ class Plugin(PluginBase):
         """注册快捷键"""
         shortcuts = [
             ("Ctrl+Shift+A", self._show_ai_menu),
-            ("Ctrl+Shift+E", self._on_explain),
-            ("Ctrl+Shift+R", self._on_refactor),
+            ("Ctrl+Alt+E", self._on_explain),
+            ("Ctrl+Alt+Shift+R", self._on_refactor),
         ]
 
         for key, callback in shortcuts:

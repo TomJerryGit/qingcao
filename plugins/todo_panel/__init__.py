@@ -237,10 +237,11 @@ class Plugin(PluginBase):
         self.api.log("TODO 面板插件已激活")
         self._panel = TodoPanel(self.api.win)
 
+        # C4: 避开主窗口的 Ctrl+Shift+T（恢复标签）
         self.api.add_menu(
             "视图/TODO 面板",
             self.show_panel,
-            shortcut="Ctrl+Shift+T"
+            shortcut="Ctrl+Alt+T"
         )
 
     def on_deactivate(self):

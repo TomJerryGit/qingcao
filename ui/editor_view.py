@@ -280,6 +280,31 @@ class EditorWidget(QsciScintilla):
         self.setAutoCompletionCaseSensitivity(False)
         self.setAutoCompletionReplaceWord(False)
 
+        # B: 禁用 QScintilla 内置 Ctrl+Z/Ctrl+Y 快捷键
+        # 原因:
+        #   EditorProxy 禁用了 Scintilla 内置 undo 栈，改用自己的
+        #   undo_manager。但 QScintilla 默认仍响应 Ctrl+Z/Ctrl+Y
+        #   按键，执行"内置 undo"（空操作），并吃掉按键 —— 导致
+        #   主窗口菜单的撤销/重做快捷键收不到。
+        # 解决:
+        #   把 Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z 的内置绑定清除。
+        try:
+            from PyQt5.QtCore import Qt as _Qt
+            for _key, _mod in [
+                (_Qt.Key_Z, _Qt.ControlModifier),
+                (_Qt.Key_Y, _Qt.ControlModifier),
+                (_Qt.Key_Z, _Qt.ControlModifier | _Qt.ShiftModifier),
+            ]:
+                try:
+                    self.SendScintilla(
+                        QsciScintilla.SCI_CLEARCMDKEY,
+                        _key + (_mod << 16),
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def _init_indicators(self):
         """初始化指示器"""
         try:
@@ -444,6 +469,16 @@ class EditorWidget(QsciScintilla):
         - Esc 清除多光标
         - 代码片段触发
         """
+        # Vim 模式：优先让 VimMode 处理
+        # （VimMode.handle_key 返回 True 表示已消化，直接 return）
+        vim = getattr(self, '_vim_mode', None)
+        if vim is not None and getattr(vim, 'enabled', False):
+            try:
+                if vim.handle_key(event):
+                    return
+            except Exception as e:
+                print(f"[EditorWidget] VimMode 处理失败: {e}")
+
         key = event.key()
         text = event.text()
         modifiers = event.modifiers()

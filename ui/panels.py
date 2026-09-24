@@ -775,6 +775,19 @@ class SearchBar(QToolBar):
     # --------------------------------------------------------
     # 调试
     # --------------------------------------------------------
+    # C: SearchBar 主题刷新
+    def refresh_theme(self, theme):
+        """主题变更时刷新样式"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            if not hasattr(self, '_original_qss') or not self._original_qss:
+                self._original_qss = self.styleSheet()
+            if self._original_qss:
+                qss = adapt_qss_colors(self._original_qss, theme)
+                self.setStyleSheet(qss)
+        except Exception as e:
+            print(f"[SearchBar] refresh_theme 失败: {e}")
+
     def dump(self) -> str:
         """导出搜索栏信息"""
         lines = ["SearchBar", "=" * 60]
