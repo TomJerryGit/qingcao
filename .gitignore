@@ -92,3 +92,8 @@ session.json
 keybindings.json
 crash.log
 *.crash.log
+
+# R3 修复：忽略所有 *.bak.* 备份
+*.bak.*
+*.bak
+*.tmp
