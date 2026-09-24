@@ -150,6 +150,14 @@ class ThemeMarketClient:
             print(f"[ThemeMarket] 读取本地兜底失败: {e}")
             return None
 
+    def clear_cache(self):
+        """P2-C3: 加 clear_cache 公开方法。
+
+        原来外部直接访问 client._cache = None，破坏封装。
+        """
+        self._cache = None
+        self._cache_time = 0.0
+
     def list_installed_themes(self) -> List[str]:
         """列出本地已安装主题（themes/*.json 的 name 字段）"""
         themes_dir = os.path.join(
@@ -763,12 +771,14 @@ class ThemeMarketDialog(QDialog):
         else:
             self._settings.remove("registry_url")
             self.client.registry_url = DEFAULT_MARKET_URL
-        self.client._cache = None
+        # P2-C3: 用公开方法
+        self.client.clear_cache()
         self._load(force=True)
 
     def _on_reset_url(self):
         self.url_edit.clear()
         self._settings.remove("registry_url")
         self.client.registry_url = DEFAULT_MARKET_URL
-        self.client._cache = None
+        # P2-C3: 用公开方法
+        self.client.clear_cache()
         self._load(force=True)

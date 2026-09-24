@@ -1405,8 +1405,26 @@ class OutlinePanel(QDockWidget):
                 self._current_filepath = filepath
                 self._current_language = language
 
-                text = (proxy.get_text() if hasattr(proxy, 'get_text')
-                        else proxy.sc.text())
+                # P2-C6: 限制读取行数
+                # 原实现直接 proxy.get_text()，100MB 文件会
+                # 卡住主线程几秒甚至 OOM。
+                MAX_LINES_READ = 50000
+                text = ""
+                try:
+                    sc = getattr(proxy, 'sc', None)
+                    if sc is not None:
+                        total = sc.SendScintilla(sc.SCI_GETLINECOUNT)
+                        n = min(MAX_LINES_READ, total)
+                        lines = [sc.text(i) for i in range(n)]
+                        text = "\n".join(lines)
+                    else:
+                        text = proxy.get_text()
+                except Exception:
+                    try:
+                        text = proxy.get_text()[:500_000]
+                    except Exception:
+                        text = ""
+
                 self._current_symbols = self.parser.parse(
                     text, language, filepath
                 )

@@ -938,7 +938,10 @@ class ThemeLoader(QObject):
             )
 
             # ============ 通过 Scintilla API 设置更多样式 ============
-            self._apply_scintilla_styles(editor, colors)
+            # P2-C9: 删除对 no-op 方法的调用
+            # _apply_scintilla_styles 已改为 no-op（见方法内注释），
+            # 调用它没有意义，反而增加阅读负担。
+            # 颜色已由 apply() 中的高层 API 设置。
 
             # ============ 词法器颜色 ============
             lexer = editor.lexer()

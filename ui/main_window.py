@@ -505,8 +505,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         self._add_action(self.help_menu, "⌨ 快捷键参考", None,
                           self._show_shortcuts)
-        self._add_action(self.help_menu, "💡 每日技巧", None,
-                          self._show_daily_tip)
+        # P2-C4: manual 参数
+        self._add_action(
+            self.help_menu, "💡 每日技巧", None,
+            lambda checked=False: self._show_daily_tip(manual=True)
+        )
         self.help_menu.addSeparator()
         self._add_action(self.help_menu, "📖 在线文档", None,
                           self._show_online_docs)
@@ -910,6 +913,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.gsearch = GlobalSearchPanel(self)
             self.gsearch.match_activated.connect(
                 self._on_search_match_activated
+            )
+            # P2-C5: 连接 replace_requested
+            # 原实现只连 match_activated，"全部替换"按钮点了没反应。
+            self.gsearch.replace_requested.connect(
+                self._on_global_replace
             )
             self.addDockWidget(Qt.BottomDockWidgetArea, self.gsearch)
             self.gsearch.hide()
@@ -1437,12 +1445,13 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         dlg.exec_()
 
-    def _show_daily_tip(self):
+    def _show_daily_tip(self, manual: bool = False):
         """
         显示每日技巧。
 
         P2-8: 一天只显示一次（基于 QSettings 记录日期）。
-        菜单手动点击同样受此限制（"每日"语义）。
+        P2-C4: manual=True 时（菜单手动点击）跳过日期限制，
+               否则用户当天已自动弹过，手动点击就没反应了。
         """
         try:
             import datetime
@@ -1451,8 +1460,9 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             today = datetime.date.today().isoformat()
 
             last_date = settings.value("last_tip_date", "", type=str)
-            if last_date == today:
-                return  # 今天已弹过
+            # P2-C4: manual 参数
+            if not manual and last_date == today:
+                return  # 今天已弹过，且是自动触发
 
             # 标记今天已弹
             settings.setValue("last_tip_date", today)
@@ -1650,6 +1660,79 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 proxy.sc.ensureLineVisible(line - 1)
         except Exception as e:
             print(f"[MainWindow] 搜索跳转失败: {e}")
+
+    def _on_global_replace(self, pattern: str, replace_text: str,
+                            file_results: dict):
+        """P2-C5: 全局搜索 → 全部替换。
+
+        参数:
+            pattern: 搜索模式
+            replace_text: 替换文本
+            file_results: {filepath: [SearchMatch, ...]}
+        """
+        if not pattern or not file_results:
+            return
+
+        try:
+            from core.search import (
+                SearchOptions, SearchEngine, ReplaceEngine
+            )
+            from core.content_provider import LocalFileProvider
+
+            total = 0
+            abs_paths = set()
+
+            for filepath in file_results:
+                abs_paths.add(os.path.abspath(filepath))
+                try:
+                    provider = LocalFileProvider()
+                    provider.open(filepath)
+                    try:
+                        options = SearchOptions(pattern=pattern)
+                        engine = SearchEngine(provider, options)
+                        result = engine.search()
+                        if result.is_empty:
+                            continue
+
+                        replace_engine = ReplaceEngine(provider)
+                        n = replace_engine.replace_all(
+                            result, replace_text,
+                            is_regex=options.is_regex,
+                            pattern=pattern,
+                        )
+                        provider.save(filepath)
+                        total += n
+                    finally:
+                        provider.close()
+                except Exception as e:
+                    print(f"[MainWindow] 替换 {filepath} 失败: {e}")
+
+            # 刷新已打开的受影响文件
+            for i in range(self.tabs.count()):
+                w = self.tabs.widget(i)
+                if not hasattr(w, 'proxy') or not w.proxy:
+                    continue
+                fp = None
+                try:
+                    if w.proxy.document:
+                        fp = w.proxy.document.filepath
+                except Exception:
+                    pass
+                if fp and os.path.abspath(fp) in abs_paths:
+                    try:
+                        if w.proxy.document:
+                            w.proxy.document.reload()
+                        if w.proxy.sc and w.proxy.document:
+                            w.proxy.sc.setText(
+                                w.proxy.document.get_text()
+                            )
+                    except Exception:
+                        pass
+
+            self.status_bar.showMessage(f"已替换 {total} 处", 3000)
+
+        except Exception as e:
+            print(f"[MainWindow] 全局替换失败: {e}")
 
     # ========================================================
     # 标签切换辅助

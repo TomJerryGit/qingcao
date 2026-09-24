@@ -9,7 +9,8 @@
 
 本文件为全局事件总线模块，包含：
 - 所有强类型事件数据类（dataclass）
-- 事件总线类（基于 PySide6 pyqtSignal）
+- 事件总线类（基于 PyQt5 pyqtSignal）
+# P2-C9: 已从 PySide6 迁移到 PyQt5
 - 全局单例实例
 - 事件发布/订阅辅助方法
 - 事件历史记录

@@ -29,56 +29,48 @@ class UsageStatsDialog(QDialog):
         self._populate()
 
     def _load_stats(self):
-        """加载统计数据"""
-        result = {
-            'basic': {},
-            'file_types': {},
-            'hourly': {},
-            'daily': {},
-            'features': {},
+        """加载统计数据。
+
+        P2-C2: 复用 core.usage_stats
+
+        原实现自己读 telemetry / session / local_completer，
+        字段名和口径与 core.usage_stats 不一致，两处显示可能
+        不同。统一走 core.usage_stats.get_snapshot()。
+        """
+        empty = {
+            'basic': {}, 'file_types': {},
+            'hourly': {}, 'daily': {}, 'features': {},
         }
 
-        # 从 telemetry 加载
         try:
-            from core.telemetry import get_telemetry
-            telemetry = get_telemetry()
-            result['basic'] = telemetry.get_stats()
-        except Exception:
-            pass
+            from core.usage_stats import get_usage_stats
+            snap = get_usage_stats().get_snapshot(force=True)
 
-        # 从 session 历史加载
-        try:
-            if os.path.exists('session.json'):
-                with open('session.json', 'r', encoding='utf-8') as f:
-                    session = json.load(f)
-
-                # 文件类型统计
-                for finfo in session.get('files', []):
-                    fp = finfo.get('filepath') or ''
-                    if fp:
-                        ext = os.path.splitext(fp)[1].lower()
-                        if ext:
-                            result['file_types'][ext] = \
-                                result['file_types'].get(ext, 0) + 1
-        except Exception:
-            pass
-
-        # 从全局词频统计加载
-        try:
-            from core.local_completer import get_local_completer
-            completer = get_local_completer()
-            if completer:
-                # 最近使用
-                result['features']['最近使用的词数'] = len(
-                    completer.recent_words
-                )
-                result['features']['词频库大小'] = len(
-                    completer.word_freq
-                )
-        except Exception:
-            pass
-
-        return result
+            return {
+                'basic': {
+                    'first_run': snap.first_run,
+                    'last_run': snap.last_run,
+                    'run_count': snap.run_count,
+                    'files_opened': snap.files_opened,
+                    'files_saved': snap.files_saved,
+                    'searches_run': snap.searches_run,
+                    'plugins_loaded': snap.plugins_loaded,
+                    'features_used': snap.features_used,
+                },
+                'file_types': dict(snap.files_by_ext),
+                'hourly': dict(snap.hourly_activity),
+                'daily': dict(snap.daily_activity),
+                'features': {
+                    '最近使用的词数': snap.recent_words_count,
+                    '词频库大小': snap.word_freq_size,
+                },
+            }
+        except ImportError as e:
+            print(f"[UsageStatsDialog] core.usage_stats 不可用: {e}")
+            return empty
+        except Exception as e:
+            print(f"[UsageStatsDialog] 加载统计失败: {e}")
+            return empty
 
     def _build_ui(self):
         layout = QVBoxLayout(self)

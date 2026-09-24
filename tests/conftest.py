@@ -131,8 +131,9 @@ def tmp_dir():
 # ============================================================
 # 隔离的核心对象
 # ============================================================
+# P2-C7: monkeypatch 未使用，已移除
 @pytest.fixture
-def preferences(qapp, tmp_path, monkeypatch):
+def preferences(qapp, tmp_path):
     """隔离的 Preferences 实例（不污染用户真实设置）"""
     # 强制使用 IniFormat + 临时目录
     from PyQt5.QtCore import QSettings
