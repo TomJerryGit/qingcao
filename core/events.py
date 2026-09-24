@@ -482,6 +482,8 @@ class SearchEvent(BaseEvent):
 class SearchStartedEvent(SearchEvent):
     """搜索开始"""
     event_type: ClassVar[EventType] = EventType.SEARCH_STARTED
+    # B1a: scope 字段（event_bus 独有）
+    scope: str = "current"
     directory: str = ""
     file_filter: str = "*.*"
 
