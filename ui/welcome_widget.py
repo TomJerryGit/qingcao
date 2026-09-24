@@ -689,25 +689,31 @@ class StatsPanel(QWidget):
         layout.addLayout(grid)
 
     def _load_stats(self):
-        """加载统计数据"""
+        """加载统计数据。
+
+        P1-B6: 改用 core.usage_stats
+
+        原实现读取 data/onboarding.json，但该文件从未被任何
+        模块写入，导致统计面板永远显示 0。改用统一的
+        core.usage_stats（数据源：telemetry / session /
+        local_completer）。
+        """
         try:
-            path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "data", "onboarding.json"
+            from core.usage_stats import get_usage_stats
+            snap = get_usage_stats().get_snapshot()
+
+            self.update_stat("saves", int(snap.files_saved))
+            self.update_stat("files_opened", int(snap.files_opened))
+            # lines_edited：用累计编辑时长（秒）近似
+            self.update_stat(
+                "lines_edited", int(snap.total_edit_time)
             )
-
-            if os.path.exists(path):
-                import json
-                with open(path, 'r', encoding='utf-8') as f:
-                    stats = json.load(f)
-
-                self.update_stat("saves", stats.get('saves', 0))
-                self.update_stat("files_opened",
-                                  stats.get('files_opened', 0))
-                self.update_stat("lines_edited",
-                                  stats.get('lines_edited', 0))
-                self.update_stat("macros_used",
-                                  stats.get('macros_used', 0))
+            # macros_used：用加载插件数近似
+            self.update_stat(
+                "macros_used", int(snap.plugins_loaded)
+            )
+        except ImportError as e:
+            print(f"[StatsPanel] core.usage_stats 不可用: {e}")
         except Exception as e:
             print(f"[StatsPanel] 加载统计失败: {e}")
 

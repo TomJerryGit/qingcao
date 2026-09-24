@@ -135,6 +135,12 @@ class GitBranchLabel(ClickableLabel):
         super().__init__("", parent, "点击打开 Git 面板")
 
     def mousePressEvent(self, event):
+        # P1-B7: 阻止 super() 触发 clicked
+        # 基类 ClickableLabel.mousePressEvent 会 emit self.clicked，
+        # 如果这里也调 super()，一次点击会触发 clicked + git_clicked
+        # 两个信号。
         if event.button() == Qt.LeftButton and self.text():
             self.git_clicked.emit()
+            event.accept()
+            return
         super().mousePressEvent(event)

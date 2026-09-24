@@ -818,8 +818,13 @@ class PluginSandbox(QObject):
                 # 关闭子进程端（父进程不用）
                 self._child_conn.close()
 
-                # 启动接收线程
+                # 启动接收线程（唯一读 Pipe 的线程）
                 self._stop_receiver.clear()
+
+                # P1-A2: 用 Event 代替主线程直接 poll/recv
+                self._ready_event = threading.Event()
+                self._ready_ok = False
+
                 self._receiver_thread = threading.Thread(
                     target=self._receiver_loop,
                     daemon=True,
@@ -827,8 +832,9 @@ class PluginSandbox(QObject):
                 )
                 self._receiver_thread.start()
 
-                # 等待就绪信号
-                ready = self._wait_for_ready(timeout=10)
+                # 主线程只等 Event（不碰 Pipe）
+                got = self._ready_event.wait(timeout=10)
+                ready = got and self._ready_ok
 
                 if ready:
                     self._set_state(SandboxState.RUNNING)
@@ -918,22 +924,25 @@ class PluginSandbox(QObject):
     # 就绪等待
     # ========================================================
     def _wait_for_ready(self, timeout: float = 10) -> bool:
-        """等待就绪信号"""
-        start = time.time()
+        """A2 已废弃主线程抢读。
 
-        while time.time() - start < timeout:
-            if not self.is_alive:
-                return False
+        P1-A2 修复说明：
+            原实现让主线程直接 poll/recv Pipe，与 _receiver_loop
+            线程竞争，导致：
+              1. 消息可能被错误线程消费（multiprocessing.Connection
+                 不是线程安全的）
+              2. 主线程吞掉 LOG 等其他消息
+              3. 停止时接收线程访问已关闭的连接 → OSError
 
-            try:
-                if self._parent_conn.poll(0.1):
-                    message = self._parent_conn.recv()
-                    if message and message.get('type') == MSG_TYPE_READY:
-                        return message.get('success', False)
-            except Exception:
-                pass
+            现改为：只有 _receiver_loop 读 Pipe，主线程通过
+            self._ready_event（threading.Event）等待。
 
-        return False
+            本方法保留为兼容入口（外部可能调用），直接等 Event。
+        """
+        if not hasattr(self, '_ready_event') or self._ready_event is None:
+            return False
+        got = self._ready_event.wait(timeout=timeout)
+        return got and getattr(self, '_ready_ok', False)
 
     # ========================================================
     # 接收循环
@@ -993,6 +1002,11 @@ class PluginSandbox(QObject):
             event_data = message.get('data', {})
             self.output_received.emit(f"event:{event_name}",
                                         str(event_data))
+
+        elif msg_type == MSG_TYPE_READY:
+            # P1-A2: 就绪信号由接收线程处理，通知主线程
+            self._ready_ok = bool(message.get('success', False))
+            self._ready_event.set()
 
         elif msg_type == MSG_TYPE_PONG:
             self._last_pong = time.time()

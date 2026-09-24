@@ -1226,9 +1226,10 @@ class TabManager(QTabWidget):
         try:
             folder = os.path.dirname(filepath)
             if sys.platform == 'win32':
+                # P1-B1: /select, 必须作为单个参数
                 subprocess.Popen(
-                    ['explorer', '/select,',
-                     filepath.replace('/', '\\')]
+                    ['explorer',
+                     f'/select,{filepath.replace("/", chr(92))}']
                 )
             elif sys.platform == 'darwin':
                 subprocess.Popen(['open', '-R', filepath])

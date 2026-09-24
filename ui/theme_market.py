@@ -718,6 +718,13 @@ class ThemeMarketDialog(QDialog):
         # 记录当前主题
         current = loader.current_theme
 
+        # P1-B8: generation counter 防止预览覆盖
+        # 用户 3 秒内连点不同主题的"预览"，多个 restore 定时器
+        # 会依次触发，把界面恢复成错误的状态。
+        # 每次预览递增 generation，只有最新的 restore 才执行。
+        self._preview_gen = getattr(self, '_preview_gen', 0) + 1
+        gen = self._preview_gen
+
         # 临时应用
         try:
             for i in range(self.main_window.tabs.count()):
@@ -727,9 +734,14 @@ class ThemeMarketDialog(QDialog):
 
             # 3 秒后恢复
             def restore():
+                # 有更新的预览请求 → 跳过本次恢复
+                if getattr(self, '_preview_gen', 0) != gen:
+                    return
                 if current:
                     for i in range(self.main_window.tabs.count()):
-                        loader.apply(self.main_window.tabs.widget(i), current)
+                        loader.apply(
+                            self.main_window.tabs.widget(i), current
+                        )
                     if current.qss:
                         self.main_window.setStyleSheet(current.qss)
 

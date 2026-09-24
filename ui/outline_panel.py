@@ -906,17 +906,32 @@ class SymbolParser:
         return root_symbols
 
     def _compute_end_lines(self, symbols: List[SymbolNode]):
-        """计算每个符号的结束行"""
+        """计算每个符号的结束行。
+
+        修复说明（P1-B2）:
+            原实现只看"下一个符号的缩进"：
+              - 有子节点的符号，end_line 被设为子节点起始行（错）
+              - 最后一个符号 end_line = 自己起始行（错）
+            结果：跟随光标高亮时命中错误的符号。
+
+            修复：向后扫描第一个缩进 <= 自己的符号，
+                 其前一行为自己的 end_line。最后一个符号延伸
+                 到文件最末符号的位置。
+        """
+        if not symbols:
+            return
+
+        # P1-B2: 计算 end_line 的正确方式
+        max_line = max(s.line for s in symbols)
+        n = len(symbols)
+
         for i, symbol in enumerate(symbols):
-            if i + 1 < len(symbols):
-                next_symbol = symbols[i + 1]
-                # 如果下一个符号的缩进大于当前，则作为子节点，不算结束
-                if next_symbol.indent > symbol.indent:
-                    symbol.end_line = next_symbol.line
-                else:
-                    symbol.end_line = next_symbol.line - 1
-            else:
-                symbol.end_line = symbol.line
+            end_line = max_line
+            for j in range(i + 1, n):
+                if symbols[j].indent <= symbol.indent:
+                    end_line = symbols[j].line - 1
+                    break
+            symbol.end_line = max(symbol.line, end_line)
 
 
 # ============================================================
@@ -1330,6 +1345,26 @@ class OutlinePanel(QDockWidget):
         try:
             bus.cursor_moved.connect(self._on_cursor_moved)
             bus.file_opened.connect(self._on_file_opened)
+            # P1-B3: 监听文本变化，强制刷新大纲
+            # 原实现只监听 file_opened，同一文件编辑后不刷新。
+            try:
+                bus.file_modified.connect(self._on_file_modified)
+                bus.file_saved.connect(self._on_file_modified)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_file_modified(self, event):
+        """文件内容变化 → 强制重新解析。
+
+        P1-B3 修复：
+            直接把 _current_filepath 置空，让 _do_update 中的
+            "filepath != _current_filepath" 分支触发重新解析。
+        """
+        try:
+            self._current_filepath = None
+            self.schedule_update()
         except Exception:
             pass
 

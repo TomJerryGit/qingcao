@@ -635,10 +635,12 @@ class EditorWidget(QsciScintilla):
         # 计算行首缩进的字节长度
         indent_bytes = len(line_text[:indent].encode('utf-8'))
 
-        if col > indent:
+        # P1-B4: col 是字节偏移，必须与 indent_bytes 比较（而非字符数 indent）
+        # 否则全角空格（U+3000，UTF-8 下 3 字节）行为异常
+        if col > indent_bytes:
             # 跳到行首非空白
             target = line_start + indent_bytes
-        elif col == indent and indent > 0:
+        elif col == indent_bytes and indent_bytes > 0:
             # 跳到绝对行首
             target = line_start
         elif col == 0:

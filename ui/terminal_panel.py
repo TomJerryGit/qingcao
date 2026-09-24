@@ -16,6 +16,12 @@ from PyQt5.QtGui import QFont, QColor
 class TerminalPanel(QDockWidget):
     """集成终端面板"""
 
+    # P1-B5: 子线程通过信号转发输出
+    # Qt 不允许从非主线程访问 QWidget，原实现 _read_output 在
+    # 子线程里直接调 _append_output（QPlainTextEdit.textCursor 等），
+    # 轻则渲染错乱，重则进程崩溃。
+    _output_signal = pyqtSignal(str)
+
     def __init__(self, main_window=None, parent=None):
         super().__init__("终端", parent or main_window)
         self.main_window = main_window
@@ -27,6 +33,9 @@ class TerminalPanel(QDockWidget):
 
         self._build_ui()
         self._apply_style()
+
+        # P1-B5: 连接信号（跨线程安全）
+        self._output_signal.connect(self._append_output)
 
     def _build_ui(self):
         container = QWidget()
@@ -205,13 +214,17 @@ class TerminalPanel(QDockWidget):
             )
 
     def _read_output(self):
-        """读取输出"""
+        """读取输出（子线程）
+
+        P1-B5: 通过信号转发，不直接操作 QWidget。
+        """
         try:
             while self.process and self.process.poll() is None:
                 line = self.process.stdout.readline()
                 if not line:
                     break
-                self._append_output(line)
+                # 通过信号转发到主线程
+                self._output_signal.emit(line)
         except Exception:
             pass
 

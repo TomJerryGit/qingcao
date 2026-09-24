@@ -455,8 +455,11 @@ class SearchResultTree(QTreeWidget):
 
         try:
             if sys.platform == 'win32':
-                subprocess.Popen(['explorer', '/select,',
-                                   filepath.replace('/', '\\')])
+                # P1-B1: /select, 必须作为单个参数
+                subprocess.Popen(
+                    ['explorer',
+                     f'/select,{filepath.replace("/", chr(92))}']
+                )
             elif sys.platform == 'darwin':
                 subprocess.Popen(['open', '-R', filepath])
             else:

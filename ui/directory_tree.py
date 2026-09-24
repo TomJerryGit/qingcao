@@ -1431,8 +1431,14 @@ class DirectoryTree(QWidget):
         """在文件管理器中显示"""
         try:
             if sys.platform == 'win32':
-                subprocess.Popen(['explorer', '/select,',
-                                   path.replace('/', '\\')])
+                # P1-B1: /select, 必须作为单个参数
+                # 原写法 ['explorer', '/select,', path] 会打开目录
+                # 但不定位文件，因为 explorer 要求 /select,<path>
+                # 是同一个参数。
+                subprocess.Popen(
+                    ['explorer',
+                     f'/select,{path.replace("/", chr(92))}']
+                )
             elif sys.platform == 'darwin':
                 subprocess.Popen(['open', '-R', path])
             else:

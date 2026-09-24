@@ -401,8 +401,17 @@ INTERNAL_ALLOWED_MODULES: Set[str] = {
     'selectors',     # socket 内部会 import 它
     'select',        # 部分平台需要
 
-    # ---- 网络 setup（SafeFinder 自身需要 import socket）----
-    'socket', '_socket',
+    # 说明（P1-A1）：
+    #   【安全】socket 必须从白名单移除。
+    #   原因：SafeFinder.find_spec 对白名单模块直接放行（return None），
+    #         不做 policy.can_import 检查。
+    #   后果：无 network 权限的插件可以 import socket，
+    #         再通过 socket.socket() + 硬编码 IP 直接连网，
+    #         完全绕过沙箱策略。
+    #
+    #   沙箱自身需要 socket 时（install_sandbox_hooks 里给 socket
+    #   装 getaddrinfo 拦截），走的是 _ORIGINAL_IMPORT('socket')，
+    #   不经 sys.meta_path，因此不需要把它放进白名单。
 }
 
 

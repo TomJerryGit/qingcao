@@ -686,14 +686,30 @@ class LocalFileProvider(ContentProvider):
             return False
 
     def _save_dirty_blocks(self, target: str) -> bool:
-        """仅写入脏块（原地更新）"""
-        # 关闭 mmap 以释放文件锁
+        """仅写入脏块（原地更新）。
+
+        A4 修复：先释放 mmap 再开文件。
+
+        原实现在写完脏块后才 mmap.flush()，但在写入过程中
+        mmap 仍持有文件映射。Windows 上 open('r+b') 会因
+        文件被 mmap 锁定而抛 PermissionError。Linux/macOS
+        允许，但 flush 语义也不可靠。
+
+        修复流程：
+            1. 先 mmap.flush() + mmap.close()，释放文件锁
+            2. open('r+b') 写脏块
+            3. 重新建立 mmap（保持 provider 可读）
+        """
+        # ---- 1. 释放 mmap ----
         if self._mmap:
             try:
                 self._mmap.flush()
+                self._mmap.close()
             except Exception:
                 pass
+            self._mmap = None
 
+        # ---- 2. 写脏块 ----
         try:
             # 使用可写文件句柄
             with open(target, 'r+b') as f:
@@ -709,25 +725,41 @@ class LocalFileProvider(ContentProvider):
             self._state = (FileState.READONLY if self._readonly
                            else FileState.OPENED)
 
-            # 刷新 mmap
-            if self._mmap:
-                try:
-                    self._mmap.flush()
-                except Exception:
-                    pass
-
-            # 更新 mtime
+            # 更新 mtime / size
             try:
                 self._mtime = os.path.getmtime(target)
                 self._size = os.path.getsize(target)
             except Exception:
                 pass
 
+            # ---- 3. 重建 mmap ----
+            self._reopen_mmap()
+
             return True
 
         except Exception as e:
             print(f"[LocalFileProvider] 脏块保存失败: {e}")
+            # 失败时也要尽量恢复 mmap 状态
+            self._reopen_mmap()
             return False
+
+    def _reopen_mmap(self):
+        """重建 mmap（A4 新增，供 _save_dirty_blocks 内部调用）。
+
+        在关闭 mmap 写盘后调用，保持 provider 后续读操作可用。
+        """
+        if not self._file:
+            return
+        if self._size <= 0:
+            return
+        try:
+            access = (mmap.ACCESS_READ if self._readonly
+                      else mmap.ACCESS_WRITE)
+            self._mmap = mmap.mmap(
+                self._file.fileno(), 0, access=access
+            )
+        except (ValueError, OSError):
+            self._mmap = None
 
     def _save_as_full(self, target: str) -> bool:
         """另存为完整文件（原子写入）"""
