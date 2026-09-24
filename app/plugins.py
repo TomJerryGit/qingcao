@@ -116,9 +116,15 @@ class PluginAPI(QObject):
         }
     """
 
-    # 信号
-    plugin_loaded = pyqtSignal(str)
-    plugin_unloaded = pyqtSignal(str)
+    # 说明（P3-1）:
+    #   原有两个信号 plugin_loaded / plugin_unloaded 从未在
+    #   PluginAPI 内部 emit，属于死代码。PluginLoader /
+    #   PluginManager 有各自的 plugin_loaded 信号负责通知，
+    #   PluginAPI 层不需要重复。
+    #
+    #   如果第三方插件引用了 api.plugin_loaded，请在插件里
+    #   改用 from app.event_bus import bus 或直接监听
+    #   PluginLoader 的信号。
 
     def __init__(self, main_window, permissions: Optional[List[str]] = None,
                  plugin_name: str = "unknown"):

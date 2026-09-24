@@ -145,43 +145,51 @@ SAFE_BUILTINS: Set[str] = {
 # 常量：危险模块黑名单
 # ============================================================
 # 这些模块被明确禁止导入（即使有权限也不允许）
+#
+# P3-3: 移除由权限门控的冗余模块
+#   - 原实现把 socket / ssl / http / urllib / requests /
+#     aiohttp / httpx / websocket / ftplib / smtplib /
+#     telnetlib / xmlrpc 等"网络模块"放在这里。
+#     但 can_import() 里这些模块由 allow_network 权限控制，
+#     且权限分支检查在 DANGEROUS_MODULES 之前，导致
+#     这里的条目冗余。
+#   - 同理 shutil / glob / tempfile / os.path 由 filesystem
+#     权限控制；subprocess / multiprocessing 由 process 权限
+#     控制。它们都不应该出现在这里。
+#   - 保留的只有"绝对禁止"：沙箱逃逸 / 反序列化漏洞 /
+#     动态执行 / 平台内部等，无论什么权限都不允许。
 DANGEROUS_MODULES: Set[str] = {
-    # 进程/系统
-    'subprocess', 'multiprocessing', 'threading', 'concurrent',
-    'pty', 'pdb', 'faulthandler', 'signal',
-    'os.system', 'os.popen', 'os.spawn', 'os.exec',
-    'os.fork', 'os.kill',
+    # ---- 沙箱逃逸 ----
+    'ctypes', 'cffi', '_ctypes',
+    'gc',           # 可遍历对象图
+    'atexit',       # 解释器退出时执行任意代码
+    'sys',          # sys.modules 可访问被限制的模块
 
-    # 逃逸相关
-    'ctypes', 'cffi', 'cProfile',
-    'gc',  # 可用于逃逸
-    'atexit',  # 可用于逃逸
-    'sys',  # sys.modules 可访问受限
-    '__builtin__',
-    'builtins',  # 例外：见 _SAFE_BUILTINS 说明
+    # ---- 反序列化漏洞 ----
+    'pickle', 'cPickle', 'dill',
+    'marshal', 'shelve', 'dbm',
 
-    # 网络（需要 network 权限才可使用）
-    'socket', 'ssl', 'http', 'urllib', 'ftplib', 'smtplib',
-    'telnetlib', 'xmlrpc', 'requests', 'aiohttp', 'httpx',
-    'websocket', 'paramiko',
-
-    # 文件系统（需要 filesystem 权限才可使用）
-    'shutil', 'glob', 'tempfile',
-    'os.path',  # 部分方法受限
-
-    # 加密/密钥（除非插件明确声明）
-    'keyring', 'cryptography', 'Crypto',
-
-    # 其他危险
-    'pickle', 'marshal', 'shelve', 'dbm',
+    # ---- 动态导入/执行 ----
     'importlib', 'imp',
     'code', 'codeop',
-    'builtins',
-    '__future__',
-    'nt',  # Windows 内部模块
-    'posix',
-    'msvcrt',
-    'winreg',
+
+    # ---- 平台内部 ----
+    'nt', 'posix', 'msvcrt', 'winreg', '_winapi',
+
+    # ---- 调试/剖析（可读取栈帧）----
+    'faulthandler', 'pdb', 'cProfile',
+
+    # ---- 线程/信号（无权限门控）----
+    'threading', 'concurrent',
+    'pty', 'signal',
+
+    # 说明:
+    #   socket / ssl / http / urllib / requests / aiohttp /
+    #   httpx / websocket / ftplib / smtplib / telnetlib /
+    #   xmlrpc / paramiko → 由 network 权限控制
+    #   shutil / glob / tempfile / os.path → 由 filesystem 权限
+    #   subprocess / multiprocessing → 由 process 权限
+    #   这些模块不在这里，避免与权限分支语义冲突。
 }
 
 

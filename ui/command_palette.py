@@ -477,9 +477,23 @@ class BasePalette(QDialog):
         # 更新状态栏
         self._update_status(len(display_items), len(self.items))
 
+    def _usage_key(self, item: PaletteItem) -> str:
+        """P3-2: 生成更唯一的 key
+
+        原实现用 item.title 作 key，不同命令（同名）会串用
+        同一份历史分数。优先用 action_name；其次回调/数据的 id。
+        """
+        if item.action_name:
+            return f"action:{item.action_name}"
+        if item.callback is not None:
+            return f"cb:{id(item.callback)}"
+        if item.data is not None:
+            return f"data:{id(item.data)}"
+        return f"title:{item.title}"
+
     def _get_usage_score(self, item: PaletteItem) -> int:
         """根据使用历史计算加分"""
-        key = item.title
+        key = self._usage_key(item)
         if key not in self._usage_history:
             return 0
 
@@ -668,7 +682,8 @@ class BasePalette(QDialog):
 
     def _record_usage(self, item: PaletteItem):
         """记录使用历史"""
-        key = item.title
+        # P3-2: 用 _usage_key 生成 key
+        key = self._usage_key(item)
         now = time.time()
 
         if key in self._usage_history:

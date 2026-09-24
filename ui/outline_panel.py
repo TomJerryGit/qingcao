@@ -1405,16 +1405,25 @@ class OutlinePanel(QDockWidget):
                 self._current_filepath = filepath
                 self._current_language = language
 
-                # P2-C6: 限制读取行数
-                # 原实现直接 proxy.get_text()，100MB 文件会
-                # 卡住主线程几秒甚至 OOM。
-                MAX_LINES_READ = 50000
+                # P2-C6 + P2-1: 限制读取行数
+                # P2-1: 从偏好读取 large_file_threshold，
+                # 允许用户在首选项里调整（默认 10MB，按 50
+                # 字节/行估算最大行数）。
+                try:
+                    threshold_mb = self.main_window.prefs.get(
+                        "large_file_threshold", 10
+                    )
+                    max_lines = int(threshold_mb * 1024 * 1024 / 50)
+                    max_lines = max(5000, min(max_lines, 200000))
+                except Exception:
+                    max_lines = 50000
+
                 text = ""
                 try:
                     sc = getattr(proxy, 'sc', None)
                     if sc is not None:
                         total = sc.SendScintilla(sc.SCI_GETLINECOUNT)
-                        n = min(MAX_LINES_READ, total)
+                        n = min(max_lines, total)
                         lines = [sc.text(i) for i in range(n)]
                         text = "\n".join(lines)
                     else:

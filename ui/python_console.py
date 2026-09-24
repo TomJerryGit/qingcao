@@ -360,18 +360,27 @@ class PythonHighlighter(QSyntaxHighlighter):
 
         self._rules = []
 
-        # 关键字
+        # 关键字（P2-4: 关键字/内置函数合并为单条正则）
+        # 原实现每条关键字都生成一条正则，约 80 条规则，
+        # 每行文本跑 80 次 finditer。合并后 2 条即可。
+        # 按长度降序排列，长词优先尝试（避免 int 抢 isinstance）。
         keyword_format = QTextCharFormat()
         keyword_format.setForeground(COLOR_KEYWORD)
         keyword_format.setFontWeight(QFont.Bold)
-        for kw in PYTHON_KEYWORDS:
-            self._rules.append((f"\\b{kw}\\b", keyword_format))
+        _kw_alt = '|'.join(
+            sorted(PYTHON_KEYWORDS, key=len, reverse=True)
+        )
+        self._rules.append((r'\b(?:' + _kw_alt + r')\b',
+                            keyword_format))
 
-        # 内置函数
+        # 内置函数（同样合并）
         builtin_format = QTextCharFormat()
         builtin_format.setForeground(QColor("#dcdcaa"))
-        for bi in PYTHON_BUILTINS:
-            self._rules.append((f"\\b{bi}\\b", builtin_format))
+        _bi_alt = '|'.join(
+            sorted(PYTHON_BUILTINS, key=len, reverse=True)
+        )
+        self._rules.append((r'\b(?:' + _bi_alt + r')\b',
+                            builtin_format))
 
         # 字符串（单引号）
         string_format = QTextCharFormat()

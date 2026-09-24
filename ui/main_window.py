@@ -1465,8 +1465,12 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 return  # 今天已弹过，且是自动触发
 
             # 标记今天已弹
-            settings.setValue("last_tip_date", today)
-            settings.sync()
+            # P2-2: 仅自动触发时更新 last_tip_date
+            # 原实现手动点击也更新，导致用户当天手动点一次后，
+            # 第二天的自动弹出会被抑制到后天。
+            if not manual:
+                settings.setValue("last_tip_date", today)
+                settings.sync()
         except Exception as e:
             # 若 QSettings 异常，则退回为"每次都弹"
             print(f"[MainWindow] 每日技巧日期检查失败: {e}")

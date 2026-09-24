@@ -365,7 +365,20 @@ class DirectoryTree(QWidget):
         self._git_root: Optional[str] = None
         self._git_status_cache: Dict[str, str] = {}
         self._git_cache_time: float = 0.0
-        self._git_cache_ttl: float = 5.0
+        # P2-5: 默认 5 → 30 秒
+        # 用户可通过 QSettings 覆盖:
+        #   QSettings("QingCao", "Editor").setValue(
+        #       "git_status_cache_ttl", 60.0)
+        try:
+            from PyQt5.QtCore import QSettings
+            _s = QSettings("QingCao", "Editor")
+            self._git_cache_ttl = _s.value(
+                "git_status_cache_ttl", 30.0, type=float
+            )
+            if self._git_cache_ttl < 1.0:
+                self._git_cache_ttl = 30.0
+        except Exception:
+            self._git_cache_ttl = 30.0
 
         # 图标提供者
         self._icon_provider = QFileIconProvider()

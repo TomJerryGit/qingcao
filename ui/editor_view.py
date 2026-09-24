@@ -720,22 +720,59 @@ class EditorWidget(QsciScintilla):
     # 字符输入回调
     # ========================================================
     def _on_char_added(self, char_code: int):
-        """字符输入后的回调"""
+        """字符输入后的回调
+
+        P1-4: 引号自动闭合 + 尊重偏好
+
+        原实现用 `if char != close_char` 跳过所有引号（因为
+        PAIRS['"'] == '"'），导致：
+          - 输入 " 不会自动补 "
+          - 而偏好设置里 auto_close_quotes 是打开的
+
+        新实现：
+          - 引号也自动闭合
+          - 尊重 auto_close_brackets / auto_close_quotes 偏好
+          - 引号闭合前检查前一个字符，避免在 don't 里误闭合
+        """
         try:
             char = chr(char_code)
 
-            # 自动补全右符号（无选区时）
-            if char in PAIRS and not self.hasSelectedText():
-                close_char = PAIRS[char]
-                if char != close_char:  # 不是成对的相同字符
-                    # 自动插入右符号
-                    pos = self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
-                    self.SendScintilla(
-                        QsciScintilla.SCI_INSERTTEXT, pos,
-                        close_char.encode('utf-8')
+            if char not in PAIRS:
+                return
+            if self.hasSelectedText():
+                return
+
+            close_char = PAIRS[char]
+
+            if char == close_char:
+                # 引号场景
+                if not self.prefs.get("auto_close_quotes", True):
+                    return
+                # 前面是标识符字符时不闭合（如 don't）
+                pos = self.SendScintilla(
+                    QsciScintilla.SCI_GETCURRENTPOS
+                )
+                if pos >= 2:
+                    prev_byte = self.SendScintilla(
+                        QsciScintilla.SCI_GETCHARAT, pos - 2
                     )
-                    # 光标保持在原位置
-                    self.SendScintilla(QsciScintilla.SCI_GOTOPOS, pos)
+                    if 0x20 < prev_byte < 0x7F:
+                        prev_char = chr(prev_byte)
+                        if prev_char.isalnum() or prev_char == '_':
+                            return
+            else:
+                # 括号场景
+                if not self.prefs.get("auto_close_brackets", True):
+                    return
+
+            # 插入闭合符号
+            pos = self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
+            self.SendScintilla(
+                QsciScintilla.SCI_INSERTTEXT, pos,
+                close_char.encode('utf-8')
+            )
+            # 光标保持在原位置
+            self.SendScintilla(QsciScintilla.SCI_GOTOPOS, pos)
         except Exception:
             pass
 

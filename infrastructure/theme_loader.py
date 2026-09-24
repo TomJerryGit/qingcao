@@ -990,24 +990,54 @@ class ThemeLoader(QObject):
         pass
 
     def _apply_lexer_colors(self, lexer, colors: ThemeColors):
-        """应用词法器颜色"""
+        """应用词法器颜色（P2-3: 按 lexer 类型选择样式索引）
+
+        不同 QsciLexer 子类的样式索引完全不同。例如：
+          - Python: keyword=5, class=8, function=9, decorator=14
+          - C++:    keyword=5/16, class=19, function=19, decorator=9
+          - JavaScript 继承自 CPP，索引与 CPP 一致
+
+        原实现硬编码 Python 的索引，导致 C++/JS 文件主题化失效。
+        """
+        # 样式索引映射表
+        PYTHON_MAP = {
+            'comment': 1, 'number': 2, 'string': 3,
+            'character': 4, 'keyword': 5, 'class_name': 8,
+            'function_name': 9, 'operator': 10,
+            'identifier': 11, 'decorator': 14,
+        }
+        CPP_MAP = {
+            'comment': 1, 'number': 4, 'keyword': 5,
+            'string': 6, 'character': 7, 'operator': 10,
+            'identifier': 11, 'class_name': 19,
+            'function_name': 19, 'decorator': 9,
+        }
+
         try:
-            # 通用样式
             lexer.setDefaultColor(QColor(colors.foreground))
             lexer.setDefaultPaper(QColor(colors.background))
 
-            # 常用关键字/注释/字符串/数字样式
-            # 大多数 QsciLexer 子类使用相同的索引
-            lexer.setColor(QColor(colors.comment), 1)       # 注释
-            lexer.setColor(QColor(colors.number), 2)        # 数字
-            lexer.setColor(QColor(colors.string), 3)        # 字符串
-            lexer.setColor(QColor(colors.character), 4)     # 字符
-            lexer.setColor(QColor(colors.keyword), 5)       # 关键字
-            lexer.setColor(QColor(colors.class_name), 8)    # 类名
-            lexer.setColor(QColor(colors.function_name), 9) # 函数名
-            lexer.setColor(QColor(colors.operator), 10)     # 运算符
-            lexer.setColor(QColor(colors.identifier), 11)   # 标识符
-            lexer.setColor(QColor(colors.decorator), 14)    # 装饰器
+            # P2-3: 按 lexer 类型选择样式索引
+            style_map = PYTHON_MAP  # 默认
+            try:
+                from PyQt5.Qsci import (
+                    QsciLexerPython, QsciLexerCPP,
+                )
+                if isinstance(lexer, QsciLexerPython):
+                    style_map = PYTHON_MAP
+                elif isinstance(lexer, QsciLexerCPP):
+                    # JavaScript / TypeScript 继承自 CPP
+                    style_map = CPP_MAP
+            except Exception:
+                pass
+
+            for attr, style_id in style_map.items():
+                color = getattr(colors, attr, None)
+                if color:
+                    try:
+                        lexer.setColor(QColor(color), style_id)
+                    except Exception:
+                        pass
 
             # 背景纸
             for i in range(0, 128):

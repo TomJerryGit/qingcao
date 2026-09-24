@@ -1806,6 +1806,34 @@ class EditorProxy(QObject):
             self.lsp_status_changed.emit("error")
             return False
 
+    def _lsp_pos_to_scintilla(self, line: int, character: int) -> int:
+        """LSP position → Scintilla 字节偏移
+
+        P3-4: LSP 的 character 是 UTF-16 code unit 偏移，
+        SCI_FINDCOLUMN 期望的是"视觉列"，两者对 emoji /
+        4 字节 CJK 扩展字符不一致。
+
+        改用：字符偏移 → UTF-8 字节偏移 + 行起始位置。
+        （简化：假设 BMP 字符，不处理代理对；对 4 字节 CJK
+          扩展字符会略有偏差，但远好于原实现。）
+        """
+        try:
+            if line < 0 or character < 0:
+                return -1
+            line_text = self.sc.text(line)
+            prefix = line_text[:character]
+            byte_offset = len(
+                prefix.encode('utf-8', errors='replace')
+            )
+            line_start = self.sc.SendScintilla(
+                QsciScintilla.SCI_POSITIONFROMLINE, line
+            )
+            if line_start < 0:
+                return -1
+            return line_start + byte_offset
+        except Exception:
+            return -1
+
     def _on_lsp_diagnostics(self, uri: str, diagnostics: List[Dict]):
         """LSP 诊断结果回调"""
         try:
@@ -1827,14 +1855,17 @@ class EditorProxy(QObject):
                     end_line = diag['range']['end']['line']
                     end_char = diag['range']['end']['character']
 
-                    start = self.sc.SendScintilla(
-                        QsciScintilla.SCI_FINDCOLUMN,
+                    # P3-4: LSP character 是 UTF-16 code unit 偏移，
+                    # 用 _lsp_pos_to_scintilla 转成字节偏移
+                    start = self._lsp_pos_to_scintilla(
                         start_line, start_char
                     )
-                    end = self.sc.SendScintilla(
-                        QsciScintilla.SCI_FINDCOLUMN,
+                    end = self._lsp_pos_to_scintilla(
                         end_line, end_char
                     )
+
+                    if start < 0 or end < 0:
+                        continue
 
                     self.sc.SendScintilla(
                         QsciScintilla.SCI_SETINDICATORCURRENT,
