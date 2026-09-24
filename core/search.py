@@ -151,11 +151,17 @@ class SearchMatch:
     """
     单个匹配结果。
 
-    包含匹配的位置信息、文本内容和上下文。
+    位置说明（P1-1）:
+        start / end           字节偏移（Scintilla 用）
+        char_start / char_end 字符偏移（Python 字符串索引用）
+
+        纯 ASCII 文本两者相等；含中文时字节偏移 > 字符偏移。
     """
 
-    start: int                    # 起始字符位置
-    end: int                      # 结束字符位置（不含）
+    start: int                    # 字节偏移（Scintilla）
+    end: int                      # 字节偏移（不含）
+    char_start: int = 0           # 字符偏移（Python 索引）
+    char_end: int = 0             # 字符偏移（不含）
     text: str = ""                # 匹配的文本
     line: int = 0                 # 行号（1 开始）
     col: int = 0                  # 列号（0 开始）
@@ -165,11 +171,11 @@ class SearchMatch:
 
     @property
     def length(self) -> int:
-        """匹配长度"""
+        """匹配长度（字节）"""
         return self.end - self.start
 
     def contains(self, pos: int) -> bool:
-        """检查指定位置是否在匹配范围内"""
+        """检查指定字节位置是否在匹配范围内"""
         return self.start <= pos < self.end
 
     def overlaps(self, other: 'SearchMatch') -> bool:
@@ -181,6 +187,8 @@ class SearchMatch:
         return {
             'start': self.start,
             'end': self.end,
+            'char_start': self.char_start,
+            'char_end': self.char_end,
             'text': self.text,
             'line': self.line,
             'col': self.col,
@@ -588,78 +596,78 @@ class SearchEngine:
         """
         迭代所有匹配（生成器）。
 
-        适用于流式处理，避免一次性加载所有结果。
+        P1-1 修复：原分块逻辑把"字节偏移 + 字符偏移"混用，
+        导致含中文文件搜索位置错误。改为一次性读取全文，
+        匹配位置统一换算：字节偏移 + 字符偏移双写。
+
+        性能：O(N) 正则扫描，大文件也能接受。
         """
         if not self._regex:
             return
 
-        # 逐块读取
-        block_size = self.provider.block_size
-        total_blocks = self.provider.total_blocks
+        # 一次性读取全文（避免分块的偏移换算问题）
+        try:
+            text = self.provider.read_text()
+        except Exception:
+            return
 
-        # 跨块缓冲
-        carry_over = b''
-        carry_offset = 0
+        if not text:
+            return
 
+        encoding = self.provider.encoding or 'utf-8'
         count = 0
 
-        for bid in range(total_blocks):
+        # 缓存上一次匹配的字节位置，避免每次重算前缀
+        last_char_end = 0
+        last_byte_end = 0
+
+        for m in self._regex.finditer(text):
             if self.is_cancelled():
                 return
-
             if count >= self.options.max_results:
                 return
 
-            # 读取块
-            try:
-                block_data = self.provider.read_block(bid)
-            except Exception:
-                continue
+            char_start = m.start()
+            char_end = m.end()
 
-            # 合并跨块数据
-            combined = carry_over + block_data
-            combined_offset = carry_offset
-
-            # 解码
-            try:
-                text = combined.decode(self.provider.encoding, errors='replace')
-            except Exception:
-                continue
-
-            # 匹配
-            for m in self._regex.finditer(text):
-                if self.is_cancelled():
-                    return
-                if count >= self.options.max_results:
-                    return
-
-                # 计算全局位置
-                global_start = combined_offset + m.start()
-                global_end = combined_offset + m.end()
-
-                # 检查范围
-                if global_start < self.options.start_pos:
-                    continue
-                if (self.options.end_pos >= 0 and
-                        global_start >= self.options.end_pos):
-                    return
-
-                # 构建匹配对象
-                match = self._build_match(global_start, global_end, m, text)
-                yield match
-                count += 1
-
-            # 保留最后一部分作为跨块缓冲（防止跨块匹配丢失）
-            if len(block_data) > 0:
-                overlap_size = max(256, block_size // 4)
-                if len(combined) > overlap_size:
-                    carry_over = combined[-overlap_size:].encode(
-                        self.provider.encoding, errors='replace'
+            # 字符偏移 -> 字节偏移（增量计算）
+            if char_start >= last_char_end:
+                byte_start = last_byte_end + len(
+                    text[last_char_end:char_start].encode(
+                        encoding, errors='replace'
                     )
-                    carry_offset = combined_offset + len(combined) - overlap_size
-                else:
-                    carry_over = b''
-                    carry_offset = 0
+                )
+            else:
+                # finditer 是顺序的，正常不会走这里
+                byte_start = len(
+                    text[:char_start].encode(
+                        encoding, errors='replace'
+                    )
+                )
+
+            byte_end = byte_start + len(
+                text[char_start:char_end].encode(
+                    encoding, errors='replace'
+                )
+            )
+
+            last_char_end = char_end
+            last_byte_end = byte_end
+
+            # 范围过滤（用字节偏移）
+            if byte_start < self.options.start_pos:
+                continue
+            if (self.options.end_pos >= 0 and
+                    byte_start >= self.options.end_pos):
+                return
+
+            match = self._build_match(
+                byte_start, byte_end,
+                char_start, char_end,
+                m, text,
+            )
+            yield match
+            count += 1
 
     # --------------------------------------------------------
     # 单线程搜索
@@ -677,130 +685,47 @@ class SearchEngine:
     # 多线程搜索
     # --------------------------------------------------------
     def _search_multi_threaded(self, result: SearchResult):
-        """多线程搜索"""
-        total_blocks = self.provider.total_blocks
-        threads = min(self.options.threads, MAX_THREADS, total_blocks)
+        """多线程搜索（P1-1: 已废弃多线程分块）
 
-        if threads <= 1:
-            self._search_single_threaded(result)
-            return
-
-        # 分配块范围给各线程
-        chunk_size = max(1, total_blocks // threads)
-        chunks = []
-        for i in range(threads):
-            start = i * chunk_size
-            end = min(start + chunk_size, total_blocks) if i < threads - 1 else total_blocks
-            if start < end:
-                chunks.append((start, end))
-
-        # 并行搜索
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {
-                executor.submit(self._search_range, start, end): (start, end)
-                for start, end in chunks
-            }
-
-            all_matches: Dict[int, List[SearchMatch]] = {}
-
-            for future in as_completed(futures):
-                if self.is_cancelled():
-                    result.cancelled = True
-                    break
-
-                start, end = futures[future]
-                try:
-                    matches = future.result()
-                    all_matches[start] = matches
-                except Exception as e:
-                    print(f"[SearchEngine] 线程失败: {e}")
-
-        # 按块顺序合并结果
-        for start in sorted(all_matches.keys()):
-            for match in all_matches[start]:
-                if not result.add_match(match):
-                    return
+        说明:
+            原实现把文件分块并行搜索，但匹配位置需要"全局字
+            节偏移"，分块后跨块偏移换算极其复杂且容易出错。
+            改为单线程一次性搜索；正则扫描本身是 O(N)，
+            分块对性能提升有限。
+        """
+        self._search_single_threaded(result)
 
     def _search_range(self, start_block: int,
                        end_block: int) -> List[SearchMatch]:
-        """搜索指定块范围"""
-        matches = []
+        """P1-1: _search_range 已废弃。
 
-        if not self._regex:
-            return matches
-
-        block_size = self.provider.block_size
-        carry_over = b''
-        carry_offset = 0
-
-        for bid in range(start_block, end_block):
-            if self.is_cancelled():
-                return matches
-
-            try:
-                block_data = self.provider.read_block(bid)
-            except Exception:
-                continue
-
-            combined = carry_over + block_data
-            combined_offset = carry_offset
-
-            try:
-                text = combined.decode(self.provider.encoding, errors='replace')
-            except Exception:
-                continue
-
-            for m in self._regex.finditer(text):
-                if self.is_cancelled():
-                    return matches
-
-                global_start = combined_offset + m.start()
-                global_end = combined_offset + m.end()
-
-                if global_start < self.options.start_pos:
-                    continue
-                if (self.options.end_pos >= 0 and
-                        global_start >= self.options.end_pos):
-                    return matches
-
-                match = self._build_match(global_start, global_end, m, text)
-                matches.append(match)
-
-            # 保留跨块缓冲
-            if len(block_data) > 0:
-                overlap_size = max(256, block_size // 4)
-                if len(combined) > overlap_size:
-                    carry_over = combined[-overlap_size:].encode(
-                        self.provider.encoding, errors='replace'
-                    )
-                    carry_offset = combined_offset + len(combined) - overlap_size
-                else:
-                    carry_over = b''
-                    carry_offset = 0
-
-        return matches
+        保留方法名以兼容外部可能的调用，但不再使用。
+        """
+        return []
 
     # --------------------------------------------------------
     # 匹配构建
     # --------------------------------------------------------
-    def _build_match(self, start: int, end: int,
+    def _build_match(self, byte_start: int, byte_end: int,
+                      char_start: int, char_end: int,
                       re_match, text: str) -> SearchMatch:
-        """构建 SearchMatch 对象"""
-        # 计算行号列号
-        line, col = self._position_to_line_col(start)
+        """构建 SearchMatch 对象（P1-1: 双写字节/字符偏移）"""
+        # 用字符偏移计算行列
+        line, col = self._position_to_line_col(char_start)
 
-        # 获取所在行文本
         line_text = self._get_line_text(line)
 
-        # 上下文预览
-        context = self._make_context(text, re_match.start(), re_match.end())
+        # 上下文预览（text 内部是字符偏移）
+        context = self._make_context(text, char_start, char_end)
 
-        # 捕获组
-        groups = tuple(g for g in re_match.groups()) if re_match.groups() else ()
+        groups = (tuple(g for g in re_match.groups())
+                  if re_match.groups() else ())
 
         return SearchMatch(
-            start=start,
-            end=end,
+            start=byte_start,
+            end=byte_end,
+            char_start=char_start,
+            char_end=char_end,
             text=re_match.group(0),
             line=line,
             col=col,
@@ -1061,8 +986,10 @@ class SearchEngine:
                 else:
                     new_text = replacement
 
-                # 更新提供者内容
-                self._replace_range(match.start, match.end, new_text)
+                # 更新提供者内容（P1-1: 用字符偏移）
+                self._replace_range(
+                    match.char_start, match.char_end, new_text
+                )
                 count += 1
 
             except Exception as e:
@@ -1441,8 +1368,9 @@ class ReplaceEngine:
             # 读取全文
             text = self.provider.read_text()
 
-            # 执行替换
-            new_text = text[:match.start] + replacement + text[match.end:]
+            # 执行替换（P1-1: 用字符偏移索引 str）
+            new_text = (text[:match.char_start] + replacement +
+                        text[match.char_end:])
 
             # 写回
             self._write_back(new_text)
@@ -1477,13 +1405,12 @@ class ReplaceEngine:
             text = self.provider.read_text()
             regex = re.compile(pattern) if (is_regex and pattern) else None
 
-            # 从后往前替换
+            # 从后往前替换（P1-1: 用字符偏移索引 str）
             new_text = text
             for match in reversed(result.matches):
                 try:
                     if is_regex and regex:
-                        # 正则替换
-                        original = text[match.start:match.end]
+                        original = text[match.char_start:match.char_end]
                         re_match = regex.fullmatch(original)
                         if re_match:
                             repl = re_match.expand(replacement)
@@ -1492,8 +1419,8 @@ class ReplaceEngine:
                     else:
                         repl = replacement
 
-                    new_text = (new_text[:match.start] + repl +
-                                new_text[match.end:])
+                    new_text = (new_text[:match.char_start] + repl +
+                                new_text[match.char_end:])
                     count += 1
 
                 except Exception:
@@ -1605,29 +1532,22 @@ def highlight_matches_in_text(text: str, matches: List[SearchMatch],
     """
     在文本中标记匹配位置（用于调试）。
 
-    参数:
-        text: 原始文本
-        matches: 匹配列表
-        left: 左标记
-        right: 右标记
-
-    返回:
-        标记后的文本
+    P1-1: 改为用 char_start / char_end（字符偏移）索引 str。
     """
     if not matches:
         return text
 
     # 按位置排序
-    sorted_matches = sorted(matches, key=lambda m: m.start)
+    sorted_matches = sorted(matches, key=lambda m: m.char_start)
 
     result = []
     last_pos = 0
     for m in sorted_matches:
-        if m.start < last_pos:
+        if m.char_start < last_pos:
             continue  # 跳过重叠
-        result.append(text[last_pos:m.start])
+        result.append(text[last_pos:m.char_start])
         result.append(left + m.text + right)
-        last_pos = m.end
+        last_pos = m.char_end
 
     result.append(text[last_pos:])
     return ''.join(result)

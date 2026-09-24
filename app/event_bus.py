@@ -28,426 +28,89 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 
 # ============================================================
-# 事件类型枚举
+# 事件类型与事件类（B1b: 统一从 core.events 重导出）
 # ============================================================
-class EventType(Enum):
-    """事件类型枚举"""
+# 所有事件定义已迁移到 core/events.py。
+# 本模块保留 EventBus 与相关工具（EventHistory / subscribe /
+# TemporarySubscription），不再重复定义事件类。
+#
+# 这样做的原因：
+#   1. app/event_bus.py 与 core/events.py 曾各自定义过 44 个
+#      同名事件类，字段一致但对象不同，isinstance 可能失败。
+#   2. B1a 验证了两处字段完全一致、events 是超集。
+#   3. 统一到 core.events 后，任何调用方无论从哪个模块导入，
+#      拿到的都是同一对象。
+from core.events import (
+    # 枚举与工厂
+    EventType,
+    EventFactory,
+    # 基类
+    BaseEvent,
     # 文件事件
-    FILE_OPENED = auto()
-    FILE_SAVED = auto()
-    FILE_CLOSED = auto()
-    FILE_MODIFIED = auto()
-    FILE_RELOADED = auto()
-    FILE_ENCODING_CHANGED = auto()
-
+    FileEvent,
+    FileOpenedEvent,
+    FileSavedEvent,
+    FileClosedEvent,
+    FileModifiedEvent,
+    FileReloadedEvent,
+    FileEncodingChangedEvent,
     # 编辑器事件
-    EDITOR_CHANGED = auto()
-    EDITOR_FOCUSED = auto()
-    EDITOR_CREATED = auto()
-    EDITOR_DESTROYED = auto()
-
-    # 光标与选择
-    CURSOR_MOVED = auto()
-    SELECTION_CHANGED = auto()
-
-    # 编辑操作
-    TEXT_INSERTED = auto()
-    TEXT_DELETED = auto()
-    UNDO_PERFORMED = auto()
-    REDO_PERFORMED = auto()
-
+    EditorEvent,
+    EditorChangedEvent,
+    EditorFocusedEvent,
+    EditorCreatedEvent,
+    EditorDestroyedEvent,
+    # 光标与选区
+    CursorEvent,
+    SelectionEvent,
+    # 文本编辑
+    TextEditEvent,
+    TextInsertedEvent,
+    TextDeletedEvent,
+    TextReplacedEvent,
+    # 撤销重做
+    UndoEvent,
+    RedoEvent,
     # 搜索
-    SEARCH_STARTED = auto()
-    SEARCH_FINISHED = auto()
-    SEARCH_RESULT = auto()
-
+    SearchEvent,
+    SearchStartedEvent,
+    SearchFinishedEvent,
+    SearchResultEvent,
     # 标签
-    TAB_CHANGED = auto()
-    TAB_ADDED = auto()
-    TAB_REMOVED = auto()
-
+    TabEvent,
+    TabChangedEvent,
+    TabAddedEvent,
+    TabRemovedEvent,
     # 项目
-    PROJECT_OPENED = auto()
-    PROJECT_CLOSED = auto()
-    PROJECT_FILE_ADDED = auto()
-    PROJECT_FILE_REMOVED = auto()
-
+    ProjectEvent,
+    ProjectOpenedEvent,
+    ProjectClosedEvent,
+    ProjectFileEvent,
+    ProjectFileAddedEvent,
+    ProjectFileRemovedEvent,
+    ProjectFileRenamedEvent,
     # 宏
-    MACRO_STARTED = auto()
-    MACRO_STOPPED = auto()
-    MACRO_REPLAYED = auto()
-
+    MacroEvent,
+    MacroStartedEvent,
+    MacroStoppedEvent,
+    MacroReplayedEvent,
     # 插件
-    PLUGIN_LOADED = auto()
-    PLUGIN_UNLOADED = auto()
-    PLUGIN_ERROR = auto()
-
+    PluginEvent,
+    PluginLoadedEvent,
+    PluginUnloadedEvent,
+    PluginErrorEvent,
     # 主题
-    THEME_CHANGED = auto()
-
+    ThemeEvent,
     # 应用
-    APP_READY = auto()
-    APP_CLOSING = auto()
+    AppEvent,
+    AppReadyEvent,
+    AppClosingEvent,
+    # 状态与通知
+    StatusMessageEvent,
+    NotificationEvent,
+)
 
-    # 其他
-    STATUS_MESSAGE = auto()
-    NOTIFICATION = auto()
 
-
-# ============================================================
-# 事件数据类
-# ============================================================
-@dataclass
-class BaseEvent:
-    """所有事件的基类，包含时间戳和来源信息"""
-    timestamp: float = field(default_factory=time.time)
-    source: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典（用于调试和日志）"""
-        d = asdict(self)
-        d['event_type'] = self.__class__.__name__
-        return d
-
-
-# ------------------------------------------------------------
-# 文件事件
-# ------------------------------------------------------------
-@dataclass
-class FileEvent(BaseEvent):
-    """文件事件基类"""
-    path: str = ""
-    encoding: str = "utf-8"
-
-
-@dataclass
-class FileOpenedEvent(FileEvent):
-    """文件打开事件"""
-    size: int = 0
-    line_count: int = 0
-    is_readonly: bool = False
-
-
-@dataclass
-class FileSavedEvent(FileEvent):
-    """文件保存事件"""
-    size: int = 0
-    backup_path: Optional[str] = None
-
-
-@dataclass
-class FileClosedEvent(FileEvent):
-    """文件关闭事件"""
-    was_modified: bool = False
-
-
-@dataclass
-class FileModifiedEvent(FileEvent):
-    """文件内容修改事件"""
-    modified: bool = True
-
-
-@dataclass
-class FileReloadedEvent(FileEvent):
-    """文件重新加载事件（外部修改后）"""
-    reason: str = ""
-
-
-@dataclass
-class FileEncodingChangedEvent(FileEvent):
-    """文件编码变更事件"""
-    old_encoding: str = ""
-    new_encoding: str = ""
-
-
-# ------------------------------------------------------------
-# 编辑器事件
-# ------------------------------------------------------------
-@dataclass
-class EditorEvent(BaseEvent):
-    """编辑器事件基类"""
-    editor_id: int = 0
-
-
-@dataclass
-class EditorChangedEvent(EditorEvent):
-    """当前活动编辑器变更"""
-    filepath: Optional[str] = None
-
-
-@dataclass
-class EditorFocusedEvent(EditorEvent):
-    """编辑器获得焦点"""
-    pass
-
-
-@dataclass
-class EditorCreatedEvent(EditorEvent):
-    """新编辑器创建"""
-    filepath: Optional[str] = None
-
-
-@dataclass
-class EditorDestroyedEvent(EditorEvent):
-    """编辑器销毁"""
-    pass
-
-
-# ------------------------------------------------------------
-# 光标与选择事件
-# ------------------------------------------------------------
-@dataclass
-class CursorEvent(BaseEvent):
-    """光标位置事件"""
-    line: int = 0
-    col: int = 0
-    position: int = 0
-    editor_id: int = 0
-
-
-@dataclass
-class SelectionEvent(BaseEvent):
-    """选区变更事件"""
-    start: int = 0
-    end: int = 0
-    text: str = ""
-    line_count: int = 0
-    char_count: int = 0
-    editor_id: int = 0
-
-
-# ------------------------------------------------------------
-# 编辑操作事件
-# ------------------------------------------------------------
-@dataclass
-class TextEditEvent(BaseEvent):
-    """文本编辑事件"""
-    position: int = 0
-    text: str = ""
-    length: int = 0
-    editor_id: int = 0
-
-
-@dataclass
-class UndoEvent(BaseEvent):
-    """撤销事件"""
-    command_count: int = 0
-    editor_id: int = 0
-
-
-@dataclass
-class RedoEvent(BaseEvent):
-    """重做事件"""
-    command_count: int = 0
-    editor_id: int = 0
-
-
-# ------------------------------------------------------------
-# 搜索事件
-# ------------------------------------------------------------
-@dataclass
-class SearchEvent(BaseEvent):
-    """搜索事件基类"""
-    pattern: str = ""
-    is_regex: bool = False
-    case_sensitive: bool = False
-    whole_word: bool = False
-
-
-@dataclass
-class SearchStartedEvent(SearchEvent):
-    """搜索开始"""
-    scope: str = "current"  # current / project / all
-
-
-@dataclass
-class SearchFinishedEvent(SearchEvent):
-    """搜索结束"""
-    match_count: int = 0
-    elapsed_ms: float = 0.0
-    cancelled: bool = False
-
-
-@dataclass
-class SearchResultEvent(SearchEvent):
-    """单条搜索结果"""
-    filepath: str = ""
-    line: int = 0
-    col: int = 0
-    text: str = ""
-
-
-# ------------------------------------------------------------
-# 标签事件
-# ------------------------------------------------------------
-@dataclass
-class TabEvent(BaseEvent):
-    """标签事件基类"""
-    index: int = 0
-    title: str = ""
-    filepath: Optional[str] = None
-
-
-@dataclass
-class TabChangedEvent(TabEvent):
-    """当前标签切换"""
-    old_index: int = -1
-
-
-@dataclass
-class TabAddedEvent(TabEvent):
-    """标签新增"""
-    pass
-
-
-@dataclass
-class TabRemovedEvent(TabEvent):
-    """标签关闭"""
-    pass
-
-
-# ------------------------------------------------------------
-# 项目事件
-# ------------------------------------------------------------
-@dataclass
-class ProjectEvent(BaseEvent):
-    """项目事件基类"""
-    root_path: str = ""
-    project_name: str = ""
-
-
-@dataclass
-class ProjectOpenedEvent(ProjectEvent):
-    """项目打开"""
-    file_count: int = 0
-
-
-@dataclass
-class ProjectClosedEvent(ProjectEvent):
-    """项目关闭"""
-    pass
-
-
-@dataclass
-class ProjectFileEvent(ProjectEvent):
-    """项目文件变更"""
-    filepath: str = ""
-    action: str = ""  # add / remove / rename
-
-
-# ------------------------------------------------------------
-# 宏事件
-# ------------------------------------------------------------
-@dataclass
-class MacroEvent(BaseEvent):
-    """宏事件基类"""
-    command_count: int = 0
-
-
-@dataclass
-class MacroStartedEvent(MacroEvent):
-    """宏录制开始"""
-    pass
-
-
-@dataclass
-class MacroStoppedEvent(MacroEvent):
-    """宏录制停止"""
-    pass
-
-
-@dataclass
-class MacroReplayedEvent(MacroEvent):
-    """宏回放"""
-    elapsed_ms: float = 0.0
-
-
-# ------------------------------------------------------------
-# 插件事件
-# ------------------------------------------------------------
-@dataclass
-class PluginEvent(BaseEvent):
-    """插件事件基类"""
-    plugin_name: str = ""
-    version: str = ""
-
-
-@dataclass
-class PluginLoadedEvent(PluginEvent):
-    """插件加载成功"""
-    load_time_ms: float = 0.0
-
-
-@dataclass
-class PluginUnloadedEvent(PluginEvent):
-    """插件卸载"""
-    pass
-
-
-@dataclass
-class PluginErrorEvent(PluginEvent):
-    """插件错误"""
-    error_type: str = ""
-    error_message: str = ""
-    traceback: str = ""
-
-
-# ------------------------------------------------------------
-# 主题事件
-# ------------------------------------------------------------
-@dataclass
-class ThemeEvent(BaseEvent):
-    """主题变更事件"""
-    old_theme: str = ""
-    new_theme: str = ""
-    theme_path: str = ""
-
-
-# ------------------------------------------------------------
-# 应用事件
-# ------------------------------------------------------------
-@dataclass
-class AppEvent(BaseEvent):
-    """应用事件基类"""
-    pass
-
-
-@dataclass
-class AppReadyEvent(AppEvent):
-    """应用就绪"""
-    startup_time_ms: float = 0.0
-
-
-@dataclass
-class AppClosingEvent(AppEvent):
-    """应用即将关闭"""
-    open_file_count: int = 0
-    modified_count: int = 0
-
-
-# ------------------------------------------------------------
-# 状态与通知事件
-# ------------------------------------------------------------
-@dataclass
-class StatusMessageEvent(BaseEvent):
-    """状态栏消息事件"""
-    message: str = ""
-    timeout: int = 3000
-    level: str = "info"  # info / warning / error / success
-
-
-@dataclass
-class NotificationEvent(BaseEvent):
-    """通知事件（可显示气泡）"""
-    title: str = ""
-    message: str = ""
-    level: str = "info"
-    actions: List[str] = field(default_factory=list)
-
-
-# ============================================================
-# 事件历史记录
-# ============================================================
 class EventHistory:
     """
     事件历史记录器，用于调试和回放。
@@ -568,6 +231,8 @@ class EventBus(QObject):
     project_closed = pyqtSignal(ProjectClosedEvent)
     project_file_added = pyqtSignal(ProjectFileEvent)
     project_file_removed = pyqtSignal(ProjectFileEvent)
+    # P0-3 修复：新增 renamed signal
+    project_file_renamed = pyqtSignal(ProjectFileEvent)
 
     # --------------------------------------------------------
     # 宏信号
@@ -718,8 +383,14 @@ class EventBus(QObject):
             self.project_opened.emit(event)
         elif isinstance(event, ProjectClosedEvent):
             self.project_closed.emit(event)
-        elif isinstance(event, ProjectFileEvent):
+        # P0-3 修复：先检查子类，避免 ProjectFileEvent 基类
+        # 把所有子类都当成 ProjectFileAddedEvent 发出。
+        elif isinstance(event, ProjectFileAddedEvent):
             self.project_file_added.emit(event)
+        elif isinstance(event, ProjectFileRemovedEvent):
+            self.project_file_removed.emit(event)
+        elif isinstance(event, ProjectFileRenamedEvent):
+            self.project_file_renamed.emit(event)
 
         # 宏
         elif isinstance(event, MacroStartedEvent):

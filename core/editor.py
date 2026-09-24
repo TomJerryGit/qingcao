@@ -42,7 +42,7 @@ from core.commands import (
     CommandFactory, CommandPool, merge_commands
 )
 from core.undo import UndoManager
-from core.search import SearchEngine
+from core.search import SearchEngine, SearchOptions
 from core.document import Document
 from core.lsp_client import LspClient
 from app.event_bus import (
@@ -1348,8 +1348,16 @@ class EditorProxy(QObject):
             if not pattern:
                 return 0
 
-            engine = SearchEngine(self.document.provider)
-            matches = engine.search_all(pattern)
+            # P0-1 修复：SearchEngine 无 search_all 方法，
+            # 改用 search() 返回 SearchResult。
+            options = SearchOptions(pattern=pattern, is_regex=True)
+            engine = SearchEngine(self.document.provider, options)
+            result = engine.search()
+
+            if result.error or result.is_empty:
+                return 0
+
+            matches = [(m.start, m.end) for m in result.matches]
 
             # 分批绘制（避免大量匹配卡顿）
             if len(matches) > 1000:
@@ -1398,14 +1406,36 @@ class EditorProxy(QObject):
     def search_next(self, pattern: str, forward: bool = True) -> bool:
         """搜索下一个匹配"""
         try:
-            engine = SearchEngine(self.document.provider)
-            pos = self.get_current_pos()
-            match = engine.search(pattern, pos, forward)
+            # P0-2 修复：SearchEngine.search() 不接受参数，
+            # 且返回 SearchResult 而非 (start, end) tuple。
+            options = SearchOptions(pattern=pattern)
+            engine = SearchEngine(self.document.provider, options)
+            result = engine.search()
 
-            if match:
-                self.set_selection(match[0], match[1])
-                return True
-            return False
+            if result.error or result.is_empty:
+                return False
+
+            pos = self.get_current_pos()
+            match = None
+
+            if forward:
+                for m in result.matches:
+                    if m.start > pos:
+                        match = m
+                        break
+            else:
+                for m in reversed(result.matches):
+                    if m.end <= pos:
+                        match = m
+                        break
+
+            # 循环到另一端
+            if match is None:
+                match = (result.matches[0] if forward
+                         else result.matches[-1])
+
+            self.set_selection(match.start, match.end)
+            return True
 
         except Exception as e:
             print(f"[EditorProxy] 搜索失败: {e}")

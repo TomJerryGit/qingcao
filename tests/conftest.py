@@ -13,6 +13,15 @@
 """
 
 import os
+
+# 关键：让 pytest-qt 使用 PyQt5，与项目代码一致
+# 必须在任何 Qt 导入之前设置
+os.environ.setdefault("PYTEST_QT_API", "pyqt5")
+os.environ.setdefault("QT_API", "pyqt5")
+
+# 已有的环境变量保留
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 import sys
 
 # ============================================================
