@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: QingCao 2.0\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "File"
+msgstr "文件"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "View"
+msgstr "视图"
+
+msgid "Tools"
+msgstr "工具"
+
+msgid "Help"
+msgstr "帮助"
+
+msgid "New File"
+msgstr "新建文件"
+
+msgid "Open File"
+msgstr "打开文件"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Save As"
+msgstr "另存为"
+
+msgid "Exit"
+msgstr "退出"
+
+# ... 继续添加其他条目

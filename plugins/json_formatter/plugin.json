@@ -1,0 +1,23 @@
+{
+  "name": "json_formatter",
+  "display_name": "JSON 格式化",
+  "version": "1.0.0",
+  "description": "格式化、压缩、验证 JSON",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": [
+    "json",
+    "format"
+  ],
+  "permissions": [
+    "editor_read",
+    "editor_write"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 70
+}

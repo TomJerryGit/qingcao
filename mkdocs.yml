@@ -1,0 +1,37 @@
+site_name: 青草编辑器文档
+site_url: https://qingcao-editor.github.io/docs/
+repo_url: https://github.com/qingcao-editor/qingcao
+repo_name: qingcao-editor/qingcao
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+  palette:
+    - scheme: slate
+      primary: green
+      accent: green
+
+nav:
+  - 首页: index.md
+  - 快速开始: quickstart.md
+  - 功能: features.md
+  - 快捷键: shortcuts.md
+  - 插件开发: plugin_dev.md
+  - API 文档: api/
+  - 贡献指南: contributing.md
+  - 常见问题: faq.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+
+plugins:
+  - search:
+      lang: zh

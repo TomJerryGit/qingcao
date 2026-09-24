@@ -1,0 +1,22 @@
+{
+  "name": "wordcount",
+  "display_name": "字数统计",
+  "version": "1.0.0",
+  "description": "实时统计字符数、词数、行数",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": [
+    "word",
+    "count"
+  ],
+  "permissions": [
+    "editor_read"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 120
+}

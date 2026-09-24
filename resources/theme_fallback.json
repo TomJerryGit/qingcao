@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-09-23T00:00:00Z",
+  "source": "builtin",
+  "themes": [
+    {
+      "name": "dark_night",
+      "display_name": "暗夜",
+      "version": "2.0.0",
+      "description": "深色主题，适合夜间编码",
+      "author": "青草编辑器",
+      "type": "theme",
+      "category": "dark",
+      "tags": ["dark", "night"],
+      "download_url": "",
+      "verified": true,
+      "featured": true
+    },
+    {
+      "name": "light_clean",
+      "display_name": "晨曦",
+      "version": "2.0.0",
+      "description": "明亮清爽的浅色主题",
+      "author": "青草编辑器",
+      "type": "theme",
+      "category": "light",
+      "tags": ["light", "clean"],
+      "download_url": "",
+      "verified": true,
+      "featured": true
+    },
+    {
+      "name": "eye_protect",
+      "display_name": "护眼",
+      "version": "2.0.0",
+      "description": "柔和绿色，减少眼睛疲劳",
+      "author": "青草编辑器",
+      "type": "theme",
+      "category": "dark",
+      "tags": ["eye", "green"],
+      "download_url": "",
+      "verified": true,
+      "featured": false
+    },
+    {
+      "name": "high_contrast",
+      "display_name": "高对比度",
+      "version": "2.0.0",
+      "description": "极高对比度，适合视力较弱用户",
+      "author": "青草编辑器",
+      "type": "theme",
+      "category": "high_contrast",
+      "tags": ["contrast", "accessibility"],
+      "download_url": "",
+      "verified": true,
+      "featured": false
+    }
+  ]
+}

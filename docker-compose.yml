@@ -1,0 +1,29 @@
+# ============================================================
+# 青草编辑器 - 开发用 docker-compose
+#
+# 平台限制：
+#   本配置使用 X11 socket 转发（/tmp/.X11-unix）显示 GUI，
+#   仅适用于 Linux 主机。Windows / macOS 用户请直接运行
+#   `python main.py`，或使用 WSL2（Windows）。
+# ============================================================
+
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PYTHONPATH=/app
+    stdin_open: true
+    tty: true
+    command: python main.py
+
+  test:
+    build: .
+    volumes:
+      - .:/app
+    command: python -m unittest discover -s tests -v

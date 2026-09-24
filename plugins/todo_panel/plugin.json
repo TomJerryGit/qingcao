@@ -1,0 +1,23 @@
+{
+  "name": "todo_panel",
+  "display_name": "TODO 面板",
+  "version": "1.0.0",
+  "description": "收集并显示所有 TODO/FIXME 注释",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": [
+    "todo",
+    "task"
+  ],
+  "permissions": [
+    "filesystem",
+    "editor_read"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 110
+}

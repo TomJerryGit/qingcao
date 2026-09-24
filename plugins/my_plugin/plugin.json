@@ -1,0 +1,23 @@
+{
+  "name": "my_plugin",
+  "display_name": "My Plugin",
+  "version": "1.0.0",
+  "description": "由脚手架生成的插件",
+  "author": "your-name",
+  "author_email": "your@email.com",
+  "homepage": "",
+  "repository": "",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "other",
+  "tags": [],
+  "permissions": [],
+  "dependencies": [],
+  "plugin_dependencies": [],
+  "min_app_version": "1.0.0",
+  "max_app_version": "",
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100
+}

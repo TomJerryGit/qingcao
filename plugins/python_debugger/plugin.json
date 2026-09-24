@@ -1,0 +1,24 @@
+{
+  "name": "python_debugger",
+  "display_name": "Python 调试器",
+  "version": "1.0.0",
+  "description": "基于 pdb 的简单 Python 调试器",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "integration",
+  "tags": [
+    "python",
+    "debug"
+  ],
+  "permissions": [
+    "process",
+    "editor_read",
+    "dialog"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100
+}

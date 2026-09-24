@@ -1,0 +1,179 @@
+# -*- coding: utf-8 -*-
+"""任务面板"""
+from PyQt5.QtWidgets import (
+    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
+    QTreeWidgetItem, QPushButton, QPlainTextEdit, QMenu,
+    QMessageBox, QToolButton, QLabel
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+
+from core.project_tasks import ProjectTaskManager, TaskRunner
+
+
+class TaskPanel(QDockWidget):
+    """任务面板"""
+
+    def __init__(self, main_window=None, parent=None):
+        super().__init__("任务", parent or main_window)
+        self.main_window = main_window
+        self.setObjectName("TaskPanel")
+
+        self.task_manager = None
+        self.runner = TaskRunner(self)
+        self.runner.task_output.connect(self._on_output)
+        self.runner.task_finished.connect(self._on_finished)
+        self.runner.task_error.connect(self._on_error)
+
+        self._build_ui()
+        self._apply_style()
+
+    def _build_ui(self):
+        """构建 UI"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        # 工具条
+        toolbar = QHBoxLayout()
+
+        refresh_btn = QToolButton()
+        refresh_btn.setText("??")
+        refresh_btn.setToolTip("重新加载任务")
+        refresh_btn.clicked.connect(self.reload_tasks)
+        toolbar.addWidget(refresh_btn)
+
+        toolbar.addStretch()
+
+        self.cancel_btn = QToolButton()
+        self.cancel_btn.setText("?")
+        self.cancel_btn.setToolTip("停止任务")
+        self.cancel_btn.clicked.connect(self._cancel_task)
+        toolbar.addWidget(self.cancel_btn)
+
+        layout.addLayout(toolbar)
+
+        # 任务树
+        self.task_tree = QTreeWidget()
+        self.task_tree.setHeaderHidden(True)
+        self.task_tree.itemDoubleClicked.connect(self._on_run_task)
+        layout.addWidget(self.task_tree, 1)
+
+        # 输出
+        layout.addWidget(QLabel("输出:"))
+        self.output_view = QPlainTextEdit()
+        self.output_view.setReadOnly(True)
+        self.output_view.setFont(QFont("Consolas", 10))
+        self.output_view.setMaximumHeight(200)
+        layout.addWidget(self.output_view)
+
+        self.setWidget(container)
+
+
+    def refresh_theme(self, theme):
+        """主题变更时刷新样式（v3.0）"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            # 保存原始 QSS（只保存一次）
+            if not hasattr(self, '_original_qss') or not self._original_qss:
+                self._original_qss = self.styleSheet()
+            if self._original_qss:
+                qss = adapt_qss_colors(self._original_qss, theme)
+                self.setStyleSheet(qss)
+        except Exception as e:
+            print(f"[{self.__class__.__name__}] refresh_theme 失败: {e}")
+
+    def _apply_style(self):
+        """应用样式"""
+        self.setStyleSheet("""
+            QTreeWidget {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border: none;
+                font-size: 12px;
+            }
+            QTreeWidget::item {
+                padding: 4px 8px;
+            }
+            QTreeWidget::item:hover {
+                background-color: #2a2d2e;
+            }
+            QTreeWidget::item:selected {
+                background-color: #094771;
+            }
+            QPlainTextEdit {
+                background-color: #0d0d0d;
+                color: #d4d4d4;
+                border: 1px solid #3c3c3c;
+                font-family: Consolas, monospace;
+            }
+            QToolButton {
+                background-color: transparent;
+                color: #d4d4d4;
+                border: none;
+                padding: 4px 8px;
+            }
+            QToolButton:hover {
+                background-color: #3c3c3c;
+                border-radius: 3px;
+            }
+        """)
+
+    def set_project(self, project_root):
+        """设置项目"""
+        self.task_manager = ProjectTaskManager(project_root)
+        self.reload_tasks()
+
+    def reload_tasks(self):
+        """重新加载任务"""
+        if not self.task_manager:
+            return
+
+        self.task_manager.load_tasks()
+        self.task_tree.clear()
+
+        groups = self.task_manager.get_tasks_by_group()
+        for group_name, tasks in groups.items():
+            group_item = QTreeWidgetItem(self.task_tree)
+            group_item.setText(0, "? " + group_name)
+            font = group_item.font(0)
+            font.setBold(True)
+            group_item.setFont(0, font)
+
+            for task in tasks:
+                task_item = QTreeWidgetItem(group_item)
+                task_item.setText(0, "? " + task.label)
+                task_item.setData(0, Qt.UserRole, task)
+
+            group_item.setExpanded(True)
+
+    def _on_run_task(self, item, column):
+        """双击运行"""
+        task = item.data(0, Qt.UserRole)
+        if task:
+            self.output_view.clear()
+            self.output_view.appendPlainText(
+                "? 运行: " + task.label + "\n"
+            )
+            self.runner.run(task, self.task_manager.project_root)
+
+    def _on_output(self, text):
+        """任务输出"""
+        self.output_view.appendPlainText(text)
+
+    def _on_finished(self, label, code):
+        """任务完成"""
+        self.output_view.appendPlainText(
+            "\n? 任务 '" + label + "' 退出码: " + str(code)
+        )
+
+    def _on_error(self, label, err):
+        """任务错误"""
+        self.output_view.appendPlainText(
+            "\n? 任务 '" + label + "' 错误: " + err
+        )
+
+    def _cancel_task(self):
+        """取消任务"""
+        self.runner.cancel()

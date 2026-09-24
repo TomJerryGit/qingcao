@@ -1,0 +1,22 @@
+{
+  "name": "markdown_preview",
+  "display_name": "Markdown 预览",
+  "version": "1.0.0",
+  "description": "Markdown 实时预览（分屏）",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "editor",
+  "tags": [
+    "markdown",
+    "preview"
+  ],
+  "permissions": [
+    "editor_read"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 90
+}
