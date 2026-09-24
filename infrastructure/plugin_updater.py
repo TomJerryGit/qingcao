@@ -1002,6 +1002,7 @@ class PluginUpdater(QObject):
             if self._cancelled:
                 return None
 
+            resp = None
             try:
                 import requests
                 resp = requests.get(
@@ -1050,6 +1051,13 @@ class PluginUpdater(QObject):
                     print(f"[PluginUpdater] urllib 下载失败: {e}")
             except Exception as e:
                 print(f"[PluginUpdater] 下载异常: {e}")
+            finally:
+                # F1 修复：finally 保证 resp 关闭
+                if resp is not None:
+                    try:
+                        resp.close()
+                    except Exception:
+                        pass
 
             if attempt < MAX_RETRIES - 1:
                 time.sleep(RETRY_DELAY * (attempt + 1))
