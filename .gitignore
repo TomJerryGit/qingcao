@@ -1,0 +1,94 @@
+# ============================================================
+# 青草编辑器 - Git 忽略规则
+# ============================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ---- 虚拟环境 ----
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- 测试与覆盖率 ----
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 应用运行时数据 ----
+logs/
+backup/
+data/
+session.json
+crash.log
+keybindings.json
+plugin_config.json
+sync_config.json
+snippets.json
+
+# ---- 备份文件（修复脚本生成）----
+*.bak.p0
+*.bak.p0_2
+*.bak.p0_3
+*.bak.p2p3
+*.bak.p3
+*.bak
+
+# ---- 打包产物 ----
+*.spec.bak
+installer/*.exe
+installer/*.deb
+installer/*.dmg
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 用户目录（开发测试用）----
+1.0 QingCaoEditor_Others/
+_archived_tools/
+QingCaoEditor_RCWJ/
+
+# ---- 运行时产物 ----
+crash.log
+*.crash.log
+
+# ---- 运行时产物 ----
+session.json
+*.session.json
+keybindings.json
+crash.log
+*.crash.log

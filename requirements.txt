@@ -58,8 +58,7 @@ psutil>=5.9.0
 # ---- 敏感信息加密 ----
 # 用于云同步、AI 助手时安全存储 Token / 密码（core.secure_storage）
 # 缺失时自动降级为明文存储（附安全警告）
--keyring>=23.0.0
-+keyring>=23.0.0
+keyring>=23.0.0
 
 # ---- 高性能正则匹配 ----
 # 用于大文件搜索加速（core.search）
