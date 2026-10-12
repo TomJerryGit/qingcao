@@ -147,3 +147,6 @@ coverage.xml
 
 # ---- 审查/演示临时物 ----
 *.review.tmp
+
+# ---- mkdocs 构建产物 ----
+/site/
