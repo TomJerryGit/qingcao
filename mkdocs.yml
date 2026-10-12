@@ -15,6 +15,7 @@ exclude_docs: |
   audit_data_integrity.md
   audit_interactions.md
   audit_performance.md
+  audit_protocols.md
 
 theme:
   name: material
