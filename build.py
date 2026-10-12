@@ -415,7 +415,7 @@ def collect_hidden_imports() -> List[str]:
         'core.telemetry', 'core.theme_pack', 'core.updater',
         'core.vim_mode', 'core.workspace',
         'infrastructure.file_access', 'infrastructure.icon_manager',
-        'infrastructure.plugin_loader', 'infrastructure.plugin_sandbox',
+        'infrastructure.plugin_loader',
         'infrastructure.plugin_updater', 'infrastructure.sound_manager',
         'infrastructure.theme_loader',
     ]

@@ -11,6 +11,39 @@
 - 协作编辑完善
 - 插件市场后端
 
+### 删除
+
+- **移除未接线的插件沙箱原型**
+  `infrastructure/plugin_sandbox.py`（1605 行）、
+  `infrastructure/sandbox_runtime.py`（1192 行）、
+  `core/sandbox_policy.py`（593 行），以及 `tests/test_plugin_sandbox_event.py`
+  与 `tests/test_sandbox_socket.py`（共 350 行）。
+
+  **删除理由（有实测证据）**：
+
+  * 这 3390 行**没有任何生产调用方** —— `sandbox_policy` 只被
+    `sandbox_runtime` 引用，`sandbox_runtime` 只被测试引用；
+    `build.py` 的 hidden-imports 与 `pyproject.toml` 的 coverage omit
+    是仅有的其它提及。
+  * 它**根本无法启动**：实测 `PluginSandbox.start()` 返回 `False`、
+    状态卡在 `RESTARTING`。原因之一是 `_install_security()` 里写的
+    `__builtins__.__import__` —— 在非 `__main__` 的普通模块里
+    `__builtins__` 是 **dict** 而非 module，赋值会 `AttributeError`
+    （已用最小实验复现）。子进程入口与帧协议也有缺陷。
+  * 与此同时 **5 个相关单测始终是绿的** —— 它们只测消息常量与
+    纯函数，从不真正 `start()`。这正是"测试全绿但功能不可用"的典型。
+  * 名字本身构成误导：`plugin_sandbox` 会让人以为插件已被隔离，
+    而实际**没有任何隔离**。
+
+  代码可在 git 历史中查阅（`2.1.1` 之前的提交）。若将来要做真隔离，
+  需注意这是一项**结构性改造**：现有 `PluginAPI` 大量操作 QWidget
+  （面板、菜单、对话框），子进程无法持有这些对象，API 边界必须重新设计。
+
+- 顺带移除 `app/preferences.py` 中无任何 UI/运行时引用的
+  `plugin_sandbox` 开关（避免暗示"可以开启真沙箱"）。
+- `build.py` 的 hidden-imports 与 `pyproject.toml` 的 coverage omit
+  同步清理。验证：78 个 hidden imports 全部可导入。
+
 ## [2.1.1] - 2026-09-25
 
 本次更新为**缺陷修复版本**：修复一个会导致**数据损坏**的保存

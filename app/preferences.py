@@ -198,9 +198,12 @@ DEFAULTS: Dict[str, Any] = {
     # ---- 插件设置 ----
     "plugins_enabled": "{}",  # JSON: {plugin_name: true/false}
     "plugins_disabled": "[]",  # JSON 列表
-    # 说明（P0-3）：编辑器的插件运行在**主进程内**，没有进程级
-    # 隔离；此开关仅表示是否在 API 边界做权限门控与权限确认。
-    "plugin_sandbox": True,
+    # 说明（P0-3）：编辑器的插件运行在**主进程内**，没有进程级隔离；
+    # permissions 只在 PluginAPI 方法边界做门控与权限确认。
+    #
+    # 原先还有一个 `plugin_sandbox` 开关，但它**没有任何 UI 或运行时
+    # 引用**（沙箱原型已删除），留着会让人误以为可以开启真沙箱，
+    # 因此一并移除。
     "plugin_permissions_required": True,
     "plugin_auto_update": True,
     "plugin_update_check_interval": 24,  # 小时
@@ -873,14 +876,6 @@ class Preferences(QObject):
     # ========================================================
     # 属性访问器（插件）
     # ========================================================
-    @property
-    def plugin_sandbox(self) -> bool:
-        return self.get("plugin_sandbox")
-
-    @plugin_sandbox.setter
-    def plugin_sandbox(self, value: bool):
-        self.set("plugin_sandbox", value)
-
     @property
     def plugin_hot_reload(self) -> bool:
         """P1-2: 插件热重载开关"""

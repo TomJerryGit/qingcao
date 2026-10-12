@@ -57,8 +57,9 @@
 1. **没有进程级隔离。** 插件与编辑器同进程运行，`permissions` 只在
    `PluginAPI` 方法边界做门控。插件仍可通过 `import subprocess`
    等方式获得完整系统能力。
-   `infrastructure/plugin_sandbox.py` 与 `sandbox_runtime.py` 是**未接线
-   的原型**，没有任何生产调用方 —— 不要把它们当作安全边界。
+   仓库中曾有一套沙箱原型，经实测**无法启动**（`start()` 返回 `False`），
+   且无任何生产调用方 —— 为避免误导，**已从代码库移除**。
+   要真正隔离需要重构 `PluginAPI`（当前大量操作 QWidget，子进程不可用）。
 2. **插件市场后端未部署。** 界面、缓存、回退列表齐全，但主注册表
    URL 不可达、回退条目 `download_url` 为空，因此**在线安装不可用**。
 

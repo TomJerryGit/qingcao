@@ -85,8 +85,11 @@ unload → load → activate。
 - 插件与编辑器在同一进程、同一解释器中运行
 - `plugin.json` 的 `permissions` 只在 `PluginAPI` 方法边界做门控
 - 插件可以直接 `import subprocess` / `socket` / `open(...)` 绕过声明
-- `infrastructure/plugin_sandbox.py` 与 `sandbox_runtime.py` 是
-  **未接线的原型**，没有任何生产调用方
+
+仓库中曾有一套沙箱原型（`plugin_sandbox.py` / `sandbox_runtime.py`），
+但实测它**无法启动**（`PluginSandbox.start()` 返回 `False`、状态卡在
+`RESTARTING`），且没有任何生产调用方。为避免"看起来有沙箱"的误导，
+**该原型已从代码库移除**（可在 git 历史中查阅）。
 
 请**只安装可信来源的插件**。
 

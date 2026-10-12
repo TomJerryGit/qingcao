@@ -167,8 +167,6 @@ omit = [
     "*/tests/*",
     "*/_archive/*",
     "*/__pycache__/*",
-    "infrastructure/plugin_sandbox.py",
-    "infrastructure/sandbox_runtime.py",
 ]
 
 [tool.coverage.report]

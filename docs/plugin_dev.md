@@ -117,8 +117,13 @@ class Plugin(PluginBase):
 > - **只安装来自可信来源的插件**；
 > - 不要把手写恶意插件当作被防护的场景。
 >
-> 仓库中的 `infrastructure/plugin_sandbox.py` 与 `sandbox_runtime.py`
-> 是**未接线的原型**，没有任何生产调用方，请勿据此认为已有沙箱。
+> 仓库中曾有一套沙箱原型（`plugin_sandbox.py` / `sandbox_runtime.py`），
+> 但经实测它**无法启动**（`PluginSandbox.start()` 返回 `False`、状态卡在
+> `RESTARTING`），且没有任何生产调用方。为避免误导，**该原型已从代码库
+> 移除**（如需查阅，见 git 历史 `2.1.1` 之前的提交）。
+>
+> 真要做进程隔离是一项结构性改造：现有 `PluginAPI` 大量操作 QWidget
+> （面板、菜单、对话框），子进程拿不到这些对象，API 边界需要重新设计。
 
 ### 未声明权限时的表现
 
