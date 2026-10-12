@@ -2,7 +2,7 @@
 """Git 客户端封装"""
 import os
 import subprocess
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class GitClient:

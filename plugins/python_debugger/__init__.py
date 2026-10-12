@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Python 调试器插件"""
 import os
-import sys
 import subprocess
+import sys
+
 from app.plugins import PluginBase
 
 

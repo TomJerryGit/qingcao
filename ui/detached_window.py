@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """标签分离独立窗口"""
-from PyQt5.QtWidgets import QMainWindow, QMessageBox
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMainWindow, QMessageBox
 
 
 class DetachedWindow(QMainWindow):

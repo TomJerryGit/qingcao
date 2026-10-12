@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """问题收集与管理"""
-from typing import List, Dict, Any, Optional
-from enum import Enum
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 

@@ -8,6 +8,7 @@ def vim(qapp):
     """返回一个 Vim 模式实例（用真 QsciScintilla）"""
     try:
         from PyQt5.Qsci import QsciScintilla
+
         from core.vim_mode import VimMode, VimState
     except ImportError:
         pytest.skip("vim_mode 或 QsciScintilla 不可用")

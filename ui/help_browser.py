@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
 """帮助浏览器"""
 import os
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTextBrowser, QLineEdit,
-    QPushButton, QListWidget, QListWidgetItem, QSplitter,
-    QWidget, QLabel
-)
+
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QSplitter,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 # 内置帮助文档

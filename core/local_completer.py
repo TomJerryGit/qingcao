@@ -2,8 +2,8 @@
 """本地智能补全（不依赖 AI）"""
 import re
 import time
-from typing import List, Dict, Set, Optional, Tuple
 from collections import Counter, defaultdict
+from typing import Dict, List, Optional, Set, Tuple
 
 
 class LocalCompleter:

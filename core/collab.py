@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """极简协作编辑（基于 OT）"""
-import time
 import json
-import threading
 import socket
-from typing import Optional, List, Dict, Any, Tuple
+import threading
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from core.commands import InsertCmd, DeleteCmd, ReplaceCmd
+from core.commands import DeleteCmd, InsertCmd, ReplaceCmd
 
 
 DEFAULT_PORT = 52000

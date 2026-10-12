@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """AI 行内补全"""
 import time
+
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt5.QtWidgets import QApplication

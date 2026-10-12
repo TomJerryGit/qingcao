@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """快捷键序列管理器（VSCode 风格）"""
 import time
-from typing import Dict, Callable, Optional, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 from PyQt5.QtGui import QKeySequence
 

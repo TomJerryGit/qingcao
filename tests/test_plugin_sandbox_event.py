@@ -39,7 +39,8 @@ def sandbox(qapp):
     """
     try:
         from infrastructure.plugin_sandbox import (
-            PluginSandbox, SandboxConfig,
+            PluginSandbox,
+            SandboxConfig,
         )
     except ImportError:
         pytest.skip("plugin_sandbox 不可用")
@@ -133,7 +134,8 @@ class TestReadyEvent:
         """_ready_event 未初始化时应安全返回 False（防御）"""
         try:
             from infrastructure.plugin_sandbox import (
-                PluginSandbox, SandboxConfig,
+                PluginSandbox,
+                SandboxConfig,
             )
         except ImportError:
             pytest.skip("plugin_sandbox 不可用")

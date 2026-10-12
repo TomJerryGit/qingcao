@@ -44,14 +44,14 @@
     )
 """
 
+import json
 import os
 import sys
-import json
-import time
 import threading
-from typing import Optional, Dict, Any, List, Tuple
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QSettings
+from PyQt5.QtCore import QObject, QSettings, pyqtSignal
 
 
 # ============================================================
@@ -526,6 +526,7 @@ def delete_secret(key: str) -> bool:
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

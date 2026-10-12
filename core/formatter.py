@@ -3,7 +3,7 @@
 import os
 import shutil
 import subprocess
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 
 class Formatter:

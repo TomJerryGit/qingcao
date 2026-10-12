@@ -2,8 +2,8 @@
 """代码异味检测"""
 import ast
 import re
-from typing import List, Dict, Any
 from dataclasses import dataclass
+from typing import Any, Dict, List
 
 
 @dataclass

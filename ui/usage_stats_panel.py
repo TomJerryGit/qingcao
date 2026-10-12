@@ -1,17 +1,27 @@
 # -*- coding: utf-8 -*-
 """使用数据分析面板"""
-import os
-import json
-import time
 import datetime
+import json
+import os
+import time
 from collections import Counter, defaultdict
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTabWidget, QWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QTextBrowser
-)
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class UsageStatsDialog(QDialog):

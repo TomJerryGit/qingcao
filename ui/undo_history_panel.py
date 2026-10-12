@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
 """撤销历史面板"""
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QListWidget,
-    QListWidgetItem, QPushButton, QLabel, QMenu, QToolButton
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (
+    QDockWidget,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class UndoHistoryPanel(QDockWidget):

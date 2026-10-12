@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 """Git 提交面板"""
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 
 class CommitPanel(QDialog):

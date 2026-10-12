@@ -1,14 +1,24 @@
 # -*- coding: utf-8 -*-
 """代码片段编辑器"""
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLineEdit, QPlainTextEdit, QLabel, QFormLayout,
-    QMessageBox, QSplitter, QWidget
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.snippets import get_snippet_manager, Snippet
+from core.snippets import Snippet, get_snippet_manager
 
 
 class SnippetEditor(QDialog):

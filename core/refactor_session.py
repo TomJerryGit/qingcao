@@ -2,9 +2,9 @@
 """重构会话（多轮 AI 对话）"""
 import time
 import uuid
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional
 
 
 class MessageRole(Enum):

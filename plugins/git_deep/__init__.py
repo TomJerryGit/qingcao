@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Git 深度集成插件"""
 import os
+
 from app.plugins import PluginBase
 
 

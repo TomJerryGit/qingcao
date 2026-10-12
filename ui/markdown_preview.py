@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Markdown 实时预览"""
-from PyQt5.QtWidgets import QDockWidget, QWidget, QVBoxLayout, QTextBrowser
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QDockWidget, QTextBrowser, QVBoxLayout, QWidget
 
 
 class MarkdownPreview(QDockWidget):

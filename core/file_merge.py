@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """外部文件变更合并"""
+import difflib
 import os
 import time
-import difflib
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class FileMergeDetector:

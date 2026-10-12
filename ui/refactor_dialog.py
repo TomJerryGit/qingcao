@@ -1,13 +1,25 @@
 # -*- coding: utf-8 -*-
 """重构助手对话框"""
 import difflib
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QPushButton,
-    QLabel, QLineEdit, QSplitter, QWidget, QTabWidget,
-    QListWidget, QListWidgetItem, QMessageBox, QApplication
-)
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QColor, QTextCharFormat, QTextCursor
+from PyQt5.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class DiffViewer(QWidget):

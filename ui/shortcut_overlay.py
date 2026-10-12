@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 """快捷键帮助浮层"""
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QGridLayout, QFrame,
-    QApplication, QScrollArea
-)
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QLabel,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class ShortcutOverlay(QWidget):

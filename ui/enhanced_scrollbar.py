@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """增强滚动条（带标记）"""
+from PyQt5.QtCore import QRect, QSize, Qt
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt5.QtWidgets import QScrollBar, QWidget
-from PyQt5.QtCore import Qt, QRect, QSize
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush
 
 
 class EnhancedScrollBar(QScrollBar):

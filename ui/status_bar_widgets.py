@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """可点击的状态栏组件：编码、行尾符、Git 分支"""
-from PyQt5.QtWidgets import QLabel, QMenu
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import QLabel, QMenu
 
 
 # 常用编码

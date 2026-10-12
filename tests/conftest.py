@@ -14,6 +14,7 @@
 
 import os
 
+
 # 关键：让 pytest-qt 使用 PyQt5，与项目代码一致
 # 必须在任何 Qt 导入之前设置
 os.environ.setdefault("PYTEST_QT_API", "pyqt5")
@@ -24,15 +25,18 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 import sys
 
+
 # ============================================================
 # QT_QPA_PLATFORM 必须在导入 Qt 之前设置
 # ============================================================
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
-import tempfile
 import shutil
+import tempfile
+
 import pytest
+
 
 # 确保项目根目录在 sys.path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

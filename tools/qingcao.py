@@ -24,8 +24,8 @@
 """
 
 import os
-import sys
 import subprocess
+import sys
 
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))

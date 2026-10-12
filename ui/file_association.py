@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """文件关联设置对话框"""
-import sys
-import subprocess
 import os
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QPushButton,
-    QMessageBox, QLabel
-)
+import subprocess
+import sys
+
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDialog, QLabel, QListWidget, QMessageBox, QPushButton, QVBoxLayout
 
 
 class FileAssociationDialog(QDialog):

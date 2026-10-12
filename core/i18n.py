@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """国际化管理器"""
+import gettext
 import os
 import sys
-import gettext
-from typing import Optional, List, Dict
-from PyQt5.QtCore import QObject, pyqtSignal, QTranslator, QLocale, QCoreApplication
+from typing import Dict, List, Optional
+
+from PyQt5.QtCore import QCoreApplication, QLocale, QObject, QTranslator, pyqtSignal
 
 
 class I18nManager(QObject):

@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 """问题面板"""
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QPushButton, QLabel, QToolButton, QMenu,
-    QApplication
-)
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QBrush
+from PyQt5.QtGui import QBrush, QColor
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.problems import get_problem_manager, Severity
+from core.problems import Severity, get_problem_manager
 
 
 SEVERITY_ICONS = {

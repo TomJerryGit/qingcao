@@ -1,7 +1,8 @@
 # tools/git_commit.py
-import sys
 import subprocess
+import sys
 from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parent.parent
 

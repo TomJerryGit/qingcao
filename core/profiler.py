@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """性能剖析器"""
 import cProfile
-import pstats
 import io
 import os
-from typing import Optional, Dict, List, Any
+import pstats
+from typing import Any, Dict, List, Optional
 
 
 class Profiler:

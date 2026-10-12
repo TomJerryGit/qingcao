@@ -3,6 +3,7 @@
 """依赖检查"""
 import sys
 
+
 REQUIRED = [
     ('PyQt5', 'PyQt5.QtCore', 'QT_VERSION_STR'),
     ('PyQt5-Qt5', 'PyQt5.QtCore', 'PYQT_VERSION_STR'),

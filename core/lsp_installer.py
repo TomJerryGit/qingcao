@@ -11,11 +11,12 @@
 作者: hedongwei
 """
 import os
-import sys
 import shutil
 import subprocess
+import sys
 import threading
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 

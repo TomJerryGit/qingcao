@@ -22,27 +22,33 @@
 """
 
 import os
+import re
 import sys
 import time
-import re
-from typing import Optional, List, Dict, Any, Tuple, Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QIcon, QKeySequence, QPainter, QPalette, QPen
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QListWidget,
-    QListWidgetItem, QLabel, QWidget, QPushButton, QComboBox,
-    QFrame, QSizePolicy, QApplication
-)
-from PyQt5.QtCore import (
-    Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, pyqtSignal
-)
-from PyQt5.QtGui import (
-    QKeySequence, QFont, QIcon, QColor, QPainter, QPen, QPalette
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.actions import ActionManager
-from app.event_bus import bus, StatusMessageEvent
+from app.event_bus import StatusMessageEvent, bus
 
 
 # ============================================================
@@ -1159,6 +1165,7 @@ def create_line_palette(parent=None) -> LineJumpPalette:
 # ============================================================
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication, QMainWindow
+
     from app.actions import ActionManager, create_action
 
     app = QApplication(sys.argv)

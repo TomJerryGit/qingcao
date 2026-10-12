@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """JSON 格式化插件"""
 import json
+
 from app.plugins import PluginBase
 
 

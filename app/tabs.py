@@ -34,22 +34,33 @@
 """
 
 import os
-import sys
 import subprocess
-from typing import Optional, List, Dict, Any, Tuple
+import sys
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QTabWidget, QTabBar, QMessageBox, QMenu, QApplication,
-    QMainWindow, QFileDialog, QInputDialog, QWidget
-)
+from PyQt5.QtCore import QDateTime, QFileSystemWatcher, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QIcon, QKeySequence
-from PyQt5.QtCore import (
-    Qt, QDateTime, QTimer, pyqtSignal, QFileSystemWatcher
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QInputDialog,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QTabBar,
+    QTabWidget,
+    QWidget,
 )
 
 from app.event_bus import (
-    bus, FileOpenedEvent, FileClosedEvent, TabChangedEvent,
-    TabAddedEvent, TabRemovedEvent, FileSavedEvent, FileModifiedEvent
+    FileClosedEvent,
+    FileModifiedEvent,
+    FileOpenedEvent,
+    FileSavedEvent,
+    TabAddedEvent,
+    TabChangedEvent,
+    TabRemovedEvent,
+    bus,
 )
 from core.content_provider import LocalFileProvider, MemoryProvider
 
@@ -1799,9 +1810,8 @@ class DetachedWindow(QMainWindow):
 # ============================================================
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtWidgets import (
-        QApplication, QMainWindow, QVBoxLayout, QWidget
-    )
+
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 
     app = QApplication(sys.argv)
 

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """崩溃统计测试（A3）"""
-import os
-import json
-import time
 import datetime
+import json
+import os
+import time
+
 import pytest
 
 

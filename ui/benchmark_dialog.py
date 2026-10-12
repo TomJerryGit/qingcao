@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 """基准测试对话框"""
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
-    QPushButton, QLabel, QProgressBar, QApplication
-)
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from core.benchmark import Benchmark
 

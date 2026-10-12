@@ -20,12 +20,11 @@
 
 import time
 import weakref
-from dataclasses import dataclass, field, asdict
-from typing import Any, Optional, Dict, List, Callable, Set
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from PyQt5.QtCore import QObject, pyqtSignal
-
 
 # ============================================================
 # 事件类型与事件类（B1b: 统一从 core.events 重导出）
@@ -41,73 +40,73 @@ from PyQt5.QtCore import QObject, pyqtSignal
 #   3. 统一到 core.events 后，任何调用方无论从哪个模块导入，
 #      拿到的都是同一对象。
 from core.events import (
-    # 枚举与工厂
-    EventType,
-    EventFactory,
+    AppClosingEvent,
+    # 应用
+    AppEvent,
+    AppReadyEvent,
     # 基类
     BaseEvent,
-    # 文件事件
-    FileEvent,
-    FileOpenedEvent,
-    FileSavedEvent,
-    FileClosedEvent,
-    FileModifiedEvent,
-    FileReloadedEvent,
-    FileEncodingChangedEvent,
-    # 编辑器事件
-    EditorEvent,
-    EditorChangedEvent,
-    EditorFocusedEvent,
-    EditorCreatedEvent,
-    EditorDestroyedEvent,
     # 光标与选区
     CursorEvent,
-    SelectionEvent,
-    # 文本编辑
-    TextEditEvent,
-    TextInsertedEvent,
-    TextDeletedEvent,
-    TextReplacedEvent,
-    # 撤销重做
-    UndoEvent,
-    RedoEvent,
-    # 搜索
-    SearchEvent,
-    SearchStartedEvent,
-    SearchFinishedEvent,
-    SearchResultEvent,
-    # 标签
-    TabEvent,
-    TabChangedEvent,
-    TabAddedEvent,
-    TabRemovedEvent,
-    # 项目
-    ProjectEvent,
-    ProjectOpenedEvent,
-    ProjectClosedEvent,
-    ProjectFileEvent,
-    ProjectFileAddedEvent,
-    ProjectFileRemovedEvent,
-    ProjectFileRenamedEvent,
+    EditorChangedEvent,
+    EditorCreatedEvent,
+    EditorDestroyedEvent,
+    # 编辑器事件
+    EditorEvent,
+    EditorFocusedEvent,
+    EventFactory,
+    # 枚举与工厂
+    EventType,
+    FileClosedEvent,
+    FileEncodingChangedEvent,
+    # 文件事件
+    FileEvent,
+    FileModifiedEvent,
+    FileOpenedEvent,
+    FileReloadedEvent,
+    FileSavedEvent,
     # 宏
     MacroEvent,
+    MacroReplayedEvent,
     MacroStartedEvent,
     MacroStoppedEvent,
-    MacroReplayedEvent,
+    NotificationEvent,
+    PluginErrorEvent,
     # 插件
     PluginEvent,
     PluginLoadedEvent,
     PluginUnloadedEvent,
-    PluginErrorEvent,
-    # 主题
-    ThemeEvent,
-    # 应用
-    AppEvent,
-    AppReadyEvent,
-    AppClosingEvent,
+    ProjectClosedEvent,
+    # 项目
+    ProjectEvent,
+    ProjectFileAddedEvent,
+    ProjectFileEvent,
+    ProjectFileRemovedEvent,
+    ProjectFileRenamedEvent,
+    ProjectOpenedEvent,
+    RedoEvent,
+    # 搜索
+    SearchEvent,
+    SearchFinishedEvent,
+    SearchResultEvent,
+    SearchStartedEvent,
+    SelectionEvent,
     # 状态与通知
     StatusMessageEvent,
-    NotificationEvent,
+    TabAddedEvent,
+    TabChangedEvent,
+    # 标签
+    TabEvent,
+    TabRemovedEvent,
+    TextDeletedEvent,
+    # 文本编辑
+    TextEditEvent,
+    TextInsertedEvent,
+    TextReplacedEvent,
+    # 主题
+    ThemeEvent,
+    # 撤销重做
+    UndoEvent,
 )
 
 
@@ -620,6 +619,7 @@ class TemporarySubscription:
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

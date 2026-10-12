@@ -24,38 +24,52 @@
 import os
 import re
 import time
-from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
-    QToolButton, QLabel, QCheckBox, QComboBox, QToolBar,
-    QDialog, QDialogButtonBox, QFormLayout, QListWidget,
-    QListWidgetItem, QMessageBox, QProgressBar, QFrame,
-    QSizePolicy, QSpacerItem, QApplication, QStyle,
-    QPlainTextEdit, QScrollArea, QGridLayout, QSpinBox
-)
+from PyQt5.QtCore import QEvent, QPoint, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
-    QIcon,
     QColor,
     QFont,
+    QIcon,
     QKeySequence,
-    QTextCharFormat,
-    QSyntaxHighlighter,
     QPalette,
+    QSyntaxHighlighter,
+    QTextCharFormat,
 )
-from PyQt5.QtWidgets import QAction, QShortcut
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSize, QSettings, QPoint, QEvent
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QShortcut,
+    QSizePolicy,
+    QSpacerItem,
+    QSpinBox,
+    QStyle,
+    QToolBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
-from core.search import (
-    SearchOptions, SearchEngine, SearchResult, SearchMatch,
-    ReplaceEngine
-)
-from app.event_bus import (
-    bus, StatusMessageEvent, SearchStartedEvent, SearchFinishedEvent
-)
+from app.event_bus import SearchFinishedEvent, SearchStartedEvent, StatusMessageEvent, bus
+from core.search import ReplaceEngine, SearchEngine, SearchMatch, SearchOptions, SearchResult
 
 
 # ============================================================
@@ -1595,6 +1609,7 @@ class InlineSearchPanel(QWidget):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)

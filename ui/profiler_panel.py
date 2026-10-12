@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
 """性能剖析器面板"""
 import os
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QPushButton,
-    QLabel, QFileDialog, QMessageBox, QApplication, QComboBox
-)
-from PyQt5.QtGui import QFont
+
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from core.profiler import get_profiler
 

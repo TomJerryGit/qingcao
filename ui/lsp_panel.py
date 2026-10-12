@@ -10,14 +10,27 @@
 作者: hedongwei
 """
 import os
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QPushButton, QLabel, QMessageBox,
-    QDialog, QProgressDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QApplication
-)
+
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QDialog,
+    QDockWidget,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.lsp_installer import get_lsp_installer
 

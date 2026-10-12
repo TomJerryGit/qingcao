@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 """三方合并对话框"""
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QSplitter, QWidget,
-    QPlainTextEdit, QPushButton, QLabel, QTabWidget
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.file_merge import ThreeWayMerger
 

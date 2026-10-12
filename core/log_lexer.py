@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """日志语法高亮器"""
 import re
+
 from PyQt5.Qsci import QsciLexerCustom
 from PyQt5.QtGui import QColor, QFont
 

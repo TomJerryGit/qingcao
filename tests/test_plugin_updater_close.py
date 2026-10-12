@@ -10,8 +10,9 @@
     所以不能一开始就把 _cancelled = True，否则 requests.get
     根本不会被调用。测试改为在 iter_content 中途触发 cancel。
 """
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestDownloadClose:

@@ -18,10 +18,8 @@
 import os
 import subprocess
 
-from PyQt5.QtWidgets import (
-    QStatusBar, QLabel, QWidget, QSizePolicy, QMessageBox
-)
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QLabel, QMessageBox, QSizePolicy, QStatusBar, QWidget
 
 
 # 从 main_window.py 复制的常量

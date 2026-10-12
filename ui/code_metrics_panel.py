@@ -1,14 +1,23 @@
 # -*- coding: utf-8 -*-
 """代码度量面板"""
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget,
-    QWidget, QTextBrowser, QAbstractItemView
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
-from core.code_metrics import analyze_file, analyze_directory
+from core.code_metrics import analyze_directory, analyze_file
 
 
 class CodeMetricsDialog(QDialog):
