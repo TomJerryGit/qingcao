@@ -3,6 +3,13 @@ site_url: https://qingcao-editor.github.io/docs/
 repo_url: https://github.com/qingcao-editor/qingcao
 repo_name: qingcao-editor/qingcao
 
+# 说明：docs/ 下同时存放 MKdocs 页面与仓库内部文档。
+# REVIEW_GUIDE.md 面向代码审查者，且大量引用 ../core/*.py 等
+# **源码文件**（不属于文档站点），在 --strict 下会产生无效链接警告，
+# 因此通过 exclude_docs 排除出站点构建，仍保留在仓库中供审查使用。
+exclude_docs: |
+  REVIEW_GUIDE.md
+
 theme:
   name: material
   language: zh
@@ -11,6 +18,7 @@ theme:
     - navigation.sections
     - toc.integrate
     - search.suggest
+    - content.code.copy
   palette:
     - scheme: slate
       primary: green
@@ -22,7 +30,7 @@ nav:
   - 功能: features.md
   - 快捷键: shortcuts.md
   - 插件开发: plugin_dev.md
-  - API 文档: api/
+  - API 文档: api/index.md
   - 贡献指南: contributing.md
   - 常见问题: faq.md
 
@@ -31,6 +39,14 @@ markdown_extensions:
   - codehilite
   - toc:
       permalink: true
+      # 关键：默认的 toc slugify 会丢弃非 ASCII 字符，导致中文标题
+      # 的锚点无法被 `#中文标题` 这类链接命中（--strict 下报
+      # "does not contain an anchor"）。pymdownx.slugs 会保留中文。
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - attr_list
+  - md_in_html
 
 plugins:
   - search:
