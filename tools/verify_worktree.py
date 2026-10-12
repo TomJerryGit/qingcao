@@ -64,6 +64,24 @@ def blob_sha1(data: bytes) -> str:
     return h.hexdigest()
 
 
+def normalized(data: bytes) -> bytes:
+    """按仓库约定归一化行尾
+
+    `.gitattributes` 声明 `text eol=lf`：版本库内统一存 LF，检出时
+    git 的 smudge 过滤器可能把工作区文件写成 CRLF。
+
+    因此**工作区 CRLF 与库内 LF 属于同一内容**，直接比对原始字节会
+    产生假阳性（本工具第一版就误报了 84 个文件）。这里统一把 CRLF
+    归一为 LF 再比对 —— 与 `git status` 的判定保持一致。
+    """
+    return data.replace(b'\r\n', b'\n')
+
+
+def same_content(a: bytes, b: bytes) -> bool:
+    """内容是否一致（按仓库行尾约定归一化后比较）"""
+    return a == b or normalized(a) == normalized(b)
+
+
 def main(argv=None):
     _try_reconfigure_stdout()
     argv = argv if argv is not None else sys.argv[1:]
@@ -90,7 +108,7 @@ def main(argv=None):
         with open(path, 'rb') as fh:
             work = fh.read()
         head = _git('show', '%s:%s' % (rev, f), binary=True)
-        if blob_sha1(work) == blob_sha1(head):
+        if same_content(work, head):
             same.append(f)
         else:
             differ.append(f)

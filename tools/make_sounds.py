@@ -60,7 +60,10 @@ def main(argv=None):
     app = QApplication.instance() or QApplication([])
 
     from infrastructure.sound_manager import (
-        BuiltinSounds, DEFAULT_SOUND_DIR, EVENT_FILE_MAP, SoundEvent,
+        DEFAULT_SOUND_DIR,
+        EVENT_FILE_MAP,
+        BuiltinSounds,
+        SoundEvent,
     )
 
     sound_dir = os.path.join(ROOT, DEFAULT_SOUND_DIR)
