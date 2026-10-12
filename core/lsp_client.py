@@ -35,18 +35,16 @@
   变成 "file:////C:/..." 的 bug（P1-7）
 """
 
+import json
 import os
 import sys
-import json
-import time
 import threading
-from typing import Optional, Dict, List, Any, Tuple, Callable
+import time
 from enum import Enum, auto
-from urllib.parse import urlparse, unquote
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import unquote, urlparse
 
-from PyQt5.QtCore import (
-    QObject, QProcess, QProcessEnvironment, pyqtSignal, QTimer
-)
+from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 
 # ============================================================
@@ -319,7 +317,12 @@ class LspClient(QObject):
 
         # 创建 QProcess
         self._process = QProcess(self)
-        self._process.setProcessChannelMode(QProcess.MergedChannels)
+        # P0-2 修复：必须使用 SeparateChannels。
+        # 原实现用 MergedChannels 把 LSP 服务端的 stderr 并入
+        # stdout，而 stderr 上是日志/banner（如 pyright、pylsp
+        # 启动信息），会污染 Content-Length 帧解析，_on_stderr
+        # 也永远不会触发。表现为 LSP 整体失效。
+        self._process.setProcessChannelMode(QProcess.SeparateChannels)
         self._process.readyReadStandardOutput.connect(self._on_stdout)
         self._process.readyReadStandardError.connect(self._on_stderr)
         self._process.finished.connect(self._on_process_finished)
@@ -481,7 +484,11 @@ class LspClient(QObject):
         params = {
             "processId": os.getpid(),
             "rootUri": root_uri,
-            "rootPath": self._uri_to_path(root_uri),
+            # P0-2 修复（端到端测试发现）：原为 self._uri_to_path(root_uri)，
+            # 但本类只有 @staticmethod uri_to_path（没有下划线前缀），
+            # 因此 initialize() 必然抛 AttributeError →
+            # LSP 在握手第一步就崩，被上层宽泛 except 吞掉。
+            "rootPath": LspClient.uri_to_path(root_uri),
             "capabilities": capabilities,
         }
 
@@ -652,7 +659,41 @@ class LspClient(QObject):
             language_id: 语言 ID（如 "python"）
             text: 文档内容
             version: 版本号
+
+        修复说明（P0-2）:
+            原调用方 core/editor.py 写成
+            `did_open(uri, self.sc.text())`，导致
+            language_id 收到整份文件文本、text 为 None、
+            version=None。随后 did_change 里 `self._doc_versions[uri] += 1`
+            必然抛 TypeError（NoneType += int），被上层宽泛的
+            except 吞掉，LSP 静默失效。
+
+            这里做输入防御：
+              - text 为 None 时按空文档处理
+              - version 强制转 int，无法转换时回退 1
+              - language_id 为空时回退 "plaintext"
+            并在参数异常时给出明确日志，便于下次快速定位。
         """
+        # ---- 输入防御（P0-2）----
+        if text is None:
+            print("[LspClient] did_open: text 为 None，按空文档处理"
+                  "（请检查调用方参数顺序）")
+            text = ""
+
+        try:
+            version = int(version)
+        except (TypeError, ValueError):
+            print(f"[LspClient] did_open: 非法 version={version!r}，回退 1")
+            version = 1
+
+        if not isinstance(language_id, str) or not language_id:
+            language_id = "plaintext"
+        elif len(language_id) > 64 or '\n' in language_id:
+            # 典型症状：调用方把整份文件内容传给了 language_id
+            print("[LspClient] did_open: language_id 非法（疑似参数错位），"
+                  "回退 plaintext")
+            language_id = "plaintext"
+
         self._doc_versions[uri] = version
         self._open_documents[uri] = language_id
 
@@ -1127,34 +1168,77 @@ class LspClient(QObject):
             pass
 
     def _process_buffer(self):
-        """处理缓冲区（解析消息）"""
+        """处理缓冲区（解析消息）
+
+        修复说明（P0-2）:
+            原实现假定缓冲区**一定**从 Content-Length 头开始。
+            服务端任何非协议输出（旧版 MergedChannels 下的
+            stderr 日志、启动 banner）都会让 `find(b'\\r\\n\\r\\n')`
+            把噪声和后续合法头一起当成"头"，解析不出
+            Content-Length 后把 _reading_header 置回 True 继续
+            找下一个 \\r\\n\\r\\n —— 于是一路吃掉合法消息，LSP 永久
+            失效且只报"消息头异常"。
+
+            正确做法：定位到真正的协议头起点（`Content-Length:`），
+            丢弃它之前的所有噪声字节，再从那里开始按标准
+            `Content-Length: N\\r\\n\\r\\n<body>` 解析。
+            注意不能只丢弃到第一个 \\r\\n\\r\\n —— 若噪声与头在同一
+            段里（如 `noise\\nContent-Length: 33\\r\\n\\r\\n{...}`），
+            那样会把整个消息一起丢掉。
+        """
         while True:
             if self._reading_header:
+                # 丢弃协议头之前的所有噪声
+                marker = b'Content-Length:'
+                pos = self._buffer.lower().find(marker.lower())
+                if pos < 0:
+                    # 还没有头：保留可能是不完整的 marker 前缀
+                    keep = len(marker) - 1
+                    if len(self._buffer) > 8192:
+                        self.error_occurred.emit("消息头异常")
+                        self._buffer = b''
+                    elif len(self._buffer) > keep:
+                        # 保留尾部，避免把跨包的头切掉
+                        tail = self._buffer[-keep:]
+                        if marker.lower().startswith(
+                                tail.lower()) or b'\r' not in tail:
+                            self._buffer = tail
+                        else:
+                            self._buffer = b''
+                    return
+                if pos > 0:
+                    # 丢弃噪声，重新从头解析
+                    self._buffer = self._buffer[pos:]
+                    continue
+
                 # 寻找 \r\n\r\n
                 idx = self._buffer.find(b'\r\n\r\n')
                 if idx < 0:
-                    # 检查消息是否过大
+                    # 头还不完整
                     if len(self._buffer) > 8192:
                         self.error_occurred.emit("消息头异常")
                         self._buffer = b''
                     return
 
                 header = self._buffer[:idx].decode('ascii', errors='replace')
-                self._buffer = self._buffer[idx + 4:]
-
-                # 解析 Content-Length
-                self._content_length = 0
-                for line in header.split('\r\n'):
+                content_length = 0
+                for line in header.replace('\r\n', '\n').split('\n'):
                     if line.lower().startswith('content-length:'):
                         try:
-                            self._content_length = int(line.split(':', 1)[1].strip())
+                            content_length = int(
+                                line.split(':', 1)[1].strip()
+                            )
                         except (ValueError, IndexError):
-                            pass
+                            content_length = 0
+                        break
 
-                if self._content_length <= 0:
-                    # 无效消息
-                    self._reading_header = True
+                if content_length <= 0:
+                    # 头非法：丢掉这一个分隔符，继续找下一个头
+                    self._buffer = self._buffer[idx + 4:]
                     continue
+
+                self._buffer = self._buffer[idx + 4:]
+                self._content_length = content_length
 
                 if self._content_length > MAX_MESSAGE_SIZE:
                     self.error_occurred.emit(
@@ -1662,8 +1746,9 @@ class LspServerRegistry:
 # ============================================================
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtWidgets import QApplication
+
     from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 
@@ -1701,7 +1786,7 @@ if __name__ == "__main__":
     # 检查 pylsp 是否已安装
     import shutil
     if command and shutil.which(command[0]):
-        print(f"pylsp 已安装，可以测试完整流程")
+        print("pylsp 已安装，可以测试完整流程")
 
         # 启动
         client.start(command)

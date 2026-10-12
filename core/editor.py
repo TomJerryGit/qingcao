@@ -27,29 +27,43 @@
 - 所有 SCI_INSERTTEXT 调用确保传入 bytes
 """
 
+import datetime
 import os
 import re
 import time
-import datetime
-from typing import Optional, List, Dict, Any, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciLexerCPP
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QDateTime, QSettings
+from PyQt5.Qsci import QsciLexerCPP, QsciLexerPython, QsciScintilla
+from PyQt5.QtCore import QDateTime, QObject, QSettings, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
 
-from core.commands import (
-    InsertCmd, DeleteCmd, ReplaceCmd, GroupCmd,
-    CommandFactory, CommandPool, merge_commands
+from app.event_bus import (
+    CursorEvent,
+    FileEvent,
+    FileModifiedEvent,
+    FileSavedEvent,
+    RedoEvent,
+    SearchFinishedEvent,
+    SearchStartedEvent,
+    SelectionEvent,
+    StatusMessageEvent,
+    TextEditEvent,
+    UndoEvent,
+    bus,
 )
-from core.undo import UndoManager
-from core.search import SearchEngine, SearchOptions
+from core.commands import (
+    CommandFactory,
+    CommandPool,
+    DeleteCmd,
+    GroupCmd,
+    InsertCmd,
+    ReplaceCmd,
+    merge_commands,
+)
 from core.document import Document
 from core.lsp_client import LspClient
-from app.event_bus import (
-    bus, FileEvent, FileSavedEvent, FileModifiedEvent,
-    CursorEvent, SelectionEvent, TextEditEvent, UndoEvent, RedoEvent,
-    StatusMessageEvent, SearchStartedEvent, SearchFinishedEvent
-)
+from core.search import SearchEngine, SearchOptions
+from core.undo import UndoManager
 
 
 # ============================================================
@@ -75,6 +89,30 @@ MULTI_CURSOR_MERGE_INTERVAL = 300
 
 # 智能高亮防抖延迟（毫秒）
 SMART_HIGHLIGHT_DELAY = 300
+
+# P0-2: 文档变更 → LSP didChange 的防抖延迟（毫秒）
+LSP_SYNC_DELAY = 300
+
+# 文件扩展名 → LSP languageId 映射（与
+# LspServerRegistry._servers 中的 language_id 保持一致）
+LSP_LANGUAGE_BY_EXT = {
+    '.py': 'python', '.pyw': 'python',
+    '.js': 'javascript', '.jsx': 'javascript',
+    '.ts': 'typescript', '.tsx': 'typescript',
+    '.rs': 'rust',
+    '.go': 'go',
+    '.c': 'c', '.h': 'c',
+    '.cpp': 'cpp', '.cc': 'cpp', '.cxx': 'cpp',
+    '.hpp': 'cpp',
+    '.java': 'java',
+    '.json': 'json',
+    '.md': 'markdown',
+    '.html': 'html', '.htm': 'html',
+    '.css': 'css',
+    '.sh': 'shellscript',
+    '.yml': 'yaml', '.yaml': 'yaml',
+    '.sql': 'sql',
+}
 
 # 光标拖尾保留时长（秒）
 CURSOR_TRAIL_DURATION = 0.2
@@ -177,6 +215,12 @@ class EditorProxy(QObject):
         # LSP 客户端
         self.lsp_client: Optional[LspClient] = None
         self.lsp_active: bool = False
+        self._lsp_uri: str = ""
+        # P0-2: 文档变更 → didChange 的防抖定时器
+        self._lsp_sync_timer = QTimer(self)
+        self._lsp_sync_timer.setSingleShot(True)
+        self._lsp_sync_timer.setInterval(LSP_SYNC_DELAY)
+        self._lsp_sync_timer.timeout.connect(self._sync_lsp_document)
 
         # 宏录制回调（由 MacroRecorder 设置）
         self.record_hook: Optional[Callable] = None
@@ -453,6 +497,9 @@ class EditorProxy(QObject):
                 self._modified = False
                 self.sc.setModified(False)
 
+                # P0-2: 通知语言服务器已保存
+                self._notify_lsp_saved(filepath)
+
                 # 删除草稿
                 try:
                     self.document.delete_draft()
@@ -682,10 +729,55 @@ class EditorProxy(QObject):
             # 触发智能高亮
             self._smart_hl_timer.start(SMART_HIGHLIGHT_DELAY)
 
+            # P0-2: 触发 LSP 文本同步（防抖）
+            if self.lsp_active and self.lsp_client:
+                self._lsp_sync_timer.start(LSP_SYNC_DELAY)
+
         except Exception as e:
             print(f"[EditorProxy] 处理修改失败: {e}")
             import traceback
             traceback.print_exc()
+
+    # ========================================================
+    # LSP 文本同步（P0-2）
+    # ========================================================
+    def _lsp_language_id(self) -> str:
+        """根据文件扩展名推断 LSP languageId"""
+        path = self.document.filepath or ""
+        ext = os.path.splitext(path)[1].lower()
+        return LSP_LANGUAGE_BY_EXT.get(ext, 'plaintext')
+
+    def _sync_lsp_document(self):
+        """把编辑器当前全文同步给语言服务器（didChange 全量）。
+
+        修复说明（P0-2）:
+            原实现只在 toggle_lsp 里发一次 did_open，之后**从不**
+            调用 did_change / did_save，语言服务器永远停留在
+            打开时的快照，补全与诊断都是过期的。
+        """
+        if not (self.lsp_active and self.lsp_client):
+            return
+        try:
+            self.lsp_client.did_change(
+                self._lsp_uri or LspClient.path_to_uri(
+                    self.document.filepath or ""
+                ),
+                self.sc.text(),
+            )
+        except Exception as e:
+            print(f"[EditorProxy] LSP 同步失败: {e}")
+
+    def _notify_lsp_saved(self, filepath: Optional[str] = None):
+        """通知语言服务器文件已保存（didSave）"""
+        if not (self.lsp_active and self.lsp_client):
+            return
+        try:
+            uri = self._lsp_uri or LspClient.path_to_uri(
+                filepath or self.document.filepath or ""
+            )
+            self.lsp_client.did_save(uri, self.sc.text())
+        except Exception as e:
+            print(f"[EditorProxy] LSP didSave 失败: {e}")
 
     def _on_modification_changed(self, modified: bool):
         """QScintilla 修改状态变更"""
@@ -1784,18 +1876,40 @@ class EditorProxy(QObject):
                 self.lsp_client.start()
 
                 # 初始化
-                uri = "file:///" + self.document.filepath.replace("\\", "/")
-                self.lsp_client.initialize(os.path.dirname(uri))
-                self.lsp_client.did_open(uri, self.sc.text())
+                # P0-2 修复：URI 用 path_to_uri 生成（正确 URL 编码），
+                # 不再手工拼接；root_uri 为文件所在目录的 URI。
+                uri = LspClient.path_to_uri(self.document.filepath)
+                root_uri = LspClient.path_to_uri(
+                    os.path.dirname(self.document.filepath)
+                )
+                self.lsp_client.initialize(root_uri)
+                # P0-2 修复：原为 did_open(uri, self.sc.text())，
+                # 参数错位（language_id 收到全文、text 缺失、
+                # version=None），导致后续 did_change 抛
+                # TypeError 且 LSP 静默失效。
+                self.lsp_client.did_open(
+                    uri,
+                    self._lsp_language_id(),
+                    self.sc.text(),
+                )
+                self._lsp_uri = uri
 
                 self.lsp_active = True
                 self.lsp_status_changed.emit("running")
                 return True
 
             elif not enable and self.lsp_client:
+                # P0-2: 关闭前先通知服务端并停掉待发的同步
+                try:
+                    if self._lsp_uri:
+                        self.lsp_client.did_close(self._lsp_uri)
+                except Exception:
+                    pass
+                self._lsp_sync_timer.stop()
                 self.lsp_client.stop()
                 self.lsp_client = None
                 self.lsp_active = False
+                self._lsp_uri = ""
                 self.lsp_status_changed.emit("off")
                 return True
 
@@ -1926,11 +2040,19 @@ class EditorProxy(QObject):
         try:
             # 停止定时器
             self._smart_hl_timer.stop()
+            self._lsp_sync_timer.stop()
 
-            # 停止 LSP
+            # 停止 LSP（P0-2: 先通知 didClose 再关闭进程）
             if self.lsp_client:
+                try:
+                    if self._lsp_uri:
+                        self.lsp_client.did_close(self._lsp_uri)
+                except Exception:
+                    pass
                 self.lsp_client.stop()
                 self.lsp_client = None
+                self.lsp_active = False
+                self._lsp_uri = ""
 
             # 保存光标和视图位置
             try:
@@ -2071,9 +2193,10 @@ class EditorProxy(QObject):
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
+    import shutil
     import sys
     import tempfile
-    import shutil
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
