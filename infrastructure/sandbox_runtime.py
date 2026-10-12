@@ -7,6 +7,27 @@
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
+.. warning::
+
+    **本模块目前未接入生产代码路径（P0-3 结论）。**
+
+    编辑器实际使用的插件加载器 ``infrastructure/plugin_loader.py``
+    通过 ``importlib.util.spec_from_file_location`` +
+    ``exec_module`` 在**主进程**中直接执行插件代码，本文件与
+    ``plugin_sandbox.py`` 只被单元测试和 PyInstaller 的
+    hidden-import 列表引用，**没有任何生产调用方**。
+
+    也就是说：当前版本的插件运行**没有进程级隔离**，
+    ``plugin.json`` 中的 ``permissions`` 只在 ``PluginAPI``
+    的 API 边界上做门控（见 ``app/plugins.py``），
+    插件仍可通过 ``import subprocess`` 等方式获得全部系统能力。
+
+    在把本模块真正接入 ``PluginLoader`` 之前，请勿对外宣称
+    "插件沙箱"。若要启用，还需先修复本模块自身的若干缺陷
+    （``__builtins__`` 在非 __main__ 模块中是 dict、
+    INTERNAL_ALLOWED_MODULES 放行 os/importlib/marshal、
+    SafeFinder 对已在 sys.modules 的模块无效等）。
+
 本文件为沙箱子进程运行时模块，包含：
 - SandboxRuntime：沙箱运行时（在子进程中执行）
 - SafeFinder：自定义模块导入器（基于 sys.meta_path）
@@ -62,16 +83,16 @@
         且通过 INTERNAL_ALLOWED_MODULES 豁免沙箱自身的依赖。
 """
 
-import os
-import sys
 import ast
-import time
-import json
-import traceback
 import importlib
 import importlib.abc
 import importlib.machinery
-from typing import Optional, List, Set, Dict, Any, Tuple, Callable
+import json
+import os
+import sys
+import time
+import traceback
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
 # ============================================================
@@ -100,6 +121,7 @@ if _ROOT not in sys.path:
 #     → 使用受限内建（通过 ns['__builtins__'] 字典注入）
 import builtins as _builtins_module
 
+
 _ORIGINAL_BUILTINS: Dict[str, Any] = {
     'compile':     _builtins_module.compile,
     'eval':        _builtins_module.eval,
@@ -127,14 +149,15 @@ _restricted_compile = None
 _restricted_safe_globals = None
 
 try:
-    from RestrictedPython import (
-        compile_restricted, safe_globals as _safe_globals_dict
-    )
+    from RestrictedPython import compile_restricted
+    from RestrictedPython import safe_globals as _safe_globals_dict
     from RestrictedPython.Eval import default_guarded_getitem
     from RestrictedPython.Guards import (
-        safe_builtins as _rp_safe_builtins,
         guarded_iter_unpack_sequence,
         guarded_unpack_sequence,
+    )
+    from RestrictedPython.Guards import (
+        safe_builtins as _rp_safe_builtins,
     )
     _RESTRICTED_PYTHON_OK = True
     _restricted_compile = compile_restricted
@@ -290,10 +313,10 @@ _RESTRICTED_GLOBALS: Dict[str, Any] = _build_restricted_globals()
 # ============================================================
 try:
     from core.sandbox_policy import (
-        SandboxPolicy,
+        DANGEROUS_MODULES,
         SAFE_BUILTINS,
         SAFE_MODULES,
-        DANGEROUS_MODULES,
+        SandboxPolicy,
     )
 except ImportError as _e:
     print(f"[SandboxRuntime] 警告：无法导入 core.sandbox_policy: {_e}")
@@ -1044,8 +1067,8 @@ if __name__ == "__main__":
     # 注意：tempfile/shutil 已在 INTERNAL_ALLOWED_MODULES 中豁免，
     #       因此即使 install_sandbox_hooks 之后再 import 也不会被拦。
     #       这里为清晰起见，在安装钩子之前 import。
-    import tempfile
     import shutil
+    import tempfile
 
     if SandboxPolicy is None:
         print("✗ SandboxPolicy 未加载，无法测试")
@@ -1135,7 +1158,7 @@ class Plugin:
 
         runtime2 = SandboxRuntime(policy)
         if runtime2.load_plugin(tmp_dir):
-            print(f"  ✓ 插件加载成功")
+            print("  ✓ 插件加载成功")
 
             result = runtime2.call_method('add', {'a': 3, 'b': 5})
             print(f"  ✓ add(3, 5) = {result}")
@@ -1145,11 +1168,11 @@ class Plugin:
 
             try:
                 runtime2.call_method('fail')
-                print(f"  ✗ fail() 未抛异常")
+                print("  ✗ fail() 未抛异常")
             except RuntimeError:
-                print(f"  ✓ fail() 正确抛出异常")
+                print("  ✓ fail() 正确抛出异常")
         else:
-            print(f"  ✗ 插件加载失败")
+            print("  ✗ 插件加载失败")
 
     except Exception as e:
         print(f"  ✗ 测试异常: {e}")

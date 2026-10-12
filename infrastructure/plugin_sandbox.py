@@ -7,6 +7,19 @@
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
+.. warning::
+
+    **本模块目前未接入生产代码路径（P0-3 结论）。**
+
+    实际的插件加载由 ``infrastructure/plugin_loader.py`` 在主进程
+    内直接 ``exec_module`` 完成，本文件没有任何生产调用方
+    （只有 ``tests/test_plugin_sandbox_event.py`` 与
+    ``build.py`` 的 hidden-import 引用）。
+
+    因此当前版本**没有插件进程隔离**；``plugin.json`` 的
+    ``permissions`` 仅在 ``PluginAPI`` 的 API 边界上做门控。
+    在接入本模块之前，请勿在文档/界面上声称插件运行在沙箱中。
+
 本文件为插件沙箱模块，包含：
 - PluginSandbox：插件沙箱（进程隔离执行）
 - SandboxConfig：沙箱配置
@@ -24,26 +37,26 @@
 - 插件沙箱管理器
 """
 
-import os
-import sys
-import json
-import time
-import uuid
-import signal
-import pickle
 import base64
-import struct
-import queue
-import threading
-import traceback
-import subprocess
+import json
 import multiprocessing
-from typing import Optional, List, Dict, Any, Tuple, Callable, Set
-from dataclasses import dataclass, field, asdict
+import os
+import pickle
+import queue
+import signal
+import struct
+import subprocess
+import sys
+import threading
+import time
+import traceback
+import uuid
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
-from multiprocessing import Process, Queue, Pipe, Event
+from multiprocessing import Event, Pipe, Process, Queue
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
 # ============================================================
@@ -523,8 +536,8 @@ class SandboxProcess:
         start_time = time.time()
 
         # 捕获输出
-        import io
         import contextlib
+        import io
 
         stdout_cap = io.StringIO()
         stderr_cap = io.StringIO()
@@ -719,6 +732,12 @@ class PluginSandbox(QObject):
         # 请求管理
         self._pending_requests: Dict[str, queue.Queue] = {}
         self._request_lock = threading.RLock()
+
+        # F1 修复：就绪事件在 __init__ 里初始化，
+        # 避免 _handle_message 的 READY 分支在 start() 之前
+        # 访问不存在的属性（AttributeError）
+        self._ready_event = threading.Event()
+        self._ready_ok = False
 
         # 接收线程
         self._receiver_thread: Optional[threading.Thread] = None
@@ -1393,9 +1412,10 @@ def run_in_sandbox(plugin_path: str, method: str,
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
+    import shutil
     import sys
     import tempfile
-    import shutil
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

@@ -1,13 +1,20 @@
 # -*- coding: utf-8 -*-
 """崩溃上报器"""
-import os
-import sys
-import json
-import platform
 import datetime
+import json
+import os
+import platform
+import sys
 import traceback
 import urllib.parse
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
+
+# P1-1: 版本号唯一来源
+try:
+    from version import __version__ as _APP_VERSION
+except ImportError:  # pragma: no cover
+    _APP_VERSION = "0.0.0"
 
 
 class CrashReporter:
@@ -15,7 +22,7 @@ class CrashReporter:
 
     GITHUB_ISSUE_URL = "https://github.com/qingcao-editor/qingcao/issues/new"
 
-    def __init__(self, app_version="2.0.0"):
+    def __init__(self, app_version: str = _APP_VERSION):
         self.app_version = app_version
 
     def collect_context(self, exc_info=None) -> Dict[str, Any]:
@@ -32,7 +39,7 @@ class CrashReporter:
 
         # 依赖版本
         try:
-            from PyQt5.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
+            from PyQt5.QtCore import PYQT_VERSION_STR, QT_VERSION_STR
             ctx['qt'] = QT_VERSION_STR
             ctx['pyqt'] = PYQT_VERSION_STR
         except Exception:
@@ -153,12 +160,17 @@ class CrashReporter:
 
     def show_crash_dialog(self, parent=None, exc_info=None):
         """显示崩溃对话框"""
-        from PyQt5.QtWidgets import (
-            QDialog, QVBoxLayout, QLabel, QTextBrowser,
-            QPushButton, QHBoxLayout, QMessageBox
-        )
-        from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtCore import QUrl
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtWidgets import (
+            QDialog,
+            QHBoxLayout,
+            QLabel,
+            QMessageBox,
+            QPushButton,
+            QTextBrowser,
+            QVBoxLayout,
+        )
 
         ctx = self.collect_context(exc_info)
         report_path = self.save_crash_report(ctx)
@@ -255,7 +267,7 @@ class CrashReporter:
 _reporter = None
 
 
-def get_crash_reporter(app_version="2.0.0"):
+def get_crash_reporter(app_version: str = _APP_VERSION):
     global _reporter
     if _reporter is None:
         _reporter = CrashReporter(app_version)

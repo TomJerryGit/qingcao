@@ -7,10 +7,13 @@
 
 import os
 
-from PyQt5.QtWidgets import (
-    QFileDialog, QMessageBox, QInputDialog, QDialog,
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QInputDialog,
+    QMessageBox,
+)
 
 
 class FileOpsMixin:
@@ -308,6 +311,12 @@ class FileOpsMixin:
             path = getattr(event, 'path', '')
             if path:
                 self.central_stack.setCurrentIndex(0)
+                # P1-2: 音效接线（默认关闭，需在首选项开启）
+                try:
+                    from infrastructure.sound_manager import SoundEvent, play_sound
+                    play_sound(SoundEvent.FILE_OPEN)
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -320,6 +329,12 @@ class FileOpsMixin:
                 self.status_bar.showMessage(
                     f"已保存: {os.path.basename(path)}", 2000
                 )
+                # P1-2: 音效接线
+                try:
+                    from infrastructure.sound_manager import SoundEvent, play_sound
+                    play_sound(SoundEvent.FILE_SAVE)
+                except Exception:
+                    pass
         except Exception:
             pass
 

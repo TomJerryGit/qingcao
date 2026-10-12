@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 """自动更新检查"""
-import os
 import json
+import os
 import threading
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from PyQt5.QtCore import QObject, pyqtSignal
+
+
+# P1-1: 版本号唯一来源
+try:
+    from version import __version__ as _APP_VERSION
+except ImportError:  # pragma: no cover - 仅打包异常时触发
+    _APP_VERSION = "0.0.0"
 
 
 UPDATE_CHECK_URL = (
@@ -19,7 +27,7 @@ class UpdateChecker(QObject):
     check_failed = pyqtSignal(str)
     no_update = pyqtSignal(str)  # 当前版本
 
-    def __init__(self, current_version="2.0.0", parent=None):
+    def __init__(self, current_version: str = _APP_VERSION, parent=None):
         super().__init__(parent)
         self.current_version = current_version
 
@@ -91,10 +99,9 @@ class UpdateChecker(QObject):
 
 def show_update_dialog(parent, update_info):
     """显示更新对话框"""
-    from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, \
-        QTextBrowser, QPushButton, QHBoxLayout
-    from PyQt5.QtGui import QDesktopServices
     from PyQt5.QtCore import QUrl
+    from PyQt5.QtGui import QDesktopServices
+    from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextBrowser, QVBoxLayout
 
     dlg = QDialog(parent)
     dlg.setWindowTitle("发现新版本")

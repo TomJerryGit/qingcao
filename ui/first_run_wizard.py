@@ -1,13 +1,25 @@
 # -*- coding: utf-8 -*-
 """首次启动向导"""
 import os
-from PyQt5.QtWidgets import (
-    QWizard, QWizardPage, QVBoxLayout, QHBoxLayout, QLabel,
-    QRadioButton, QButtonGroup, QComboBox, QSpinBox, QCheckBox,
-    QGroupBox, QFormLayout, QListWidget, QListWidgetItem
-)
-from PyQt5.QtCore import Qt, QSettings
+
+from PyQt5.QtCore import QSettings, Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QRadioButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWizard,
+    QWizardPage,
+)
 
 
 class WelcomePage(QWizardPage):
@@ -21,7 +33,8 @@ class WelcomePage(QWizardPage):
         layout = QVBoxLayout(self)
 
         # Logo
-        logo = QLabel("??")
+        # E2 修复：emoji 被 GBK 编辑器写坏成 ?，去掉 emoji 前缀
+        logo = QLabel("(Q)")
         logo.setAlignment(Qt.AlignCenter)
         logo.setStyleSheet("font-size: 64px;")
         layout.addWidget(logo)
@@ -58,7 +71,7 @@ class LanguagePage(QWizardPage):
             ("简体中文", "zh_CN"),
             ("English", "en_US"),
             ("日本語", "ja_JP"),
-            ("???", "ko_KR"),
+            ("한국어", "ko_KR"),
         ]
 
         for i, (name, code) in enumerate(languages):
@@ -93,10 +106,10 @@ class ThemePage(QWizardPage):
         self.theme_group = QButtonGroup(self)
 
         themes = [
-            ("dark_night", "?? 暗夜", "深色主题，适合夜间使用"),
-            ("light_clean", "? 晨曦", "浅色主题，适合白天使用"),
-            ("eye_protect", "?? 护眼", "绿色主题，减少眼睛疲劳"),
-            ("high_contrast", "? 高对比度", "极高对比度，适合视力较弱用户"),
+            ("dark_night", "暗夜", "深色主题，适合夜间使用"),
+            ("light_clean", "晨曦", "浅色主题，适合白天使用"),
+            ("eye_protect", "护眼", "绿色主题，减少眼睛疲劳"),
+            ("high_contrast", "高对比度", "极高对比度，适合视力较弱用户"),
         ]
 
         for i, (code, name, desc) in enumerate(themes):
@@ -223,10 +236,10 @@ class FinishPage(QWizardPage):
         info = QLabel(
             "所有设置都可以在\"工具 → 首选项\"中修改。\n\n"
             "快速上手：\n"
-            "  ? Ctrl+Shift+P 打开命令面板\n"
-            "  ? Ctrl+P 快速打开文件\n"
-            "  ? Ctrl+Shift+F 全局搜索\n"
-            "  ? F11 无干扰模式\n\n"
+            "  · Ctrl+Shift+P 打开命令面板\n"
+            "  · Ctrl+P 快速打开文件\n"
+            "  · Ctrl+Shift+F 全局搜索\n"
+            "  · F11 无干扰模式\n\n"
             "青草枯荣，野火重生。"
         )
         info.setWordWrap(True)

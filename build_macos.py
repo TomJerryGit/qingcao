@@ -2,14 +2,18 @@
 # -*- coding: utf-8 -*-
 """macOS 打包（.app + .dmg）"""
 import os
-import sys
+import plistlib
 import shutil
 import subprocess
-import plistlib
+import sys
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-VERSION = "2.0.0"
+# P1-1: 版本号唯一来源 version.py
+try:
+    from version import __version__ as VERSION
+except ImportError:  # pragma: no cover
+    VERSION = "2.1.0"
 APP_NAME = "QingCaoEditor.app"
 
 

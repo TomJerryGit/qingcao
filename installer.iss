@@ -3,8 +3,14 @@
 
 #define MyAppName "青草编辑器"
 #define MyAppNameEn "QingCao Editor"
-#define MyAppVersion "2.0.0"
-#define MyAppPublisher "TomJerry.He"
+; C4 修复：版本号由 build_installer.py 生成的 installer_version.iss 提供
+; 若该文件不存在，回退到默认值
+#if FileExists("installer_version.iss")
+#include "installer_version.iss"
+#else
+#define MyAppVersion "2.1.0"
+#endif
+#define MyAppPublisher "hedongwei"
 #define MyAppURL "https://github.com/qingcao-editor/qingcao"
 #define MyAppExeName "QingCaoEditor.exe"
 

@@ -1,31 +1,76 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """发布流程脚本"""
-import os
-import sys
-import json
-import subprocess
 import datetime
+import json
+import os
 import shutil
+import subprocess
+import sys
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 VERSION_FILE = os.path.join(ROOT, 'VERSION')
+VERSION_PY = os.path.join(ROOT, 'version.py')
 CHANGELOG_FILE = os.path.join(ROOT, 'CHANGELOG.md')
 
 
 def read_version():
-    """读取版本号"""
-    if not os.path.exists(VERSION_FILE):
-        return "2.0.0"
-    with open(VERSION_FILE, 'r', encoding='utf-8') as f:
-        return f.read().strip()
+    """读取版本号
+
+    P1-1 修复：优先读 version.py（唯一权威来源），
+    其次读 VERSION 文件。
+    """
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_qingcao_version", VERSION_PY
+        )
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            v = getattr(mod, '__version__', '')
+            if v:
+                return v
+    except Exception:
+        pass
+
+    if os.path.exists(VERSION_FILE):
+        with open(VERSION_FILE, encoding='utf-8') as f:
+            return f.read().strip()
+
+    raise RuntimeError("无法读取版本号（version.py / VERSION 均不可用）")
 
 
 def write_version(version):
-    """写入版本号"""
-    with open(VERSION_FILE, 'w', encoding='utf-8') as f:
-        f.write(version)
+    """写入版本号
+
+    P1-1 修复：原来只写 VERSION 文件，不更新 version.py，
+    导致 bump 之后 version.py 仍是旧值（版本漂移）。
+    现在两处同时写入。
+    """
+    with open(VERSION_FILE, 'w', encoding='utf-8', newline='') as f:
+        f.write(version + "\n")
+
+    # 同步 version.py（唯一权威来源）
+    try:
+        with open(VERSION_PY, encoding='utf-8') as f:
+            src = f.read()
+        import re
+        new_src, n = re.subn(
+            r'__version__\s*=\s*["\'][^"\']+["\']',
+            '__version__ = "%s"' % version,
+            src,
+            count=1,
+        )
+        if n:
+            with open(VERSION_PY, 'w', encoding='utf-8', newline='') as f:
+                f.write(new_src)
+            print("[release] version.py 已同步为 %s" % version)
+        else:
+            print("[release] 警告：未能在 version.py 中找到 __version__")
+    except Exception as e:
+        print("[release] 警告：同步 version.py 失败: %s" % e)
 
 
 def bump_version(current, part='patch'):
@@ -61,7 +106,7 @@ def update_changelog(version, changes):
     # 读取现有
     existing = ""
     if os.path.exists(CHANGELOG_FILE):
-        with open(CHANGELOG_FILE, 'r', encoding='utf-8') as f:
+        with open(CHANGELOG_FILE, encoding='utf-8') as f:
             existing = f.read()
 
     # 插入到 Unreleased 之后

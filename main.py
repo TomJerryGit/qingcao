@@ -32,18 +32,24 @@
   原值与 closeEvent 中未显式 quit() 的组合导致应用"关不掉"。
 """
 
-import sys
-import os
-import datetime
-import traceback
-import shutil
 import atexit
+import datetime
+import os
+import shutil
+import sys
+import traceback
 
 
 # ============================================================
 # 版本信息
 # ============================================================
-__version__ = "2.0.0"
+# C4 修复：版本号统一从 version.py 读取
+try:
+    from version import __version__
+except ImportError:
+    # P1-1: 与 version.py 同步（唯一来源）
+    __version__ = "2.1.0"
+
 __author__ = "hedongwei"
 __email__ = "1265338136@qq.com"
 __copyright__ = "Copyright (c) 2024-2025 hedongwei"
@@ -389,7 +395,10 @@ def exception_hook(exc_type, exc_value, exc_tb):
             msg_box.setInformativeText(
                 f"错误信息：{exc_value}\n\n"
                 f"详细堆栈已记录到：\n{CRASH_LOG}\n\n"
-                f"请将日志文件发送至 {__email} 以帮助我们改进。"
+                # F821 修复：此处原为 {__email}，但 __email 是模块级
+                # 变量、在函数内不可见（会 NameError 掩盖真实异常）
+                f"请将日志文件发送至 {globals().get('__email', '')} "
+                f"以帮助我们改进。"
             )
             msg_box.setDetailedText(tb_str)
             msg_box.setStandardButtons(QMessageBox.Ok)
@@ -473,10 +482,9 @@ def check_crash_recovery():
 # ============================================================
 def create_splash():
     """创建启动画面"""
-    from PyQt5.QtWidgets import QSplashScreen
-    from PyQt5.QtGui import (QPixmap, QPainter, QColor, QLinearGradient,
-                              QBrush, QFont)
     from PyQt5.QtCore import Qt
+    from PyQt5.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPixmap
+    from PyQt5.QtWidgets import QSplashScreen
 
     splash_path = os.path.join(RESOURCES_DIR, "splash.png")
 
@@ -521,12 +529,35 @@ def create_splash():
 # ============================================================
 def load_theme(app):
     """加载全局样式表"""
-    theme_path = DEFAULT_THEME
-
-    # 检查用户选择的主题
+    # 修复: 优先从 QSettings 的 theme_name 恢复主题
+    # 原实现只读 theme_path，但 theme_path 默认指向
+    # resources/qingcao_theme.qss（空注释），导致每次启动 QSS 为空。
     try:
         from PyQt5.QtCore import QSettings
 
+        from infrastructure.theme_loader import ThemeLoader
+
+        settings = QSettings(ORG_NAME, "Editor")
+        theme_name = settings.value("theme_name", "", type=str)
+
+        if theme_name:
+            loader = ThemeLoader()
+            theme = loader.load_by_name(theme_name)
+            if theme is not None:
+                loader.apply_qss(app, theme)
+                print(f"[主题] 已应用: {theme.name} "
+                      f"({theme.display_name or theme.name})")
+                return
+            else:
+                print(f"[主题] 未找到主题: {theme_name}，"
+                      f"回退到 qss 文件")
+    except Exception as e:
+        print(f"[主题] 从 theme_name 恢复失败: {e}")
+
+    # 回退：原逻辑（读 theme_path 或默认 QSS）
+    theme_path = DEFAULT_THEME
+    try:
+        from PyQt5.QtCore import QSettings
         settings = QSettings(ORG_NAME, "Editor")
         custom_theme = settings.value("theme_path", "", type=str)
         if custom_theme and os.path.exists(custom_theme):
@@ -536,28 +567,37 @@ def load_theme(app):
 
     if os.path.exists(theme_path):
         try:
-            with open(theme_path, 'r', encoding='utf-8') as f:
-                app.setStyleSheet(f.read())
-            print(f"[主题] 已加载: {theme_path}")
+            content = open(theme_path, encoding='utf-8').read()
+            if content.strip() and not content.strip().startswith('/*'):
+                app.setStyleSheet(content)
+                print(f"[主题] 已加载文件: {theme_path}")
+            else:
+                # 文件为空或仅注释 → 回退到内置暗夜
+                _apply_fallback_dark(app)
         except Exception as e:
             print(f"[主题] 加载失败: {e}")
+            _apply_fallback_dark(app)
     else:
-        # 内联默认暗色主题
-        app.setStyleSheet("""
-            QMainWindow { background-color: #1e1e1e; color: #d4d4d4; }
-            QMenuBar { background-color: #252526; color: #d4d4d4; }
-            QMenuBar::item:selected { background-color: #094771; }
-            QMenu { background-color: #2d2d2d; color: #d4d4d4;
-                    border: 1px solid #3c3c3c; }
-            QMenu::item:selected { background-color: #094771; }
-            QToolBar { background-color: #252526; border: none; }
-            QStatusBar { background-color: #007acc; color: white; }
-            QTabWidget::pane { border: 0; }
-            QTabBar::tab { background-color: #2d2d2d; color: #cccccc;
-                            padding: 6px 12px; }
-            QTabBar::tab:selected { background-color: #1e1e1e;
-                                     color: white; }
-        """)
+        _apply_fallback_dark(app)
+
+
+def _apply_fallback_dark(app):
+    """应用内置默认暗色主题（无主题文件时）"""
+    app.setStyleSheet("""
+        QMainWindow { background-color: #1e1e1e; color: #d4d4d4; }
+        QMenuBar { background-color: #252526; color: #d4d4d4; }
+        QMenuBar::item:selected { background-color: #094771; }
+        QMenu { background-color: #2d2d2d; color: #d4d4d4;
+                border: 1px solid #3c3c3c; }
+        QMenu::item:selected { background-color: #094771; }
+        QToolBar { background-color: #252526; border: none; }
+        QStatusBar { background-color: #007acc; color: white; }
+        QTabWidget::pane { border: 0; }
+        QTabBar::tab { background-color: #2d2d2d; color: #cccccc;
+                        padding: 6px 12px; }
+        QTabBar::tab:selected { background-color: #1e1e1e;
+                                 color: white; }
+    """)
 
 
 # ============================================================
@@ -661,7 +701,7 @@ def print_version():
     print(f"Python: {sys.version.split()[0]}")
 
     try:
-        from PyQt5.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
+        from PyQt5.QtCore import PYQT_VERSION_STR, QT_VERSION_STR
         print(f"Qt: {QT_VERSION_STR}")
         print(f"PyQt5: {PYQT_VERSION_STR}")
     except Exception:
@@ -730,8 +770,8 @@ def main():
     # --------------------------------------------------------
     # 6. 创建 QApplication
     # --------------------------------------------------------
-    from PyQt5.QtWidgets import QApplication, QMessageBox, QWizard
     from PyQt5.QtCore import Qt, QTimer
+    from PyQt5.QtWidgets import QApplication, QMessageBox, QWizard
 
     # 高 DPI 支持（必须在 QApplication 创建前）
     try:
@@ -867,12 +907,20 @@ def main():
     # --------------------------------------------------------
     # 15. 处理旧版崩溃恢复
     # --------------------------------------------------------
+    # B2 修复：改用 SessionManager.check_and_recover_crash
+    # 原实现调 window.recover_from_backup，但 MainWindow 从未定义
+    # 该方法，hasattr 恒为 False，恢复被静默跳过。
     if recovery_dir:
         try:
-            if hasattr(window, 'recover_from_backup'):
-                count = window.recover_from_backup(recovery_dir)
+            sess = getattr(window, 'session', None)
+            if sess is not None and hasattr(sess, 'check_and_recover_crash'):
+                count = sess.check_and_recover_crash(
+                    parent=window, auto_save_dir=recovery_dir
+                )
                 if count > 0:
                     logger.info(f"已从备份恢复 {count} 个文件")
+            else:
+                logger.warning("SessionManager 不可用，跳过崩溃恢复")
         except Exception as e:
             logger.error(f"崩溃恢复失败: {e}")
 
@@ -881,8 +929,10 @@ def main():
     # --------------------------------------------------------
     try:
         from ui.first_run_wizard import (
-            FirstRunWizard, should_show_wizard,
-            mark_wizard_completed, apply_wizard_settings
+            FirstRunWizard,
+            apply_wizard_settings,
+            mark_wizard_completed,
+            should_show_wizard,
         )
 
         if should_show_wizard():
@@ -949,12 +999,18 @@ def main():
                     logger.error(f"会话恢复失败: {e}")
 
             # ---- 自动备份恢复（backup/autosave 目录） ----
+            # B2 修复：同 B2-1，改用 SessionManager.check_and_recover_crash
             try:
                 auto_backup = os.path.join(BACKUP_DIR, "autosave")
                 meta_path = os.path.join(auto_backup, "meta.json")
                 if os.path.isfile(meta_path):
-                    if hasattr(window, 'recover_from_backup'):
-                        count = window.recover_from_backup(auto_backup)
+                    sess = getattr(window, 'session', None)
+                    if sess is not None and hasattr(
+                        sess, 'check_and_recover_crash'
+                    ):
+                        count = sess.check_and_recover_crash(
+                            parent=window, auto_save_dir=auto_backup
+                        )
                         if count > 0:
                             logger.info(
                                 f"已从自动备份恢复 {count} 个未保存文件"
@@ -973,9 +1029,7 @@ def main():
                         pass
 
                 if check_update:
-                    from core.updater import (
-                        UpdateChecker, show_update_dialog
-                    )
+                    from core.updater import UpdateChecker, show_update_dialog
                     checker = UpdateChecker(__version__)
 
                     def _on_update(info):

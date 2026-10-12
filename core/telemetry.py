@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """匿名遥测（尊重隐私）"""
-import os
-import json
-import time
-import threading
-import uuid
 import hashlib
-from typing import Dict, Any, Optional
-from PyQt5.QtCore import QSettings, QObject, pyqtSignal
+import json
+import os
+import threading
+import time
+import uuid
+from typing import Any, Dict, Optional
+
+from PyQt5.QtCore import QObject, QSettings, pyqtSignal
 
 
 TELEMETRY_DIR = "data/telemetry"
@@ -58,7 +59,7 @@ class Telemetry(QObject):
         """加载统计数据"""
         if os.path.exists(TELEMETRY_FILE):
             try:
-                with open(TELEMETRY_FILE, 'r', encoding='utf-8') as f:
+                with open(TELEMETRY_FILE, encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -125,9 +126,13 @@ class Telemetry(QObject):
 
     def export_anonymous_report(self):
         """导出匿名报告"""
+        try:
+            from version import __version__ as _app_version
+        except ImportError:  # pragma: no cover
+            _app_version = '0.0.0'
         return {
             'machine_id': self._machine_id,
-            'app_version': '2.0.0',
+            'app_version': _app_version,
             'platform': __import__('sys').platform,
             'stats': {
                 k: v for k, v in self._stats.items()

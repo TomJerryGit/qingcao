@@ -24,19 +24,19 @@
 - 主题市场集成
 """
 
+import datetime
+import json
 import os
 import sys
-import json
 import time
-import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5.Qsci import QsciScintilla
-from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt5.QtCore import QObject, QSettings, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QPalette
-from PyQt5.QtCore import QObject, pyqtSignal, Qt, QSettings
+from PyQt5.QtWidgets import QApplication, QWidget
 
 
 # ============================================================
@@ -343,7 +343,7 @@ class Theme:
     def load(cls, filepath: str) -> Optional['Theme']:
         """从文件加载主题"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             theme = cls.from_dict(data)
@@ -715,7 +715,6 @@ def notify_widgets(root, theme):
         root: 根控件（通常是 QMainWindow）
         theme: Theme 对象
     """
-    from PyQt5.QtWidgets import QWidget
     if root is None or theme is None:
         return
     try:
@@ -1055,7 +1054,8 @@ class ThemeLoader(QObject):
             style_map = PYTHON_MAP  # 默认
             try:
                 from PyQt5.Qsci import (
-                    QsciLexerPython, QsciLexerCPP,
+                    QsciLexerCPP,
+                    QsciLexerPython,
                 )
                 if isinstance(lexer, QsciLexerPython):
                     style_map = PYTHON_MAP
@@ -1086,13 +1086,70 @@ class ThemeLoader(QObject):
     # ========================================================
     # 应用 QSS
     # ========================================================
+    def apply_palette(self, app, theme: Optional[Theme] = None):
+        """根据主题设置 QPalette。
+
+        B(调色板): 根据主题设置 QPalette
+        QSS 只能控制显式命名的控件；Qt 原生对话框、下拉菜单、
+        Tooltip 等很多控件从 QPalette 读颜色，QSS 覆盖不到。
+        必须同时设置 QPalette，否则深色系统下会显示白色文字。
+        """
+        if theme is None:
+            theme = self.current_theme
+        if theme is None or app is None:
+            return
+
+        try:
+            from PyQt5.QtGui import QColor, QPalette
+
+            c = theme.colors
+            p = QPalette()
+
+            p.setColor(QPalette.Window, QColor(c.window_bg))
+            p.setColor(QPalette.WindowText, QColor(c.window_fg))
+            p.setColor(QPalette.Base, QColor(c.background))
+            p.setColor(QPalette.AlternateBase, QColor(c.panel_bg))
+            p.setColor(QPalette.Text, QColor(c.foreground))
+            p.setColor(QPalette.Button, QColor(c.menubar_bg))
+            p.setColor(QPalette.ButtonText, QColor(c.window_fg))
+            p.setColor(QPalette.BrightText, QColor(c.error))
+            p.setColor(QPalette.Highlight, QColor(c.selection))
+            p.setColor(
+                QPalette.HighlightedText,
+                QColor(c.selection_foreground)
+            )
+            p.setColor(QPalette.ToolTipBase, QColor(c.menu_bg))
+            p.setColor(QPalette.ToolTipText, QColor(c.menu_fg))
+            p.setColor(QPalette.Link, QColor(c.info))
+            p.setColor(QPalette.LinkVisited, QColor(c.info))
+
+            # 禁用态
+            p.setColor(
+                QPalette.Disabled, QPalette.Text,
+                QColor(c.line_number_fg)
+            )
+            p.setColor(
+                QPalette.Disabled, QPalette.ButtonText,
+                QColor(c.line_number_fg)
+            )
+            p.setColor(
+                QPalette.Disabled, QPalette.WindowText,
+                QColor(c.line_number_fg)
+            )
+
+            app.setPalette(p)
+        except Exception as e:
+            print(f"[ThemeLoader] 应用 palette 失败: {e}")
+
     def apply_qss(self, app, theme: Optional[Theme] = None):
         """
         应用全局 QSS 到应用。
 
-        参数:
-            app: QApplication 实例
-            theme: 主题（None 则使用当前主题）
+        TF 增强:
+            1. 每次都重新生成 QSS（不只空时），避免返回旧值
+            2. 应用后遍历所有 widget 调 unpolish/polish
+               强制 Qt 重新读取 QSS
+            3. 显式刷新 menuBar/toolBar 的 palette + styleSheet
         """
         if theme is None:
             theme = self.current_theme
@@ -1102,15 +1159,74 @@ class ThemeLoader(QObject):
 
         try:
             qss = theme.qss
-
-            # 如果没有定义 QSS，从配色方案生成
+            # TF: 每次都重新生成，避免 theme.qss 为空时返回旧值
             if not qss:
                 qss = self._generate_qss(theme.colors)
 
+            if not qss:
+                print("[ThemeLoader] 警告: 生成的 QSS 为空")
+                return
+
+            print(f"[ThemeLoader] apply_qss: theme={theme.name} "
+                  f"qss_len={len(qss)}")
+
             app.setStyleSheet(qss)
+
+            # B(调色板): 同时应用 QPalette
+            self.apply_palette(app, theme)
+
+            # TF: 强制刷新所有 widget（unpolish/polish）
+            self._force_refresh(app)
 
         except Exception as e:
             print(f"[ThemeLoader] 应用 QSS 失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _force_refresh(self, app):
+        """TF: 强制刷新所有 widget（unpolish/polish）
+
+        Qt 在 setStyleSheet 后不会自动重绘所有 widget，
+        尤其是 QMenuBar / QToolBar / QDockWidget 标题栏。
+        必须显式 unpolish + polish，或对每个 widget 调
+        style().unpolish(w); style().polish(w)。
+        """
+        try:
+            from PyQt5.QtWidgets import QMenuBar, QToolBar
+
+            # 1. 刷新所有 widget
+            for w in app.allWidgets():
+                try:
+                    w.style().unpolish(w)
+                    w.style().polish(w)
+                    w.update()
+                except Exception:
+                    pass
+
+            # 2. 显式刷新顶层窗口的 menuBar / toolBar
+            for top in app.topLevelWidgets():
+                try:
+                    mb = top.menuBar() if hasattr(top, 'menuBar') else None
+                    if mb is not None:
+                        mb.style().unpolish(mb)
+                        mb.style().polish(mb)
+                        mb.update()
+                        mb.repaint()
+                except Exception:
+                    pass
+
+                try:
+                    for tb in top.findChildren(QToolBar):
+                        tb.style().unpolish(tb)
+                        tb.style().polish(tb)
+                        tb.update()
+                        tb.repaint()
+                except Exception:
+                    pass
+
+            print("[ThemeLoader] _force_refresh: 已刷新所有 widget")
+        except Exception as e:
+            print(f"[ThemeLoader] 强制刷新失败: {e}")
 
     def _generate_qss(self, c: ThemeColors) -> str:
         """从配色方案生成 QSS"""
@@ -1164,12 +1280,34 @@ class ThemeLoader(QObject):
             }}
 
             /* ============ 工具栏 ============ */
+            /* A(调色板): QToolBar/QToolButton 必须有 color，
+               否则 Qt 默认用系统文字色（深色系统下是白色），
+               在浅色主题上看不清 */
             QToolBar {{
                 background-color: {c.toolbar_bg};
+                color: {c.window_fg};
                 border: none;
                 border-bottom: 1px solid {c.border};
                 spacing: 4px;
                 padding: 2px;
+            }}
+            QToolBar QToolButton {{
+                color: {c.window_fg};
+                background-color: transparent;
+                border: none;
+                padding: 3px 6px;
+                border-radius: 3px;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {c.menu_selection};
+                color: {c.selection_foreground};
+            }}
+            QToolBar QToolButton:pressed {{
+                background-color: {c.button_pressed};
+            }}
+            QToolBar QToolButton:checked {{
+                background-color: {c.menu_selection};
+                color: {c.selection_foreground};
             }}
 
             /* ============ 状态栏 ============ */
@@ -1545,7 +1683,7 @@ class ThemeLoader(QObject):
                 # 尝试读取显示名
                 try:
                     filepath = os.path.join(self.theme_dir, filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, encoding='utf-8') as f:
                         data = json.load(f)
                     display = data.get('display_name', name)
                 except Exception:
@@ -1764,8 +1902,9 @@ class ThemeManager(QObject):
 if __name__ == "__main__":
     import sys
     import tempfile
+
+    from PyQt5.Qsci import QsciLexerPython, QsciScintilla
     from PyQt5.QtWidgets import QApplication, QMainWindow
-    from PyQt5.Qsci import QsciScintilla, QsciLexerPython
 
     app = QApplication(sys.argv)
 
@@ -1816,6 +1955,11 @@ if __name__ == '__main__':
     win.show()
 
     # 创建加载器
+    # F821 修复：QTimer 在此处被使用但未导入（原代码把
+    # `from PyQt5.QtCore import QTimer` 放在使用之后的文件末尾），
+    # 直接运行本文件的自测块会 NameError。
+    from PyQt5.QtCore import QTimer
+
     loader = ThemeLoader()
 
     # 连接信号
@@ -1846,7 +1990,7 @@ if __name__ == '__main__':
                 print(f"    背景: {theme.colors.background}")
                 print(f"    前景: {theme.colors.foreground}")
             else:
-                print(f"  ✗ 加载失败")
+                print("  ✗ 加载失败")
 
             app.processEvents()
 
@@ -1860,6 +2004,5 @@ if __name__ == '__main__':
 
     QTimer.singleShot(5000, cleanup_and_quit)
 
-    from PyQt5.QtCore import QTimer
 
     sys.exit(app.exec())

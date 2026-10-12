@@ -2,15 +2,19 @@
 # -*- coding: utf-8 -*-
 """Linux 打包"""
 import os
-import sys
 import shutil
 import subprocess
+import sys
 import tarfile
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(ROOT, 'dist', 'QingCaoEditor')
-VERSION = "2.0.0"
+# P1-1: 版本号唯一来源 version.py
+try:
+    from version import __version__ as VERSION
+except ImportError:  # pragma: no cover
+    VERSION = "2.1.0"
 
 
 def create_desktop_file():

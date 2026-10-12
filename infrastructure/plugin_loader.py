@@ -34,19 +34,19 @@
 - load_all: 移除末尾的 self.specs 填充（已提前），避免重复
 """
 
-import os
-import sys
-import json
-import time
 import importlib
 import importlib.util
-import traceback
+import json
+import os
+import sys
 import threading
-from typing import Optional, List, Dict, Any, Tuple, Callable, Set
-from dataclasses import dataclass, field, asdict
+import time
+import traceback
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QFileSystemWatcher, QTimer
+from PyQt5.QtCore import QFileSystemWatcher, QObject, QTimer, pyqtSignal
 
 
 # ============================================================
@@ -62,16 +62,24 @@ PLUGIN_MANIFEST = "plugin.json"
 PLUGIN_ENTRY = "__init__.py"
 
 # 当前 API 版本（用于兼容性检查）
+# P1-1: 插件 API 版本是独立契约，继续保持独立常量
 CURRENT_API_VERSION = "2.0.0"
 
-# 当前应用版本
-CURRENT_APP_VERSION = "2.0.0"
+# 当前应用版本（P1-1: 唯一来源 version.py）
+try:
+    from version import __version__ as _APP_VERSION
+except ImportError:  # pragma: no cover
+    _APP_VERSION = "0.0.0"
+CURRENT_APP_VERSION = _APP_VERSION
 
 # 最小/最大支持版本（用于应用版本匹配）
 MIN_SUPPORTED_APP_VERSION = "1.0.0"
 
 # 加载超时（秒）
 LOAD_TIMEOUT = 30
+
+# P1-2: 插件目录变化后的防抖延迟（毫秒）
+RELOAD_DEBOUNCE_MS = 800
 
 # 允许的权限列表
 ALLOWED_PERMISSIONS = {
@@ -162,6 +170,9 @@ class PluginMeta:
     auto_load: bool = True                  # 是否自动加载
     load_order: int = 100                   # 加载顺序（越小越先）
 
+    # P1-2: 保留原始 plugin.json 内容，供 hot_reload 等扩展字段使用
+    raw: Dict[str, Any] = field(default_factory=dict)
+
     # 校验字段
     valid: bool = True                      # 是否通过校验
     errors: List[str] = field(default_factory=list)
@@ -177,6 +188,12 @@ class PluginMeta:
         for key, value in d.items():
             if hasattr(meta, key):
                 setattr(meta, key, value)
+
+        # P1-2: 保留原始清单，供 hot_reload 等扩展字段读取
+        try:
+            meta.raw = dict(d)
+        except Exception:
+            meta.raw = {}
 
         # 补全显示名称
         if not meta.display_name:
@@ -430,17 +447,21 @@ class PluginLoader(QObject):
 
     def __init__(self, parent: Optional[QObject] = None,
                  plugin_dir: str = DEFAULT_PLUGIN_DIR,
-                 enable_watcher: bool = False):
+                 enable_watcher: bool = False,
+                 hot_reload_enabled: bool = True):
         """
         参数:
             parent: 父 QObject
             plugin_dir: 插件目录
             enable_watcher: 是否启用目录监控
+            hot_reload_enabled: P1-2 监控到变更时是否自动重载
+                （enable_watcher 必须为 True 才有意义）
         """
         super().__init__(parent)
 
-        self.plugin_dir = plugin_dir
+        self.plugin_dir = os.path.abspath(plugin_dir)
         self.enable_watcher = enable_watcher
+        self.hot_reload_enabled = hot_reload_enabled
 
         # 已加载的插件规格
         self.specs: Dict[str, PluginSpec] = {}
@@ -451,6 +472,9 @@ class PluginLoader(QObject):
         # 目录监控
         self._watcher: Optional[QFileSystemWatcher] = None
         self._watch_timer: Optional[QTimer] = None
+        self._watch_paths: set = set()
+        # P1-2: 每个插件目录的最新 mtime，用于判断哪些插件变了
+        self._plugin_mtimes: Dict[str, float] = {}
 
         # 线程锁（保护 specs 操作）
         self._lock = threading.RLock()
@@ -472,7 +496,7 @@ class PluginLoader(QObject):
             PluginSpec 列表
         """
         if plugin_dir:
-            self.plugin_dir = plugin_dir
+            self.plugin_dir = os.path.abspath(plugin_dir)
 
         specs = []
 
@@ -540,7 +564,7 @@ class PluginLoader(QObject):
 
         # 解析 manifest
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
 
             if not isinstance(manifest, dict):
@@ -916,9 +940,7 @@ class PluginLoader(QObject):
 
             # 发布事件
             try:
-                from app.event_bus import (
-                    bus, PluginLoadedEvent
-                )
+                from app.event_bus import PluginLoadedEvent, bus
                 bus.emit_event(PluginLoadedEvent(
                     plugin_name=spec.name,
                     version=spec.version,
@@ -1109,9 +1131,7 @@ class PluginLoader(QObject):
 
             # 发布事件
             try:
-                from app.event_bus import (
-                    bus, PluginUnloadedEvent
-                )
+                from app.event_bus import PluginUnloadedEvent, bus
                 bus.emit_event(PluginUnloadedEvent(
                     plugin_name=name,
                     version=spec.version,
@@ -1234,7 +1254,7 @@ class PluginLoader(QObject):
     # 目录监控（热重载）
     # ========================================================
     def start_watching(self):
-        """启动目录监控"""
+        """启动目录监控（P1-2: 支持真正的热重载）"""
         if not self.enable_watcher:
             return
 
@@ -1243,12 +1263,18 @@ class PluginLoader(QObject):
 
         try:
             self._watcher = QFileSystemWatcher(self)
-            self._watcher.addPath(self.plugin_dir)
+            # 监控插件根目录，以及每个已发现插件目录内的文件
+            self._watch_paths = set()
+            self._add_watch_path(self.plugin_dir)
+            # P1-2: 递归登记插件子目录与源文件，
+            # 否则 QFileSystemWatcher 只会报告根目录变化，
+            # 修改某个插件的 __init__.py 不会触发重载。
+            self._refresh_watch_paths()
 
             # 延迟重载定时器（防抖）
             self._watch_timer = QTimer(self)
             self._watch_timer.setSingleShot(True)
-            self._watch_timer.setInterval(1000)
+            self._watch_timer.setInterval(RELOAD_DEBOUNCE_MS)
             self._watch_timer.timeout.connect(
                 self._on_directory_changed
             )
@@ -1256,9 +1282,47 @@ class PluginLoader(QObject):
             self._watcher.directoryChanged.connect(
                 lambda p: self._watch_timer.start()
             )
+            self._watcher.fileChanged.connect(
+                lambda p: self._watch_timer.start()
+            )
 
         except Exception as e:
             print(f"[PluginLoader] 启动监控失败: {e}")
+
+    def _add_watch_path(self, path: str):
+        """把路径加入 QFileSystemWatcher（去重，统一绝对路径）"""
+        if not self._watcher or not path:
+            return
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            return
+        if not hasattr(self, '_watch_paths'):
+            self._watch_paths = set()
+        if path in self._watch_paths:
+            return
+        try:
+            if self._watcher.addPath(path):
+                self._watch_paths.add(path)
+        except Exception:
+            pass
+
+    def _refresh_watch_paths(self):
+        """重新扫描插件目录，把变更的文件纳入监控"""
+        if not self._watcher:
+            return
+        self._add_watch_path(self.plugin_dir)
+        try:
+            for name in os.listdir(self.plugin_dir):
+                d = os.path.join(self.plugin_dir, name)
+                if not os.path.isdir(d):
+                    continue
+                self._add_watch_path(d)
+                for fname in os.listdir(d):
+                    # 只监控源码与清单，避免 __pycache__ 噪声
+                    if fname.endswith(('.py', '.json')):
+                        self._add_watch_path(os.path.join(d, fname))
+        except Exception as e:
+            print(f"[PluginLoader] 刷新监控路径失败: {e}")
 
     def stop_watching(self):
         """停止目录监控"""
@@ -1273,9 +1337,85 @@ class PluginLoader(QObject):
             self._watch_timer.stop()
 
     def _on_directory_changed(self):
-        """目录变化回调"""
-        # 简单实现：不自动重载，仅提示
-        print("[PluginLoader] 插件目录已变化，可能需要重启编辑器")
+        """目录/文件变化回调（P1-2: 真正的热重载）
+
+        P1-2 修复：原实现只有一句
+            print("[PluginLoader] 插件目录已变化，可能需要重启编辑器")
+        即 README 宣称的"修改插件代码后无需重启"实际不成立。
+
+        现在：默认对变化的插件执行 unload + load + activate；
+        可在 plugin.json 中设置 "hot_reload": false 让单个插件
+        退出热重载（例如需要保持长连接的插件）。
+        """
+        changed = self._detect_changed_plugins()
+        self._refresh_watch_paths()
+
+        if not changed:
+            return
+
+        if not self.hot_reload_enabled:
+            print(
+                "[PluginLoader] 检测到插件变更: %s"
+                "（热重载已关闭，请手动重载）" % ", ".join(sorted(changed))
+            )
+            return
+
+        for name in sorted(changed):
+            spec = self.specs.get(name)
+            if spec is None:
+                # 新出现的插件目录：重新发现一次
+                print(f"[PluginLoader] 发现新插件目录: {name}")
+                self.discover()
+                self._refresh_watch_paths()
+                continue
+
+            if not self._is_hot_reload_allowed(spec):
+                print(f"[PluginLoader] {name} 声明 hot_reload=false，跳过")
+                continue
+
+            print(f"[PluginLoader] 热重载插件: {name}")
+            try:
+                self.reload_plugin(name)
+            except Exception as e:
+                print(f"[PluginLoader] 热重载 {name} 失败: {e}")
+                self.plugin_error.emit(name, str(e))
+
+    def _detect_changed_plugins(self) -> set:
+        """通过 mtime 判断哪些插件目录内容发生了变化"""
+        changed = set()
+        try:
+            for name in os.listdir(self.plugin_dir):
+                d = os.path.join(self.plugin_dir, name)
+                if not os.path.isdir(d):
+                    continue
+                latest = 0.0
+                for fname in os.listdir(d):
+                    if not fname.endswith(('.py', '.json')):
+                        continue
+                    try:
+                        latest = max(
+                            latest,
+                            os.path.getmtime(os.path.join(d, fname))
+                        )
+                    except OSError:
+                        continue
+                prev = self._plugin_mtimes.get(name)
+                if prev is None:
+                    self._plugin_mtimes[name] = latest
+                elif latest > prev:
+                    self._plugin_mtimes[name] = latest
+                    changed.add(name)
+        except Exception as e:
+            print(f"[PluginLoader] 检测插件变更失败: {e}")
+        return changed
+
+    def _is_hot_reload_allowed(self, spec) -> bool:
+        """插件是否允许热重载（plugin.json 的 hot_reload 字段）"""
+        try:
+            raw = getattr(spec.meta, 'raw', None) or {}
+            return bool(raw.get('hot_reload', True))
+        except Exception:
+            return True
 
     # ========================================================
     # 调试
@@ -1360,8 +1500,9 @@ def load_plugins(plugin_dir: str = DEFAULT_PLUGIN_DIR,
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
-    import tempfile
     import shutil
+    import tempfile
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
@@ -1458,11 +1599,13 @@ class Plugin:
         def api_factory(spec):
             """测试用的 API 工厂"""
             class TestAPI:
-                def __init__(self, s):
-                    self.spec = s
+                def __init__(self, spec_obj):
+                    self.spec = spec_obj
 
                 def log(self, msg, level="info"):
-                    print(f"  [API/{s.name}] {msg}")
+                    # F821 修复：原实现引用了外层工厂参数 s（未定义），
+                    # 调用 log() 时会 NameError
+                    print(f"  [API/{self.spec.name}] {msg}")
 
                 def cleanup(self):
                     pass

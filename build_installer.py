@@ -2,13 +2,36 @@
 # -*- coding: utf-8 -*-
 """构建 Windows 安装程序"""
 import os
-import sys
 import shutil
 import subprocess
+import sys
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ISS_FILE = os.path.join(ROOT, 'installer.iss')
+VERSION_ISS_FILE = os.path.join(ROOT, 'installer_version.iss')
+
+
+def generate_version_iss() -> bool:
+    """C4 修复：生成 installer_version.iss，供 installer.iss #include"""
+    try:
+        # P1-1: 版本号唯一来源 version.py
+        try:
+            from version import __version__
+        except ImportError:  # pragma: no cover
+            __version__ = "2.1.0"
+
+        content = (
+            '; 此文件由 build_installer.py 自动生成，请勿手动编辑\n'
+            f'#define MyAppVersion "{__version__}"\n'
+        )
+        with open(VERSION_ISS_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print("[OK] 版本文件: installer_version.iss (v%s)" % __version__)
+        return True
+    except Exception as e:
+        print("[WARN] 生成版本文件失败: %s" % e)
+        return False
 
 
 def find_inno_setup():
@@ -61,7 +84,10 @@ def main():
     if not os.path.exists(icon):
         print("[WARN] 图标不存在: " + icon)
 
-    # 4. 运行 Inno Setup 编译
+    # 4. 生成版本文件（C4 修复）
+    generate_version_iss()
+
+    # 5. 运行 Inno Setup 编译
     print()
     print("[RUN] 编译安装包...")
     cmd = [iscc, ISS_FILE]

@@ -35,25 +35,32 @@
     * 不再因 import 失败而中断启动
 """
 
-import os
-import sys
-import time
-import math
-import threading
-import struct
-import wave
 import io
+import math
+import os
+import struct
+import sys
 import tempfile
-from typing import Optional, List, Dict, Any, Tuple, Callable, Set
-from dataclasses import dataclass, field, asdict
-from enum import Enum, auto
+import threading
+import time
+import wave
 from collections import deque
+from dataclasses import asdict, dataclass, field
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from PyQt5.QtCore import (
-    QObject, pyqtSignal, QTimer, QUrl, QSettings, QByteArray, QBuffer,
-    QIODevice
+    QBuffer,
+    QByteArray,
+    QIODevice,
+    QObject,
+    QSettings,
+    QTimer,
+    QUrl,
+    pyqtSignal,
 )
 from PyQt5.QtWidgets import QApplication
+
 
 # ============================================================
 # QtMultimedia 安全导入（P2-6 修复）
@@ -65,9 +72,7 @@ from PyQt5.QtWidgets import QApplication
 # 这里采用 try/except 包裹导入，缺失时将 QSoundEffect 等置为 None，
 # 并在 SoundEffect / SoundManager 内部通过 _MULTIMEDIA_OK 判断降级。
 try:
-    from PyQt5.QtMultimedia import (
-        QSoundEffect, QAudioOutput, QMediaPlayer, QAudioDeviceInfo
-    )
+    from PyQt5.QtMultimedia import QAudioDeviceInfo, QAudioOutput, QMediaPlayer, QSoundEffect
     _MULTIMEDIA_OK = True
 except ImportError as _mm_err:
     QSoundEffect = None
@@ -1040,8 +1045,7 @@ class SoundManager(QObject):
     # ========================================================
     def play(self, event: SoundEvent,
              force: bool = False) -> bool:
-        """
-        播放音效。
+        """播放音效。
 
         参数:
             event: 音效事件
@@ -1049,7 +1053,14 @@ class SoundManager(QObject):
 
         返回:
             是否成功播放
+
+        P1-2: 增加编辑器偏好开关 ``sound_effects``（默认关闭）。
+        修复前该模块全仓零调用，是个"死模块"；现在由主窗口在
+        文件打开/保存/出错时调用，并可通过首选项关闭。
         """
+        if not self._pref_enabled():
+            return False
+
         if not self._enabled or self._muted:
             return False
 
@@ -1313,6 +1324,18 @@ class SoundManager(QObject):
     # ========================================================
     # 配置持久化
     # ========================================================
+    def _pref_enabled(self) -> bool:
+        """编辑器偏好中的音效总开关（P1-2）
+
+        以 app.preferences 的 ``sound_effects`` 为准（默认 False），
+        读不到时才回退到本模块自己的 QSettings 值。
+        """
+        try:
+            from app.preferences import Preferences
+            return bool(Preferences().get("sound_effects", False))
+        except Exception:
+            return True
+
     def _load_settings(self):
         """加载设置"""
         try:
@@ -1545,6 +1568,7 @@ def play_sound(event: SoundEvent, force: bool = False) -> bool:
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

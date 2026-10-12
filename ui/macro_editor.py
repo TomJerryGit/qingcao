@@ -31,54 +31,88 @@
 - 统计信息
 """
 
-import os
-import sys
-import json
-import time
 import copy
 import datetime
-from typing import Optional, List, Dict, Any, Tuple
+import json
+import os
+import sys
+import time
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QToolButton, QLineEdit, QListWidget,
-    QListWidgetItem, QTreeWidget, QTreeWidgetItem, QSplitter,
-    QTextEdit, QPlainTextEdit, QMessageBox, QFileDialog,
-    QInputDialog, QMenu, QFrame, QCheckBox, QSpinBox,
-    QComboBox, QGroupBox, QFormLayout, QDialogButtonBox,
-    QAbstractItemView, QHeaderView, QScrollArea, QStackedWidget,
-    QApplication, QStyle, QTableWidget, QTableWidgetItem
-)
+from PyQt5.QtCore import QDateTime, QPoint, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
-    QIcon,
+    QBrush,
     QColor,
     QFont,
+    QFontMetrics,
+    QIcon,
     QKeySequence,
-    QBrush,
     QPainter,
     QPen,
-    QFontMetrics,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSettings, QPoint, QSize, QDateTime
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QSplitter,
+    QStackedWidget,
+    QStyle,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from core.commands import (
-    Command, InsertCmd, DeleteCmd, ReplaceCmd, GroupCmd,
-    CompoundCmd, CommandFactory, CommandSerializer,
-    CMD_TYPE_INSERT, CMD_TYPE_DELETE, CMD_TYPE_REPLACE,
-    CMD_TYPE_GROUP, CMD_TYPE_COMPOUND
-)
-from core.macro import (
-    Macro, MacroCommand, MacroRecorder, MacroManager,
-    MACRO_FILE_EXT, MACROS_DIR
-)
 from app.event_bus import (
-    bus, StatusMessageEvent, NotificationEvent,
-    MacroStartedEvent, MacroStoppedEvent, MacroReplayedEvent
+    MacroReplayedEvent,
+    MacroStartedEvent,
+    MacroStoppedEvent,
+    NotificationEvent,
+    StatusMessageEvent,
+    bus,
 )
+from core.commands import (
+    CMD_TYPE_COMPOUND,
+    CMD_TYPE_DELETE,
+    CMD_TYPE_GROUP,
+    CMD_TYPE_INSERT,
+    CMD_TYPE_REPLACE,
+    Command,
+    CommandFactory,
+    CommandSerializer,
+    CompoundCmd,
+    DeleteCmd,
+    GroupCmd,
+    InsertCmd,
+    ReplaceCmd,
+)
+from core.macro import MACRO_FILE_EXT, MACROS_DIR, Macro, MacroCommand, MacroManager, MacroRecorder
 
 
 # ============================================================
@@ -1652,7 +1686,6 @@ class MacroEditor(QDialog):
             return
 
         # 创建副本
-        import copy
         new_macro = copy.deepcopy(source)
         new_macro.name = name
         new_macro.created_at = datetime.datetime.now().isoformat()
@@ -1746,7 +1779,6 @@ class MacroEditor(QDialog):
             new_name = f"{base} {counter}"
 
         # 深拷贝
-        import copy
         new_macro = copy.deepcopy(macro)
         new_macro.name = new_name
         new_macro.shortcut = ""  # 清除快捷键
@@ -2183,9 +2215,10 @@ class MacroEditor(QDialog):
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
+    import shutil
     import sys
     import tempfile
-    import shutil
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)

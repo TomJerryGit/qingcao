@@ -27,44 +27,63 @@
 - 补充 QSizePolicy / QTimer 等其他隐式依赖
 """
 
+import datetime
 import os
+import random
 import sys
 import time
-import random
-import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QToolButton, QListWidget, QListWidgetItem, QFrame,
-    QScrollArea, QSizePolicy, QApplication, QStyle,
-    QGraphicsOpacityEffect, QStackedWidget, QGridLayout,
-    QMessageBox,           # ← 修复：补上缺失的导入
+from PyQt5.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+    QUrl,
+    pyqtSignal,
 )
 from PyQt5.QtGui import (
-    QIcon,
-    QPixmap,
-    QColor,
-    QFont,
-    QPainter,
     QBrush,
-    QPen,
-    QFontMetrics,
-    QPalette,
-    QLinearGradient,
+    QColor,
     QDesktopServices,
-    QMouseEvent,
+    QFont,
+    QFontMetrics,
+    QIcon,
     QKeyEvent,
+    QLinearGradient,
+    QMouseEvent,
+    QPainter,
+    QPalette,
+    QPen,
+    QPixmap,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSize, QSettings, QUrl,
-    QPropertyAnimation, QEasingCurve, QRect, QPoint, QEvent
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QFrame,
+    QGraphicsOpacityEffect,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,  # ← 修复：补上缺失的导入
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QStackedWidget,
+    QStyle,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
-from app.event_bus import (
-    bus, StatusMessageEvent, FileOpenedEvent
-)
+from app.event_bus import FileOpenedEvent, StatusMessageEvent, bus
 
 
 # ============================================================
@@ -72,7 +91,11 @@ from app.event_bus import (
 # ============================================================
 APP_NAME = "青草编辑器"
 APP_NAME_EN = "QingCao Editor"
-APP_VERSION = "2.0.0"
+# P1-1: 版本号唯一来源 version.py
+try:
+    from version import __version__ as APP_VERSION
+except ImportError:  # pragma: no cover
+    APP_VERSION = "0.0.0"
 APP_SLOGAN = "青草枯荣，野火重生"
 APP_DESCRIPTION = "轻量 · 极速 · 可扩展"
 
@@ -88,6 +111,7 @@ MAX_RECENT_PROJECTS = 4
 # P2-C1: DAILY_TIPS 统一到 ui/tips.py
 # 原实现与 ui/tips.py 里的 TIPS 重复定义，维护时容易遗漏。
 from ui.tips import TIPS as DAILY_TIPS
+
 
 # 快捷操作按钮
 QUICK_ACTIONS = [
@@ -1138,6 +1162,7 @@ class WelcomeWidget(QWidget):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
 
     app = QApplication(sys.argv)

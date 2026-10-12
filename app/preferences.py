@@ -22,14 +22,14 @@
 - 默认值定义
 """
 
+import json
 import os
 import sys
-import json
-from typing import Any, Optional, Dict, List
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional
 
-from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtCore import QObject, QSettings, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QFont
 
 
 # ============================================================
@@ -198,10 +198,21 @@ DEFAULTS: Dict[str, Any] = {
     # ---- 插件设置 ----
     "plugins_enabled": "{}",  # JSON: {plugin_name: true/false}
     "plugins_disabled": "[]",  # JSON 列表
+    # 说明（P0-3）：编辑器的插件运行在**主进程内**，没有进程级
+    # 隔离；此开关仅表示是否在 API 边界做权限门控与权限确认。
     "plugin_sandbox": True,
     "plugin_permissions_required": True,
     "plugin_auto_update": True,
     "plugin_update_check_interval": 24,  # 小时
+    # P1-2: 监控到插件源码变更后自动重载（热重载）
+    "plugin_hot_reload": True,
+
+    # ---- 音效（P1-2 接线）----
+    # 说明：修复前 infrastructure/sound_manager.py（1600+ 行）全仓
+    # 零调用，是一个从未生效的"死模块"。现在由主窗口在文件打开/
+    # 保存/出错时调用；默认关闭以免突然出声打扰用户。
+    "sound_effects": False,
+    "sound_volume": 0.5,
 
     # ---- 高级设置 ----
     "debug_mode": False,
@@ -871,6 +882,24 @@ class Preferences(QObject):
         self.set("plugin_sandbox", value)
 
     @property
+    def plugin_hot_reload(self) -> bool:
+        """P1-2: 插件热重载开关"""
+        return self.get("plugin_hot_reload")
+
+    @plugin_hot_reload.setter
+    def plugin_hot_reload(self, value: bool):
+        self.set("plugin_hot_reload", value)
+
+    @property
+    def sound_effects(self) -> bool:
+        """P1-2: 操作音效开关"""
+        return self.get("sound_effects")
+
+    @sound_effects.setter
+    def sound_effects(self, value: bool):
+        self.set("sound_effects", value)
+
+    @property
     def plugin_auto_update(self) -> bool:
         return self.get("plugin_auto_update")
 
@@ -1025,7 +1054,7 @@ class Preferences(QObject):
             是否成功
         """
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             settings = data.get('settings', data)
@@ -1257,6 +1286,7 @@ def set_preferences(prefs: Preferences):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

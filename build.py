@@ -43,14 +43,14 @@
   全文件未发现任何 `json.` 调用。
 """
 
-import os
-import sys
-import shutil
-import platform
-import subprocess
 import argparse
 import datetime
-from typing import List, Tuple, Optional
+import os
+import platform
+import shutil
+import subprocess
+import sys
+from typing import List, Optional, Tuple
 
 
 # ============================================================
@@ -66,7 +66,11 @@ ICON_DST = os.path.join(ROOT, 'resources', 'icons', 'qingcao.ico')
 
 APP_NAME = 'QingCaoEditor'
 APP_DISPLAY_NAME = '青草编辑器'
-APP_VERSION = '2.0.0'
+# P1-1: 版本号唯一来源 version.py（避免多处硬编码导致版本漂移）
+try:
+    from version import __version__ as APP_VERSION
+except ImportError:  # pragma: no cover
+    APP_VERSION = "2.1.0"
 APP_AUTHOR = 'hedongwei'
 APP_EMAIL = '1265338136@qq.com'
 APP_DESCRIPTION = 'Lightweight text editor with LSP and plugin system'
@@ -837,7 +841,7 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
     print()
     print("下一步:")
     print(f"  1. 测试运行: {os.path.join(exe_dir, app_name)}")
-    print(f"  2. 制作安装包: python build_installer.py")
+    print("  2. 制作安装包: python build_installer.py")
     print()
 
 
@@ -896,7 +900,7 @@ def main() -> int:
         args.console = True
 
     # 开始
-    print_header(f"青草编辑器 - 打包")
+    print_header("青草编辑器 - 打包")
     print(f"平台:    {platform.system()} {platform.release()}")
     print(f"架构:    {platform.machine()}")
     print(f"Python:  {sys.version.split()[0]}")

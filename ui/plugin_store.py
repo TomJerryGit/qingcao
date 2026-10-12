@@ -27,57 +27,98 @@
 - 安装进度显示
 """
 
-import os
-import sys
-import json
-import time
-import shutil
-import zipfile
-import tempfile
-import hashlib
 import datetime
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from dataclasses import dataclass, field, asdict
+import hashlib
+import json
+import os
+import shutil
+import sys
+import tempfile
+import time
+import zipfile
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QToolButton, QLabel, QListWidget, QListWidgetItem,
-    QComboBox, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem,
-    QTextEdit, QTextBrowser, QProgressBar, QMessageBox,
-    QDialogButtonBox, QFrame, QScrollArea, QGridLayout,
-    QSizePolicy, QApplication, QStyle, QMenu, QSplitter,
-    QStackedWidget, QTableWidget, QTableWidgetItem, QHeaderView,
-    QAbstractItemView
+from PyQt5.QtCore import (
+    QBuffer,
+    QByteArray,
+    QIODevice,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    QUrl,
+    pyqtSignal,
 )
 from PyQt5.QtGui import (
-    QIcon,
-    QPixmap,
-    QColor,
-    QFont,
-    QPainter,
     QBrush,
-    QPen,
+    QColor,
     QDesktopServices,
+    QFont,
+    QIcon,
+    QPainter,
+    QPen,
+    QPixmap,
     QTextCursor,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSize, QSettings, QUrl, QThread,
-    QByteArray, QBuffer, QIODevice
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QStyle,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextBrowser,
+    QTextEdit,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.event_bus import (
-    bus, StatusMessageEvent, NotificationEvent,
-    PluginLoadedEvent, PluginUnloadedEvent, PluginErrorEvent
+    NotificationEvent,
+    PluginErrorEvent,
+    PluginLoadedEvent,
+    PluginUnloadedEvent,
+    StatusMessageEvent,
+    bus,
 )
 
 
 # ============================================================
 # 常量
 # ============================================================
-APP_VERSION = "2.0.0"
+# P1-1: 版本号唯一来源 version.py
+try:
+    from version import __version__ as APP_VERSION
+except ImportError:  # pragma: no cover
+    APP_VERSION = "0.0.0"
 
 # 插件市场注册表地址（镜像优先，国内可访问）
 # 优先级：jsDelivr CDN > 用户自定义 > FALLBACK 列表
@@ -446,7 +487,7 @@ class PluginStoreClient:
             if not os.path.exists(fallback_path):
                 return None
 
-            with open(fallback_path, 'r', encoding='utf-8') as f:
+            with open(fallback_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
@@ -473,7 +514,7 @@ class PluginStoreClient:
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, 'r', encoding='utf-8') as f:
+            with open(cache_file, encoding='utf-8') as f:
                 cached = json.load(f)
 
             data = cached.get('data')
@@ -490,7 +531,7 @@ class PluginStoreClient:
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, 'r', encoding='utf-8') as f:
+            with open(cache_file, encoding='utf-8') as f:
                 cached = json.load(f)
 
             # 检查缓存时间
@@ -598,7 +639,7 @@ class PluginStoreClient:
                     )
 
                     try:
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, encoding='utf-8') as f:
                             theme_data = json.load(f)
                         info.display_name = theme_data.get('name', theme_name)
                         info.description = theme_data.get('description', '')
@@ -618,7 +659,7 @@ class PluginStoreClient:
             return None
 
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
 
             info = PluginInfo(
@@ -820,7 +861,7 @@ class PluginStoreClient:
             if not os.path.exists(manifest_path):
                 return False
 
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
 
             manifest['disabled'] = not enabled
@@ -1325,7 +1366,9 @@ class RegistryFetchWorker(QThread):
         failed(str):    拉取失败（已 fallback 到磁盘缓存）
     """
 
-    finished = pyqtSignal(dict)
+    # 修复 B1：原名为 finished，会覆盖 QThread.finished（无参）
+    # 信号导致线程 run() 结束时 Qt 内部 emit 参数不匹配。
+    registry_ready = pyqtSignal(dict)
     failed = pyqtSignal(str)
 
     def __init__(self, client, force: bool = False, parent=None):
@@ -1337,7 +1380,7 @@ class RegistryFetchWorker(QThread):
         try:
             registry = self.client.fetch_registry(force=self.force)
             if registry:
-                self.finished.emit(registry)
+                self.registry_ready.emit(registry)
             else:
                 self.failed.emit("无法获取注册表（网络与缓存均失败）")
         except Exception as e:
@@ -2090,7 +2133,7 @@ class PluginStoreDialog(QDialog):
         self._registry_worker = RegistryFetchWorker(
             self.client, force=force, parent=self
         )
-        self._registry_worker.finished.connect(
+        self._registry_worker.registry_ready.connect(
             self._on_registry_loaded
         )
         self._registry_worker.failed.connect(
@@ -2231,7 +2274,7 @@ class PluginStoreDialog(QDialog):
         # 检查依赖
         satisfied, missing = info.get_dependency_status()
         if not satisfied:
-            msg = (f"以下 Python 依赖未安装：\n\n"
+            msg = ("以下 Python 依赖未安装：\n\n"
                    + "\n".join(f"• {d}" for d in missing)
                    + "\n\n是否尝试自动安装？")
 
@@ -2471,6 +2514,7 @@ class PluginStoreDialog(QDialog):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
