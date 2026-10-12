@@ -120,7 +120,7 @@ class TestReplace:
     """替换场景"""
 
     def test_replace_chinese(self):
-        from core.search import SearchEngine, SearchOptions, ReplaceEngine
+        from core.search import ReplaceEngine, SearchEngine, SearchOptions
         provider = _make_provider("你好世界你好")
         options = SearchOptions(pattern="你好")
         engine = SearchEngine(provider, options)
@@ -137,7 +137,7 @@ class TestReplace:
         assert new_text == "HI世界HI"
 
     def test_replace_mixed(self):
-        from core.search import SearchEngine, SearchOptions, ReplaceEngine
+        from core.search import ReplaceEngine, SearchEngine, SearchOptions
         provider = _make_provider("a中文b中文c")
         options = SearchOptions(pattern="中文")
         engine = SearchEngine(provider, options)
@@ -156,9 +156,7 @@ class TestHighlightText:
     """highlight_matches_in_text 用字符偏移"""
 
     def test_highlight_chinese(self):
-        from core.search import (
-            SearchEngine, SearchOptions, highlight_matches_in_text
-        )
+        from core.search import SearchEngine, SearchOptions, highlight_matches_in_text
         provider = _make_provider("前缀中文后缀")
         engine = SearchEngine(
             provider, SearchOptions(pattern="中文")

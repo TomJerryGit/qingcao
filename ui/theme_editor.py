@@ -1,15 +1,30 @@
 # -*- coding: utf-8 -*-
 """主题编辑器"""
-import os
 import json
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QListWidget, QListWidgetItem, QColorDialog, QSplitter,
-    QWidget, QFormLayout, QLineEdit, QGroupBox, QScrollArea,
-    QDialogButtonBox, QMessageBox, QFileDialog, QApplication
-)
+import os
+
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import (
+    QApplication,
+    QColorDialog,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 # 颜色分组定义
@@ -155,11 +170,12 @@ class ThemeEditor(QDialog):
 
         toolbar.addStretch()
 
-        load_btn = QPushButton("?? 加载主题")
+        # E3 修复：emoji 被 GBK 编辑器写坏成 ?，去掉 emoji 前缀
+        load_btn = QPushButton("加载主题")
         load_btn.clicked.connect(self._load_theme)
         toolbar.addWidget(load_btn)
 
-        save_btn = QPushButton("?? 保存主题")
+        save_btn = QPushButton("保存主题")
         save_btn.clicked.connect(self._save_theme)
         toolbar.addWidget(save_btn)
 
@@ -235,7 +251,7 @@ class ThemeEditor(QDialog):
             return
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
 
             # 加载名称

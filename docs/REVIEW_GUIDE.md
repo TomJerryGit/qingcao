@@ -13,6 +13,57 @@
 
 ---
 
+## 0. 本批改动已按 8 个提交落地
+
+工作区已 clean。用 `git log --oneline -8` 可看到：
+
+| 提交 | 说明 | 文件 |
+|---|---|---|
+| `7acbf07` | `fix(search)`: 消除 `_get_line_text` 的 O(n²) 退化 | 2 |
+| `aed4f08` | `fix(save)`: 保存必须截断文件，修复数据损坏 | 3 |
+| `42bc5cc` | `fix(lsp)`: did_open 参数错位、通道分离与 initialize 崩溃 | 5 |
+| `432dbbd` | `fix(plugins)`: 接线权限确认，封闭提权与 api.win 后门 | 13 |
+| `9f2e793` | `feat`: 热重载/音效/i18n/惰性面板 + 版本单一来源 | 36 |
+| `2fa2847` | `chore(repo)`: 清理备份与残留、补 lint 配置与图标资源 | 65（49 删除）|
+| `d63ab4b` | `chore(format)`: 导入排序与格式统一（**AST 语义无变化**） | 61 |
+| `834dda1` | `chore(wip)`: **会话前既有工作**（非本次修复） | 62 |
+
+### 归属是如何判定的
+
+用 **AST 比对** HEAD 与工作区版本：去掉 import 语句与所有 docstring
+后比较语法树。
+
+* 语法树相同 → 纯格式化（提交 `d63ab4b`）
+* 语法树不同且文件在本次会话编辑清单内 → 我的修复（前 6 个提交）
+* 语法树不同但不在清单内 → 会话前既有工作（提交 `834dda1`）
+
+**为什么单独拆出 `d63ab4b` 与 `834dda1`**：
+
+* 61 个文件只被导入排序/格式扫过，语义零变化。混进修复提交会让
+  review 时无法分辨"真改动"与格式化噪声。
+* 62 个文件是**会话前**就存在的未提交真实改动（`app/actions.py`、
+  `ui/editor_view.py`、`ui/preferences_panel.py`、`core/macro.py`、
+  `core/vim_mode.py`、`tests/` 多个既有测试等）。单独成条便于日后
+  单独 revert 或 rebase，也避免在 `git log` 里把作者与意图搞混。
+
+> 注：`9f2e793` 里有少数文件（如 `core/updater.py`、`core/telemetry.py`、
+> `locale/zh_CN/.../qingcao.po`）同时含我的改动与会话前改动 —— 版本读取点
+> 的修改与它们落在同一文件，**文件粒度上无法再分离**，已在提交信息里注明。
+
+### 关于行尾
+
+`.gitattributes`（提交 `2fa2847`）已声明库内统一 LF。提交时会看到
+`CRLF will be replaced by LF the next time Git touches it` 警告 —— 这是
+预期的归一化提示，不影响已提交内容（已验证 HEAD/索引/工作区 blob
+哈希一致）。若希望对历史文件一次性重写行尾，作为**独立提交**执行：
+
+```bash
+git add --renormalize .
+git commit -m "chore: 统一行尾为 LF"
+```
+
+---
+
 ## 1. 建议优先阅读的 6 个文件
 
 这些文件承载了本次所有高风险改动（数据正确性 / 协议正确性 / 安全边界）。

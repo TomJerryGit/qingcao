@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """项目任务系统"""
-import os
 import json
+import os
 import subprocess
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 
@@ -107,7 +108,7 @@ class ProjectTaskManager:
             return
 
         try:
-            with open(task_file, 'r', encoding='utf-8') as f:
+            with open(task_file, encoding='utf-8') as f:
                 data = json.load(f)
             self.tasks = [
                 ProjectTask(t) for t in data.get('tasks', [])

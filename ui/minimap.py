@@ -27,20 +27,35 @@
 import os
 import sys
 import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from PyQt5.Qsci import QsciScintilla
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QToolButton,
-    QSizePolicy, QMenu, QApplication, QFrame
-)
+from PyQt5.QtCore import QPoint, QRect, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
-    QPainter, QColor, QPen, QBrush, QFont, QFontMetrics,
-    QMouseEvent, QWheelEvent, QPaintEvent, QResizeEvent,
-    QContextMenuEvent, QDragEnterEvent, QDropEvent
+    QBrush,
+    QColor,
+    QContextMenuEvent,
+    QDragEnterEvent,
+    QDropEvent,
+    QFont,
+    QFontMetrics,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QResizeEvent,
+    QWheelEvent,
 )
-from PyQt5.QtCore import (
-    Qt, QTimer, QRect, QRectF, QPoint, QSize, pyqtSignal, QSettings
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QSizePolicy,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -729,9 +744,8 @@ class MinimapWidget(QWidget):
 # ============================================================
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtWidgets import (
-        QApplication, QMainWindow, QSplitter, QTextEdit
-    )
+
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QSplitter, QTextEdit
 
     app = QApplication(sys.argv)
 
@@ -744,7 +758,7 @@ if __name__ == "__main__":
     splitter = QSplitter(Qt.Horizontal)
 
     # 主编辑器
-    from PyQt5.Qsci import QsciScintilla, QsciLexerPython
+    from PyQt5.Qsci import QsciLexerPython, QsciScintilla
 
     editor = QsciScintilla()
     editor.setUtf8(True)
@@ -761,11 +775,11 @@ if __name__ == "__main__":
         test_content += f"def function_{i}():\n"
         test_content += f"    '''函数 {i} 的文档字符串'''\n"
         test_content += f"    value = {i}\n"
-        test_content += f"    if value > 50:\n"
+        test_content += "    if value > 50:\n"
         test_content += f"        print('大于50: {i}')\n"
-        test_content += f"    else:\n"
+        test_content += "    else:\n"
         test_content += f"        print('小于等于50: {i}')\n"
-        test_content += f"    return value\n\n"
+        test_content += "    return value\n\n"
 
     test_content += "class MyClass:\n"
     test_content += "    def __init__(self):\n"

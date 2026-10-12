@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """多根工作区"""
-import os
 import json
-from typing import List, Dict, Optional, Any
+import os
+from typing import Any, Dict, List, Optional
 
 
 WORKSPACE_FILE = "workspace.json"
@@ -101,7 +101,7 @@ class Workspace:
     def load(cls, filepath):
         """加载"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 d = json.load(f)
             ws = cls.from_dict(d)
             ws.filepath = filepath

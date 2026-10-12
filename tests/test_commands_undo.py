@@ -4,6 +4,7 @@ import os
 import sys
 import unittest
 
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -26,6 +27,7 @@ class TestInsertCmd(unittest.TestCase):
 
     def test_can_merge(self):
         import time
+
         from core.commands import InsertCmd
         c1 = InsertCmd(0, "hello")
         c2 = InsertCmd(5, " world")
@@ -87,10 +89,7 @@ class TestGroupCmd(unittest.TestCase):
 
 class TestSerialization(unittest.TestCase):
     def test_serialize_deserialize(self):
-        from core.commands import (
-            InsertCmd, DeleteCmd, ReplaceCmd,
-            CommandSerializer
-        )
+        from core.commands import CommandSerializer, DeleteCmd, InsertCmd, ReplaceCmd
         cmds = [
             InsertCmd(0, "hello"),
             DeleteCmd(5, 3, b"abc"),

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """性能基准测试"""
-import time
 import os
 import tempfile
-from typing import Dict, Any, Callable
+import time
+from typing import Any, Callable, Dict
 
 
 class Benchmark:
@@ -60,8 +60,8 @@ class Benchmark:
     def _bench_search(self) -> Dict[str, Any]:
         """搜索性能"""
         try:
-            from core.search import SearchEngine, SearchOptions
             from core.content_provider import MemoryProvider
+            from core.search import SearchEngine, SearchOptions
 
             text = "hello world\n" * 10000
             provider = MemoryProvider()
@@ -87,9 +87,7 @@ class Benchmark:
     def _bench_commands(self) -> Dict[str, Any]:
         """命令操作性能"""
         try:
-            from core.commands import (
-                InsertCmd, DeleteCmd, CommandSerializer
-            )
+            from core.commands import CommandSerializer, DeleteCmd, InsertCmd
 
             cmds = []
             for i in range(1000):
@@ -117,8 +115,8 @@ class Benchmark:
     def _bench_undo_redo(self) -> Dict[str, Any]:
         """撤销/重做性能"""
         try:
-            from core.undo import UndoManager
             from core.commands import InsertCmd
+            from core.undo import UndoManager
 
             mgr = UndoManager()
 
@@ -155,9 +153,7 @@ class Benchmark:
             if not QApplication.instance():
                 app = QApplication([])
 
-            from app.event_bus import (
-                EventBus, StatusMessageEvent
-            )
+            from app.event_bus import EventBus, StatusMessageEvent
             bus = EventBus()
 
             received = []

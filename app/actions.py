@@ -16,17 +16,16 @@
 - 动作分组与分类
 """
 
-import os
-import sys
-import json
-import shutil
 import datetime
-from typing import Optional, Dict, List, Tuple, Callable, Any
+import json
+import os
+import shutil
+import sys
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.QtGui import QKeySequence, QIcon
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import QObject, pyqtSignal, Qt
-from PyQt5.QtWidgets import QApplication, QStyle, QMessageBox
+from PyQt5.QtCore import QObject, Qt, pyqtSignal
+from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtWidgets import QAction, QApplication, QMessageBox, QStyle
 
 
 # ============================================================
@@ -293,7 +292,7 @@ class ActionManager(QObject):
             return True
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 custom = json.load(f)
 
             if not isinstance(custom, dict):
@@ -560,7 +559,7 @@ class ActionManager(QObject):
     def import_config(self, path: str) -> bool:
         """从导出的配置文件导入快捷键"""
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
 
             actions_data = data.get('actions', {})

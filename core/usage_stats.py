@@ -19,13 +19,13 @@
 作者: hedongwei
 """
 
-import os
-import json
-import time
 import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from dataclasses import dataclass, field, asdict
+import json
+import os
+import time
 from collections import Counter, defaultdict
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # ============================================================
@@ -220,7 +220,7 @@ class UsageStats:
             return
 
         try:
-            with open(self.onboarding_file, 'r', encoding='utf-8') as f:
+            with open(self.onboarding_file, encoding='utf-8') as f:
                 data = json.load(f)
 
             # onboarding.json 的字段优先覆盖
@@ -249,7 +249,7 @@ class UsageStats:
             return
 
         try:
-            with open(self.session_file, 'r', encoding='utf-8') as f:
+            with open(self.session_file, encoding='utf-8') as f:
                 session = json.load(f)
 
             # 文件类型统计

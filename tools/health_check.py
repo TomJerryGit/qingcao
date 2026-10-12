@@ -17,10 +17,10 @@
     python tools/health_check.py
 """
 
+import ast
 import os
 import re
 import sys
-import ast
 from pathlib import Path
 
 
@@ -140,7 +140,7 @@ def check_large_files(py_files):
     large = []
     for f in py_files:
         try:
-            with open(f, 'r', encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding='utf-8', errors='replace') as fh:
                 n = sum(1 for _ in fh)
         except Exception:
             continue
@@ -194,7 +194,7 @@ def check_deprecated_api(py_files):
 
     for f in py_files:
         try:
-            with open(f, 'r', encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding='utf-8', errors='replace') as fh:
                 source = fh.read()
         except Exception:
             continue
@@ -279,7 +279,7 @@ def check_todos(py_files):
 
     for f in py_files:
         try:
-            with open(f, 'r', encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding='utf-8', errors='replace') as fh:
                 content = fh.read()
         except Exception:
             continue

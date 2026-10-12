@@ -1,13 +1,22 @@
 # -*- coding: utf-8 -*-
 """日志查看器"""
 import os
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QPushButton,
-    QComboBox, QLineEdit, QLabel, QFileDialog, QMessageBox,
-    QApplication
-)
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 
 class LogViewer(QDialog):
@@ -155,7 +164,7 @@ class LogViewer(QDialog):
             return
 
         try:
-            with open(self.log_path, 'r', encoding='utf-8',
+            with open(self.log_path, encoding='utf-8',
                        errors='replace') as f:
                 self._all_lines = f.readlines()
             self._apply_filter()

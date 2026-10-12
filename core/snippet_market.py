@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """代码片段市场客户端"""
-import os
 import json
-import time
+import os
 import threading
-from typing import List, Dict, Any, Optional
+import time
+from typing import Any, Dict, List, Optional
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 
@@ -42,7 +43,7 @@ class SnippetMarketClient(QObject):
         if not force and os.path.exists(cache_file):
             try:
                 if time.time() - os.path.getmtime(cache_file) < CACHE_TTL:
-                    with open(cache_file, 'r', encoding='utf-8') as f:
+                    with open(cache_file, encoding='utf-8') as f:
                         data = json.load(f)
                     self.fetch_completed.emit(data.get('snippets', []))
                     return
@@ -114,7 +115,7 @@ class SnippetMarketClient(QObject):
     def _download(self, snippet):
         """实际下载"""
         try:
-            from core.snippets import get_snippet_manager, Snippet
+            from core.snippets import Snippet, get_snippet_manager
 
             mgr = get_snippet_manager()
 

@@ -33,7 +33,7 @@
 import time
 import weakref
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 
 # ============================================================
@@ -1192,7 +1192,7 @@ if __name__ == "__main__":
     cmd2 = InsertCmd(6, "World")
     cmd2.timestamp = cmd1.timestamp + 0.05  # 50ms 后
     merged = merge_commands([cmd1, cmd2])
-    print(f"合并前: 2 条命令")
+    print("合并前: 2 条命令")
     print(f"合并后: {len(merged)} 条命令")
     if merged:
         print(f"  结果: {merged[0].describe()}")

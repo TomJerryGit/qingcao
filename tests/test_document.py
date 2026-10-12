@@ -25,7 +25,9 @@ Document 单元测试。
 
 import os
 import sys
+
 import pytest
+
 
 # 确保项目根目录在 sys.path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -632,7 +634,7 @@ class TestSave:
             assert doc.filepath == os.path.abspath(target)
 
             # 验证磁盘内容
-            with open(target, 'r', encoding='utf-8') as f:
+            with open(target, encoding='utf-8') as f:
                 content = f.read()
             assert "initial content" in content
         finally:
@@ -799,7 +801,7 @@ class TestDocumentModel:
 
         # 验证磁盘内容
         for f in files:
-            with open(f, 'r', encoding='utf-8') as fp:
+            with open(f, encoding='utf-8') as fp:
                 content = fp.read()
             assert "edited" in content
 

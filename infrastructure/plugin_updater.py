@@ -25,22 +25,22 @@
 - 网络异常重试
 """
 
-import os
-import sys
-import json
-import time
-import shutil
+import datetime
 import hashlib
-import zipfile
+import json
+import os
+import shutil
+import sys
 import tempfile
 import threading
-import datetime
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from dataclasses import dataclass, field, asdict
+import time
+import zipfile
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
 # ============================================================
@@ -676,7 +676,7 @@ class PluginUpdater(QObject):
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, 'r', encoding='utf-8') as f:
+            with open(cache_file, encoding='utf-8') as f:
                 cached = json.load(f)
 
             timestamp = cached.get('timestamp', 0)
@@ -731,7 +731,7 @@ class PluginUpdater(QObject):
                     path = os.path.join(self.theme_dir, filename)
 
                     try:
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, encoding='utf-8') as f:
                             data = json.load(f)
 
                         plugins[f"theme.{theme_name}"] = {
@@ -753,7 +753,7 @@ class PluginUpdater(QObject):
             return None
 
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
 
             manifest['path'] = path
@@ -1369,7 +1369,7 @@ class PluginUpdater(QObject):
         """加载更新历史"""
         try:
             if os.path.exists(UPDATE_HISTORY_FILE):
-                with open(UPDATE_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                with open(UPDATE_HISTORY_FILE, encoding='utf-8') as f:
                     data = json.load(f)
 
                 self._history = [
@@ -1650,6 +1650,7 @@ def update_plugin_by_name(name: str,
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

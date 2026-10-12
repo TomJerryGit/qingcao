@@ -1,7 +1,7 @@
 {
   "name": "eye_protect",
   "display_name": "护眼",
-  "type": "dark",
+  "type": "light",
   "version": 2,
   "author": "青草编辑器",
   "description": "柔和绿色，减少眼睛疲劳",

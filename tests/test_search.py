@@ -4,6 +4,7 @@ import os
 import sys
 import unittest
 
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -22,8 +23,8 @@ class TestSearchOptions(unittest.TestCase):
 
 class TestSearchEngine(unittest.TestCase):
     def test_simple_search(self):
-        from core.search import SearchEngine, SearchOptions
         from core.content_provider import MemoryProvider
+        from core.search import SearchEngine, SearchOptions
 
         provider = MemoryProvider()
         provider.open(initial_text="hello world\nhello again\n")
@@ -37,8 +38,8 @@ class TestSearchEngine(unittest.TestCase):
 
 class TestQuickSearch(unittest.TestCase):
     def test_quick_search(self):
-        from core.search import quick_search
         from core.content_provider import MemoryProvider
+        from core.search import quick_search
 
         provider = MemoryProvider()
         provider.open(initial_text="test test test")

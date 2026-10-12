@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """项目对象"""
-import os
 import json
+import os
 
 
 class Project:
@@ -49,7 +49,7 @@ class Project:
     def load(cls, filepath):
         """从文件加载"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
             return cls.from_dict(data)
         except Exception as e:

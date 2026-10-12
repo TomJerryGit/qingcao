@@ -30,43 +30,53 @@
 - 快捷键支持
 """
 
+import builtins
+import contextlib
+import io
 import os
 import sys
-import io
 import time
 import traceback
-import contextlib
-import builtins
-from typing import Optional, List, Dict, Any, Tuple, Callable, Set
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
-    QLineEdit, QPushButton, QToolButton, QLabel, QMenu,
-    QMessageBox, QFileDialog, QSplitter, QTextEdit, QApplication,
-    QCompleter, QScrollBar, QFrame, QSizePolicy
-)
+from PyQt5.QtCore import QEvent, QPoint, QSettings, QSize, QStringListModel, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
     QColor,
     QFont,
-    QKeyEvent,
-    QTextCharFormat,
-    QSyntaxHighlighter,
-    QTextCursor,
-    QKeySequence,
     QFontDatabase,
+    QKeyEvent,
+    QKeySequence,
     QPalette,
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QTextCursor,
     QTextFormat,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSettings, QPoint, QStringListModel,
-    QSize, QEvent
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCompleter,
+    QDockWidget,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollBar,
+    QSizePolicy,
+    QSplitter,
+    QTextEdit,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
-from app.event_bus import (
-    bus, StatusMessageEvent, NotificationEvent
-)
+from app.event_bus import NotificationEvent, StatusMessageEvent, bus
 
 
 # ============================================================
@@ -664,12 +674,12 @@ class PythonConsole(QDockWidget):
                 self.namespace['actions'] = self.main_window.act_mgr
 
             # 常用模块
-            import sys as _sys
-            import os as _os
-            import json as _json
-            import re as _re
-            import time as _time
             import datetime as _datetime
+            import json as _json
+            import os as _os
+            import re as _re
+            import sys as _sys
+            import time as _time
 
             self.namespace['sys'] = _sys
             self.namespace['os'] = _os
@@ -1335,7 +1345,13 @@ class PythonConsole(QDockWidget):
     def show_variables(self):
         """显示当前变量"""
         try:
-            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
+            from PyQt5.QtWidgets import (
+                QDialog,
+                QHeaderView,
+                QTableWidget,
+                QTableWidgetItem,
+                QVBoxLayout,
+            )
 
             dlg = QDialog(self)
             dlg.setWindowTitle("控制台变量")
@@ -1499,6 +1515,7 @@ class PythonConsole(QDockWidget):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)

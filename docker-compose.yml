@@ -26,4 +26,6 @@ services:
     build: .
     volumes:
       - .:/app
-    command: python -m unittest discover -s tests -v
+    # B8 修复：改用 pytest（unittest 会绕过 conftest.py 的 fixture，
+    # 特别是 _isolate_qsettings 会失效，污染用户真实配置）
+    command: python -m pytest tests/ -v

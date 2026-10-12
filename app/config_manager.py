@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """配置管理"""
-import os
 import json
-import zipfile
+import os
 import shutil
+import zipfile
+
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
@@ -39,7 +40,7 @@ class ConfigManager:
             # 读取快捷键
             try:
                 if os.path.exists('keybindings.json'):
-                    with open('keybindings.json', 'r', encoding='utf-8') as f:
+                    with open('keybindings.json', encoding='utf-8') as f:
                         data['keybindings'] = json.load(f)
             except Exception:
                 pass

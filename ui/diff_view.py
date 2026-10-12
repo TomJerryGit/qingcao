@@ -1,13 +1,23 @@
 # -*- coding: utf-8 -*-
 """文件差异对比视图"""
-import os
 import difflib
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QPushButton,
-    QLabel, QFileDialog, QSplitter, QWidget, QMessageBox, QCheckBox
-)
+import os
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QColor, QTextCharFormat, QTextCursor
+from PyQt5.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class DiffViewDialog(QDialog):
@@ -146,10 +156,10 @@ class DiffViewDialog(QDialog):
             return
 
         try:
-            with open(self.left_path, 'r', encoding='utf-8',
+            with open(self.left_path, encoding='utf-8',
                       errors='replace') as f:
                 left_text = f.read()
-            with open(self.right_path, 'r', encoding='utf-8',
+            with open(self.right_path, encoding='utf-8',
                       errors='replace') as f:
                 right_text = f.read()
         except Exception as e:

@@ -11,7 +11,10 @@
       "author": "青草编辑器",
       "type": "theme",
       "category": "dark",
-      "tags": ["dark", "night"],
+      "tags": [
+        "dark",
+        "night"
+      ],
       "download_url": "",
       "verified": true,
       "featured": true
@@ -24,7 +27,10 @@
       "author": "青草编辑器",
       "type": "theme",
       "category": "light",
-      "tags": ["light", "clean"],
+      "tags": [
+        "light",
+        "clean"
+      ],
       "download_url": "",
       "verified": true,
       "featured": true
@@ -36,8 +42,11 @@
       "description": "柔和绿色，减少眼睛疲劳",
       "author": "青草编辑器",
       "type": "theme",
-      "category": "dark",
-      "tags": ["eye", "green"],
+      "category": "light",
+      "tags": [
+        "eye",
+        "green"
+      ],
       "download_url": "",
       "verified": true,
       "featured": false
@@ -50,7 +59,10 @@
       "author": "青草编辑器",
       "type": "theme",
       "category": "high_contrast",
-      "tags": ["contrast", "accessibility"],
+      "tags": [
+        "contrast",
+        "accessibility"
+      ],
       "download_url": "",
       "verified": true,
       "featured": false

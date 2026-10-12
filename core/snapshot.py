@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """会话快照管理器"""
-import os
-import json
 import datetime
-from typing import Optional, List, Dict, Any
+import json
+import os
+from typing import Any, Dict, List, Optional
 
 
 SNAPSHOT_DIR = "data/snapshots"
@@ -84,7 +84,7 @@ class SnapshotManager:
         if not os.path.exists(filepath):
             return None
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             return None
@@ -157,7 +157,7 @@ class SnapshotManager:
                 continue
             filepath = os.path.join(SNAPSHOT_DIR, fname)
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
+                with open(filepath, encoding='utf-8') as f:
                     data = json.load(f)
                 result.append({
                     'name': data.get('name', fname[:-5]),

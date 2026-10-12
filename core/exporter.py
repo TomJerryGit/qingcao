@@ -1,7 +1,7 @@
 #-*- coding: utf-8 -*-
 """青草编辑器导出模块"""
-import os
 import datetime
+import os
 
 
 class Exporter:
@@ -118,8 +118,8 @@ class Exporter:
         """导出为 PDF（需要 reportlab）"""
         try:
             from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
             from reportlab.lib.units import cm
+            from reportlab.pdfgen import canvas
         except ImportError:
             return False, "需要安装 reportlab: pip install reportlab"
 

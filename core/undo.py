@@ -23,18 +23,24 @@
 - 统计信息
 """
 
-import time
 import threading
-from typing import Optional, List, Dict, Any, Tuple, Callable
+import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QDateTime
+from PyQt5.QtCore import QDateTime, QObject, pyqtSignal
 
 from core.commands import (
-    Command, InsertCmd, DeleteCmd, ReplaceCmd, GroupCmd,
-    CommandFactory, CommandPool, merge_commands,
-    MERGE_INTERVAL_MS
+    MERGE_INTERVAL_MS,
+    Command,
+    CommandFactory,
+    CommandPool,
+    DeleteCmd,
+    GroupCmd,
+    InsertCmd,
+    ReplaceCmd,
+    merge_commands,
 )
 
 
@@ -1029,7 +1035,7 @@ class UndoManager(QObject):
         # 栈内容摘要
         if self.undo_stack:
             lines.append("")
-            lines.append(f"撤销栈（最近 10 条）:")
+            lines.append("撤销栈（最近 10 条）:")
             for cmd in self.undo_stack[-10:]:
                 desc = (cmd.describe() if hasattr(cmd, 'describe')
                         else type(cmd).__name__)
@@ -1037,7 +1043,7 @@ class UndoManager(QObject):
 
         if self.redo_stack:
             lines.append("")
-            lines.append(f"重做栈（最近 5 条）:")
+            lines.append("重做栈（最近 5 条）:")
             for cmd in self.redo_stack[-5:]:
                 desc = (cmd.describe() if hasattr(cmd, 'describe')
                         else type(cmd).__name__)
@@ -1056,6 +1062,7 @@ class UndoManager(QObject):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)

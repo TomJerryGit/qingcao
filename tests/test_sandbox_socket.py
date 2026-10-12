@@ -6,9 +6,7 @@ class TestSocketRejected:
     def test_socket_not_in_internal_whitelist(self):
         """socket 不应在 INTERNAL_ALLOWED_MODULES"""
         try:
-            from infrastructure.sandbox_runtime import (
-                INTERNAL_ALLOWED_MODULES
-            )
+            from infrastructure.sandbox_runtime import INTERNAL_ALLOWED_MODULES
         except ImportError:
             pytest.skip("sandbox_runtime 不可用")
 
@@ -18,8 +16,8 @@ class TestSocketRejected:
     def test_safefinder_rejects_socket(self):
         """SafeFinder 应拒绝无 network 权限的 socket 导入"""
         try:
-            from infrastructure.sandbox_runtime import SafeFinder
             from core.sandbox_policy import SandboxPolicy
+            from infrastructure.sandbox_runtime import SafeFinder
         except ImportError:
             pytest.skip("依赖不可用")
 
@@ -32,8 +30,8 @@ class TestSocketRejected:
     def test_safefinder_allows_safe_module(self):
         """SafeFinder 应放行 SAFE_MODULES"""
         try:
-            from infrastructure.sandbox_runtime import SafeFinder
             from core.sandbox_policy import SandboxPolicy
+            from infrastructure.sandbox_runtime import SafeFinder
         except ImportError:
             pytest.skip("依赖不可用")
 

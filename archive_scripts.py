@@ -1,18 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """归档所有 fix/apply 脚本到 _archive/fixes/"""
-import sys
 import shutil
+import sys
 from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parent
 ARCHIVE = ROOT / "_archive" / "fixes"
 
 # 这些不归档
+# D2 修复：与 fix_batch_final.py 保持一致，归档 fix_remaining.py
 EXCLUDE = {
     "close_review.py",
     "close_review_v2.py",
-    "fix_remaining.py",
     "archive_scripts.py",
 }
 
@@ -80,7 +81,7 @@ def main():
             "",
         ]
         readme.write_text("\n".join(lines), encoding='utf-8')
-        print(f"  [OK]   已生成 _archive/fixes/README.md")
+        print("  [OK]   已生成 _archive/fixes/README.md")
 
     print()
     print(f"完成：{moved} 个归档，{skipped} 个跳过")

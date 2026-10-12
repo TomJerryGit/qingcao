@@ -15,7 +15,9 @@ UndoManager 单元测试。
 import os
 import sys
 import time
+
 import pytest
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -63,8 +65,8 @@ class TestBasicRecord:
     """测试记录命令"""
 
     def test_record_single_command(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         mgr.record(InsertCmd(0, "hello"))
@@ -74,8 +76,8 @@ class TestBasicRecord:
         assert mgr.can_undo()
 
     def test_record_clears_redo(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         mgr.record(InsertCmd(0, "a"))
@@ -99,8 +101,8 @@ class TestUndoRedo:
     """测试撤销/重做"""
 
     def test_undo_insert(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         sc = FakeScintilla()
@@ -114,8 +116,8 @@ class TestUndoRedo:
         assert sc.text == ""
 
     def test_redo(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         sc = FakeScintilla()
@@ -154,8 +156,8 @@ class TestMerge:
     """测试命令合并"""
 
     def test_consecutive_inserts_merge(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager(merge_interval=1000)  # 宽窗口
 
@@ -181,8 +183,8 @@ class TestGroup:
     """测试命令组"""
 
     def test_begin_end_group(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
 
@@ -199,8 +201,8 @@ class TestGroup:
         assert len(group.cmds) == 3
 
     def test_group_undo_atomic(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         sc = FakeScintilla()
@@ -229,8 +231,8 @@ class TestSavePoint:
     """测试保存点"""
 
     def test_mark_save_point(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
 
@@ -240,8 +242,8 @@ class TestSavePoint:
         assert mgr.is_clean()
 
     def test_leave_save_point_after_record(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         mgr.mark_save_point("start")
@@ -261,8 +263,8 @@ class TestDepthLimit:
     """测试撤销栈深度限制"""
 
     def test_max_depth(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager(max_depth=10)
 
@@ -282,8 +284,8 @@ class TestBatch:
     """测试批量撤销/重做"""
 
     def test_undo_multiple(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         sc = FakeScintilla()
@@ -308,8 +310,8 @@ class TestClear:
     """测试清空"""
 
     def test_clear(self, qapp):
-        from core.undo import UndoManager
         from core.commands import InsertCmd
+        from core.undo import UndoManager
 
         mgr = UndoManager()
         mgr.record(InsertCmd(0, "a"))

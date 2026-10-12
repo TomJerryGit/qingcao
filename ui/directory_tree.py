@@ -25,34 +25,55 @@
 - 打开方式集成
 """
 
+import fnmatch
 import os
-import sys
 import shutil
 import subprocess
+import sys
 import time
-import fnmatch
-from typing import Optional, List, Dict, Any, Tuple, Set
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
-    QMenu, QInputDialog, QMessageBox, QFileDialog, QLineEdit,
-    QToolBar, QPushButton, QLabel, QApplication, QStyle,
-    QAbstractItemView, QHeaderView, QFileIconProvider
+from PyQt5.QtCore import (
+    QDir,
+    QFileInfo,
+    QFileSystemWatcher,
+    QMimeData,
+    QModelIndex,
+    Qt,
+    QTimer,
+    QUrl,
+    pyqtSignal,
 )
 from PyQt5.QtGui import (
-    QIcon,
-    QColor,
-    QFont,
-    QKeySequence,
     QBrush,
+    QColor,
     QDrag,
+    QFont,
+    QIcon,
+    QKeySequence,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QFileSystemWatcher, QFileInfo, QDir,
-    QModelIndex, QMimeData, QUrl
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QFileDialog,
+    QFileIconProvider,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QStyle,
+    QToolBar,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -1603,7 +1624,7 @@ class DirectoryTree(QWidget):
     def _show_status(self, message: str, timeout: int = 3000):
         """显示状态消息"""
         try:
-            from app.event_bus import bus, StatusMessageEvent
+            from app.event_bus import StatusMessageEvent, bus
             bus.emit_event(StatusMessageEvent(
                 message=message, timeout=timeout
             ))
@@ -1738,6 +1759,7 @@ class DirectoryTree(QWidget):
 # ============================================================
 if __name__ == "__main__":
     import tempfile
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)

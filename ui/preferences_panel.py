@@ -16,18 +16,35 @@
 """
 
 import os
-from typing import Optional, List
+from typing import List, Optional
 
+from PyQt5.QtCore import QSettings, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QListWidget,
-    QListWidgetItem, QStackedWidget, QLabel, QPushButton,
-    QComboBox, QSpinBox, QCheckBox, QLineEdit, QFormLayout,
-    QGroupBox, QDialogButtonBox, QFileDialog, QMessageBox,
-    QApplication, QTextEdit, QFontComboBox, QScrollArea,
-    QFrame
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFontComboBox,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, QSettings, pyqtSignal
-from PyQt5.QtGui import QFont, QColor
 
 from app.preferences import Preferences
 
@@ -317,8 +334,8 @@ class AppearancePage(QWidget):
 
     def _on_open_dir(self):
         """打开主题目录"""
-        from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtCore import QUrl
+        from PyQt5.QtGui import QDesktopServices
         themes_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "themes"
@@ -648,7 +665,8 @@ class PreferencesDialog(QDialog):
             self.category_list.addItem(item)
 
         self.category_list.currentRowChanged.connect(self._on_category_changed)
-        self.category_list.setCurrentRow(0)
+        # 注：setCurrentRow(0) 挪到 _build_ui 末尾（stack 创建之后），
+        # 否则会在 self.stack 创建前触发 _on_category_changed
 
         left_layout.addWidget(self.category_list)
         left_layout.addStretch()
@@ -711,6 +729,9 @@ class PreferencesDialog(QDialog):
         right_layout.addWidget(bottom)
         layout.addWidget(right, 1)
 
+        # 全部控件建好后再设置默认选中分类
+        self.category_list.setCurrentRow(0)
+
     def _create_pages(self):
         """创建所有分类页"""
         p = self.prefs
@@ -736,6 +757,9 @@ class PreferencesDialog(QDialog):
             self.stack.addWidget(self.pages[key])
 
     def _on_category_changed(self, index: int):
+        # 保护：_build_ui 早期 setCurrentRow(0) 时 stack 尚未创建
+        if not hasattr(self, 'stack') or self.stack is None:
+            return
         if index < 0 or index >= len(PAGES):
             return
         key, name, _ = PAGES[index]

@@ -24,26 +24,46 @@
 - 图标回退机制
 """
 
+import hashlib
+import json
 import os
 import sys
-import json
-import hashlib
-import time
 import threading
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from enum import Enum, auto
+import time
 from abc import ABC, abstractmethod
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import QApplication, QStyle
-from PyQt5.QtGui import (
-    QIcon, QPixmap, QPainter, QColor, QPen, QBrush, QFont,
-    QFontMetrics, QPolygon, QPolygonF, QPainterPath, QLinearGradient,
-    QTransform
-)
 from PyQt5.QtCore import (
-    Qt, QSize, QRect, QRectF, QPoint, QPointF, QByteArray,
-    QBuffer, QIODevice, QObject, pyqtSignal, QSettings
+    QBuffer,
+    QByteArray,
+    QIODevice,
+    QObject,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    QSettings,
+    QSize,
+    Qt,
+    pyqtSignal,
 )
+from PyQt5.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QPolygon,
+    QPolygonF,
+    QTransform,
+)
+from PyQt5.QtWidgets import QApplication, QStyle
 
 
 # ============================================================
@@ -1412,7 +1432,8 @@ def get_pixmap(name: str, size: int = DEFAULT_ICON_SIZE,
 if __name__ == "__main__":
     import sys
     import tempfile
-    from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
+
+    from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
 
     app = QApplication(sys.argv)
 

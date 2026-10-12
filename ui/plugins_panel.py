@@ -28,23 +28,39 @@
 """
 
 import os
-import sys
 import subprocess
-from typing import Optional, List, Dict, Any
+import sys
+from typing import Any, Dict, List, Optional
 
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QPushButton, QToolButton, QLineEdit, QComboBox,
-    QLabel, QMenu, QMessageBox, QApplication, QDialog,
-    QTextBrowser, QDialogButtonBox, QAbstractItemView, QHeaderView,
-    QStyle
-)
-from PyQt5.QtGui import QColor, QBrush, QFont, QIcon
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QBrush, QColor, QFont, QIcon
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDockWidget,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QStyle,
+    QTextBrowser,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 # 事件总线
 try:
-    from app.event_bus import bus, StatusMessageEvent
+    from app.event_bus import StatusMessageEvent, bus
 except ImportError:
     bus = None
 

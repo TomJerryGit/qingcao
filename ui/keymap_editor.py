@@ -21,38 +21,57 @@
 - 分类折叠
 """
 
+import json
 import os
 import sys
-import json
 import time
-from typing import Optional, List, Dict, Any, Tuple, Callable, Set
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QToolButton, QLabel, QComboBox, QCheckBox,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QTableWidget,
-    QTableWidgetItem, QAbstractItemView, QDialogButtonBox,
-    QMessageBox, QFileDialog, QInputDialog, QMenu, QFrame,
-    QSplitter, QTextEdit, QApplication, QStyle, QKeySequenceEdit
-)
+from PyQt5.QtCore import QPoint, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
-    QIcon,
+    QBrush,
     QColor,
     QFont,
+    QIcon,
     QKeySequence,
-    QBrush,
     QPainter,
     QPen,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSettings, QPoint, QSize
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QKeySequenceEdit,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QStyle,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.actions import ActionManager
-from app.event_bus import bus, StatusMessageEvent
+from app.event_bus import StatusMessageEvent, bus
 
 
 # ============================================================
@@ -186,7 +205,7 @@ class KeymapProfile:
     def load(cls, filepath: str) -> Optional['KeymapProfile']:
         """从文件加载"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
             return cls.from_dict(data)
         except Exception as e:
@@ -558,7 +577,7 @@ class KeymapTable(QTreeWidget):
             item.setForeground(1, QBrush(CONFLICT_COLOR))
             item.setToolTip(
                 1,
-                f"⚠ 与此快捷键冲突的动作:\n"
+                "⚠ 与此快捷键冲突的动作:\n"
                 + "\n".join(f"  • {c}" for c in entry.conflicts)
             )
         elif not entry.is_default and entry.shortcut:
@@ -1138,7 +1157,7 @@ class KeymapEditor(QDialog):
             return
 
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
@@ -1265,7 +1284,9 @@ class KeymapEditor(QDialog):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
+
     from app.actions import ActionManager, create_action
 
     app = QApplication(sys.argv)

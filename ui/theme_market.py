@@ -16,20 +16,32 @@
     dlg.exec_()
 """
 
+import json
 import os
 import sys
-import json
 import time
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from PyQt5.QtCore import QSettings, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QIcon
 from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QListWidget, QListWidgetItem,
-    QMessageBox, QFileDialog, QScrollArea, QFrame,
-    QApplication, QComboBox, QProgressDialog
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QSettings
-from PyQt5.QtGui import QColor, QIcon, QFont
 
 
 # ============================================================
@@ -142,7 +154,7 @@ class ThemeMarketClient:
             path = os.path.join(root, "resources", "theme_fallback.json")
             if not os.path.exists(path):
                 return None
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
             data['_from_fallback'] = True
             return data
@@ -180,8 +192,9 @@ class ThemeMarketClient:
         2. 直接内嵌 theme_data 字段 → 直接写 themes/{name}.json
         """
         try:
-            from core.theme_pack import ThemePack
             from PyQt5.QtWidgets import QFileDialog
+
+            from core.theme_pack import ThemePack
 
             # 来源 1：内嵌数据
             if theme.get('theme_data'):

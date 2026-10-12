@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """插件脚手架 - 一键生成插件骨架"""
+import json
 import os
 import sys
-import json
 
 
 TEMPLATE_MANIFEST = {
@@ -50,7 +50,7 @@ class Plugin(PluginBase):
         self.api.add_menu(
             "工具/{display_name}/执行",
             self.run_action,
-            shortcut="Ctrl+Alt+M"
+            shortcut="Ctrl+Alt+Shift+M"   # 避开 markdown_preview 的 Ctrl+Alt+M
         )
 
     def on_deactivate(self):

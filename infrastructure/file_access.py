@@ -10,7 +10,7 @@ class FileAccess:
     def read_text(filepath, encoding='utf-8'):
         """读取文本"""
         try:
-            with open(filepath, 'r', encoding=encoding) as f:
+            with open(filepath, encoding=encoding) as f:
                 return f.read()
         except Exception:
             return ""

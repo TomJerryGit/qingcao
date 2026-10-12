@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """项目级配置"""
-import os
 import json
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict, Optional
 
 
 PROJECT_DIR = ".qingcao"
@@ -44,7 +44,7 @@ class ProjectConfig:
         if not os.path.exists(filepath):
             return None
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
             print("[ProjectConfig] 加载 %s 失败: %s" % (filename, e))

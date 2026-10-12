@@ -22,12 +22,20 @@
     - 依赖的 core.snippet_market 模块保持不变。
 """
 
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLineEdit, QLabel, QMessageBox, QComboBox
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from core.snippet_market import SnippetMarketClient
 
@@ -188,12 +196,11 @@ class SnippetMarketDialog(QDialog):
         # 内置片段直接安装
         if 'body' in snippet:
             try:
-                from core.snippets import get_snippet_manager, Snippet
+                from core.snippets import Snippet, get_snippet_manager
                 mgr = get_snippet_manager()
                 s = Snippet(
                     name=snippet.get('name', ''),
-                    prefix=snippet.get('name', '').split()[0].lower()
-                           if snippet.get('name') else 'snippet',
+                    prefix=((snippet.get('name') or '').strip().split() or ['snippet'])[0].lower(),
                     body=snippet.get('body', ''),
                     description=snippet.get('description', ''),
                     scope=snippet.get('language', ''),

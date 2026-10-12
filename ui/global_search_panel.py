@@ -25,41 +25,62 @@
 - 键盘导航
 """
 
-import os
-import sys
-import re
-import time
 import json
-from typing import Optional, List, Dict, Any, Tuple
+import os
+import re
+import sys
+import time
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QCheckBox, QComboBox, QTreeWidget, QTreeWidgetItem,
-    QLabel, QMenu, QMessageBox, QFileDialog, QProgressBar,
-    QToolButton, QSizePolicy, QApplication, QFrame, QSplitter,
-    QInputDialog, QStyle, QHeaderView, QAbstractItemView
-)
+from PyQt5.QtCore import QMimeData, QPoint, QSettings, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import (
-    QIcon,
+    QBrush,
     QColor,
     QFont,
+    QIcon,
     QKeySequence,
-    QBrush,
     QPainter,
-    QTextCharFormat,
     QSyntaxHighlighter,
+    QTextCharFormat,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSize, QSettings, QUrl, QMimeData, QPoint
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDockWidget,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QStyle,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
+from app.event_bus import StatusMessageEvent, bus
 from core.search import (
-    SearchOptions, SearchResult, SearchMatch, FileSearcher,
-    SearchStatistics, build_search_options
+    FileSearcher,
+    SearchMatch,
+    SearchOptions,
+    SearchResult,
+    SearchStatistics,
+    build_search_options,
 )
-from app.event_bus import bus, StatusMessageEvent
 
 
 # ============================================================
@@ -1134,7 +1155,7 @@ class GlobalSearchPanel(QDockWidget):
     def _export_text(self, filepath: str):
         """导出为文本"""
         with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(f"青草编辑器搜索结果\n")
+            f.write("青草编辑器搜索结果\n")
             f.write(f"{'=' * 60}\n")
             f.write(f"搜索模式: {self.pattern_edit.text()}\n")
             f.write(f"文件数: {self.current_result.get_file_count()}\n")
@@ -1329,8 +1350,9 @@ class GlobalSearchPanel(QDockWidget):
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
-    import tempfile
     import shutil
+    import tempfile
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)

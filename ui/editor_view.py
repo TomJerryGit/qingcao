@@ -36,21 +36,29 @@
 import os
 import sys
 import time
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.Qsci import QsciScintilla, QsciLexerPython, QsciLexerCPP
-from PyQt5.QtCore import Qt, QTimer, QRectF, QPoint, QMimeData, QUrl, pyqtSignal
+from PyQt5.Qsci import QsciLexerCPP, QsciLexerPython, QsciScintilla
+from PyQt5.QtCore import QMimeData, QPoint, QRectF, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import (
-    QColor, QFont, QPainter, QPen, QBrush, QKeyEvent, QMouseEvent,
-    QDragEnterEvent, QDropEvent, QContextMenuEvent, QWheelEvent
+    QBrush,
+    QColor,
+    QContextMenuEvent,
+    QDragEnterEvent,
+    QDropEvent,
+    QFont,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QWheelEvent,
 )
 from PyQt5.QtWidgets import QApplication, QMenu, QMessageBox
 
 from app.preferences import Preferences
-from core.document import Document
-from core.editor import EditorProxy
-from core.document import LocalFileProvider
 from core.content_provider import MemoryProvider
+from core.document import Document, LocalFileProvider
+from core.editor import EditorProxy
 
 
 # ============================================================
@@ -180,6 +188,31 @@ class EditorWidget(QsciScintilla):
 
         # 连接信号
         self._connect_signals()
+
+        # TEDITOR: 应用当前主题（从 QSettings 读 theme_name）
+        # main.py 的 load_theme() 只在启动时对 app 应用 QSS，
+        # 但此时编辑器还不存在。新建/打开的 EditorWidget 需要
+        # 主动应用当前主题，否则会用默认样式。
+        self._apply_current_theme()
+
+    def _apply_current_theme(self):
+        """从 QSettings 读取当前主题并应用到自身"""
+        try:
+            from PyQt5.QtCore import QSettings
+
+            from infrastructure.theme_loader import ThemeLoader
+
+            settings = QSettings("QingCao", "Editor")
+            theme_name = settings.value("theme_name", "", type=str)
+            if not theme_name:
+                return
+
+            loader = ThemeLoader()
+            theme = loader.load_by_name(theme_name)
+            if theme is not None:
+                loader.apply(self, theme)
+        except Exception as e:
+            print(f"[EditorWidget] 应用主题失败: {e}")
 
     # ========================================================
     # 配置

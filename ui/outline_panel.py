@@ -37,35 +37,42 @@
 import os
 import re
 import time
-from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QLineEdit, QMenu, QLabel, QToolButton,
-    QPushButton, QApplication, QAbstractItemView, QHeaderView,
-    QComboBox, QStyle
-)
+from PyQt5.QtCore import QPoint, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
-    QIcon,
+    QBrush,
     QColor,
     QFont,
-    QBrush,
-    QPainter,
-    QPixmap,
-    QPen,
+    QIcon,
     QKeySequence,
+    QPainter,
+    QPen,
+    QPixmap,
 )
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtCore import (
-    Qt, pyqtSignal, QTimer, QSize, QSettings, QPoint
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QComboBox,
+    QDockWidget,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QStyle,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from app.event_bus import (
-    bus, CursorEvent, EditorChangedEvent, FileOpenedEvent,
-    StatusMessageEvent
-)
+from app.event_bus import CursorEvent, EditorChangedEvent, FileOpenedEvent, StatusMessageEvent, bus
 
 
 # ============================================================
@@ -1836,6 +1843,7 @@ class OutlinePanel(QDockWidget):
 # ============================================================
 if __name__ == "__main__":
     import sys
+
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
     app = QApplication(sys.argv)
@@ -1926,14 +1934,14 @@ if __name__ == '__main__':
     print("=== 测试筛选 '类/接口' ===")
     panel_enhanced._current_filter = 'class'
     panel_enhanced._render()
-    print(f"筛选后（应该只显示类）")
+    print("筛选后（应该只显示类）")
     print()
 
     # 测试搜索
     print("=== 测试搜索 'value' ===")
     panel_enhanced._current_filter = 'all'
     panel_enhanced.search_edit.setText("value")
-    print(f"搜索后（应该只显示含 'value' 的符号）")
+    print("搜索后（应该只显示含 'value' 的符号）")
     print()
 
     # 定时退出

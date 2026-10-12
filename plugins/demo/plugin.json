@@ -1,1 +1,21 @@
-{"name":"demo","version":"1.0.0"}
+{
+  "name": "demo",
+  "display_name": "Demo",
+  "version": "1.0.0",
+  "description": "青草编辑器最小示例插件",
+  "author": "hedongwei",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "other",
+  "tags": [
+    "demo"
+  ],
+  "permissions": [
+    "editor_read",
+    "dialog"
+  ],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100
+}

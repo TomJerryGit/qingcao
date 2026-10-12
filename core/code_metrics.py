@@ -2,7 +2,7 @@
 """代码度量"""
 import os
 import re
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 def analyze_python(text):
@@ -92,7 +92,7 @@ def calculate_complexity(text):
 def analyze_file(filepath):
     """分析单个文件"""
     try:
-        with open(filepath, 'r', encoding='utf-8',
+        with open(filepath, encoding='utf-8',
                   errors='replace') as f:
             text = f.read()
     except Exception as e:

@@ -26,28 +26,36 @@
 - 命令对象复用
 """
 
+import datetime
+import json
 import os
 import sys
-import json
 import time
-import datetime
 import traceback
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QSettings
+from PyQt5.QtCore import QObject, QSettings, Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QProgressDialog
-from PyQt5.QtCore import Qt
 
-from core.commands import (
-    Command, InsertCmd, DeleteCmd, ReplaceCmd, GroupCmd,
-    CommandFactory, CommandSerializer, merge_commands,
-    MERGE_INTERVAL_MS
-)
 from app.event_bus import (
-    bus, MacroStartedEvent, MacroStoppedEvent, MacroReplayedEvent,
-    StatusMessageEvent
+    MacroReplayedEvent,
+    MacroStartedEvent,
+    MacroStoppedEvent,
+    StatusMessageEvent,
+    bus,
+)
+from core.commands import (
+    MERGE_INTERVAL_MS,
+    Command,
+    CommandFactory,
+    CommandSerializer,
+    DeleteCmd,
+    GroupCmd,
+    InsertCmd,
+    ReplaceCmd,
+    merge_commands,
 )
 
 
@@ -228,7 +236,7 @@ class Macro:
     def load(cls, filepath: str) -> Optional['Macro']:
         """从文件加载"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
             return cls.from_dict(data)
         except Exception as e:
@@ -349,8 +357,12 @@ class MacroRecorder(QObject):
             )
 
         # 重置时间
+        # 修复 B3：_last_command_time 统一为 offset
+        # （相对 _start_time 的秒数），而不是绝对时间戳。
+        # 原实现初始化为 _start_time（绝对），而比较时用 offset
+        # （相对），永远为负，导致所有连续命令被合并。
         self._start_time = time.time()
-        self._last_command_time = self._start_time
+        self._last_command_time = 0.0
         self._command_count = 0
 
         # 设置状态
@@ -495,7 +507,7 @@ class MacroRecorder(QObject):
                         if merged is not None:
                             # 更新最后一条命令
                             last_macro_cmd.command_data = merged.to_dict()
-                            self._last_command_time = now
+                            self._last_command_time = offset
                             return
                 except Exception:
                     pass
@@ -503,7 +515,7 @@ class MacroRecorder(QObject):
             # 添加新命令
             self.current_macro.add_command(command, offset)
             self._command_count += 1
-            self._last_command_time = now
+            self._last_command_time = offset
 
             # 发射信号
             self.command_recorded.emit(self._command_count)
@@ -1058,7 +1070,7 @@ class MacroManager(QObject):
                          overwrite: bool = False) -> int:
         """从单个 JSON 文件导入宏"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             macros_data = data.get('macros', [])
@@ -1102,10 +1114,11 @@ class MacroManager(QObject):
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
-    import tempfile
     import shutil
-    from PyQt5.QtWidgets import QApplication
+    import tempfile
+
     from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 

@@ -2,20 +2,19 @@
 #-*- coding: utf-8 -*-
 """青草编辑器 AI 客户端（极简版）"""
 
+import json
 import os
 import sys
-import json
-import time
 import threading
-from typing import Optional, List, Dict, Any, Callable, Tuple
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
+
 # 敏感信息安全存储（v2.1）
 try:
-    from core.secure_storage import (
-        get_secure_storage, save_secret, load_secret, delete_secret
-    )
+    from core.secure_storage import delete_secret, get_secure_storage, load_secret, save_secret
     _SECURE_STORAGE_OK = True
 except ImportError as e:
     print(f"[AI] SecureStorage 不可用: {e}")

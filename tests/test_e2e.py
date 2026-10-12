@@ -12,7 +12,9 @@
 import os
 import sys
 import time
+
 import pytest
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -129,8 +131,8 @@ class TestSearch:
     """测试搜索"""
 
     def test_basic_search(self, qapp):
-        from core.search import SearchEngine, SearchOptions
         from core.content_provider import MemoryProvider
+        from core.search import SearchEngine, SearchOptions
 
         provider = MemoryProvider()
         provider.open(initial_text="hello world\nhello again\n")
@@ -142,8 +144,8 @@ class TestSearch:
         assert result.count == 2
 
     def test_regex_search(self, qapp):
-        from core.search import SearchEngine, SearchOptions
         from core.content_provider import MemoryProvider
+        from core.search import SearchEngine, SearchOptions
 
         provider = MemoryProvider()
         provider.open(initial_text="abc123\ndef456\n")
@@ -155,8 +157,8 @@ class TestSearch:
         assert result.count == 2
 
     def test_case_insensitive(self, qapp):
-        from core.search import SearchEngine, SearchOptions
         from core.content_provider import MemoryProvider
+        from core.search import SearchEngine, SearchOptions
 
         provider = MemoryProvider()
         provider.open(initial_text="Hello HELLO hello\n")
@@ -175,10 +177,7 @@ class TestCommands:
     """测试命令系统"""
 
     def test_serialize_deserialize(self, qapp):
-        from core.commands import (
-            InsertCmd, DeleteCmd, ReplaceCmd,
-            CommandSerializer
-        )
+        from core.commands import CommandSerializer, DeleteCmd, InsertCmd, ReplaceCmd
 
         cmds = [
             InsertCmd(0, "hello"),
@@ -311,6 +310,6 @@ class TestFullWorkflow:
 
         # 验证磁盘上的内容
         for f in files:
-            with open(f, 'r', encoding='utf-8') as fp:
+            with open(f, encoding='utf-8') as fp:
                 content = fp.read()
             assert "edited" in content

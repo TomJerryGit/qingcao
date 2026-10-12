@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """主题包导入/导出"""
-import os
 import json
-import zipfile
+import os
 import shutil
-from typing import Optional, Dict, Any
+import zipfile
+from typing import Any, Dict, Optional
 
 
 class ThemePack:
@@ -23,7 +23,7 @@ class ThemePack:
             if not os.path.exists(theme_path):
                 return False, "主题文件不存在"
 
-            with open(theme_path, 'r', encoding='utf-8') as f:
+            with open(theme_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             # 元数据

@@ -14,8 +14,8 @@
 import os
 import re
 import sys
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,7 +82,7 @@ def main():
 
     for f in py_files:
         try:
-            with open(f, 'r', encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding='utf-8', errors='replace') as fh:
                 lines = fh.readlines()
         except Exception:
             continue

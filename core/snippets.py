@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """代码片段管理器"""
-import os
 import json
-from typing import Optional, List, Dict, Any
+import os
+from typing import Any, Dict, List, Optional
 
 
 class Snippet:
@@ -81,7 +81,7 @@ class SnippetManager:
         if not os.path.exists(self.filepath):
             return
         try:
-            with open(self.filepath, 'r', encoding='utf-8') as f:
+            with open(self.filepath, encoding='utf-8') as f:
                 data = json.load(f)
             for item in data.get('snippets', []):
                 s = Snippet.from_dict(item)

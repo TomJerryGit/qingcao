@@ -22,18 +22,18 @@
 - 网络异常重试
 """
 
+import base64
+import datetime
+import hashlib
+import json
 import os
 import sys
-import json
-import time
-import base64
-import hashlib
 import threading
-import datetime
-from typing import Optional, Dict, List, Any, Tuple
+import time
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
 # ============================================================
@@ -181,7 +181,7 @@ class SyncManager(QObject):
 
         if os.path.exists(SYNC_CONFIG_FILE):
             try:
-                with open(SYNC_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                with open(SYNC_CONFIG_FILE, encoding='utf-8') as f:
                     data = json.load(f)
                 default.update(data)
             except Exception as e:
@@ -544,7 +544,7 @@ class SyncManager(QObject):
         remote_data = {}
         if os.path.exists(remote_file):
             try:
-                with open(remote_file, 'r', encoding='utf-8') as f:
+                with open(remote_file, encoding='utf-8') as f:
                     remote_data = json.load(f)
             except Exception:
                 remote_data = {}
@@ -671,7 +671,7 @@ class SyncManager(QObject):
         if 'keybindings' in items_to_sync:
             try:
                 if os.path.exists('keybindings.json'):
-                    with open('keybindings.json', 'r', encoding='utf-8') as f:
+                    with open('keybindings.json', encoding='utf-8') as f:
                         data['items']['keybindings'] = json.load(f)
             except Exception:
                 pass
@@ -684,8 +684,7 @@ class SyncManager(QObject):
                 for name in os.listdir(themes_dir):
                     if name.endswith('.json'):
                         try:
-                            with open(os.path.join(themes_dir, name),
-                                      'r', encoding='utf-8') as f:
+                            with open(os.path.join(themes_dir, name), encoding='utf-8') as f:
                                 themes[name] = json.load(f)
                         except Exception:
                             pass
@@ -695,7 +694,7 @@ class SyncManager(QObject):
         if 'snippets' in items_to_sync:
             try:
                 if os.path.exists('snippets.json'):
-                    with open('snippets.json', 'r', encoding='utf-8') as f:
+                    with open('snippets.json', encoding='utf-8') as f:
                         data['items']['snippets'] = json.load(f)
             except Exception:
                 pass
@@ -712,7 +711,7 @@ class SyncManager(QObject):
                         )
                         if os.path.exists(manifest_path):
                             try:
-                                with open(manifest_path, 'r',
+                                with open(manifest_path,
                                           encoding='utf-8') as f:
                                     manifest = json.load(f)
                                     plugins.append({
@@ -728,7 +727,7 @@ class SyncManager(QObject):
         if 'session' in items_to_sync:
             try:
                 if os.path.exists('session.json'):
-                    with open('session.json', 'r', encoding='utf-8') as f:
+                    with open('session.json', encoding='utf-8') as f:
                         session = json.load(f)
                     # 只同步文件路径列表，不同步内容
                     data['items']['session'] = {
@@ -944,7 +943,7 @@ class SyncManager(QObject):
         """加载同步历史"""
         try:
             if os.path.exists(SYNC_HISTORY_FILE):
-                with open(SYNC_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                with open(SYNC_HISTORY_FILE, encoding='utf-8') as f:
                     return json.load(f)
         except Exception:
             pass
@@ -1133,8 +1132,9 @@ class SyncManager(QObject):
 # ============================================================
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtWidgets import QApplication
+
     from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
 

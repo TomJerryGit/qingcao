@@ -29,19 +29,18 @@
 统一使用 PyQt5（pyqtSignal 而非 Signal）
 """
 
-import os
-import sys
-import json
-import time
-import shutil
-import tempfile
 import datetime
+import json
+import os
+import shutil
+import sys
+import tempfile
+import time
 import traceback
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QSettings
-from PyQt5.QtWidgets import QDockWidget, QSplitter, QMainWindow
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QObject, QSettings, Qt, QTimer, pyqtSignal
+from PyQt5.QtWidgets import QDockWidget, QMainWindow, QSplitter
 
 
 # ============================================================
@@ -447,7 +446,7 @@ class SessionManager(QObject):
             return {}
 
         try:
-            with open(self.filepath, 'r', encoding='utf-8') as f:
+            with open(self.filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
@@ -506,7 +505,7 @@ class SessionManager(QObject):
             # 尝试从最近的备份恢复
             restored = self._try_restore_from_backup()
             if restored:
-                print(f"[Session] 已从备份恢复会话")
+                print("[Session] 已从备份恢复会话")
                 self.session_loaded.emit(self.filepath, restored)
             else:
                 # 无法恢复，删除损坏的文件
@@ -533,7 +532,7 @@ class SessionManager(QObject):
             backups.sort(key=lambda x: x[1], reverse=True)
             for path, _ in backups:
                 try:
-                    with open(path, 'r', encoding='utf-8') as f:
+                    with open(path, encoding='utf-8') as f:
                         data = json.load(f)
                     if isinstance(data, dict):
                         # 恢复到主文件
@@ -932,7 +931,7 @@ class SessionManager(QObject):
 
         # 读取元数据
         try:
-            with open(meta_path, 'r', encoding='utf-8') as f:
+            with open(meta_path, encoding='utf-8') as f:
                 meta = json.load(f)
         except Exception as e:
             print(f"[Session] 读取备份元数据失败: {e}")
@@ -1053,7 +1052,7 @@ class SessionManager(QObject):
                     continue
 
                 try:
-                    with open(backup_path, 'r', encoding='utf-8',
+                    with open(backup_path, encoding='utf-8',
                               errors='replace') as f:
                         content = f.read()
 
@@ -1349,7 +1348,7 @@ class SessionManager(QObject):
                     path = os.path.join(SESSION_BACKUP_DIR, name)
                     mtime = os.path.getmtime(path)
                     try:
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, encoding='utf-8') as f:
                             data = json.load(f)
                         count = len(data.get('files', []))
                     except Exception:
@@ -1365,7 +1364,7 @@ class SessionManager(QObject):
         try:
             if not os.path.exists(backup_path):
                 return False
-            with open(backup_path, 'r', encoding='utf-8') as f:
+            with open(backup_path, encoding='utf-8') as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return False
@@ -1395,7 +1394,7 @@ class SessionManager(QObject):
     def import_session(self, filepath: str) -> bool:
         """从指定文件导入会话"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return False
@@ -1450,7 +1449,7 @@ class SessionManager(QObject):
             return "\n".join(lines)
 
         try:
-            with open(meta_path, 'r', encoding='utf-8') as f:
+            with open(meta_path, encoding='utf-8') as f:
                 meta = json.load(f)
 
             lines.append(f"备份时间: {meta.get('timestamp', '?')}")
@@ -1507,8 +1506,9 @@ class SessionAutosaveWorker(QObject):
 if __name__ == "__main__":
     import sys
     import tempfile
-    from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget
+
     from PyQt5.QtCore import Qt
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget
 
     app = QApplication(sys.argv)
 

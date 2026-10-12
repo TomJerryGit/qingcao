@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
 """任务面板"""
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QPushButton, QPlainTextEdit, QMenu,
-    QMessageBox, QToolButton, QLabel
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QDockWidget,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.project_tasks import ProjectTaskManager, TaskRunner
 
@@ -38,8 +47,9 @@ class TaskPanel(QDockWidget):
         # 工具条
         toolbar = QHBoxLayout()
 
+        # E1 修复：emoji 被 GBK 编辑器写坏成 ?，改用纯 ASCII
         refresh_btn = QToolButton()
-        refresh_btn.setText("??")
+        refresh_btn.setText("[R]")
         refresh_btn.setToolTip("重新加载任务")
         refresh_btn.clicked.connect(self.reload_tasks)
         toolbar.addWidget(refresh_btn)
@@ -47,7 +57,7 @@ class TaskPanel(QDockWidget):
         toolbar.addStretch()
 
         self.cancel_btn = QToolButton()
-        self.cancel_btn.setText("?")
+        self.cancel_btn.setText("[X]")
         self.cancel_btn.setToolTip("停止任务")
         self.cancel_btn.clicked.connect(self._cancel_task)
         toolbar.addWidget(self.cancel_btn)
@@ -136,14 +146,14 @@ class TaskPanel(QDockWidget):
         groups = self.task_manager.get_tasks_by_group()
         for group_name, tasks in groups.items():
             group_item = QTreeWidgetItem(self.task_tree)
-            group_item.setText(0, "? " + group_name)
+            group_item.setText(0, "[G] " + group_name)
             font = group_item.font(0)
             font.setBold(True)
             group_item.setFont(0, font)
 
             for task in tasks:
                 task_item = QTreeWidgetItem(group_item)
-                task_item.setText(0, "? " + task.label)
+                task_item.setText(0, "[T] " + task.label)
                 task_item.setData(0, Qt.UserRole, task)
 
             group_item.setExpanded(True)
@@ -154,7 +164,7 @@ class TaskPanel(QDockWidget):
         if task:
             self.output_view.clear()
             self.output_view.appendPlainText(
-                "? 运行: " + task.label + "\n"
+                "> 运行: " + task.label + "\n"
             )
             self.runner.run(task, self.task_manager.project_root)
 
@@ -165,13 +175,13 @@ class TaskPanel(QDockWidget):
     def _on_finished(self, label, code):
         """任务完成"""
         self.output_view.appendPlainText(
-            "\n? 任务 '" + label + "' 退出码: " + str(code)
+            "\n[OK] 任务 '" + label + "' 退出码: " + str(code)
         )
 
     def _on_error(self, label, err):
         """任务错误"""
         self.output_view.appendPlainText(
-            "\n? 任务 '" + label + "' 错误: " + err
+            "\n[ERR] 任务 '" + label + "' 错误: " + err
         )
 
     def _cancel_task(self):

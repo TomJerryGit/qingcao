@@ -2,6 +2,7 @@
 """Vim 模式"""
 import re
 from enum import Enum, auto
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 
@@ -175,13 +176,16 @@ class VimMode(QObject):
         if text == '$':
             self._goto_line_end(); return True
 
+        # 修复 B4：先检查 gg
+        # 原实现 if text == 'g' 提前 return，command_buffer 判断
+        # 永远走不到，gg 命令完全失效。
+        if self.command_buffer == 'g' and text == 'g':
+            self.command_buffer = ""
+            self._goto_line(0); return True
         if text == 'g':
             self.command_buffer = 'g'
             self.status_message.emit("g...")
             return True
-        if self.command_buffer == 'g' and text == 'g':
-            self.command_buffer = ""
-            self._goto_line(0); return True
         if text == 'G':
             line_count = self.editor.SendScintilla(
                 self.editor.SCI_GETLINECOUNT

@@ -14,9 +14,10 @@ AI 配置诊断
 ============================================================
 """
 
+import json
 import os
 import sys
-import json
+
 
 # 添加项目根目录到 path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,8 +66,8 @@ def read_settings_directly():
 
 def test_request(base_url, model, api_key):
     """模拟编辑器的实际请求"""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     # 模拟 ai_client.py 的 URL 拼接
     # 见 core/ai_client.py:
@@ -202,8 +203,8 @@ def main():
         print_info("  1. 打开编辑器：工具 → AI 助手 → ⚙ 配置 AI")
         print_info("  2. 提供商选 Ollama (本地)")
         print_info("  3. API Key 留空")
-        print_info(f"  4. 模型填: llama3.2 或 llama3.2:latest")
-        print_info(f"  5. Base URL 填: http://localhost:11434/v1")
+        print_info("  4. 模型填: llama3.2 或 llama3.2:latest")
+        print_info("  5. Base URL 填: http://localhost:11434/v1")
         print_info("  6. 点 🔌 测试连接，看到 ✓ 后保存")
 
     return 0 if success else 1

@@ -17,7 +17,7 @@ class Plugin(PluginBase):
         self.api.add_menu(
             "工具/My Plugin/执行",
             self.run_action,
-            shortcut="Ctrl+Alt+M"
+            shortcut="Ctrl+Alt+Shift+M"   # 避开 markdown_preview 的 Ctrl+Alt+M
         )
 
     def on_deactivate(self):

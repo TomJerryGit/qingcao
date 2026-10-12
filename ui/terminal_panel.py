@@ -1,16 +1,25 @@
 # -*- coding: utf-8 -*-
 """集成终端"""
 import os
-import sys
 import subprocess
+import sys
 import threading
+
+from PyQt5.QtCore import QProcess, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
-    QLineEdit, QPushButton, QToolButton, QComboBox, QLabel,
-    QApplication
+    QApplication,
+    QComboBox,
+    QDockWidget,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, QProcess, pyqtSignal
-from PyQt5.QtGui import QFont, QColor
 
 
 class TerminalPanel(QDockWidget):
@@ -230,9 +239,18 @@ class TerminalPanel(QDockWidget):
 
     def _append_output(self, text, color=None):
         """追加输出"""
+        # 修复 B6：使用 QTextCharFormat 设置输出颜色
+        # 原实现忽略 color 参数，导致所有彩色输出（错误信息、
+        # 启动提示、命令回显）都是灰色，无法区分。
         cursor = self.output.textCursor()
         cursor.movePosition(cursor.End)
-        cursor.insertText(text)
+        if color:
+            from PyQt5.QtGui import QColor, QTextCharFormat
+            fmt = QTextCharFormat()
+            fmt.setForeground(QColor(color))
+            cursor.insertText(text, fmt)
+        else:
+            cursor.insertText(text)
         self.output.setTextCursor(cursor)
         self.output.ensureCursorVisible()
 

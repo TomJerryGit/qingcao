@@ -21,8 +21,8 @@ def _find_prev(matches, pos):
 class TestSearchNextPrev:
     def test_basic_next(self):
         try:
-            from core.search import SearchEngine, SearchOptions
             from core.content_provider import MemoryProvider
+            from core.search import SearchEngine, SearchOptions
         except ImportError:
             pytest.skip("search 不可用")
 
@@ -42,8 +42,8 @@ class TestSearchNextPrev:
 
     def test_basic_prev(self):
         try:
-            from core.search import SearchEngine, SearchOptions
             from core.content_provider import MemoryProvider
+            from core.search import SearchEngine, SearchOptions
         except ImportError:
             pytest.skip("search 不可用")
 
@@ -61,8 +61,8 @@ class TestSearchNextPrev:
     def test_wrap_around(self):
         """无匹配时循环到另一端"""
         try:
-            from core.search import SearchEngine, SearchOptions
             from core.content_provider import MemoryProvider
+            from core.search import SearchEngine, SearchOptions
         except ImportError:
             pytest.skip("search 不可用")
 

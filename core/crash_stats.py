@@ -12,12 +12,12 @@
 - 失败静默（崩溃数据目录损坏不影响主流程）
 """
 
-import os
-import json
-import time
 import datetime
+import json
+import os
+import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 CRASH_DIR = os.path.join("data", "crashes")
@@ -106,7 +106,7 @@ class CrashStats:
     def _parse_one(self, path: str) -> Optional[CrashRecord]:
         """解析单个 crash_*.json"""
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
         except Exception:
             # 文件损坏：用 mtime 兜底
