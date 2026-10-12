@@ -29,26 +29,39 @@
 - _replace_full_content: 统一分块写入逻辑，供 set_text 使用
 """
 
+import datetime
+import hashlib
 import os
 import sys
 import time
-import hashlib
-import datetime
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from enum import Enum, auto
 from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QObject, pyqtSignal, QFileSystemWatcher, QTimer
+from PyQt5.QtCore import QFileSystemWatcher, QObject, QTimer, pyqtSignal
 
 from app.event_bus import (
-    bus, FileOpenedEvent, FileSavedEvent, FileClosedEvent,
-    FileModifiedEvent, FileReloadedEvent, FileEncodingChangedEvent,
-    StatusMessageEvent
+    FileClosedEvent,
+    FileEncodingChangedEvent,
+    FileModifiedEvent,
+    FileOpenedEvent,
+    FileReloadedEvent,
+    FileSavedEvent,
+    StatusMessageEvent,
+    bus,
 )
 from core.content_provider import (
-    ContentProvider, LocalFileProvider, MemoryProvider, ProviderFactory,
-    FileState, is_binary_file, detect_file_encoding, detect_file_eol,
-    get_file_hash, LARGE_FILE_THRESHOLD, HUGE_FILE_THRESHOLD
+    HUGE_FILE_THRESHOLD,
+    LARGE_FILE_THRESHOLD,
+    ContentProvider,
+    FileState,
+    LocalFileProvider,
+    MemoryProvider,
+    ProviderFactory,
+    detect_file_encoding,
+    detect_file_eol,
+    get_file_hash,
+    is_binary_file,
 )
 
 
@@ -422,7 +435,7 @@ class Document(QObject):
                 return True
             else:
                 self._state = DocumentState.MODIFIED
-                print(f"[Document] provider.save 返回 False")
+                print("[Document] provider.save 返回 False")
                 return False
 
         except Exception as e:
@@ -704,17 +717,20 @@ class Document(QObject):
             1, (new_size + block_size - 1) // block_size
         )
 
+        # A5 修复：先更新 provider 元数据，再写块。
+        # write_block 会校验 `block_id < self._total_blocks`，
+        # 若元数据仍是旧值（例如内容从 1 块变长到 2 块），
+        # 新块会被**静默拒绝** → 内容被截断为旧长度。
+        if hasattr(self.provider, '_total_blocks'):
+            self.provider._total_blocks = total_blocks
+        if hasattr(self.provider, '_size'):
+            self.provider._size = new_size
+
         # 分块写入
         for bid in range(total_blocks):
             start = bid * block_size
             end = min(start + block_size, new_size)
             self.provider.write_block(bid, encoded[start:end])
-
-        # 更新 provider 元数据
-        if hasattr(self.provider, '_total_blocks'):
-            self.provider._total_blocks = total_blocks
-        if hasattr(self.provider, '_size'):
-            self.provider._size = new_size
 
         # 更新 meta
         self.meta.size = new_size
@@ -1025,11 +1041,11 @@ class Document(QObject):
             draft_file = os.path.join(draft_dir, f"{name_hash}.draft")
 
             with open(draft_file, 'w', encoding='utf-8') as f:
-                f.write(f"# QingCao Draft\n")
+                f.write("# QingCao Draft\n")
                 f.write(f"# Original: {self.meta.filepath or '(未命名)'}\n")
                 f.write(f"# Saved: {datetime.datetime.now().isoformat()}\n")
                 f.write(f"# Encoding: {self.meta.encoding}\n")
-                f.write(f"# ---\n")
+                f.write("# ---\n")
                 f.write(self.get_text())
 
         except Exception as e:
@@ -1584,8 +1600,9 @@ def compare_documents(doc1: Document, doc2: Document) -> Dict[str, Any]:
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
-    import tempfile
     import shutil
+    import tempfile
+
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
@@ -1661,7 +1678,7 @@ if __name__ == "__main__":
     print(f"save 返回: {save_ok}")
 
     # 验证磁盘内容
-    with open(test_file, 'r', encoding='utf-8') as f:
+    with open(test_file, encoding='utf-8') as f:
         disk_content = f.read()
     print(f"磁盘包含 'extra line': {'extra line' in disk_content}")
     print()

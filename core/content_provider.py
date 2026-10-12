@@ -29,16 +29,16 @@
 - 所有子类无需实现这三个方法也不会崩溃
 """
 
-import os
-import sys
-import mmap
-import io
-import time
-import stat
 import hashlib
+import io
+import mmap
+import os
+import stat
+import sys
+import time
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Tuple, Callable
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 # ============================================================
@@ -695,9 +695,21 @@ class LocalFileProvider(ContentProvider):
         文件被 mmap 锁定而抛 PermissionError。Linux/macOS
         允许，但 flush 语义也不可靠。
 
+        A5 修复（数据损坏）：
+            原实现只按块 seek+write，**从不截断文件**。当新
+            内容比原文件短时，新内容之后会残留旧字节，重新
+            打开文件会看到"已删除的内容又回来了"。
+            例如把 55890 字节的文件删到 12 字节后保存，
+            文件仍是 55890 字节（新内容 + 旧尾部）。
+
+            修复方法：按脏块内容计算出真实长度 new_size，
+            写完后若 new_size < 原大小则 f.truncate(new_size)，
+            并用 new_size 覆盖 self._size，保证内存状态与磁盘
+            一致后重建 mmap。
+
         修复流程：
             1. 先 mmap.flush() + mmap.close()，释放文件锁
-            2. open('r+b') 写脏块
+            2. open('r+b') 写脏块 + 按新长度截断
             3. 重新建立 mmap（保持 provider 可读）
         """
         # ---- 1. 释放 mmap ----
@@ -709,7 +721,14 @@ class LocalFileProvider(ContentProvider):
                 pass
             self._mmap = None
 
-        # ---- 2. 写脏块 ----
+        # 落盘后的真实长度（脏块覆盖范围的最大末尾）
+        new_size = 0
+        for block_id, data in self._dirty_blocks.items():
+            new_size = max(
+                new_size, block_id * self._block_size + len(data)
+            )
+
+        # ---- 2. 写脏块 + 截断 ----
         try:
             # 使用可写文件句柄
             with open(target, 'r+b') as f:
@@ -717,6 +736,19 @@ class LocalFileProvider(ContentProvider):
                     offset = block_id * self._block_size
                     f.seek(offset)
                     f.write(bytes(data))
+
+                # A5: 内容变短时必须截断，否则旧字节残留在尾部。
+                # 注意：必须用磁盘上的真实大小比较，不能用
+                # self._size —— 编辑器在保存前会先调用
+                # _replace_full_content()，那里已经把 self._size
+                # 改成了新长度，用它比较会漏掉截断。
+                try:
+                    on_disk = os.fstat(f.fileno()).st_size
+                except Exception:
+                    on_disk = self._size
+                if new_size < on_disk:
+                    f.truncate(new_size)
+
                 f.flush()
                 os.fsync(f.fileno())
 
@@ -725,7 +757,12 @@ class LocalFileProvider(ContentProvider):
             self._state = (FileState.READONLY if self._readonly
                            else FileState.OPENED)
 
-            # 更新 mtime / size
+            # 更新 mtime / size（size 以磁盘实际大小为准）
+            self._size = new_size
+            self._total_blocks = max(
+                1,
+                (new_size + self._block_size - 1) // self._block_size
+            )
             try:
                 self._mtime = os.path.getmtime(target)
                 self._size = os.path.getsize(target)
@@ -740,6 +777,7 @@ class LocalFileProvider(ContentProvider):
         except Exception as e:
             print(f"[LocalFileProvider] 脏块保存失败: {e}")
             # 失败时也要尽量恢复 mmap 状态
+            self._mmap = None
             self._reopen_mmap()
             return False
 
@@ -747,9 +785,22 @@ class LocalFileProvider(ContentProvider):
         """重建 mmap（A4 新增，供 _save_dirty_blocks 内部调用）。
 
         在关闭 mmap 写盘后调用，保持 provider 后续读操作可用。
+
+        A5 修复：调用前先显式把 self._mmap 置 None，避免
+        0 长度文件（self._size <= 0 提前返回）时残留已关闭的
+        mmap 对象，导致后续 read_block 对已关闭映射取值。
         """
         if not self._file:
             return
+
+        # 已关闭的 mmap 必须先丢弃
+        if self._mmap is not None:
+            try:
+                self._mmap.close()
+            except Exception:
+                pass
+            self._mmap = None
+
         if self._size <= 0:
             return
         try:
@@ -768,6 +819,25 @@ class LocalFileProvider(ContentProvider):
         try:
             # 读取所有内容（含脏块）
             full_data = self.read_all()
+
+            # A5 修复：os.replace/rename 会替换 inode，而
+            # self._file 仍指向旧 inode（POSIX 下即已被删除的
+            # 文件），后续 mmap 重建会映射到旧内容。
+            # 因此在替换前先释放 mmap + 文件句柄。
+            if self._mmap:
+                try:
+                    self._mmap.flush()
+                    self._mmap.close()
+                except Exception:
+                    pass
+                self._mmap = None
+
+            if self._file:
+                try:
+                    self._file.close()
+                except Exception:
+                    pass
+                self._file = None
 
             # 写入临时文件
             dirpath = os.path.dirname(target)
@@ -799,16 +869,47 @@ class LocalFileProvider(ContentProvider):
             self._dirty_blocks.clear()
             self._filepath = target
             self._state = FileState.OPENED
+            self._total_blocks = max(
+                1,
+                (len(full_data) + self._block_size - 1) // self._block_size
+            )
             try:
                 self._mtime = os.path.getmtime(target)
                 self._size = os.path.getsize(target)
             except Exception:
                 pass
 
+            # A5: 重新打开新 inode 并重建 mmap，保证后续读取正确
+            self._reopen_file_handle()
+            self._reopen_mmap()
+
             return True
 
         except Exception as e:
             print(f"[LocalFileProvider] 另存为失败: {e}")
+            # 尽量恢复可用状态
+            try:
+                self._reopen_file_handle()
+                self._reopen_mmap()
+            except Exception:
+                pass
+            return False
+
+    def _reopen_file_handle(self) -> bool:
+        """重新打开文件句柄（另存为替换 inode 后使用）。
+
+        返回:
+            是否成功重新打开
+        """
+        if not self._filepath:
+            return False
+        try:
+            mode = 'rb' if self._readonly else 'r+b'
+            self._file = open(self._filepath, mode)
+            return True
+        except Exception as e:
+            print(f"[LocalFileProvider] 重开文件句柄失败: {e}")
+            self._file = None
             return False
 
     # --------------------------------------------------------
@@ -1316,8 +1417,8 @@ def get_file_hash(filepath: str, algorithm: str = 'sha256',
 # 模块测试
 # ============================================================
 if __name__ == "__main__":
-    import tempfile
     import shutil
+    import tempfile
 
     print("=== 测试 LocalFileProvider ===")
 
@@ -1358,7 +1459,7 @@ if __name__ == "__main__":
     print(f"状态: {provider.state.name}")
 
     # 重新读取验证
-    with open(test_file, 'r', encoding='utf-8') as f:
+    with open(test_file, encoding='utf-8') as f:
         print(f"保存后文件内容: {f.read()}")
 
     # 测试外部变更检测
