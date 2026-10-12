@@ -150,9 +150,15 @@ qt_api = "pyqt5"
 # 默认排除 realserver（需要真实 python-lsp-server，会 spawn 7 个
 # pylsp 进程、耗时约 25s）。需要时显式运行：
 #     python -m pytest -m realserver
-addopts = "-q -m \"not realserver\""
+#
+# 同时排除 audit_expected_fail —— 审计期间编写、记录**已确认但尚未修复**
+# 缺陷的用例。它们当前预期失败，混入常规套件会让基线由绿转红。
+# 修复后请逐个摘掉 marker 并正式接入 CI：
+#     python -m pytest -m audit_expected_fail -v
+addopts = "-q -m \"not realserver and not audit_expected_fail\""
 markers = [
     "realserver: 需要真实语言服务器（python-lsp-server）的联调测试",
+    "audit_expected_fail: 审计用例，记录尚未修复的缺陷（当前预期失败）；清单见 docs/EVALUATION_ROADMAP.md",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

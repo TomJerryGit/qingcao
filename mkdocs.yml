@@ -9,6 +9,12 @@ repo_name: qingcao-editor/qingcao
 # 因此通过 exclude_docs 排除出站点构建，仍保留在仓库中供审查使用。
 exclude_docs: |
   REVIEW_GUIDE.md
+  # 审计报告：面向工程内部，含大量 ../core/*.py 等源码相对链接，
+  # 不属于文档站点；保留在仓库中供查阅。
+  audit_concurrency.md
+  audit_data_integrity.md
+  audit_interactions.md
+  audit_performance.md
 
 theme:
   name: material
