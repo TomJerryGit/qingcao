@@ -1,0 +1,65 @@
+# ============================================================
+# 行尾与文本属性约定
+# ============================================================
+# 背景（P2 记录）：
+#   本仓库历史提交中 CRLF / LF 混用（例如 core/macro.py 是 CRLF，
+#   而 core/secure_storage.py 是 LF）。这导致两个后果：
+#     1. 任何一次"保存文件"都可能把整个文件的行尾改掉，
+#        在 git diff 里表现为 +N/-N 的等量巨量变更，
+#        掩盖真正的改动（本次审查中曾把 5 726 行真实改动
+#        放大成 59 761 行 diff）；
+#     2. 行尾不一致会让 git 的文本合并/冲突处理更易出错。
+#
+# 约定：
+#   * 所有文本文件在**版本库内**统一存为 LF（`eol=lf`）；
+#   * Windows 检出时可由 core.autocrlf 决定工作区形态，
+#     但不再把工作区行尾当成内容变更提交。
+#
+# 一次性归一化（建议作为独立提交，避免与功能改动混在一起）：
+#     git add --renormalize .
+#     git commit -m "chore: 统一行尾为 LF"
+# ============================================================
+
+# 默认：由 git 自动识别文本文件，并在库内规范为 LF
+* text=auto
+
+# ---- 源码与配置：库内必须是 LF ----
+*.py      text eol=lf
+*.pyi     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.toml    text eol=lf
+*.cfg     text eol=lf
+*.ini     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.iss     text eol=lf
+*.qss     text eol=lf
+*.po      text eol=lf
+*.spec    text eol=lf
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# ---- 二进制：禁止任何行尾转换 ----
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.icns    binary
+*.wav     binary
+*.mp3     binary
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.tar     binary
+*.exe     binary
+*.dll     binary
+*.pyd     binary
+*.so      binary
+*.mo      binary
+
+# ---- 归档/备份：不要在 diff 中体现 ----
+*.bak     -diff
+*.bak.*   -diff

@@ -1,5 +1,0 @@
-fix(theme): 主题切换核心 bug 
- 
-根因: themes/*.json 无 qss 字段 
- 
-修复: 改用 apply_qss 

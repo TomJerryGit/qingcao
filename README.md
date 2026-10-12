@@ -4,7 +4,7 @@
 
 轻量 · 极速 · 可扩展的跨平台代码编辑器。基于 **PyQt5** + **QScintilla** 构建，内置 LSP、插件系统、AI 助手、宏录制等现代化功能。
 
-[![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](#)
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](#)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -14,7 +14,7 @@
 ## ✨ 特性
 
 ### 编辑体验
-- 🚀 **极速启动** — 精简依赖，冷启动毫秒级
+- 🚀 **轻量启动** — 面板惰性构造，实测 `MainWindow()` 约 1.4 s（原 2.46 s）
 - 🎨 **语法高亮** — 内置 Python / C++ / JavaScript / Markdown / 日志等多种词法器
 - 📐 **代码折叠** — 支持 Boxed / Cirrus / Plain 多种折叠样式
 - 🌈 **缩进彩虹线** — 一眼看清嵌套层级
@@ -37,9 +37,15 @@
 
 ### 插件系统
 - 🔌 **动态加载** — 启动时扫描 `plugins/` 目录自动加载
-- 🛡 **权限沙箱** — 每个插件有独立权限声明（filesystem / network / editor_write 等）
-- 📦 **插件市场** — 在线浏览、安装、更新、卸载
-- 🔥 **热重载** — 修改插件代码后无需重启
+- 🛡 **权限声明与确认** — 插件在 `plugin.json` 声明权限；启动激活前会弹出
+  **权限确认对话框**（危险权限需用户确认），并在 `PluginAPI` 方法边界做门控
+- ⚠️ **无进程隔离** — 插件与编辑器**同进程**运行。`permissions` 是 API 级
+  门控而非安全沙箱，请只安装可信来源的插件
+  （`infrastructure/plugin_sandbox.py` 尚未接线）
+- 📦 **插件市场** — 界面与缓存就绪；**在线注册表后端尚未部署**，
+  当前只能使用内置回退列表
+- 🔥 **热重载** — 监控插件源码变更后自动重载（可在首选项关闭；
+  单个插件可用 `"hot_reload": false` 退出）
 - 🧬 **依赖管理** — 支持 Python 依赖与插件间依赖
 
 ### AI 助手（内置插件）
@@ -61,11 +67,13 @@
 
 ### 集成与扩展
 - 🐙 **Git 集成** — 状态、差异、提交、推送、拉取
-- 🖥 **集成终端** — PowerShell / CMD / Bash
-- 📤 **导出** — HTML / Markdown / PDF
-- 🎵 **音效反馈** — 可选的操作音效（带音量控制）
+- 🖥 **集成终端** — Windows: PowerShell / CMD / WSL；POSIX: `$SHELL`
+- 📤 **导出** — HTML / Markdown / PDF（PDF 需 `reportlab`）
+- 🎵 **音效反馈** — 可选的操作音效（默认关闭，需在首选项中开启）
 - ☁️ **配置同步** — 支持 GitHub Gist / WebDAV / 本地目录
 - 🌍 **国际化** — 简体中文 / English / 日本語 / 한국어
+  （`.mo` 位于 `locale/*/LC_MESSAGES/`，可用
+  `python tools/build_translations.py` 重新生成）
 
 ---
 
@@ -88,9 +96,9 @@
 
 前往 [Releases](https://github.com/qingcao-editor/qingcao/releases) 下载对应平台的安装包：
 
-- **Windows**：`QingCaoEditor_Setup_v2.0.0.exe`
-- **macOS**：`QingCaoEditor_v2.0.0.dmg`
-- **Linux**：`QingCaoEditor_v2.0.0_linux_x64.tar.gz` 或 `.deb`
+- **Windows**：`QingCaoEditor_Setup_v2.1.0.exe`
+- **macOS**：`QingCaoEditor_v2.1.0.dmg`
+- **Linux**：`QingCaoEditor_v2.1.0_linux_x64.tar.gz` 或 `.deb`
 
 ### 方式二：从源码运行（推荐开发者）
 
@@ -111,13 +119,24 @@ pip install -r requirements.txt
 
 # 4. 启动编辑器
 python main.py
-方式三：从 pip 安装（实验性）
-bash
+```
+
+### 方式三：从 pip 安装（实验性）
+
+> ⚠️ 目前**尚未**发布到 PyPI，也没有注册 `qingcao` 命令行入口
+> （仓库中不存在 `pyproject.toml` / `entry_points`）。
+> 请使用方法一或方法二。
+```bash
 pip install qingcao-editor
 qingcao
-🏃 快速开始
-基本操作
-bash
+```
+
+## 🏃 快速开始
+
+### 基本操作
+
+```bash
+
 # 启动编辑器
 python main.py
 
@@ -135,7 +154,10 @@ python main.py --no-splash
 
 # 查看版本
 python main.py --version
-快捷键速查
+```
+
+### 快捷键速查
+
 分类	快捷键	功能
 文件	Ctrl+N	新建文件
 Ctrl+O	打开文件
@@ -175,11 +197,11 @@ Ctrl+Shift+R	重构选中代码
 1. 安装 Ollama
 从 ollama.com/download 下载安装，或：
 
-bash
+
 # Linux
 curl -fsSL https://ollama.com/install.sh | sh
 2. 拉取模型
-bash
+
 # 通用对话（推荐，约 2GB）
 ollama pull llama3.2
 
@@ -192,7 +214,7 @@ ollama pull qwen2.5
 # 轻量（约 500MB）
 ollama pull qwen2.5:0.5b
 3. 验证
-bash
+
 # 应显示已下载的模型
 ollama list
 
@@ -221,16 +243,20 @@ DeepSeek	deepseek-chat / deepseek-coder	platform.deepseek.com
 Moonshot	moonshot-v1-8k	platform.moonshot.cn
 智谱 GLM	glm-4 / glm-4-flash	open.bigmodel.cn
 Anthropic Claude	claude-3-5-sonnet	console.anthropic.com
-🧩 插件开发
-目录结构
-text
+## 🧩 插件开发
+
+### 目录结构
+
+```text
 plugins/
 └── my_plugin/
     ├── plugin.json      # 插件清单（必需）
     ├── __init__.py      # 插件入口（必需）
     └── README.md        # 插件说明（可选）
+```
+
 plugin.json 示例
-json
+```json
 {
   "name": "my_plugin",
   "display_name": "我的插件",
@@ -250,8 +276,10 @@ json
   "auto_load": true,
   "load_order": 100
 }
+```
+
 __init__.py 示例
-python
+```python
 from app.plugins import PluginBase
 
 
@@ -264,6 +292,8 @@ class Plugin(PluginBase):
     def on_activate(self):
         """插件激活时调用"""
         self.api.log("插件已激活")
+
+```
 
         # 注册菜单
         self.api.add_menu(
@@ -280,34 +310,56 @@ class Plugin(PluginBase):
         """示例动作"""
         text = self.api.get_current_text()
         self.api.show_message("当前文件信息", f"字符数: {len(text)}")
-权限列表
-权限	说明
-filesystem	读写本地文件
-network	访问网络
-process	执行系统命令
-clipboard	读写剪贴板
-dialog	显示对话框
-editor_read	读取编辑器内容
-editor_write	修改编辑器内容
-terminal	使用集成终端
-lsp	注册 LSP 服务
-debugger	调试功能
-一键生成插件骨架
-bash
-python create_plugin.py my_plugin
-⚙️ 配置文件位置
-平台	路径
-Windows	%APPDATA%\QingCao\Editor.ini
-Linux	~/.config/QingCao/Editor.conf
-macOS	~/Library/Preferences/com.QingCao.Editor.plist
-便携模式
-在程序目录创建 portable.txt 文件，所有配置将存储于程序目录：
+```
 
-bash
+### 权限列表
+
+| 权限 | 说明 |
+| --- | --- |
+| `filesystem` | 读写本地文件 |
+| `network` | 访问网络 |
+| `process` | 执行系统命令 |
+| `clipboard` | 读写剪贴板 |
+| `dialog` | 显示对话框 / 访问主窗口 |
+| `editor_read` | 读取编辑器内容 |
+| `editor_write` | 修改编辑器内容 |
+| `terminal` | 使用集成终端 |
+| `lsp` | 注册 LSP 服务 |
+| `debugger` | 调试功能 |
+
+> **重要（P0-3）**：编辑器目前**没有进程级沙箱**，插件与编辑器同进程
+> 运行。上面的权限只在 `PluginAPI` 的方法边界上做门控（`app/plugins.py`），
+> 插件仍可用 `import subprocess` 等方式获得全部系统能力。
+> `infrastructure/plugin_sandbox.py` 与 `sandbox_runtime.py` 尚未接线。
+### 一键生成插件骨架
+
+```bash
+python tools/create_plugin.py my_plugin
+```
+
+## ⚙️ 配置文件位置
+
+> 说明：默认使用系统原生格式存储（Windows 为注册表
+> `HKCU\Software\QingCao\Editor`），并非下面的 ini 路径；
+> 只有便携模式下才改为程序目录内的 ini 文件。
+
+| 平台 | 路径（便携模式） |
+| --- | --- |
+| Windows | `data/Editor.ini`（程序目录） |
+| Linux / macOS | `data/Editor.ini`（程序目录） |
+
+### 便携模式
+
+在程序目录创建 `portable.txt` 文件，所有配置将存储于程序目录：
+
+```bash
 # 程序目录下
 touch portable.txt
-命令行选项
-text
+```
+
+## 命令行选项
+
+```text
 python main.py [选项] [文件...]
 
 选项:
@@ -316,9 +368,13 @@ python main.py [选项] [文件...]
   --project FILE    打开指定的项目文件
   --version, -v     显示版本信息
   --help, -h        显示帮助信息
-🛠 开发
-环境准备
-bash
+```
+
+## 🛠 开发
+
+### 环境准备
+
+```bash
 git clone https://github.com/qingcao-editor/qingcao.git
 cd qingcao
 
@@ -328,9 +384,13 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 安装开发依赖
 pip install -r requirements.txt
 pip install pytest pytest-qt coverage ruff black isort pyinstaller
-项目结构
-text
+```
+
+### 项目结构
+
+```text
 qingcao/
+
 ├── main.py                 # 启动入口
 ├── app/                    # 应用层（动作、事件总线、菜单、插件 API 等）
 ├── core/                   # 核心层（编辑器、文档、命令、搜索、LSP 等）
@@ -345,7 +405,7 @@ qingcao/
 ├── build_installer.py      # Inno Setup 打包脚本
 └── requirements.txt        # 依赖清单
 代码检查
-bash
+
 # Ruff
 ruff check .
 
@@ -355,7 +415,7 @@ black --check --diff .
 # isort 检查
 isort --check-only --diff .
 运行测试
-bash
+
 # 全部测试
 python tests/run_all.py
 
@@ -365,7 +425,7 @@ pytest tests/ -v
 # 带覆盖率
 pytest tests/ -v --cov=. --cov-report=html
 打包
-bash
+
 # 目录模式（推荐，启动快）
 python build.py
 
@@ -383,7 +443,8 @@ python build_linux.py
 
 # macOS 打包（.app + .dmg）
 python build_macos.py
-📸 截图
+## 📸 截图
+
 截图待补充。欢迎提交 PR 添加。
 
 ❓ 常见问题
@@ -420,7 +481,8 @@ Q: 支持哪些语言？
 编辑器原生支持 Python / C++ / JavaScript / Markdown / 日志等。
 通过 LSP 可扩展：Python、TypeScript、Rust、Go、C++、Java 等。
 
-🤝 贡献
+## 🤝 贡献
+
 欢迎提交 Issue 和 PR！
 
 提交 PR 前
@@ -444,13 +506,17 @@ Python 版本
 
 crash.log 内容（如有）
 
-📄 许可证
+## 📄 许可证
+
 本项目采用 MIT License 开源协议。
 
-text
+```text
 Copyright (c) 2024-2025 hedongwei
-📬 联系方式
-开发者：hedongwei
+```
+
+## 📬 联系方式
+
+- 开发者：hedongwei
 
 邮箱：1265338136@qq.com
 
@@ -460,18 +526,18 @@ GitHub：https://github.com/qingcao-editor/qingcao
 
 问题反馈：https://github.com/qingcao-editor/qingcao/issues
 
-🌱 致谢
+## 🌱 致谢
+
 感谢以下开源项目：
 
-PyQt5 — GUI 框架
-
-QScintilla — 代码编辑控件
-
-pytest — 测试框架
-
-PyInstaller — 打包工具
+- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/) — GUI 框架
+- [QScintilla](https://riverbankcomputing.com/software/qscintilla/) — 代码编辑控件
+- [pytest](https://pytest.org/) — 测试框架
+- [PyInstaller](https://pyinstaller.org/) — 打包工具
 
 以及所有贡献者与用户。
 
 <p align="center"> <b>青草枯荣，野火重生。</b><br> <sub>QingCao Editor — Lightweight · Fast · Extensible</sub> </p> ```
+```
+
 ```

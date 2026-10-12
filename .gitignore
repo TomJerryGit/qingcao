@@ -97,3 +97,53 @@ crash.log
 *.bak.*
 *.bak
 *.tmp
+
+
+# ============================================================
+# P2 清理：以下条目在 CI/发布过程中需要被忽略
+# ============================================================
+# 误命名/残留文件
+python fix_batch_1_crash.py
+findstr
+msg.txt
+.qingcao-tasks.json
+.coverage
+htmlcov/
+
+# 一次性修复脚本（根目录）
+/fix_batch_*.py
+/fix_fix_*.py
+/fix_theme_*.py
+/fix_p0*.py
+/fix_p1*.py
+/fix_p2*.py
+/fix_p3*.py
+/fix_health*.py
+/fix_truncated.py
+/fix_ai_plugin.py
+/fix_gbk.py
+/archive_scripts.py
+
+# 归档目录（.gitignore 里曾误写为 _archived_tools/）
+/_archive/
+/tools/_archive/
+
+# 编辑器自测产物
+/data/
+/logs/
+/backup/
+*.mo.bak
+
+# ---- 构建/打包产物（由 build.py 生成） ----
+version_info.txt
+QingCaoEditor.spec
+*.spec
+!*.spec.example
+
+# ---- 测试与覆盖率 ----
+.pytest_cache/
+.coverage.*
+coverage.xml
+
+# ---- 审查/演示临时物 ----
+*.review.tmp

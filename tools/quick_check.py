@@ -1,12 +1,33 @@
 # quick_check.py
+import os
 import sys
+
+
+# 修复：从 tools/ 直接运行时，项目根目录不在 sys.path，
+# `import core` 会 ModuleNotFoundError。原脚本缺这一步，
+# 导致它从未真正跑通过。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+os.chdir(ROOT)
+
+# 修复：控制台可能是 GBK 代码页，直接 print "✓" 会 UnicodeEncodeError。
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 from PyQt5.QtWidgets import QApplication
+
+
 app = QApplication(sys.argv)
 
-from core.document import Document
-from core.content_provider import MemoryProvider
-from core.editor import EditorProxy
 from PyQt5.Qsci import QsciScintilla
+
+from core.content_provider import MemoryProvider
+from core.document import Document
+from core.editor import EditorProxy
+
 
 provider = MemoryProvider()
 provider.open(initial_text="test\n")
