@@ -40,27 +40,45 @@
 """
 
 import os
+import subprocess
 import sys
 import time
-import subprocess
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from PyQt5.QtCore import QDateTime, QSettings, QSize, Qt, QTimer, QUrl, pyqtSignal
+from PyQt5.QtGui import QColor, QDesktopServices, QFont, QIcon, QKeySequence
 
 # ============================================================
 # PyQt5 导入（全部统一）
 # ============================================================
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
-    QToolBar, QDockWidget, QStatusBar, QLabel, QMessageBox,
-    QMenu, QApplication, QSplitter, QFileDialog, QInputDialog,
-    QToolButton, QSizePolicy, QShortcut, QDialog,
-    QDialogButtonBox, QListWidget, QListWidgetItem, QTextBrowser,
-    QPlainTextEdit, QAction, QPushButton, QFrame
-)
-from PyQt5.QtCore import (
-    Qt, QTimer, QSettings, QSize, QDateTime, QUrl, pyqtSignal
-)
-from PyQt5.QtGui import (
-    QKeySequence, QIcon, QFont, QColor, QDesktopServices
+    QAction,
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QDockWidget,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QShortcut,
+    QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QStatusBar,
+    QTextBrowser,
+    QToolBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -68,7 +86,11 @@ from PyQt5.QtGui import (
 # 常量
 # ============================================================
 APP_NAME = "青草编辑器"
-APP_VERSION = "2.0.0"
+# P1-1: 版本号唯一来源 version.py
+try:
+    from version import __version__ as APP_VERSION
+except ImportError:  # pragma: no cover
+    APP_VERSION = "0.0.0"
 ORG_NAME = "QingCao"
 
 # 状态栏刷新间隔（毫秒）
@@ -101,10 +123,10 @@ _MAIN_API_FALLBACK_PERMISSIONS = [
 # ============================================================
 # 主窗口
 # ============================================================
+from ui.mixins.edit_ops_mixin import EditOpsMixin
+from ui.mixins.file_ops_mixin import FileOpsMixin
 from ui.mixins.status_bar_mixin import StatusBarMixin
 
-from ui.mixins.file_ops_mixin import FileOpsMixin
-from ui.mixins.edit_ops_mixin import EditOpsMixin
 
 class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     """
@@ -164,7 +186,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         # 宏录制
         try:
-            from core.macro import MacroRecorder, MacroManager
+            from core.macro import MacroManager, MacroRecorder
             self.macro = MacroRecorder()
             self.macro_manager = MacroManager()
         except Exception as e:
@@ -328,8 +350,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         def open_file(path):
             try:
-                from ui.editor_view import EditorWidget
                 from core.content_provider import LocalFileProvider
+                from ui.editor_view import EditorWidget
 
                 provider = LocalFileProvider()
                 provider.open(path)
@@ -569,8 +591,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                     try:
                         import json as _json
                         with open(
-                            os.path.join(themes_dir, f),
-                            'r', encoding='utf-8'
+                            os.path.join(themes_dir, f), encoding='utf-8'
                         ) as _fp:
                             _data = _json.load(_fp)
                         display = _data.get('display_name', name)
@@ -727,8 +748,9 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _import_theme_pack(self):
         """导入主题包（zip）"""
         try:
-            from core.theme_pack import ThemePack
             from PyQt5.QtWidgets import QFileDialog
+
+            from core.theme_pack import ThemePack
 
             path, _ = QFileDialog.getOpenFileName(
                 self, "导入主题包", "",
@@ -755,9 +777,10 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _export_theme_pack(self):
         """导出当前主题为 zip 包"""
         try:
-            from core.theme_pack import ThemePack
             from PyQt5.QtCore import QSettings
             from PyQt5.QtWidgets import QFileDialog
+
+            from core.theme_pack import ThemePack
 
             settings = QSettings("QingCao", "Editor")
             theme_name = settings.value("theme_name", "", type=str)
@@ -792,8 +815,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
     def _open_theme_dir(self):
         """打开主题目录"""
-        from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtCore import QUrl
+        from PyQt5.QtGui import QDesktopServices
         themes_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "themes"
@@ -895,7 +918,63 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self.plugins_panel = None
         self.perf_monitor = None
 
-        # ============ 大纲面板（基础版） ============
+        # P1-3: 记录哪些面板已经构造过（惰性构造用）
+        self._panels_built = set()
+
+        # 设置角落
+        self.setCorner(Qt.TopLeftCorner, Qt.LeftDockWidgetArea)
+        self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
+        self.setCorner(Qt.TopRightCorner, Qt.RightDockWidgetArea)
+        self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
+
+    # ========================================================
+    # 面板惰性构造（P1-3）
+    # ========================================================
+    # 修复说明:
+    #   原实现在启动时同步构造全部 9 个面板（大纲×2、目录树、
+    #   Minimap、全局搜索、Python 控制台、插件面板、性能监控、
+    #   搜索栏），其中 6 个构造完立刻 hide()。实测
+    #   MainWindow() 构造耗时约 2.46s，是冷启动的最大单项开销。
+    #
+    #   现在改为按需构造：_build_docks 只登记"面板还没建"，
+    #   用户第一次打开某个面板（或外部代码首次访问）时才真正
+    #   创建 widget。面板属性仍保持原名字与类型，调用方无需改动。
+    _LAZY_PANELS = (
+        'outline', 'outline_enhanced',
+        'dir_tree', 'minimap', 'gsearch',
+        'console', 'plugins_panel', 'perf_monitor', 'search_bar',
+    )
+
+    def _ensure_panel(self, name: str) -> bool:
+        """确保指定面板已构造。
+
+        参数:
+            name: 面板属性名（见 _LAZY_PANELS）
+
+        返回:
+            面板当前是否可用（构造失败或名称非法时为 False）
+        """
+        if name not in self._LAZY_PANELS:
+            print(f"[MainWindow] 未知面板: {name}")
+            return False
+        # 已构造过（可能构造失败留下 None）
+        if name in self._panels_built:
+            return getattr(self, name, None) is not None
+
+        self._panels_built.add(name)
+        builder = getattr(self, f'_build_panel_{name}', None)
+        if builder is None:
+            return False
+        try:
+            builder()
+        except Exception as e:
+            print(f"[MainWindow] 面板 {name} 构造失败: {e}")
+            setattr(self, name, None)
+            return False
+        return getattr(self, name, None) is not None
+
+    def _build_panel_outline(self):
+        """构造基础版大纲面板"""
         try:
             from ui.outline_panel import OutlinePanel
             self.outline = OutlinePanel(self)
@@ -905,10 +984,13 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             print(f"[MainWindow] OutlinePanel 加载失败: {e}")
             self.outline = None
 
-        # ============ 增强版大纲面板 ============
-        # P3-8 重构后 outline_panel_enhanced.py 已合并到 outline_panel.py，
-        # 通过 OutlinePanel(enhanced=True) 启用增强功能
-        # （面包屑、类型筛选、排序切换、跟随光标高亮、3 列树）
+    def _build_panel_outline_enhanced(self):
+        """构造增强版大纲面板
+
+        P3-8 重构后 outline_panel_enhanced.py 已合并到
+        outline_panel.py，通过 OutlinePanel(enhanced=True) 启用
+        增强功能（面包屑、类型筛选、排序切换、跟随光标、3 列树）。
+        """
         try:
             from ui.outline_panel import OutlinePanel
             self.outline_enhanced = OutlinePanel(self, enhanced=True)
@@ -922,15 +1004,16 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.outline_enhanced.hide()
         except Exception as e:
             print(f"[MainWindow] 增强大纲加载失败: {e}")
-            import traceback
-            traceback.print_exc()
             self.outline_enhanced = None
 
-        # ============ 目录树 ============
+    def _build_panel_dir_tree(self):
+        """构造目录树面板"""
         try:
             from ui.directory_tree import DirectoryTree
             self.dir_tree = DirectoryTree()
-            self.dir_tree.file_double_clicked.connect(self._on_file_from_tree)
+            self.dir_tree.file_double_clicked.connect(
+                self._on_file_from_tree
+            )
             self.dir_tree.file_opened.connect(self._on_file_from_tree)
 
             self.dir_tree_dock = QDockWidget("项目", self)
@@ -942,7 +1025,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.dir_tree = None
             self.dir_tree_dock = None
 
-        # ============ Minimap（安全模式，失败不影响启动） ============
+    def _build_panel_minimap(self):
+        """构造 Minimap 面板（安全模式，失败不影响启动）"""
         try:
             from ui.minimap import Minimap
             self.minimap = Minimap()
@@ -958,7 +1042,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.minimap = None
             self.minimap_dock = None
 
-        # ============ 全局搜索面板 ============
+    def _build_panel_gsearch(self):
+        """构造全局搜索面板"""
         try:
             from ui.global_search_panel import GlobalSearchPanel
             self.gsearch = GlobalSearchPanel(self)
@@ -976,7 +1061,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             print(f"[MainWindow] GlobalSearchPanel 加载失败: {e}")
             self.gsearch = None
 
-        # ============ Python 控制台 ============
+    def _build_panel_console(self):
+        """构造 Python 控制台面板"""
         try:
             from ui.python_console import PythonConsole
             self.console = PythonConsole(self)
@@ -986,7 +1072,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             print(f"[MainWindow] PythonConsole 加载失败: {e}")
             self.console = None
 
-        # ============ 插件面板 ============
+    def _build_panel_plugins_panel(self):
+        """构造插件面板"""
         try:
             from ui.plugins_panel import PluginsPanel
             # plugin_manager 稍后才创建，先创建面板，之后设置
@@ -1002,7 +1089,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             print(f"[MainWindow] PluginsPanel 加载失败: {e}")
             self.plugins_panel = None
 
-        # ============ 性能监控面板 ============
+    def _build_panel_perf_monitor(self):
+        """构造性能监控面板"""
         try:
             from ui.perf_monitor import PerfMonitor
             self.perf_monitor = PerfMonitor(self)
@@ -1014,7 +1102,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             print(f"[MainWindow] PerfMonitor 加载失败: {e}")
             self.perf_monitor = None
 
-        # ============ 搜索栏 ============
+    def _build_panel_search_bar(self):
+        """构造搜索栏"""
         try:
             from ui.panels import SearchBar
             self.search_bar = SearchBar(self)
@@ -1023,12 +1112,6 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         except Exception as e:
             print(f"[MainWindow] SearchBar 加载失败: {e}")
             self.search_bar = None
-
-        # 设置角落
-        self.setCorner(Qt.TopLeftCorner, Qt.LeftDockWidgetArea)
-        self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
-        self.setCorner(Qt.TopRightCorner, Qt.RightDockWidgetArea)
-        self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
 
     # ========================================================
     # 快捷键
@@ -1076,6 +1159,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _show_search(self):
         """显示搜索栏"""
         try:
+            # P1-3: 惰性构造
+            self._ensure_panel('search_bar')
             if self.search_bar:
                 self.search_bar.show()
                 if hasattr(self.search_bar, 'show_and_focus'):
@@ -1086,6 +1171,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _show_global_search(self):
         """显示全局搜索"""
         try:
+            # P1-3: 惰性构造
+            self._ensure_panel('gsearch')
             if self.gsearch:
                 self.gsearch.show()
                 if hasattr(self.gsearch, 'focus_search'):
@@ -1257,45 +1344,45 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     # ========================================================
     def _toggle_outline(self, checked):
         """切换大纲面板（基础版）"""
-        if self.outline:
+        if self._ensure_panel('outline') and self.outline:
             self.outline.setVisible(checked)
 
     def _toggle_outline_enhanced(self, checked):
         """切换增强版大纲面板"""
-        if self.outline_enhanced:
+        if self._ensure_panel('outline_enhanced') and self.outline_enhanced:
             self.outline_enhanced.setVisible(checked)
 
     def _toggle_directory(self, checked):
         """切换目录树面板"""
-        if self.dir_tree_dock:
+        if self._ensure_panel('dir_tree') and self.dir_tree_dock:
             self.dir_tree_dock.setVisible(checked)
 
     def _toggle_minimap(self, checked):
         """切换 Minimap"""
-        if self.minimap_dock:
+        if self._ensure_panel('minimap') and self.minimap_dock:
             self.minimap_dock.setVisible(checked)
 
     def _toggle_global_search(self, checked):
         """切换全局搜索"""
-        if self.gsearch:
+        if self._ensure_panel('gsearch') and self.gsearch:
             self.gsearch.setVisible(checked)
 
     def _toggle_console(self):
         """切换控制台"""
         try:
-            if self.console:
+            if self._ensure_panel('console') and self.console:
                 self.console.setVisible(not self.console.isVisible())
         except Exception as e:
             print(f"[MainWindow] 控制台切换失败: {e}")
 
     def _toggle_plugins_panel(self, checked):
         """切换插件面板"""
-        if self.plugins_panel:
+        if self._ensure_panel('plugins_panel') and self.plugins_panel:
             self.plugins_panel.setVisible(checked)
 
     def _toggle_perf_monitor(self, checked):
         """切换性能监控"""
-        if self.perf_monitor:
+        if self._ensure_panel('perf_monitor') and self.perf_monitor:
             self.perf_monitor.setVisible(checked)
 
     # ========================================================
@@ -1404,6 +1491,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _show_plugins_panel(self):
         """显示插件管理面板"""
         try:
+            # P1-3: 惰性构造
+            self._ensure_panel('plugins_panel')
             if self.plugins_panel:
                 self.plugins_panel.show()
                 self.plugins_panel.raise_()
@@ -1424,6 +1513,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     def _show_perf_monitor(self):
         """显示性能监控面板"""
         try:
+            # P1-3: 惰性构造
+            self._ensure_panel('perf_monitor')
             if self.perf_monitor:
                 self.perf_monitor.show()
                 self.perf_monitor.raise_()
@@ -1794,10 +1885,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             return
 
         try:
-            from core.search import (
-                SearchOptions, SearchEngine, ReplaceEngine
-            )
             from core.content_provider import LocalFileProvider
+            from core.search import ReplaceEngine, SearchEngine, SearchOptions
 
             total = 0
             abs_paths = set()
@@ -1996,58 +2085,104 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.api = None
 
         try:
-            from infrastructure.plugin_loader import PluginLoader
             from app.plugins import PluginAPI
+            from infrastructure.plugin_loader import PluginLoader
 
-            # 创建 PluginManager（高层 API，包装 PluginLoader）
-            try:
-                from app.plugin_manager import PluginManager
-                self.plugin_manager = PluginManager(
-                    main_window=self,
-                    plugin_dir="plugins",
-                )
-            except Exception as e:
-                print(f"[MainWindow] PluginManager 创建失败: {e}")
-                self.plugin_manager = None
-
-            # 创建 PluginLoader
-            loader = PluginLoader(plugin_dir="plugins")
-
-            # 关键：api_factory 是函数，接收 spec，返回 PluginAPI 实例
-            def api_factory(spec):
+            # P0-3 修复：先创建 PluginManager（高层 API，包装
+            # PluginLoader）。原实现在这里创建，但随后直接调用
+            # 裸 loader.load_all()，导致 PluginManager 的
+            # 权限确认逻辑永远不会执行。
+            if self.plugin_manager is None:
                 try:
-                    permissions = list(
-                        getattr(spec.meta, 'permissions', []) or []
+                    from app.plugin_manager import PluginManager
+                    self.plugin_manager = PluginManager(
+                        main_window=self,
+                        plugin_dir="plugins",
                     )
-                    # 每个插件得到自己权限范围内的 API
-                    api = PluginAPI(
-                        self,
-                        permissions=permissions,
-                        plugin_name=spec.name,
-                    )
-                    return api
                 except Exception as e:
-                    print(
-                        f"[MainWindow] 创建 API 失败 "
-                        f"({spec.name}): {e}"
-                    )
-                    return None
+                    print(f"[MainWindow] PluginManager 创建失败: {e}")
+                    self.plugin_manager = None
 
-            # 加载所有插件
-            result = loader.load_all(
-                plugin_dir="plugins",
-                api_factory=api_factory,
-                auto_activate=True,
-            )
+            # P0-3 修复：优先通过 PluginManager.load_all() 加载，
+            # 因为它会在激活前逐个弹出**权限确认对话框**，并遵守
+            # 用户在插件管理里设置的禁用列表。
+            #
+            # 原实现直接调用裸 loader.load_all(auto_activate=True)，
+            # 而 PluginManager.load_all / _check_and_confirm_permissions
+            # 全仓无调用者 —— 结果是危险权限确认框在启动路径上
+            # 永远不会弹出，plugin.json 的 permissions 形同虚设。
+            result = None
+            if self.plugin_manager is not None:
+                try:
+                    result = self.plugin_manager.load_all(
+                        auto_activate=True
+                    )
+                    loader = self.plugin_manager.loader
+                except Exception as e:
+                    print(f"[MainWindow] PluginManager 加载失败: {e}")
+                    result = None
+                    loader = None
+            else:
+                loader = None
+
+            # 回退路径：PluginManager 不可用时仍用裸 loader，
+            # 但必须显式打印警告（无权限确认）
+            if result is None:
+                print(
+                    "[MainWindow] 警告：PluginManager 不可用，"
+                    "回退到无权限确认的加载路径"
+                )
+                loader = PluginLoader(plugin_dir="plugins")
+
+                # 关键：api_factory 是函数，接收 spec，返回 PluginAPI 实例
+                def api_factory(spec):
+                    try:
+                        permissions = list(
+                            getattr(spec.meta, 'permissions', []) or []
+                        )
+                        # 每个插件得到自己权限范围内的 API
+                        api = PluginAPI(
+                            self,
+                            permissions=permissions,
+                            plugin_name=spec.name,
+                        )
+                        # P0-3: 插件不得自行提权，宿主需要显式放行
+                        api.grant_permissions_by_host(permissions)
+                        return api
+                    except Exception as e:
+                        print(
+                            f"[MainWindow] 创建 API 失败 "
+                            f"({spec.name}): {e}"
+                        )
+                        return None
+
+                result = loader.load_all(
+                    plugin_dir="plugins",
+                    api_factory=api_factory,
+                    auto_activate=True,
+                )
 
             self.plugin_loader = loader
+
+            # B7 修复：将 loader 的 specs 桥接给 PluginManager
+            # 原实现只对独立 loader 调用 load_all()，PluginManager
+            # 从未 load_all，其 specs 为空。后续 plugins_panel 绑定
+            # 的是空 manager，插件管理面板永远空白。
+            if self.plugin_manager is not None and loader is not None:
+                try:
+                    self.plugin_manager.loader = loader
+                    self.plugin_manager.specs = dict(loader.specs)
+                except Exception as e:
+                    print(f"[MainWindow] 桥接 loader 到 manager 失败: {e}")
 
             # 收集已激活的插件实例
             activated_specs = []
             try:
-                if hasattr(loader, 'get_activated_plugins'):
+                if loader is not None and hasattr(
+                    loader, 'get_activated_plugins'
+                ):
                     activated_specs = loader.get_activated_plugins()
-                else:
+                elif loader is not None:
                     activated_specs = [
                         s for s in loader.specs.values()
                         if getattr(s, 'is_active', False)
@@ -2109,6 +2244,12 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
     # ========================================================
     def _show_error(self, title: str, message: str):
         """显示错误"""
+        # P1-2: 音效接线（默认关闭）
+        try:
+            from infrastructure.sound_manager import SoundEvent, play_sound
+            play_sound(SoundEvent.NOTIFY_ERROR)
+        except Exception:
+            pass
         QMessageBox.critical(self, title, message)
 
     def _show_info(self, title: str, message: str):

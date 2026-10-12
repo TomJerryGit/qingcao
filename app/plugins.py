@@ -31,26 +31,50 @@
 - 所有 *_safe 方法在 api 为 None 时返回安全默认值
 """
 
+import functools
+import inspect
+import json
 import os
 import sys
-import json
-import inspect
-import functools
-from typing import Optional, Dict, List, Callable, Any, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from PyQt5.QtCore import QObject, QSettings, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QMessageBox, QInputDialog, QFileDialog,
-    QMenu, QAction, QApplication, QDialog, QTextEdit, QVBoxLayout, QPushButton
+    QAction,
+    QApplication,
+    QDialog,
+    QDockWidget,
+    QFileDialog,
+    QInputDialog,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtGui import QKeySequence, QColor
-from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, pyqtSlot, QSettings
 
 from app.event_bus import (
-    bus, BaseEvent, FileOpenedEvent, FileSavedEvent, FileClosedEvent,
-    FileModifiedEvent, CursorEvent, SelectionEvent, EditorChangedEvent,
-    TabChangedEvent, TabAddedEvent, TabRemovedEvent, ProjectOpenedEvent,
-    ProjectClosedEvent, MacroStartedEvent, MacroStoppedEvent,
-    ThemeEvent, StatusMessageEvent, NotificationEvent
+    BaseEvent,
+    CursorEvent,
+    EditorChangedEvent,
+    FileClosedEvent,
+    FileModifiedEvent,
+    FileOpenedEvent,
+    FileSavedEvent,
+    MacroStartedEvent,
+    MacroStoppedEvent,
+    NotificationEvent,
+    ProjectClosedEvent,
+    ProjectOpenedEvent,
+    SelectionEvent,
+    StatusMessageEvent,
+    TabAddedEvent,
+    TabChangedEvent,
+    TabRemovedEvent,
+    ThemeEvent,
+    bus,
 )
 
 
@@ -66,6 +90,11 @@ PERMISSION_DIALOG = "dialog"
 PERMISSION_EDITOR_WRITE = "editor_write"
 PERMISSION_EDITOR_READ = "editor_read"
 PERMISSION_TERMINAL = "terminal"
+# P1-2 修复：README 文档中列出了 lsp / debugger，但代码里
+# 没有这两个常量，parse_permissions 会把它们静默过滤掉，
+# 导致插件声明的权限与运行时权限不一致。
+PERMISSION_LSP = "lsp"
+PERMISSION_DEBUGGER = "debugger"
 
 ALL_PERMISSIONS = [
     PERMISSION_FILESYSTEM,
@@ -76,7 +105,23 @@ ALL_PERMISSIONS = [
     PERMISSION_EDITOR_WRITE,
     PERMISSION_EDITOR_READ,
     PERMISSION_TERMINAL,
+    PERMISSION_LSP,
+    PERMISSION_DEBUGGER,
 ]
+
+# 权限名称（中文，供 UI 展示；与 app/plugin_manager.PERMISSION_NAMES 对齐）
+PERMISSION_LABELS = {
+    PERMISSION_FILESYSTEM: "读写本地文件",
+    PERMISSION_NETWORK: "访问网络",
+    PERMISSION_PROCESS: "执行系统命令",
+    PERMISSION_CLIPBOARD: "读写剪贴板",
+    PERMISSION_DIALOG: "显示对话框 / 访问主窗口",
+    PERMISSION_EDITOR_WRITE: "修改编辑器内容",
+    PERMISSION_EDITOR_READ: "读取编辑器内容",
+    PERMISSION_TERMINAL: "使用集成终端",
+    PERMISSION_LSP: "注册 LSP 服务",
+    PERMISSION_DEBUGGER: "调试功能",
+}
 
 # API 版本
 API_VERSION = "2.0.0"
@@ -137,9 +182,19 @@ class PluginAPI(QObject):
         # 防御性处理：即使 main_window 为 None 也不崩溃
         super().__init__(main_window if isinstance(main_window, QObject) else None)
 
-        self.win = main_window
+        # P0-3: 主窗口引用不放在实例字典里，改为受控属性，
+        # 使 __getattr__ 能对直读给出弃用警告。
+        # （api.win 旧写法仍可用，但会提示迁移到
+        #   get_main_window()；内部代码请统一用 _host_window()。）
+        self.__dict__['_win_compat'] = main_window
         self.permissions = set(permissions or [])
         self.plugin_name = plugin_name
+
+        # P0-3: 只有宿主可以动态授权
+        self._host_authorized: bool = False
+        # P0-3: 兼容旧插件的 api.win 直读，但给出明确警告，
+        # 引导改用 get_main_window()（受 dialog 权限门控）
+        self._win_warned: bool = False
 
         # 插件注册的资源（用于卸载时清理）
         self._registered_actions: List[QAction] = []
@@ -163,6 +218,37 @@ class PluginAPI(QObject):
     # ========================================================
     # 权限校验
     # ========================================================
+    @property
+    def win(self):
+        """兼容属性：主窗口（已弃用）
+
+        P0-3: 本编辑器目前**没有进程级沙箱**，插件与编辑器同
+        进程运行，权限只在 API 边界上做门控，因此 `api.win`
+        这种直通宿主的属性是绕过权限的主要通道。
+
+        该属性为兼容既有插件而保留（会打印一次弃用警告），
+        新代码请改用 get_main_window()（受 dialog 权限门控）。
+        """
+        if not self.__dict__.get('_win_warned', False):
+            self.__dict__['_win_warned'] = True
+            try:
+                print(
+                    "[PluginAPI] 警告：api.win 已弃用（绕过权限门控），"
+                    "请改用 api.get_main_window()（需要 dialog 权限）"
+                )
+            except Exception:
+                pass
+        return self.__dict__.get('_win_compat')
+
+    def _host_window(self):
+        """内部/内置插件专用：取主窗口，不打印弃用警告
+
+        P0-3: 内置插件的面板注册需要主窗口。这里提供一个不触发
+        api.win 弃用告警的内部通道。第三方插件请使用
+        get_main_window()（受 dialog 权限门控）。
+        """
+        return self.__dict__.get('_win_compat')
+
     def _check_permission(self, perm: str):
         """检查是否有指定权限"""
         if perm not in self.permissions:
@@ -185,12 +271,60 @@ class PluginAPI(QObject):
         return True
 
     def grant_permission(self, perm: str):
-        """动态授予权限（谨慎使用）"""
+        """动态授予权限（仅宿主可调用）
+
+        P0-3 修复：原实现是 `self.permissions.add(perm)`，
+        插件可以一行代码自我提权：
+            self.api.grant_permission('process')
+            self.api.run_command('...')
+        现在必须由宿主（主窗口/插件管理器）显式授权，
+        否则拒绝并提示。
+        """
+        if not self._host_authorized:
+            self.show_status(
+                f"插件 {self.plugin_name} 不允许自行授予权限 '{perm}'",
+                3000, "warning"
+            )
+            return False
         self.permissions.add(perm)
+        return True
+
+    def grant_permissions_by_host(self, perms) -> int:
+        """宿主授予权限（不受 _host_authorized 限制）
+
+        供主窗口/插件管理器在用户确认权限后调用。
+        """
+        count = 0
+        for p in perms or []:
+            if p not in self.permissions:
+                self.permissions.add(p)
+                count += 1
+        return count
 
     def revoke_permission(self, perm: str):
         """撤销权限"""
         self.permissions.discard(perm)
+
+    # ========================================================
+    # 宿主窗口访问（P0-3）
+    # ========================================================
+    def get_main_window(self):
+        """获取主窗口（需要 dialog 权限）
+
+        P0-3 修复：原先 `api.win` 是公开属性，插件可由此拿到
+        主窗口，进而取到全权限的主 API（widget.api）从而绕过
+        所有权限检查。现改为受权限门控的方法访问。
+        """
+        if not self.win:
+            return None
+        if PERMISSION_DIALOG not in self.permissions:
+            self.show_status(
+                f"插件 {self.plugin_name} 缺少 'dialog' 权限，"
+                f"无法访问主窗口",
+                3000, "warning"
+            )
+            return None
+        return self.win
 
     # ========================================================
     # 编辑器访问
@@ -936,7 +1070,7 @@ class PluginAPI(QObject):
         if not self.require_permission(PERMISSION_FILESYSTEM):
             return None
         try:
-            with open(filepath, 'r', encoding=encoding,
+            with open(filepath, encoding=encoding,
                        errors='replace') as f:
                 return f.read()
         except Exception as e:
@@ -1022,9 +1156,12 @@ class PluginAPI(QObject):
         """
         获取插件私有数据目录。
 
-        插件可在此目录自由读写，无需额外权限。
-        目录在首次调用时自动创建。
+        P0-3 修复：原实现"无需额外权限"即可写盘，成为绕过
+        filesystem 权限的写文件后门（app/plugins.py 旧版
+        1021-1032 行）。现在要求 filesystem 权限。
         """
+        if not self.require_permission(PERMISSION_FILESYSTEM):
+            return ""
         try:
             os.makedirs(self._data_dir, exist_ok=True)
         except Exception:
@@ -1055,7 +1192,12 @@ class PluginAPI(QObject):
             self.show_status(f"保存配置失败: {e}", 3000, "error")
 
     def save_plugin_config(self, data: Dict[str, Any]) -> bool:
-        """保存插件配置（JSON 格式到数据目录）"""
+        """保存插件配置（JSON 格式到数据目录）
+
+        P0-3: 需要 filesystem 权限（同 get_plugin_data_dir）。
+        """
+        if not self.require_permission(PERMISSION_FILESYSTEM):
+            return False
         try:
             config_path = os.path.join(
                 self.get_plugin_data_dir(), "config.json"
@@ -1074,7 +1216,7 @@ class PluginAPI(QObject):
                 self.get_plugin_data_dir(), "config.json"
             )
             if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, encoding='utf-8') as f:
                     return json.load(f)
         except Exception:
             pass
@@ -1208,7 +1350,7 @@ class PluginAPI(QObject):
             return None
         try:
             import io
-            from contextlib import redirect_stdout, redirect_stderr
+            from contextlib import redirect_stderr, redirect_stdout
             stdout_cap = io.StringIO()
             stderr_cap = io.StringIO()
             with redirect_stdout(stdout_cap), redirect_stderr(stderr_cap):
@@ -1610,7 +1752,8 @@ class PluginBase:
 # ============================================================
 if __name__ == "__main__":
     import sys
-    from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
+
+    from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
 
     app = QApplication(sys.argv)
     win = QMainWindow()

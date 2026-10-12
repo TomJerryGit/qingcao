@@ -44,19 +44,32 @@
   （AIResultDialog 的 enable_insert=True）。
 """
 
+import json
 import os
 import sys
-import json
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from PyQt5.QtCore import QSettings, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QComboBox, QPushButton, QDialogButtonBox, QFormLayout,
-    QMessageBox, QTextBrowser, QPlainTextEdit, QApplication,
-    QProgressBar, QCheckBox, QGroupBox, QMenu
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QTextBrowser,
+    QVBoxLayout,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings, QTimer
-from PyQt5.QtGui import QFont, QColor, QKeySequence
 
 
 # ============================================================
@@ -65,15 +78,22 @@ from PyQt5.QtGui import QFont, QColor, QKeySequence
 # 检查 ai_client 是否可用
 try:
     from core.ai_client import (
-        AIClient, AIClientFactory,
-        AIAuthError, AIConfigError, AIClientError,
-        PROMPT_EXPLAIN, PROMPT_REFACTOR, PROMPT_FIX,
-        PROMPT_COMMENT, PROMPT_TESTS, PROMPT_REVIEW,
+        PROMPT_COMMENT,
+        PROMPT_EXPLAIN,
+        PROMPT_FIX,
+        PROMPT_REFACTOR,
+        PROMPT_REVIEW,
         PROMPT_SUMMARY,
+        PROMPT_TESTS,
+        AIAuthError,
+        AIClient,
+        AIClientError,
+        AIClientFactory,
+        AIConfigError,
+        get_ai_client,
         load_ai_client_from_settings,
         save_ai_client_to_settings,
         set_ai_client,
-        get_ai_client,
     )
     _AI_CLIENT_OK = True
 except ImportError as e:
@@ -110,9 +130,12 @@ except ImportError as e:
 # 检查 PluginBase 是否可用
 try:
     from app.plugins import (
-        PluginBase, PluginAPI,
-        PERMISSION_NETWORK, PERMISSION_EDITOR_READ,
-        PERMISSION_EDITOR_WRITE, PERMISSION_DIALOG,
+        PERMISSION_DIALOG,
+        PERMISSION_EDITOR_READ,
+        PERMISSION_EDITOR_WRITE,
+        PERMISSION_NETWORK,
+        PluginAPI,
+        PluginBase,
     )
     _PLUGIN_BASE_OK = True
 except ImportError as e:
@@ -327,8 +350,8 @@ class AIWorker(QThread):
         # 超时
         if 'timeout' in raw.lower() or 'timed out' in raw.lower():
             return (
-                f"请求超时（服务器响应过慢）。\n\n"
-                f"请检查网络，或换一个模型/提供商。"
+                "请求超时（服务器响应过慢）。\n\n"
+                "请检查网络，或换一个模型/提供商。"
             )
 
         # 认证失败
@@ -1209,7 +1232,7 @@ class Plugin(PluginBase):
             )
 
         # 创建对话框
-        main_window = self.api.win
+        main_window = self.api._host_window()
         dlg = AIResultDialog(
             title=title,
             main_window=main_window,
@@ -1322,7 +1345,7 @@ class Plugin(PluginBase):
     def _show_ai_menu(self):
         """显示 AI 快速菜单"""
         try:
-            main_window = self.api.win
+            main_window = self.api._host_window()
             if main_window is None:
                 return
 
@@ -1359,7 +1382,7 @@ class Plugin(PluginBase):
     def _on_configure(self):
         """打开 AI 配置"""
         try:
-            main_window = self.api.win
+            main_window = self.api._host_window()
             dlg = AIConfigDialog(parent=main_window)
 
             if dlg.exec_() == QDialog.Accepted:

@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """字数统计插件"""
 import re
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QGridLayout
-)
+
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QDockWidget, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from app.plugins import PluginBase
 
@@ -13,9 +11,10 @@ from app.plugins import PluginBase
 class WordCountPanel(QDockWidget):
     """字数统计面板"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, api, main_window, parent=None):
         super().__init__("字数统计", parent or main_window)
         self.setObjectName("WordCountPanel")
+        self.api = api
         self.main_window = main_window
 
         self._build_ui()
@@ -99,7 +98,9 @@ class WordCountPanel(QDockWidget):
     def refresh(self):
         """刷新"""
         try:
-            text = self.main_window.api.get_current_text()
+            if self.api is None:
+                return
+            text = self.api.get_current_text()
             if text is None:
                 return
 
@@ -131,7 +132,8 @@ class Plugin(PluginBase):
 
     def on_activate(self):
         self.api.log("字数统计插件已激活")
-        self._panel = WordCountPanel(self.api.win)
+        # D3 修复：懒创建面板，避免反复启停堆叠 dock
+        self._panel = None
 
         self.api.add_menu(
             "视图/字数统计",
@@ -140,16 +142,26 @@ class Plugin(PluginBase):
         )
 
     def on_deactivate(self):
-        if self._panel:
-            self._panel.timer.stop()
-            self._panel.close()
+        # D3: 显式销毁而非只 close
+        if self._panel is not None:
+            try:
+                self._panel.timer.stop()
+                self.api._host_window().removeDockWidget(self._panel)
+            except Exception:
+                pass
+            self._panel.deleteLater()
+            self._panel = None
 
-    def show_panel(self):
-        # 修复: 使用 Qt 枚举而非裸 int
-        if not self._panel.isVisible():
-            self.api.win.addDockWidget(
+    def _ensure_panel(self):
+        """懒创建面板；首次显示时才实例化并加 dock"""
+        if self._panel is None:
+            self._panel = WordCountPanel(self.api, self.api._host_window())
+            self.api._host_window().addDockWidget(
                 Qt.RightDockWidgetArea, self._panel
             )
+
+    def show_panel(self):
+        self._ensure_panel()
         self._panel.setVisible(True)
         self._panel.raise_()
         self._panel.refresh()

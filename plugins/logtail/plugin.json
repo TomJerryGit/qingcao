@@ -12,7 +12,8 @@
     "tail"
   ],
   "permissions": [
-    "filesystem"
+    "filesystem",
+    "dialog"
   ],
   "dependencies": [],
   "api_version": "2.0.0",

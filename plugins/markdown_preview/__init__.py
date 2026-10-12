@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Markdown 预览插件"""
 import os
-from PyQt5.QtWidgets import QDockWidget, QTextBrowser
+
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QDockWidget, QTextBrowser
 
 from app.plugins import PluginBase
 
@@ -81,9 +82,9 @@ class Plugin(PluginBase):
     def toggle_preview(self):
         """切换预览"""
         if not self._panel:
-            self._panel = MarkdownPanel(self.api.win)
+            self._panel = MarkdownPanel(self.api._host_window())
             # 修复: 使用 Qt 枚举而非裸 int
-            self.api.win.addDockWidget(
+            self.api._host_window().addDockWidget(
                 Qt.RightDockWidgetArea, self._panel
             )
 

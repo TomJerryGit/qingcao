@@ -12,7 +12,8 @@
     "preview"
   ],
   "permissions": [
-    "editor_read"
+    "editor_read",
+    "dialog"
   ],
   "dependencies": [],
   "api_version": "2.0.0",

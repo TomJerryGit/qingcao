@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 """日志实时监视插件"""
 import os
-from PyQt5.QtCore import QFileSystemWatcher, QTimer, Qt
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
-    QPushButton, QLabel
-)
+
+from PyQt5.QtCore import QFileSystemWatcher, Qt, QTimer
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QDockWidget,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.plugins import PluginBase
 
@@ -87,7 +93,17 @@ class LogTailPanel(QDockWidget):
         """)
 
     def watch(self, filepath):
-        """监视文件"""
+        """监视文件；filepath=None 表示停止监视"""
+        # 停止监视（修复：原实现直接 basename(None) 会崩）
+        if not filepath:
+            if (self.current_file and
+                    self.current_file in self.watcher.files()):
+                self.watcher.removePath(self.current_file)
+            self.current_file = None
+            self.last_size = 0
+            self.file_label.setText("(未选择)")
+            return
+
         if self.current_file == filepath:
             return
 
@@ -109,7 +125,7 @@ class LogTailPanel(QDockWidget):
         if not self.current_file or not os.path.exists(self.current_file):
             return
         try:
-            with open(self.current_file, 'r',
+            with open(self.current_file,
                       encoding='utf-8', errors='replace') as f:
                 content = f.read()
             self.view.setPlainText(content)
@@ -147,7 +163,7 @@ class LogTailPanel(QDockWidget):
                 self.last_size = 0
                 self.view.clear()
 
-            with open(self.current_file, 'r',
+            with open(self.current_file,
                       encoding='utf-8', errors='replace') as f:
                 f.seek(self.last_size)
                 new_content = f.read()
@@ -194,9 +210,9 @@ class Plugin(PluginBase):
     def show_panel(self):
         """显示面板"""
         if not self._panel:
-            self._panel = LogTailPanel(self.api.win)
+            self._panel = LogTailPanel(self.api._host_window())
             # 修复: 使用 Qt 枚举而非裸 int
-            self.api.win.addDockWidget(
+            self.api._host_window().addDockWidget(
                 Qt.BottomDockWidgetArea, self._panel
             )
         self._panel.show()

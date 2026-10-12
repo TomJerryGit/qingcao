@@ -2,12 +2,21 @@
 """TODO 面板插件"""
 import os
 import re
-from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QPushButton, QLineEdit, QFileDialog, QLabel
-)
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import (
+    QDockWidget,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.plugins import PluginBase
 
@@ -21,9 +30,10 @@ TODO_PATTERN = re.compile(
 class TodoPanel(QDockWidget):
     """TODO 面板"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, api, main_window, parent=None):
         super().__init__("TODO", parent or main_window)
         self.setObjectName("TodoPanel")
+        self.api = api
         self.main_window = main_window
 
         self._build_ui()
@@ -117,8 +127,10 @@ class TodoPanel(QDockWidget):
     def scan_current_file(self):
         """扫描当前文件"""
         try:
-            text = self.main_window.api.get_current_text()
-            filepath = self.main_window.api.get_current_filepath() or ""
+            if self.api is None:
+                return
+            text = self.api.get_current_text()
+            filepath = self.api.get_current_filepath() or ""
 
             items = self._scan_text(text, filepath)
             self._add_items(items)
@@ -151,7 +163,7 @@ class TodoPanel(QDockWidget):
 
                 fpath = os.path.join(root, fname)
                 try:
-                    with open(fpath, 'r', encoding='utf-8',
+                    with open(fpath, encoding='utf-8',
                               errors='replace') as f:
                         text = f.read()
                     items = self._scan_text(text, fpath)
@@ -235,7 +247,8 @@ class Plugin(PluginBase):
 
     def on_activate(self):
         self.api.log("TODO 面板插件已激活")
-        self._panel = TodoPanel(self.api.win)
+        # D3 修复：懒创建面板，避免反复启停堆叠 dock
+        self._panel = None
 
         # C4: 避开主窗口的 Ctrl+Shift+T（恢复标签）
         self.api.add_menu(
@@ -245,14 +258,24 @@ class Plugin(PluginBase):
         )
 
     def on_deactivate(self):
-        if self._panel:
-            self._panel.close()
+        # D3: 显式销毁而非只 close
+        if self._panel is not None:
+            try:
+                self.api._host_window().removeDockWidget(self._panel)
+            except Exception:
+                pass
+            self._panel.deleteLater()
+            self._panel = None
 
-    def show_panel(self):
-        # 修复: 使用 Qt 枚举而非裸 int
-        if not self._panel.isVisible():
-            self.api.win.addDockWidget(
+    def _ensure_panel(self):
+        """懒创建面板；首次显示时才实例化并加 dock"""
+        if self._panel is None:
+            self._panel = TodoPanel(self.api, self.api._host_window())
+            self.api._host_window().addDockWidget(
                 Qt.BottomDockWidgetArea, self._panel
             )
+
+    def show_panel(self):
+        self._ensure_panel()
         self._panel.setVisible(True)
         self._panel.raise_()

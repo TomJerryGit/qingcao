@@ -31,20 +31,27 @@
 - 处理配置持久化
 """
 
-import os
-import json
-import time
-import shutil
-import traceback
 import datetime
-from typing import Optional, List, Dict, Any, Callable, Tuple, Set
-from dataclasses import dataclass, field, asdict
+import json
+import os
+import shutil
+import time
+import traceback
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QObject, QSettings, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, QSettings, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
-    QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextBrowser, QCheckBox, QDialogButtonBox
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextBrowser,
+    QVBoxLayout,
 )
 
 
@@ -530,9 +537,21 @@ class PluginManager(QObject):
         try:
             from infrastructure.plugin_loader import PluginLoader
 
+            # P1-2: 读取热重载偏好（默认开启）
+            hot_reload = True
+            try:
+                prefs = getattr(self.main_window, 'prefs', None)
+                if prefs is not None:
+                    hot_reload = bool(prefs.get(
+                        "plugin_hot_reload", True
+                    ))
+            except Exception:
+                pass
+
             self.loader = PluginLoader(
                 plugin_dir=self.plugin_dir,
-                enable_watcher=False,
+                enable_watcher=True,
+                hot_reload_enabled=hot_reload,
             )
 
             # 连接 loader 信号
@@ -552,10 +571,7 @@ class PluginManager(QObject):
     def _connect_event_bus(self):
         """连接到全局事件总线"""
         try:
-            from app.event_bus import (
-                bus, PluginLoadedEvent, PluginUnloadedEvent,
-                PluginErrorEvent
-            )
+            from app.event_bus import PluginErrorEvent, PluginLoadedEvent, PluginUnloadedEvent, bus
             # 将 plugin_manager 的信号转发到事件总线
             self.plugin_loaded.connect(
                 lambda name: bus.emit_event(PluginLoadedEvent(
@@ -607,6 +623,13 @@ class PluginManager(QObject):
 
             # 应用禁用配置
             self._apply_disabled_config()
+
+            # P1-2: 启动目录监控（热重载）
+            try:
+                if getattr(self.loader, 'enable_watcher', False):
+                    self.loader.start_watching()
+            except Exception as e:
+                print(f"[PluginManager] 启动热重载监控失败: {e}")
 
             self.plugins_changed.emit()
             return result
