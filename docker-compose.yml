@@ -5,27 +5,58 @@
 #   本配置使用 X11 socket 转发（/tmp/.X11-unix）显示 GUI，
 #   仅适用于 Linux 主机。Windows / macOS 用户请直接运行
 #   `python main.py`，或使用 WSL2（Windows）。
+#
+# 已修复：
+#   * 删除已废弃的 `version: '3.8'` 字段（Compose V2 会告警）。
+#   * test 服务的镜像改用 INSTALL_DEV=1 构建 —— 原配置只装运行时依赖，
+#     `python -m pytest` 会 ModuleNotFoundError。
+#   * 两个服务统一排除 realserver 标记（需要真实语言服务器）。
 # ============================================================
-
-version: '3.8'
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "1"
     volumes:
       - .:/app
       - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
       - DISPLAY=${DISPLAY}
       - PYTHONPATH=/app
+      - QT_QPA_PLATFORM=
     stdin_open: true
     tty: true
     command: python main.py
 
   test:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "1"
     volumes:
       - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - QT_QPA_PLATFORM=offscreen
+      - PYTEST_QT_API=pyqt5
     # B8 修复：改用 pytest（unittest 会绕过 conftest.py 的 fixture，
     # 特别是 _isolate_qsettings 会失效，污染用户真实配置）
-    command: python -m pytest tests/ -v
+    # realserver 需要真实 python-lsp-server，默认排除
+    command: python -m pytest tests/ -v -m "not realserver"
+
+  # 静态检查（lint + 版本一致性 + 翻译编译），与 CI 的门禁保持一致
+  lint:
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "1"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    command: >
+      sh -c "ruff check . &&
+             python tools/check_version.py &&
+             python tools/compile_locale.py --check"
