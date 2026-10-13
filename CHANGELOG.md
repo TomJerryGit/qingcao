@@ -34,6 +34,70 @@
   下拉框 : ['llama3.2:latest']   ← 由 /api/tags 动态获取
   ```
 
+### 修复（打包）
+
+- **插件运行时依赖未被打进产物（v2.1.0 打包缺陷）**
+  `plugins/` 是作为**数据文件**打包的（`datas` 里的
+  `('plugins', 'plugins')`），由 `plugin_loader` 用
+  `importlib.util.spec_from_file_location` 在**运行时**从源码加载。
+  PyInstaller 的静态分析**看不到插件源码里的 import**，因此插件依赖的
+  模块必须在 `hiddenimports` 中显式列出。
+
+  本次新增的三个模块恰好都不在白名单里：
+
+  | 模块 | 用途 | 后果 |
+  |---|---|---|
+  | `core.ollama_client` | Ollama 本地模型管理 | Ollama 功能不可用 |
+  | `core.ai_cache` | AI 结果缓存 | 缓存静默失效 |
+  | `ui.ai_inline_completer` | AI 行内补全 | 行内补全不可用 |
+
+  实证（解包 exe 内的 PYZ 归档核对）：
+  * 修复前 PYZ 模块数 815，三个模块**全部缺失**
+  * 修复后 PYZ 模块数 818，三个模块**全部就位**
+
+  修复方式：在 `build.py` 的 `collect_hidden_imports()` 中新增
+  `plugin_runtime_deps` 列表，并加了注释说明"为什么插件依赖必须显式
+  列出"，避免以后新增插件依赖时再次遗漏。
+
+  判断方法（以后可复用）：扫描 `plugins/**/*.py` 里 import 的项目内
+  模块，取与 `hiddenimports` 的差集。本次差集恰好就是这三个。
+
+### 打包验证方法（可复用）
+
+打包产物最容易被误判：业务模块被塞进 exe 内的 **PYZ 压缩归档**，
+直接对 exe 做字符串搜索找不到任何模块名（压缩所致），会得出"模块没
+打进去"的错误结论。正确做法有两种：
+
+1. **解包 PYZ 核对**
+   ```python
+   from PyInstaller.archive.readers import CArchiveReader, ZlibArchiveReader
+   car = CArchiveReader(r"dist\QingCaoEditor\QingCaoEditor.exe")
+   open("pyz.tmp","wb").write(car.extract("PYZ.pyz"))
+   mods = set(ZlibArchiveReader("pyz.tmp").toc)      # 逐个模块核对
+   ```
+
+2. **运行期诊断**（最可靠）
+   临时在 `main.py` 里挂一个 `QTimer` 回调，把已激活插件与菜单树写到
+   文件后 `app.quit()`，用 `QT_QPA_PLATFORM=offscreen` 跑一次 exe。
+   本次验证结果：
+   ```
+   插件规范数: 10   已激活插件数: 10
+   工具菜单条目数: 69
+   AI 助手/ （22 项，含 Ollama 与行内补全）
+   插件依赖模块可导入性: core.ai_cache OK / core.ollama_client OK
+                        ui.ai_inline_completer OK / core.ai_client OK
+   ```
+
+  注意：`ROOT_DIR` 在冻结后是 **`_internal`**，所以诊断文件会写到
+  `dist\QingCaoEditor\_internal\` 而不是 exe 同级目录。
+
+### 分发
+
+- Inno Setup 未安装，`build_installer.py` 无法运行（会提示安装地址）。
+  本次改为提供**便携 ZIP**：`dist/QingCaoEditor-v2.1.0-portable.zip`
+  （57.7 MB，427 条目）。已解压到全新目录验证：417 文件、
+  `--version` 输出 v2.1.0、插件源码与工作区一致。
+
 ### 新增（AI 会话按文件归档）
 
 单一会话窗口下，多文件交替提问会把上下文混在一起 —— 聊 A 文件的内容

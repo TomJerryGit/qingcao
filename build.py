@@ -403,7 +403,8 @@ def collect_hidden_imports() -> List[str]:
         'core.editor', 'core.events', 'core.log_lexer',
         'core.lsp_client', 'core.lsp_installer', 'core.macro',
         'core.project', 'core.search',
-        'core.undo', 'core.ai_client', 'core.benchmark',
+        'core.undo', 'core.ai_client', 'core.ai_cache',
+        'core.ollama_client', 'core.benchmark',
         'core.code_metrics', 'core.code_smell', 'core.code_templates',
         'core.collab', 'core.crash_reporter', 'core.exporter',
         'core.file_merge', 'core.formatter', 'core.git_client',
@@ -419,6 +420,25 @@ def collect_hidden_imports() -> List[str]:
         'infrastructure.plugin_updater', 'infrastructure.sound_manager',
         'infrastructure.theme_loader',
     ]
+
+    # 插件运行时依赖
+    #
+    # 关键：`plugins/` 是作为**数据文件**打包的（见 datas 里的
+    # ('plugins', 'plugins')），由 plugin_loader 用
+    # `importlib.util.spec_from_file_location` 在**运行时**从源码加载。
+    # PyInstaller 的静态分析**看不到插件源码里的 import**，因此插件
+    # 依赖的模块必须在这里显式列出，否则打包后插件会导入失败
+    # （表现为插件功能静默消失）。
+    #
+    # 判断方法：扫描 plugins/**/*.py 里 import 的项目内模块，
+    # 取差集。详见 CHANGELOG「打包」一节。
+    plugin_runtime_deps = [
+        'core.ai_cache',          # 插件：AI 结果缓存
+        'core.ollama_client',     # 插件：Ollama 本地模型管理
+        'ui.ai_inline_completer',  # 插件：AI 行内补全
+    ]
+    project_modules.extend(plugin_runtime_deps)
+
     for m in project_modules:
         try:
             __import__(m)
