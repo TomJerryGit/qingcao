@@ -47,6 +47,7 @@
 import json
 import os
 import sys
+import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5.QtCore import QSettings, Qt, QThread, QTimer, pyqtSignal
@@ -60,8 +61,11 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
@@ -69,7 +73,16 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QTextBrowser,
     QVBoxLayout,
+    QWidget,
 )
+
+
+try:
+    from core.ollama_client import OllamaClient
+except ImportError:                       # 独立运行插件时的兜底
+    sys.path.insert(0, os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))))
+    from core.ollama_client import OllamaClient
 
 
 # ============================================================
@@ -735,10 +748,19 @@ class AIConfigDialog(QDialog):
 
         layout.addLayout(form)
 
+        # Ollama 探测结果提示（仅在 provider=ollama 时显示）
+        self.ollama_hint = QLabel("")
+        self.ollama_hint.setWordWrap(True)
+        self.ollama_hint.setStyleSheet(
+            "color: #4ec9b0; font-size: 11px; padding: 4px 0;")
+        self.ollama_hint.setVisible(False)
+        layout.addWidget(self.ollama_hint)
+
         # 提示
         hint = QLabel(
             "💡 提示：\n"
-            "  · Ollama 本地模型无需 API Key\n"
+            "  · Ollama 本地模型无需 API Key；模型列表会自动从本机 Ollama 读取\n"
+            "  · 更完整的模型管理（拉取/删除/已加载）见：工具 → AI 助手 → 🦙 Ollama 管理面板\n"
             "  · API Key 存储在 QSettings（明文），请勿在共享环境使用"
         )
         hint.setStyleSheet("color: #888; font-size: 11px; padding: 8px;")
@@ -877,6 +899,12 @@ class AIConfigDialog(QDialog):
             }
             models = defaults.get(provider, [])
 
+        # Ollama：优先用本地服务真实安装的模型（覆盖硬编码列表）
+        # 硬编码列表只是"连不上时"的兜底提示，避免下拉框为空。
+        ollama_note = ""
+        if provider == "ollama":
+            models, ollama_note = self._fetch_ollama_models(models)
+
         for m in models:
             self.model_combo.addItem(m)
 
@@ -885,6 +913,49 @@ class AIConfigDialog(QDialog):
             self.api_key_edit.setPlaceholderText("（本地模型无需 Key）")
         else:
             self.api_key_edit.setPlaceholderText("sk-...")
+
+        # 把 Ollama 的探测结果提示给用户
+        if ollama_note:
+            try:
+                self.ollama_hint.setText(ollama_note)
+                self.ollama_hint.setVisible(True)
+            except Exception:
+                pass
+        else:
+            try:
+                self.ollama_hint.setVisible(False)
+            except Exception:
+                pass
+
+    def _fetch_ollama_models(self, fallback: List[str]):
+        """向本机 Ollama 查询已安装模型。
+
+        返回 (模型名列表, 提示文本)。查询失败时回退到 fallback，
+        并把失败原因作为提示返回 —— 不阻塞、不抛异常。
+        """
+        try:
+            host = (self.base_url_edit.text().strip()
+                    or OllamaClient.DEFAULT_HOST)
+            # base_url 可能是 OpenAI 兼容端点（带 /v1），去掉后用于原生 API
+            host = host.rstrip('/')
+            if host.endswith('/v1'):
+                host = host[:-3]
+            cli = OllamaClient(host)
+            ok, models = cli.list_models()
+            if not ok:
+                return fallback, ("⚠️ 未能连接 Ollama（%s）。下拉框显示的是"
+                                  "常见模型名，请确认服务已启动：ollama serve"
+                                  % host)
+            if not models:
+                return fallback, ("⚠️ Ollama 已连接，但尚未安装任何模型。"
+                                  "先运行：ollama pull qwen2.5:7b   "
+                                  "（或使用 工具 → AI 助手 → 🦙 Ollama 管理面板）")
+            names = [m["name"] for m in models]
+            return names, ("✅ 已从本机 Ollama 读取 %d 个模型：%s"
+                           % (len(names), "、".join(names[:5])
+                              + ("…" if len(names) > 5 else "")))
+        except Exception as e:
+            return fallback, "⚠️ 查询 Ollama 失败：%s" % e
 
     def _on_test(self):
         """测试连接"""
@@ -963,6 +1034,378 @@ class AIConfigDialog(QDialog):
 
 
 # ============================================================
+# Ollama 管理面板
+# ============================================================
+class OllamaPanel(QWidget):
+    """Ollama 本地模型管理面板（停靠窗口）
+
+    功能：
+      * 服务状态（运行中 / 未启动）+ 版本号
+      * 已安装模型列表（名称、大小、参数量、量化、修改时间）
+      * 内存中已加载模型（/api/ps）
+      * 拉取新模型（/api/pull，带实时进度）
+      * 删除模型（/api/delete）
+      * 连通性测试
+      * 一键把 Base URL / 模型填入 AI 配置
+
+    说明：
+      * 所有网络调用都在**后台 `threading.Thread`** 中执行，不阻塞 UI；
+      * 跨线程结果通过 `QObject` 的 `pyqtSignal` 桥回主线程 —— 这是本项目
+        已验证的正确样板（参见 `core/search.py::FileSearcher`）。
+        刻意**不用 `QThread`**：`QThread` 若在运行中被析构，Qt 会打印
+        "QThread: Destroyed while thread is still running" 并可能
+        `qFatal()`；`threading.Thread`（daemon）没有这个析构约束，
+        窗口关闭时不会崩。
+      * 面板可独立于 AI 配置对话框使用。
+    """
+
+    # 由主插件转发给 PluginAPI
+    log = pyqtSignal(str)
+    # 后台线程 → 主线程的信号桥
+    _refresh_done = pyqtSignal(bool, str, list, list)
+    _pull_progress = pyqtSignal(int, str)
+    _pull_done = pyqtSignal(bool, str)
+
+    def __init__(self, plugin=None, parent=None, auto_refresh=True):
+        super().__init__(parent)
+        self._plugin = plugin
+        self._client = OllamaClient()
+        self._models: List[Dict[str, Any]] = []
+        self._pull_thread = None
+        self._busy = False
+        self._build_ui()
+        # 后台线程 → 主线程的连接
+        self._refresh_done.connect(self._on_refresh_done)
+        self._pull_progress.connect(self._on_pull_progress)
+        self._pull_done.connect(self._on_pull_done)
+        # 首次自动刷新（测试可传 auto_refresh=False 跳过）
+        if auto_refresh:
+            QTimer.singleShot(200, self.refresh)
+
+    # --------------------------------------------------------
+    # UI
+    # --------------------------------------------------------
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        # --- 状态行 ---
+        top = QHBoxLayout()
+        self.status_dot = QLabel("●")
+        self.status_dot.setStyleSheet("color: #888; font-size: 15px;")
+        self.status_label = QLabel("正在检测 Ollama 服务…")
+        self.refresh_btn = QPushButton("🔄 刷新")
+        self.refresh_btn.clicked.connect(self.refresh)
+        self.test_btn = QPushButton("🔌 测试连接")
+        self.test_btn.clicked.connect(self.test_connection)
+        top.addWidget(self.status_dot)
+        top.addWidget(self.status_label, 1)
+        top.addWidget(self.test_btn)
+        top.addWidget(self.refresh_btn)
+        layout.addLayout(top)
+
+        # --- 模型列表 ---
+        layout.addWidget(QLabel("已安装模型："))
+        self.model_list = QListWidget()
+        self.model_list.setAlternatingRowColors(True)
+        self.model_list.currentRowChanged.connect(self._on_selection_changed)
+        self.model_list.itemDoubleClicked.connect(self._on_item_double_clicked)
+        layout.addWidget(self.model_list, 1)
+
+        # --- 操作按钮 ---
+        btns = QHBoxLayout()
+        self.pull_btn = QPushButton("⬇ 拉取模型…")
+        self.pull_btn.clicked.connect(self._on_pull)
+        self.delete_btn = QPushButton("🗑 删除选中")
+        self.delete_btn.clicked.connect(self._on_delete)
+        self.delete_btn.setEnabled(False)
+        self.use_btn = QPushButton("✓ 用于 AI 配置")
+        self.use_btn.clicked.connect(self._on_use_for_ai)
+        self.use_btn.setEnabled(False)
+        btns.addWidget(self.pull_btn)
+        btns.addWidget(self.delete_btn)
+        btns.addWidget(self.use_btn)
+        btns.addStretch(1)
+        layout.addLayout(btns)
+
+        # --- 进度 ---
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setFormat("%p%  %v")
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
+
+        self.detail_label = QLabel("")
+        self.detail_label.setWordWrap(True)
+        self.detail_label.setStyleSheet("color: #999; font-size: 11px;")
+        layout.addWidget(self.detail_label)
+
+        self._apply_style()
+
+    def _apply_style(self):
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #0e639c; color: #ffffff;
+                border: none; padding: 5px 12px; border-radius: 3px;
+                min-width: 70px;
+            }
+            QPushButton:hover { background-color: #1177bb; }
+            QPushButton:disabled {
+                background-color: #3c3c3c; color: #666666;
+            }
+            QListWidget {
+                border: 1px solid #3c3c3c; border-radius: 3px;
+            }
+        """)
+
+    # --------------------------------------------------------
+    # 状态刷新
+    # --------------------------------------------------------
+    def _set_status(self, running: bool, text: str):
+        self.status_dot.setStyleSheet(
+            "color: %s; font-size: 15px;" % ("#4ec9b0" if running else "#f44747")
+        )
+        self.status_label.setText(text)
+
+    def refresh(self):
+        """刷新服务状态 + 模型列表（后台线程）"""
+        if self._busy:
+            return
+        self._busy = True
+        self.refresh_btn.setEnabled(False)
+        self._set_status(False, "正在检测…")
+
+        panel = self
+
+        def _worker():
+            # 任何异常都必须转成 ok=False：否则回调永不触发，
+            # 面板会永久停在"正在检测…"且 _busy 卡死（无法再刷新）。
+            try:
+                ok, status = panel._client.status_text()
+                models = panel._client.list_models()[1] if ok else []
+                running = panel._client.list_running()[1] if ok else []
+            except Exception as e:
+                ok, status, models, running = (
+                    False, "探测异常: %s" % e, [], [])
+            panel._refresh_done.emit(ok, status, models, running)
+
+        th = threading.Thread(target=_worker, daemon=True,
+                              name="ollama-refresh")
+        th.start()
+        self._refresh_thread = th
+
+    def _on_refresh_done(self, ok, status, models, running):
+        """刷新线程完成后的 UI 更新（在主线程执行）"""
+        self._busy = False
+        self.refresh_btn.setEnabled(True)
+        self._set_status(ok, status)
+        self._populate(models, running)
+
+    def _populate(self, models: List[Dict[str, Any]],
+                  running: List[Dict[str, Any]]):
+        running_names = {r["name"] for r in running}
+        self.model_list.clear()
+        self._models = models
+        for m in models:
+            loaded = "  ● 已加载" if m["name"] in running_names else ""
+            extra = "/".join(x for x in (m["parameter_size"],
+                                         m["quantization"]) if x)
+            item = QListWidgetItem("%s   [%s]%s\n     %s%s" % (
+                m["name"], m["size_text"], loaded,
+                (extra + "   ") if extra else "", m["modified_at"]))
+            item.setData(Qt.UserRole, m["name"])
+            item.setToolTip("名称: %s\n大小: %s\n参数: %s\n量化: %s\n家族: %s\n修改: %s" % (
+                m["name"], m["size_text"], m["parameter_size"] or "-",
+                m["quantization"] or "-", m["family"] or "-",
+                m["modified_at"]))
+            self.model_list.addItem(item)
+
+        n = len(models)
+        nr = len(running)
+        self.detail_label.setText(
+            "共 %d 个模型%s。双击可复制名称。" % (
+                n, ("，内存中已加载 %d 个" % nr) if nr else ""))
+        self._on_selection_changed(self.model_list.currentRow())
+
+    def _on_selection_changed(self, row: int):
+        has = row >= 0 and row < len(self._models)
+        self.delete_btn.setEnabled(has and not self._busy)
+        self.use_btn.setEnabled(has)
+
+    # --------------------------------------------------------
+    # 操作
+    # --------------------------------------------------------
+    def test_connection(self):
+        ok, status = self._client.status_text()
+        self._set_status(ok, status)
+        if ok:
+            QMessageBox.information(
+                self, "Ollama", "连接成功。\n\n服务状态：%s\nOpenAI 兼容端点：%s"
+                % (status, self._client.openai_base_url()))
+        else:
+            QMessageBox.warning(
+                self, "Ollama 未连接",
+                "无法连接 Ollama 服务。\n\n%s\n\n"
+                "请确认：\n"
+                "  1. 已安装 Ollama（https://ollama.com/download）\n"
+                "  2. 服务已启动：在终端运行 `ollama serve`\n"
+                "  3. 地址正确：%s" % (status, self._client.host))
+
+    def _selected_name(self) -> str:
+        row = self.model_list.currentRow()
+        if 0 <= row < len(self._models):
+            return self._models[row]["name"]
+        return ""
+
+    def _on_item_double_clicked(self, item):
+        """双击复制模型名（方便粘贴到终端 ollama run）"""
+        name = item.data(Qt.UserRole) or ""
+        if not name:
+            return
+        try:
+            QApplication.clipboard().setText(name)
+            self.detail_label.setText("已复制到剪贴板：%s" % name)
+        except Exception:
+            pass
+
+    def _on_pull(self):
+        if self._busy:
+            return
+        name, ok = QInputDialog.getText(
+            self, "拉取 Ollama 模型",
+            "模型名称（例如 qwen2.5:7b、deepseek-r1:8b、llama3.2）：")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        self._busy = True
+        self.pull_btn.setEnabled(False)
+        self.delete_btn.setEnabled(False)
+        self.progress.setVisible(True)
+        self.progress.setValue(0)
+        self.progress.setFormat("%p%  %v")
+        self.detail_label.setText("正在拉取 %s …" % name)
+
+        self._pull_name = name
+        panel = self
+
+        def _worker():
+            def on_event(ev):
+                # NDJSON 事件样例：
+                # {"status":"pulling manifest"}
+                # {"status":"downloading","total":N,"completed":M}
+                total = ev.get("total") or 0
+                done_n = ev.get("completed") or 0
+                pct = int(done_n * 100 / total) if total else 0
+                panel._pull_progress.emit(pct, str(ev.get("status") or ""))
+                return not getattr(panel, '_pull_cancelled', False)
+
+            ok2, msg = panel._client.pull_model(name, progress=on_event)
+            panel._pull_done.emit(ok2, msg)
+
+        th = threading.Thread(target=_worker, daemon=True, name="ollama-pull")
+        th.start()
+        self._pull_thread = th
+
+    def _on_pull_progress(self, pct, status):
+        """拉取进度（主线程）"""
+        if pct:
+            self.progress.setValue(pct)
+        self.detail_label.setText("%s  %s" % (status, getattr(self, '_pull_name', '')))
+
+    def _on_pull_done(self, ok2, msg):
+        """拉取结束（主线程）"""
+        name = getattr(self, '_pull_name', '')
+        self._busy = False
+        self.pull_btn.setEnabled(True)
+        self.progress.setVisible(False)
+        self.detail_label.setText("%s：%s" % (name, msg))
+        self.refresh()
+        if ok2:
+            QMessageBox.information(self, "Ollama",
+                                    "模型 %s 拉取完成。" % name)
+        else:
+            QMessageBox.warning(self, "拉取失败", "%s\n%s" % (name, msg))
+
+    def _on_delete(self):
+        name = self._selected_name()
+        if not name:
+            return
+        if QMessageBox.question(
+                self, "删除模型",
+                "确定删除本地模型 %s 吗？\n\n此操作会释放其占用的磁盘空间，"
+                "且不可撤销（需要时可用「拉取模型」重新下载）。" % name,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No) != QMessageBox.Yes:
+            return
+        ok, msg = self._client.delete_model(name)
+        if ok:
+            self.log.emit("[Ollama] 已删除模型 %s" % name)
+            self.refresh()
+        else:
+            QMessageBox.warning(self, "删除失败", msg)
+
+    def _on_use_for_ai(self):
+        """把选中的模型写入 AI 配置（provider=ollama）"""
+        name = self._selected_name()
+        if not name:
+            return
+        try:
+            s = QSettings("QingCao", "AI")
+            s.setValue("provider", "ollama")
+            s.setValue("model", name)
+            s.setValue("base_url", self._client.openai_base_url())
+            s.setValue("api_key", "")
+            s.sync()
+        except Exception as e:
+            QMessageBox.warning(self, "写入配置失败", str(e))
+            return
+        self.log.emit("[Ollama] AI 配置已切换为 %s" % name)
+        QMessageBox.information(
+            self, "已应用",
+            "AI 配置已更新：\n\n  提供商：Ollama (本地)\n  模型：%s\n"
+            "  端点：%s\n\n下次使用 AI 功能即生效。"
+            % (name, self._client.openai_base_url()))
+
+    # --------------------------------------------------------
+    # 供主插件调用
+    # --------------------------------------------------------
+    def status_summary(self) -> str:
+        """给状态栏用的一行摘要（不阻塞：只做短超时探测）"""
+        ok, text = self._client.status_text()
+        if not ok:
+            return "Ollama: 未启动"
+        n = len(self._client.list_models()[1])
+        return "Ollama: %s · %d 个模型" % (text, n)
+
+    # --------------------------------------------------------
+    # 线程收尾（避免 QThread 运行中被销毁 —— Qt 会 abort）
+    # --------------------------------------------------------
+    def _stop_threads(self, timeout_ms: int = 1500):
+        """等待后台线程结束（尽力而为）。
+
+        面板用的是 daemon `threading.Thread`，因此**不会**出现
+        `QThread` 那种"运行中被析构 → qFatal"的问题；这里只是尽量
+        让进行中的请求收尾，避免退出时打出无意义的 traceback。
+        """
+        for attr in ('_refresh_thread', '_pull_thread'):
+            th = getattr(self, attr, None)
+            if th is None:
+                continue
+            try:
+                if th.is_alive():
+                    th.join(timeout_ms / 1000.0)
+            except Exception:
+                pass
+
+    def closeEvent(self, event):
+        """面板关闭时等待线程结束"""
+        self._stop_threads()
+        super().closeEvent(event)
+
+
+# ============================================================
 # 插件主类
 # ============================================================
 class Plugin(PluginBase):
@@ -1025,10 +1468,143 @@ class Plugin(PluginBase):
         # 注册快捷键
         self._register_shortcuts()
 
+        # 注册 Ollama 管理面板（默认隐藏，从菜单打开）
+        self._setup_ollama_panel()
+
         self.api.log("AI 助手初始化完成")
+
+    # --------------------------------------------------------
+    # Ollama 管理面板
+    # --------------------------------------------------------
+    def _setup_ollama_panel(self):
+        """创建 Ollama 管理面板 + 状态栏指示 + 菜单入口。
+
+        面板能力（全部基于 Ollama 原生 REST API）：
+          * 服务状态与版本
+          * 已安装模型列表（大小/参数量/量化/修改时间）
+          * 内存中已加载模型
+          * 拉取模型（带进度）、删除模型
+          * 测试连接、一键写入 AI 配置
+        """
+        try:
+            self.ollama_panel = OllamaPanel(plugin=self)
+        except Exception as e:
+            self.api.log("创建 Ollama 面板失败: %s" % e, "error")
+            return
+
+        # 面板内的日志转给插件日志
+        try:
+            self.ollama_panel.log.connect(lambda m: self.api.log(m))
+        except Exception:
+            pass
+
+        # 注册为停靠面板（默认隐藏）
+        try:
+            self._ollama_dock = self.api.add_panel(
+                "Ollama 管理", self.ollama_panel,
+                area="right", visible=False,
+            )
+        except Exception as e:
+            self._ollama_dock = None
+            self.api.log("注册 Ollama 面板失败: %s" % e, "error")
+
+        # 菜单项：打开面板 / 快速测试
+        try:
+            if self._ollama_dock is not None:
+                a1 = self.api.add_menu(
+                    "工具/AI 助手/🦙 Ollama 管理面板",
+                    lambda: self._toggle_ollama_panel(),
+                    None,
+                )
+                if a1:
+                    self._menus.append(a1)
+            a2 = self.api.add_menu(
+                "工具/AI 助手/🦙 Ollama 状态检查",
+                lambda: self._check_ollama_status(),
+                None,
+            )
+            if a2:
+                self._menus.append(a2)
+        except Exception as e:
+            self.api.log("注册 Ollama 菜单失败: %s" % e, "error")
+
+        # 状态栏常驻指示（60 秒刷新一次，避免频繁探测）
+        #
+        # 注意：`PluginBase` 继承自 `object`，**不是 QObject**，
+        # 因此 `QTimer(self)` 会抛
+        # "TypeError: argument 1 has unexpected type 'Plugin'"。
+        # 定时器必须挂在面板（QWidget / QObject）上。
+        try:
+            self._ollama_timer = QTimer(self.ollama_panel)
+            self._ollama_timer.setInterval(60_000)
+            self._ollama_timer.timeout.connect(self._refresh_ollama_status)
+            self._ollama_timer.start()
+        except Exception as e:
+            self._ollama_timer = None
+            self.api.log("创建 Ollama 状态定时器失败: %s" % e, "error")
+
+        # 启动后延迟做一次状态提示（不阻塞启动）
+        try:
+            QTimer.singleShot(3000, self._refresh_ollama_status)
+        except Exception:
+            pass
+
+    def _toggle_ollama_panel(self):
+        """显示/隐藏 Ollama 面板"""
+        dock = getattr(self, '_ollama_dock', None)
+        if dock is None:
+            self.api.show_status(
+                "Ollama 面板未注册（可能缺少 dialog 权限）", 4000, "warning")
+            return
+        try:
+            if dock.isVisible():
+                dock.hide()
+            else:
+                dock.show()
+                dock.raise_()
+                panel = getattr(self, 'ollama_panel', None)
+                if panel is not None:
+                    panel.refresh()
+        except Exception as e:
+            self.api.log("切换 Ollama 面板失败: %s" % e, "error")
+
+    def _check_ollama_status(self):
+        """菜单触发的状态检查（在后台线程做，避免阻塞 UI）"""
+        panel = getattr(self, 'ollama_panel', None)
+        if panel is None:
+            return
+        panel.test_connection()
+        self._refresh_ollama_status()
+
+    def _refresh_ollama_status(self):
+        """刷新状态栏摘要（用短超时，失败静默）"""
+        panel = getattr(self, 'ollama_panel', None)
+        if panel is None:
+            return
+        try:
+            summary = panel.status_summary()
+            self.api.show_status("🦙 %s" % summary, 3000, "info")
+        except Exception:
+            pass
 
     def on_deactivate(self):
         """卸载时调用"""
+        # 停止 Ollama 状态定时器 + 等待后台线程结束
+        try:
+            if getattr(self, '_ollama_timer', None) is not None:
+                self._ollama_timer.stop()
+                self._ollama_timer = None
+        except Exception:
+            pass
+        try:
+            panel = getattr(self, 'ollama_panel', None)
+            if panel is not None:
+                panel._stop_threads()
+        except Exception:
+            pass
+        self.ollama_panel = None
+        self._ollama_dock = None
+
         # 关闭所有活动对话框
         for dlg in list(self._active_dialogs):
             try:

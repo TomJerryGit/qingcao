@@ -6,6 +6,55 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **Ollama 本地模型管理（完整）**
+  编辑器原本已支持 `ollama` provider（OpenAI 兼容端点），但模型下拉框用的是
+  **硬编码列表**，用户本地装了哪些模型界面上看不到，只能手工输入名称。
+
+  本次补齐：
+
+  * `core/ollama_client.py` —— Ollama **原生 REST** 客户端（纯标准库，
+    不新增依赖），封装 `/api/tags`、`/api/ps`、`/api/pull`（流式）、
+    `/api/delete`、`/api/show`、`/api/version`。所有方法**不抛异常**，
+    统一返回 `(ok, msg)`，便于 UI 直接展示。
+  * **独立停靠面板**「Ollama 管理」（工具 → AI 助手 → 🦙 Ollama 管理面板）：
+    服务状态与版本、模型列表（名称/大小/参数量/量化/修改时间）、
+    内存中已加载模型、拉取模型（实时进度）、删除模型、连通性测试、
+    双击复制模型名、一键写入 AI 配置。
+  * **配置对话框动态拉取**：选中 Ollama 时从本机 `/api/tags` 读取真实
+    模型填入下拉框，并显示探测结果提示（未启动 / 无模型 / 已读取 N 个）。
+  * **状态栏常驻指示**：每 60 秒刷新一行 `🦙 Ollama: 运行中 vX · N 个模型`。
+
+  **实测**（本机 Ollama v0.34.4）：
+  ```
+  状态   : 运行中 v0.34.4
+  模型   : llama3.2:latest  [1.9 GB]  3.2B/Q4_K_M  2026-09-21
+  摘要   : Ollama: 运行中 v0.34.4 · 1 个模型
+  下拉框 : ['llama3.2:latest']   ← 由 /api/tags 动态获取
+  ```
+
+### 修复
+
+- **`ui/main_window.py` 关闭路径收尾（审计 F-2）**
+  `closeEvent` 原先只停两个主窗口定时器就 `app.quit()`，导致插件持有的
+  后台线程在运行中被析构（Qt 打印 "QThread: Destroyed while thread is
+  still running"，可能 `qFatal()`）、插件热重载 watcher 未停止、
+  语言服务器子进程在 Windows 上变孤儿。
+  新增 `_shutdown_background_work()`：显式收尾面板线程 → 停止插件
+  watcher → 逐个 `proxy.close()`（停 LSP/草稿定时器；该方法不含对话框，
+  不会重复询问未保存）。所有步骤独立 try/except，不阻断退出。
+
+- **`QTimer(self)` 在插件里必然失败**
+  `PluginBase` 继承自 `object` 而**不是 `QObject`**，因此
+  `QTimer(self)` 抛 `TypeError: argument 1 has unexpected type 'Plugin'`，
+  又被宽 `except` 静默吞掉。定时器改挂到面板（QWidget 即 QObject）。
+
+- **插件后台线程统一改用 `threading.Thread` + `QObject` 信号桥**
+  `QThread.run()` 不响应 `requestInterruption()`，运行中被析构还会触发
+  Qt 警告/qFatal。改为 daemon `threading.Thread`（同项目
+  `core/search.py::FileSearcher` 的既有正确样板），彻底消除该竞态。
+
 ### 计划中
 - 更多 LSP 语言支持
 - 协作编辑完善

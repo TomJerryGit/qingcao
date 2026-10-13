@@ -2322,6 +2322,18 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             if hasattr(self, '_session_timer'):
                 self._session_timer.stop()
 
+            # 阶段 2.1（关闭路径收尾）：停止插件后台线程与文件监听。
+            #
+            # 背景：closeEvent 原先只停两个主窗口定时器就 app.quit()，
+            # 而插件可能持有 QThread（如 AI 助手的 Ollama 刷新/拉取线程）
+            # 与 QFileSystemWatcher（插件热重载）。Windows 上父进程退出
+            # 不会连带清理子进程，且 QThread 在**运行中**被析构时 Qt 会
+            # 打印 "QThread: Destroyed while thread is still running"
+            # 并可能 qFatal() 导致异常退出。
+            #
+            # 这里逐个显式收尾，任何一步失败都不影响退出流程。
+            self._shutdown_background_work()
+
             event.accept()
 
             # 显式退出事件循环（双保险，不依赖 setQuitOnLastWindowClosed）
@@ -2342,6 +2354,88 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                     app.quit()
             except Exception:
                 pass
+
+    # ========================================================
+    # 关闭时的后台资源收尾（阶段 2.1）
+    # ========================================================
+    def _shutdown_background_work(self, timeout_ms: int = 2000):
+        """在退出前显式停止后台线程、插件监听与语言服务器。
+
+        这是对审计报告 F-2 的修复：原先 `closeEvent` 只停两个主窗口
+        定时器就 `app.quit()`，导致：
+
+          * 插件持有的 `QThread`（AI 助手 Ollama 刷新/拉取）在运行中被
+            析构 → Qt 打印 "QThread: Destroyed while thread is still
+            running"，可能 `qFatal()`；
+          * 插件热重载的 `QFileSystemWatcher` 未停止；
+          * 每份文档的语言服务器子进程未被 kill（Windows 上会变孤儿）。
+
+        所有步骤各自 try/except，任何失败都不阻断退出。
+        """
+        import time as _time
+
+        # 1. 插件线程 + 面板线程
+        try:
+            pm = getattr(self, 'plugin_manager', None)
+            loader = getattr(pm, 'loader', None) if pm is not None else None
+            specs = getattr(loader, 'specs', None) or {}
+            for spec in specs.values():
+                inst = getattr(spec, 'instance', None)
+                if inst is None:
+                    continue
+                # 面板的线程收尾
+                panel = getattr(inst, 'ollama_panel', None)
+                if panel is not None:
+                    try:
+                        panel._stop_threads(timeout_ms)
+                    except Exception:
+                        pass
+                # 插件自定义的线程收尾钩子（若实现）
+                hook = getattr(inst, 'shutdown_background', None)
+                if callable(hook):
+                    try:
+                        hook()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 2. 插件热重载目录监控
+        try:
+            pm = getattr(self, 'plugin_manager', None)
+            loader = getattr(pm, 'loader', None) if pm is not None else None
+            if loader is not None and hasattr(loader, 'stop_watching'):
+                loader.stop_watching()
+        except Exception:
+            pass
+
+        # 3. 各标签的编辑器资源（停 LSP 子进程、停草稿定时器、摘文件监听）
+        #    注意：这里不弹"未保存"对话框 —— closeEvent 已经在前面问过了。
+        try:
+            tabs = getattr(self, 'tabs', None)
+            if tabs is not None and hasattr(tabs, 'count'):
+                for i in range(tabs.count()):
+                    try:
+                        widget = tabs.widget(i)
+                        proxy = getattr(widget, 'proxy', None)
+                        if proxy is not None and hasattr(proxy, 'close'):
+                            proxy.close()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 4. 给事件循环一点时间处理 deleteLater（避免悬空对象告警）
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                deadline = _time.time() + (timeout_ms / 1000.0)
+                while _time.time() < deadline:
+                    app.processEvents()
+                    _time.sleep(0.01)
+                    break
+        except Exception:
+            pass
 
     # ========================================================
     # 调试
