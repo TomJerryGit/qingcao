@@ -1075,6 +1075,104 @@ def main():
     QTimer.singleShot(100, deferred_init)
 
     # --------------------------------------------------------
+    # 插件加载自检报告（便于反馈"插件菜单不出现"这类问题）
+    #
+    # 为什么需要：打包后的程序是 GUI 模式（无控制台），插件加载信息
+    # 全部走 print() —— 实测**无法从外部捕获**（stdout 重定向得到 0 字节）。
+    # 所以主动把关键结论写成文件，用户只需把该文件发回即可定位问题。
+    #
+    # 报告路径：<ROOT_DIR>/plugin_report.txt
+    #   冻结后 ROOT_DIR 是 _internal/，同时在 exe 同级再写一份副本。
+    # --------------------------------------------------------
+    def _write_plugin_report():
+        out = []
+        try:
+            import platform
+            out.append("青草编辑器 插件加载自检报告")
+            out.append("=" * 56)
+            out.append("冻结运行   : %s" % bool(getattr(sys, "frozen", False)))
+            out.append("可执行文件 : %s" % sys.executable)
+            out.append("ROOT_DIR   : %s" % ROOT_DIR)
+            out.append("PLUGINS_DIR: %s" % PLUGINS_DIR)
+            out.append("插件目录存在: %s" % os.path.isdir(PLUGINS_DIR))
+            out.append("Python     : %s" % platform.python_version())
+            out.append("")
+
+            pm = getattr(window, "plugin_manager", None)
+            out.append("plugin_manager: %r" % (pm,))
+            loader = getattr(pm, "loader", None)
+            specs = getattr(loader, "specs", None) or {}
+            out.append("发现插件数: %d" % len(specs))
+            out.append("")
+            out.append("插件状态:")
+            for name in sorted(specs):
+                sp = specs[name]
+                inst = getattr(sp, "instance", None)
+                st = getattr(sp, "state", None)
+                out.append("  %-20s 状态=%-14s 实例=%s"
+                           % (name, getattr(st, "name", st),
+                              "有" if inst is not None else "无"))
+            active = [n for n, s in specs.items()
+                      if getattr(s, "instance", None) is not None]
+            out.append("")
+            out.append("已激活插件数: %d" % len(active))
+            out.append("")
+
+            out.append("工具菜单内容:")
+            tools = None
+            for a in window.menuBar().actions():
+                if "工具" in a.text() and a.menu():
+                    tools = a.menu()
+                    break
+            if tools is None:
+                out.append("  （未找到工具菜单）")
+            else:
+                def walk(menu, depth):
+                    for act in menu.actions():
+                        nm = act.text().replace("&", "")
+                        if act.menu():
+                            out.append("  " * (depth + 1) + nm + "/")
+                            walk(act.menu(), depth + 1)
+                        else:
+                            out.append("  " * (depth + 1) + nm)
+                walk(tools, 0)
+            out.append("")
+
+            out.append("插件依赖模块可导入性:")
+            for m in ("core.ai_client", "core.ai_cache", "core.ollama_client",
+                      "ui.ai_inline_completer", "core.git_client",
+                      "core.secure_storage", "infrastructure.plugin_loader"):
+                try:
+                    __import__(m)
+                    out.append("  %-30s OK" % m)
+                except Exception as e:
+                    out.append("  %-30s 失败: %s: %s"
+                               % (m, type(e).__name__, e))
+        except Exception:
+            import traceback
+            out.append("生成报告时出错:")
+            out.append(traceback.format_exc())
+
+        text = "\n".join(out)
+        targets = [os.path.join(ROOT_DIR, "plugin_report.txt")]
+        try:
+            exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+            if os.path.normcase(exe_dir) != os.path.normcase(ROOT_DIR):
+                targets.append(os.path.join(exe_dir, "plugin_report.txt"))
+        except Exception:
+            pass
+        for dst in targets:
+            try:
+                with open(dst, "w", encoding="utf-8") as f:
+                    f.write(text)
+                logger.info("插件报告已写出: %s" % dst)
+            except Exception:
+                pass
+
+    # 插件由主窗口的 100ms 定时器加载，这里留足时间
+    QTimer.singleShot(6000, _write_plugin_report)
+
+    # --------------------------------------------------------
     # 20. 进入事件循环
     # --------------------------------------------------------
     logger.info("即将进入事件循环")
