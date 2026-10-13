@@ -46,7 +46,77 @@ from PyQt5.QtWidgets import QApplication, QWidget
 THEME_FORMAT_VERSION = 2
 
 # 主题目录
+#
+# 注意（打包相关，踩过坑）：
+#   这是**相对路径**，依赖当前工作目录。开发时 cwd=仓库根目录，能找到
+#   themes/*.json；但打包后 themes/ 被 PyInstaller 放进 `_internal/themes`，
+#   exe 同级只有一个空的 themes/（留给用户自定义主题），于是
+#   `os.path.exists("themes/eye_protect.json")` 为假 ——
+#   **JSON 主题永远不会被加载**，静默回退到内置定义（见下面的
+#   `resolve_theme_dirs`）。这正是"护眼主题文字看不见"的根因之一。
 DEFAULT_THEME_DIR = "themes"
+
+
+def resolve_theme_dirs(primary: str = DEFAULT_THEME_DIR) -> List[str]:
+    """返回按优先级排列的主题搜索目录
+
+    顺序：
+      1. 传入目录（通常是 "themes"，即用户自定义主题所在）
+      2. 冻结运行时的内置目录 `_internal/themes`
+      3. 源码运行时的仓库目录 `<仓库根>/themes`
+      4. exe / 脚本所在目录下的 themes
+
+    为什么要多目录：用户自定义主题应优先于内置主题，而内置主题在
+    打包后位于 `_internal`。只查单一相对路径必然在某一种运行方式下失效。
+    """
+    dirs: List[str] = []
+
+    def add(p: str):
+        if p and p not in dirs:
+            dirs.append(p)
+
+    add(primary)
+
+    # 冻结运行：主题随 datas 打到 _internal/themes
+    if getattr(sys, "frozen", False):
+        try:
+            add(os.path.join(sys._MEIPASS, "themes"))
+        except Exception:
+            pass
+        try:
+            add(os.path.join(
+                os.path.dirname(os.path.abspath(sys.executable)),
+                "_internal", "themes"))
+        except Exception:
+            pass
+
+    # 源码运行：<仓库根>/themes（本文件在 infrastructure/ 下）
+    try:
+        add(os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "themes"))
+    except Exception:
+        pass
+
+    # 兜底：exe / 脚本同级
+    try:
+        add(os.path.join(
+            os.path.dirname(os.path.abspath(sys.executable)), "themes"))
+    except Exception:
+        pass
+
+    return dirs
+
+
+def find_theme_file(name: str, primary: str = DEFAULT_THEME_DIR,
+                    ) -> Optional[str]:
+    """按名称在候选目录中查找主题 JSON，返回绝对路径或 None"""
+    fname = name if name.endswith(".json") else "%s.json" % name
+    for d in resolve_theme_dirs(primary):
+        p = os.path.join(d, fname)
+        if os.path.isfile(p):
+            return p
+    return None
 
 # 内置主题文件名
 BUILTIN_THEMES = {
@@ -440,12 +510,12 @@ class BuiltinThemes:
                 selection="#b4d7ff",
                 selection_foreground="#000000",
                 line_number_bg="#f0f0f0",
-                line_number_fg="#999999",
+                line_number_fg="#8a8a8a",
                 line_number_active_fg="#333333",
                 margin_bg="#f0f0f0",
-                margin_fg="#999999",
+                margin_fg="#8a8a8a",
                 fold_margin_bg="#f0f0f0",
-                fold_margin_fg="#999999",
+                fold_margin_fg="#8a8a8a",
                 comment="#008000",
                 keyword="#0000ff",
                 number="#098658",
@@ -459,7 +529,7 @@ class BuiltinThemes:
                 brace_light_fg="#000000",
                 brace_light_bg="#ffff00",
                 brace_bad_fg="#ff0000",
-                indent_guide="#e0e0e0",
+                indent_guide="#d3d3d3",
                 search_highlight="#ffff00",
                 search_current="#ff8000",
                 smart_highlight="#dddddd",
@@ -501,7 +571,7 @@ class BuiltinThemes:
         return Theme(
             name="eye_protect",
             display_name="护眼",
-            type=ThemeType.DARK.value,
+            type=ThemeType.LIGHT.value,
             author="青草编辑器",
             description="柔和绿色，减少眼睛疲劳",
             colors=ThemeColors(
@@ -515,7 +585,7 @@ class BuiltinThemes:
                 line_number_fg="#5a7a5e",
                 margin_bg="#b8dfc0",
                 fold_margin_bg="#b8dfc0",
-                comment="#6b8e5e",
+                comment="#526d48",
                 keyword="#1a5f7a",
                 number="#8b4513",
                 string="#7d4e2e",
@@ -527,7 +597,7 @@ class BuiltinThemes:
                 menu_bg="#d5f0d8",
                 menu_selection="#8fc99a",
                 toolbar_bg="#b8dfc0",
-                statusbar_bg="#4a8f5e",
+                statusbar_bg="#438355",
                 statusbar_fg="#ffffff",
                 tab_bg="#b8dfc0",
                 tab_fg="#3a5f40",
@@ -537,6 +607,8 @@ class BuiltinThemes:
                 panel_fg="#2c3e2f",
                 border="#9cc9a5",
                 accent="#4a8f5e",
+                button_bg="#438355",
+                indent_guide="#96c6a0",
             ),
         )
 
@@ -844,7 +916,24 @@ class ThemeLoader(QObject):
 
     def load_by_name(self, name: str) -> Optional[Theme]:
         """
-        按名称加载主题（先从内置，再从目录）。
+        按名称加载主题。
+
+        **优先级：JSON 文件 > 内置定义**
+
+        为什么必须这样（真实缺陷）：
+            原实现**先**返回内置定义 `BuiltinThemes.get(name)`，而内置的
+            `eye_protect()` 只显式设置 32 个键（JSON 有 70 个），缺失的键
+            回退到 `ThemeColors` 的**暗色默认值**：
+
+                window_fg / menubar_fg / menu_fg -> #d4d4d4（浅灰）
+                button_bg                        -> #0e639c（暗蓝）
+
+            于是护眼主题（浅绿底 #c7edcc）上，菜单栏与工具栏文字变成浅灰，
+            **几乎不可见**。内置 `eye_protect.type` 还错标成 dark
+            （JSON 是 light）。
+
+            两个真相来源必然漂移。让完整的 JSON 优先，内置定义只作为
+            JSON 缺失时的后备。
 
         参数:
             name: 主题名称
@@ -852,49 +941,62 @@ class ThemeLoader(QObject):
         返回:
             Theme 或 None
         """
-        # 内置主题
+        # 1) 优先磁盘上的 JSON（完整定义；用户自定义主题也在此）
+        filepath = find_theme_file(name, self.theme_dir)
+        if filepath:
+            theme = self.load(filepath)
+            if theme is not None:
+                self.current_theme = theme
+                return theme
+
+        # 2) 后备：内置定义（可能与 JSON 不同步，仅用于兜底）
         builtin = BuiltinThemes.get(name)
         if builtin:
             self.current_theme = builtin
             self.theme_loaded.emit(builtin.name)
             return builtin
 
-        # 从目录加载
-        filepath = os.path.join(self.theme_dir, f"{name}.json")
-
-        if os.path.exists(filepath):
-            return self.load(filepath)
-
         return None
 
     def load_all(self) -> List[Theme]:
         """
-        加载主题目录下的所有主题。
+        加载所有可用主题。
+
+        优先级与去重：**同名时 JSON 覆盖内置定义**。
+
+        原因同 `load_by_name`：内置定义可能不完整（`eye_protect` 只显式
+        设置 32/70 个键），而 JSON 是完整的。若两者都返回，主题列表里会
+        出现两个同名项，选择到哪个取决于顺序 —— 这正是难以复现的
+        "主题时好时坏"的来源。
+
+        搜索目录用 `resolve_theme_dirs()`，覆盖打包后 `_internal/themes`
+        与源码运行的仓库 themes/ 两种情况。
 
         返回:
             Theme 列表
         """
-        themes = []
+        by_name: Dict[str, Theme] = {}
 
-        # 加载内置主题
-        themes.extend(BuiltinThemes.all_themes())
+        # 1) 内置定义（后备，先放进来会被 JSON 覆盖）
+        for t in BuiltinThemes.all_themes():
+            by_name[t.name] = t
 
-        # 加载目录中的主题
-        if os.path.isdir(self.theme_dir):
-            for filename in sorted(os.listdir(self.theme_dir)):
-                if not filename.endswith('.json'):
+        # 2) JSON 主题（优先）——按目录优先级覆盖同名内置定义
+        for d in resolve_theme_dirs(self.theme_dir):
+            if not os.path.isdir(d):
+                continue
+            for filename in sorted(os.listdir(d)):
+                if not filename.endswith(".json"):
                     continue
-
-                filepath = os.path.join(self.theme_dir, filename)
-
                 try:
-                    theme = self.load(filepath)
-                    if theme:
-                        themes.append(theme)
+                    theme = self.load(os.path.join(d, filename))
                 except Exception as e:
                     print(f"[ThemeLoader] 加载 {filename} 失败: {e}")
+                    continue
+                if theme is not None:
+                    by_name[theme.name] = theme
 
-        return themes
+        return list(by_name.values())
 
     # ========================================================
     # 应用主题
