@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""AI 四项增强的测试
+"""AI 增强的测试
 
 覆盖：
   ① 推理状态显示（分阶段 + 计时 + 字符计数）
   ② 结果缓存（键构成、LRU、容量与大小限制、线程安全）
   ③ 会话窗口（非模态、复用同一实例、新会话清空上下文）
+  ③b 按文件归档会话（隔离、还原、生成中切文件不串台）
   ④ 命令面板注册
 
 运行::
@@ -302,6 +303,121 @@ class TestSessionWindow:
         finally:
             QSettings("QingCao", "AI").setValue("session_window", True)
         assert isinstance(inst, Plugin)
+
+
+# =========================================================
+# ③b 按文件归档会话
+# =========================================================
+
+class TestPerFileSessions:
+    """多文件交替提问时，上下文必须各自独立"""
+
+    def _dlg(self):
+        from plugins.ai_assistant import AIResultDialog
+        d = AIResultDialog(title="t", main_window=None,
+                           enable_insert=True, parent=None)
+        d._client = FakeClient()
+        return d
+
+    def test_session_key_normalises_path_case(self):
+        from plugins.ai_assistant import AIResultDialog
+        # Windows 下同一文件的不同大小写写法必须归到同一会话，
+        # 否则同会话片段会被误判成"别的会话"而丢进后台缓冲
+        assert (AIResultDialog.session_key(r"D:\P\A.py")
+                == AIResultDialog.session_key(r"d:\p\a.py"))
+
+    def test_session_key_for_unsaved(self):
+        from plugins.ai_assistant import AIResultDialog
+        assert AIResultDialog.session_key("") == "(未命名)"
+        assert AIResultDialog.session_key("   ") == "(未命名)"
+
+    def test_switching_files_isolates_history(self, qapp):
+        dlg = self._dlg()
+        client = dlg._client
+        a, b = r"D:\p\alpha.py", r"D:\p\beta.py"
+
+        dlg.switch_to_file(a, "解释")
+        dlg._result_text += "A 结果"
+        client._history = [{"role": "user", "content": "问A"},
+                           {"role": "assistant", "content": "答A"}]
+
+        dlg.switch_to_file(b, "重构")
+        assert client._history == [], "B 是新会话，历史必须为空"
+        assert "A 结果" not in dlg._result_text, "B 窗口不该显示 A 的内容"
+        dlg._result_text += "B 结果"
+        client._history = [{"role": "user", "content": "问B"}]
+
+        # 切回 A：文本与历史都要还原
+        dlg.switch_to_file(a, "解释")
+        assert [m["content"] for m in client._history] == ["问A", "答A"]
+        assert "A 结果" in dlg._result_text
+        assert "B 结果" not in dlg._result_text
+
+        # 再切回 B 也要保留
+        dlg.switch_to_file(b)
+        assert [m["content"] for m in client._history] == ["问B"]
+        assert "B 结果" in dlg._result_text
+        dlg.close()
+
+    def test_session_count(self, qapp):
+        dlg = self._dlg()
+        dlg.switch_to_file(r"D:\p\a.py", "x")
+        assert dlg._session_count() == 1
+        dlg.switch_to_file(r"D:\p\b.py", "x")
+        assert dlg._session_count() == 2
+        dlg.switch_to_file(r"D:\p\a.py", "x")
+        assert dlg._session_count() == 2, "切回已有会话不应新建"
+        dlg.close()
+
+    def test_same_file_keeps_session(self, qapp):
+        dlg = self._dlg()
+        a = r"D:\p\a.py"
+        dlg.switch_to_file(a, "x")
+        dlg._result_text += "内容"
+        dlg.switch_to_file(a, "y")
+        assert dlg._session_count() == 1
+        assert "内容" in dlg._result_text, "同一文件内切换不该清空内容"
+        dlg.close()
+
+    def test_chunk_of_other_session_is_buffered(self, qapp):
+        """生成中切走文件时，片段不能显示到别的会话里"""
+        dlg = self._dlg()
+        a, b = r"D:\p\alpha.py", r"D:\p\beta.py"
+        dlg.switch_to_file(a, "x")
+        # 生产路径就是用 session_key 归一化后记录来源
+        from plugins.ai_assistant import AIResultDialog
+        dlg._chunk_session_key = AIResultDialog.session_key(a)
+        dlg._on_chunk("来自A")
+        assert "来自A" in dlg._result_text, "同会话片段应立即显示"
+
+        dlg.switch_to_file(b)
+        dlg._on_chunk("A的后半段")          # 仍属于 A
+        assert "A的后半段" not in dlg._result_text, "不能污染 B 的窗口"
+
+        dlg.switch_to_file(a)
+        assert "A的后半段" in dlg._result_text, "切回后应补上后台累积"
+        dlg.close()
+
+    def test_new_session_clears_archived_history(self, qapp):
+        """新会话清空后，切走再切回来不能把旧历史还原回来"""
+        dlg = self._dlg()
+        client = dlg._client
+        a = r"D:\p\a.py"
+        dlg.switch_to_file(a, "x")
+        client._history = [{"role": "user", "content": "旧问"}]
+        dlg.start_new_session()
+        assert client._history == []
+        dlg.switch_to_file(r"D:\p\b.py", "y")
+        dlg.switch_to_file(a, "x")
+        assert client._history == [], "归档里的历史也必须被清掉"
+        dlg.close()
+
+    def test_session_label_shows_current_file(self, qapp):
+        dlg = self._dlg()
+        dlg.switch_to_file(r"D:\p\alpha.py", "x")
+        assert "alpha.py" in dlg.session_label.text()
+        assert dlg.session_label.isVisibleTo(dlg)
+        dlg.close()
 
 
 # =========================================================

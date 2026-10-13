@@ -455,6 +455,7 @@ class AIResultDialog(QDialog):
         self._code_context = ""
         self._max_tokens = None
         self._action_title = ""
+        self._filepath = ""
         self._chunk_start = None
         self._chunk_buf = ""
         self._wait_timer = None
@@ -462,6 +463,21 @@ class AIResultDialog(QDialog):
         self._wait_phase = ""
         self._first_chunk_at = None
         self._stream_chars = 0
+
+        # ---- 按文件归档的会话 ----
+        #
+        # 单一窗口 + 内部会话表。为什么这样做：
+        #   编辑器里常常多个文件交替提问，如果只有一个上下文，
+        #   聊 A 文件的内容会被带到 B 文件的提问里，既费 token
+        #   也污染回答。这里按 filepath 归档，切换文件时换出/换入
+        #   「显示文本 + 代码上下文 + 对话历史」。
+        #
+        # 键：文件的绝对路径；未保存的新文件用 "(未命名)" 作为键。
+        self._sessions: Dict[str, Dict[str, Any]] = {}
+        self._active_key = ""
+        # 生成期间被切走的会话：其继续到达的片段只累积、不显示，
+        # 等切回来时一次性呈现（避免片段串到别的文件窗口里）。
+        self._background_bufs: Dict[str, str] = {}
 
         self._build_ui()
         self._apply_style()
@@ -476,6 +492,13 @@ class AIResultDialog(QDialog):
             "color: #f0ad4e; padding: 4px; font-size: 12px;"
         )
         layout.addWidget(self.status_label)
+
+        # 当前会话对应的文件（多文件归档时提示用户"在跟哪个文件对话"）
+        self.session_label = QLabel("")
+        self.session_label.setStyleSheet(
+            "color: #9d9d9d; padding: 0 4px 2px 4px; font-size: 11px;")
+        self.session_label.setVisible(False)
+        layout.addWidget(self.session_label)
         # 进度条
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)  # 无限循环
@@ -664,6 +687,10 @@ class AIResultDialog(QDialog):
                 cleared = True
         except Exception:
             cleared = False
+        # 同步清掉本会话归档里的历史，否则切走再切回来又会被还原
+        if self._active_key in self._sessions:
+            self._sessions[self._active_key]["history"] = []
+        self._background_bufs.pop(self._active_key, "")
         # 清掉追加缓冲，避免后续片段拼到旧文本上
         self._chunk_start = None
         self._chunk_buf = ''
@@ -681,6 +708,133 @@ class AIResultDialog(QDialog):
         self.status_label.setStyleSheet(
             "color: #4ec9b0; padding: 4px; font-size: 12px;")
         self.follow_edit.setFocus()
+
+    # --------------------------------------------------------
+    # 按文件归档的会话
+    # --------------------------------------------------------
+    @staticmethod
+    def session_key(filepath: str) -> str:
+        """把文件路径规范成会话键
+
+        未保存的新文件统一归到 "(未命名)"；路径做绝对化与大小写归一
+        （Windows 下 `A.PY` 与 `a.py` 应是同一个文件）。
+        """
+        p = (filepath or "").strip()
+        if not p:
+            return "(未命名)"
+        try:
+            return os.path.normcase(os.path.abspath(p))
+        except Exception:
+            return p
+
+    def _save_active_session(self):
+        """把当前显示状态存回会话表（切换文件前调用）"""
+        if not self._active_key:
+            return
+        self._sessions[self._active_key] = {
+            "text": self._result_text,
+            "code": self._code_context,
+            "system": self._system_prompt,
+            "filepath": getattr(self, "_filepath", "") or "",
+            "title": self._action_title,
+            "history": list(getattr(self._client, "_history", []) or []),
+        }
+
+    def switch_to_file(self, filepath: str, title: str = ""):
+        """切换到（或新建）某个文件的会话
+
+        需要换出/换入三样东西，缺一不可：
+          * 窗口显示的文本（`_result_text`）
+          * 代码上下文（追问时要附带）
+          * 对话历史（存在 client 上，按文件隔离）
+        """
+        key = self.session_key(filepath)
+        if key == self._active_key:
+            # 同一文件：只需刷新标题与上下文
+            self._filepath = filepath or ""
+            if title:
+                self._action_title = title
+            return self
+
+        # 1) 存下当前会话
+        self._save_active_session()
+
+        # 2) 切到目标会话（没有就新建空的）
+        sess = self._sessions.get(key)
+        if sess is None:
+            sess = {
+                "text": self._header_for(filepath),
+                "code": "",
+                "system": "",
+                "filepath": filepath or "",
+                "title": title,
+                "history": [],
+            }
+            self._sessions[key] = sess
+
+        self._active_key = key
+        self._result_text = sess.get("text", "")
+        self._code_context = sess.get("code", "")
+        self._system_prompt = sess.get("system", "") or self._system_prompt
+        self._filepath = sess.get("filepath", filepath or "")
+        if title:
+            self._action_title = title
+
+        # 3) 恢复该文件的历史（历史挂在 client 上，按文件换入换出）
+        client = getattr(self, "_client", None)
+        if client is not None and hasattr(client, "_history"):
+            try:
+                client._history = list(sess.get("history", []) or [])
+            except Exception:
+                pass
+
+        # 4) 如果这个会话在后台生成过，把累积的片段补进来
+        pending = self._background_bufs.pop(key, "")
+        if pending:
+            self._result_text += pending
+
+        # 5) 刷新界面
+        self._chunk_start = None
+        self._chunk_buf = ""
+        try:
+            self.browser.setMarkdown(self._result_text)
+        except Exception:
+            self.browser.setPlainText(self._result_text)
+        self._update_session_label()
+        return self
+
+    @staticmethod
+    def _header_for(filepath: str) -> str:
+        """新会话的欢迎内容"""
+        if filepath:
+            import os as _os
+            name = _os.path.basename(filepath)
+            return ("**▶ 会话：%s**\n\n"
+                    "· 该文件拥有**独立的对话上下文**，不会与其他文件混淆\n"
+                    "· 用 AI 动作开始，或用下方输入框直接追问\n" % name)
+        return ("**▶ 会话：(未命名文件)**\n\n"
+                "· 保存文件后，该会话会自动归到对应文件名下\n")
+
+    def _update_session_label(self):
+        """刷新"当前文件"提示"""
+        try:
+            sess = self._sessions.get(self._active_key, {})
+            fp = sess.get("filepath", "") or ""
+            n = len(self._sessions)
+            if fp:
+                import os as _os
+                txt = "当前会话：%s" % _os.path.basename(fp)
+            else:
+                txt = "当前会话：(未命名文件)"
+            if n > 1:
+                txt += "　·　共 %d 个文件会话（各自独立）" % n
+            self.session_label.setText(txt)
+            self.session_label.setVisible(True)
+        except Exception:
+            pass
+
+    def _session_count(self) -> int:
+        return len(self._sessions)
 
     # --------------------------------------------------------
     # 缓存命中
@@ -783,6 +937,8 @@ class AIResultDialog(QDialog):
         self._start_waiting("追问中")
 
         use_history = self.multi_turn_check.isChecked()
+        # 记录本片段属于哪个文件会话（生成中切文件时的守卫依据）
+        self._chunk_session_key = self._active_key
         worker = AIWorker(
             self._client,
             self._build_follow_prompt(question),
@@ -843,6 +999,21 @@ class AIResultDialog(QDialog):
             # "模型思考中" 变成 "接收中"，首字反馈会有可感的延迟
             self._tick_waiting()
         self._stream_chars = getattr(self, "_stream_chars", 0) + len(text)
+
+        # 会话守卫：生成期间用户可能切到了别的文件。
+        # 此时本片段属于**发起请求时的那个会话**，不能显示在当前窗口里
+        # （否则 A 文件的回答会出现在 B 文件的会话中）。
+        # 先累积到后台缓冲，等用户切回该会话时再一次性呈现。
+        #
+        # 注意：双方都必须经过 session_key() 归一化后再比较。
+        # `_active_key` 是归一化过的（normcase 会把 Windows 路径小写化），
+        # 若拿原始路径去比，`D:\a.py` 与 `d:\a.py` 会被误判成两个会话，
+        # 结果是**同会话的片段被丢进后台缓冲** → 表现为"AI 没输出"。
+        origin = self.session_key(getattr(self, "_chunk_session_key", ""))
+        if origin and origin != self._active_key:
+            self._background_bufs[origin] = \
+                self._background_bufs.get(origin, "") + text
+            return
 
         start = getattr(self, '_chunk_start', None)
         if start is None:
@@ -2442,6 +2613,11 @@ class Plugin(PluginBase):
                 framework="pytest"
             )
 
+        # ---- 按文件切换会话 ----
+        #
+        # 每个文件一个独立上下文，避免"聊 A 文件的内容带进 B 文件的提问"。
+        session_key = AIResultDialog.session_key(filepath)
+
         # ---- 选择承载窗口 ----
         #
         # 两种模式：
@@ -2454,6 +2630,9 @@ class Plugin(PluginBase):
         use_session = self._session_window_enabled()
         if use_session:
             dlg = self._get_or_create_session(main_window)
+            # 切到该文件的会话（会换出/换入显示文本、上下文与历史）
+            dlg._client = self._client
+            dlg.switch_to_file(filepath, title)
             # 在已有内容后追加分隔，标识本次动作
             if dlg._result_text.strip():
                 dlg._result_text += "\n\n---\n\n**▶ %s**\n\n" % title
@@ -2506,6 +2685,9 @@ class Plugin(PluginBase):
                         if dlg in self._active_dialogs:
                             self._active_dialogs.remove(dlg)
                     return
+
+        # 记录本片段属于哪个会话（生成中切文件时的守卫依据）
+        dlg._chunk_session_key = session_key
 
         # 创建 Worker（首轮：默认记住上下文，方便直接追问）
         worker = AIWorker(
