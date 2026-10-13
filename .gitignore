@@ -150,3 +150,6 @@ coverage.xml
 
 # ---- mkdocs 构建产物 ----
 /site/
+
+# 插件自检报告（运行时生成）
+plugin_report.txt
