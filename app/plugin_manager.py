@@ -737,6 +737,30 @@ class PluginManager(QObject):
             self._session_confirmed.add(name)
             return True
 
+        # 内置插件：自动授权（不弹模态框）
+        #
+        # 为什么必须这样做（真实缺陷）：
+        #   内置插件与插件市场下载的第三方插件位于**同一目录**，
+        #   而危险权限确认框是**模态阻塞**的 —— 它卡在启动时的插件
+        #   加载循环里。用户漏点其中任何一个、或对话框被主窗口遮挡，
+        #   对应插件就永久不激活，界面上也没有任何提示。
+        #   症状正是"AI 助手 / Git / Python 调试 菜单根本没有"
+        #   （这三个恰好分别声明 network / process / process 危险权限）。
+        #
+        # 安全性：内置插件随主程序一同安装，来源可信；且清单是
+        #   代码内的冻结集合（core/builtin_plugins.py），第三方插件
+        #   即使把目录放进 plugins/ 也不会命中，因此仍需用户确认。
+        try:
+            from core.builtin_plugins import is_built_in
+            if is_built_in(name):
+                self.config.set_permission_confirmed(name, True)
+                self._session_confirmed.add(name)
+                print("[PluginManager] 内置插件 %s 自动授权: %s"
+                      % (name, sorted(dangerous)))
+                return True
+        except Exception as e:
+            print("[PluginManager] 判断内置插件失败: %s" % e)
+
         # 弹对话框
         try:
             dlg = PermissionConfirmDialog(

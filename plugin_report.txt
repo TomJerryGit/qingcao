@@ -1,0 +1,105 @@
+青草编辑器 插件加载自检报告
+========================================================
+冻结运行   : False
+可执行文件 : D:\Program Files\Python311\pythonw.exe
+ROOT_DIR   : D:\QingCaoEditor
+PLUGINS_DIR: D:\QingCaoEditor\plugins
+插件目录存在: True
+Python     : 3.11.9
+
+plugin_manager: <PluginManager total=10 active=10>
+发现插件数: 10
+
+插件状态:
+  ai_assistant         状态=ACTIVATED      实例=有
+  demo                 状态=ACTIVATED      实例=有
+  git_deep             状态=ACTIVATED      实例=有
+  json_formatter       状态=ACTIVATED      实例=有
+  logtail              状态=ACTIVATED      实例=有
+  markdown_preview     状态=ACTIVATED      实例=有
+  my_plugin            状态=ACTIVATED      实例=有
+  python_debugger      状态=ACTIVATED      实例=有
+  todo_panel           状态=ACTIVATED      实例=有
+  wordcount            状态=ACTIVATED      实例=有
+
+已激活插件数: 10
+
+工具菜单内容:
+  ⌨ 命令面板
+  📂 文件切换
+  🔣 符号跳转
+  
+  🐍 Python 控制台
+  
+  ⏺ 录制/停止宏
+  ▶ 回放宏
+  
+  🧩 插件市场
+  🔌 插件管理
+  ⌨ 快捷键编辑器
+  
+  📊 性能监控
+  Vim 模式
+  
+  ⚙ 首选项...
+  
+  📤 导出配置
+  📥 导入配置
+  AI 助手/
+    💬 打开 AI 对话窗口
+    💡 解释代码
+    🔧 重构代码
+    🐛 修复 Bug
+    💬 添加注释
+    📖 生成 Docstring
+    🧪 生成单元测试
+    ⚡ 性能优化
+    🔍 Code Review
+    📝 代码摘要
+    🔄 转换为 Python
+    🔄 转换为 JavaScript
+    🔄 转换为 TypeScript
+    🔄 转换为 Java
+    🔄 转换为 C++
+    🔄 转换为 Go
+    🔄 转换为 Rust
+    ⚙ 配置 AI...
+    ⌨ 切换行内补全 (Ghost Text)
+    ⌨ 请求行内补全
+    ⌨ 接受行内补全
+    🦙 Ollama 管理面板
+    🦙 Ollama 状态检查
+  Demo/
+    显示当前文件字符数
+  Git/
+    查看状态
+    查看差异
+    提交...
+    推送
+    拉取
+    查看日志
+  JSON/
+    格式化 (2 空格)
+    格式化 (4 空格)
+    压缩
+    验证
+    排序键
+  日志监视/
+    监视当前文件
+    停止监视
+    打开面板
+  My Plugin/
+    执行
+  Python 调试/
+    运行当前文件
+    调试当前文件 (pdb)
+    带参数运行...
+
+插件依赖模块可导入性:
+  core.ai_client                 OK
+  core.ai_cache                  OK
+  core.ollama_client             OK
+  ui.ai_inline_completer         OK
+  core.git_client                OK
+  core.secure_storage            OK
+  infrastructure.plugin_loader   OK
