@@ -48,6 +48,7 @@ import json
 import os
 import sys
 import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5.QtCore import QSettings, Qt, QThread, QTimer, pyqtSignal
@@ -110,6 +111,10 @@ try:
         tokens_for,
     )
     _AI_CLIENT_OK = True
+
+    # 结果缓存（首轮命中可省一次 HTTP 请求）
+    from core.ai_cache import AIResultCache, get_result_cache  # noqa: E402
+    _AI_CACHE_OK = True
 except ImportError as e:
     print(f"[AI插件] 无法导入 core.ai_client: {e}")
     _AI_CLIENT_OK = False
@@ -127,6 +132,15 @@ except ImportError as e:
     PROMPT_TESTS = ""
     PROMPT_REVIEW = ""
     PROMPT_SUMMARY = ""
+
+    # 缓存不可用时的占位（get_result_cache() 返回 None，
+    # 调用方需判空；见 _run_ai_action 里的用法）
+    _AI_CACHE_OK = False
+
+    def get_result_cache():
+        return None
+
+    AIResultCache = None
 
     def load_ai_client_from_settings():
         return None
@@ -432,6 +446,22 @@ class AIResultDialog(QDialog):
         self._worker: Optional[AIWorker] = None
         # 关键：保存到实例属性，供 _build_ui 使用
         self._enable_insert = enable_insert
+        # 追问/新会话所需的状态。这里必须**显式初始化**：
+        # 原先这些属性只在 _run_ai_action 里动态赋值，导致
+        # start_new_session() 里的 getattr(self,'_client',None) 拿到 None，
+        # 清空上下文的动作被宽 except 静默吞掉（表现为"新会话无效"）。
+        self._client = None
+        self._system_prompt = ""
+        self._code_context = ""
+        self._max_tokens = None
+        self._action_title = ""
+        self._chunk_start = None
+        self._chunk_buf = ""
+        self._wait_timer = None
+        self._wait_start = None
+        self._wait_phase = ""
+        self._first_chunk_at = None
+        self._stream_chars = 0
 
         self._build_ui()
         self._apply_style()
@@ -446,7 +476,6 @@ class AIResultDialog(QDialog):
             "color: #f0ad4e; padding: 4px; font-size: 12px;"
         )
         layout.addWidget(self.status_label)
-
         # 进度条
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)  # 无限循环
@@ -484,6 +513,13 @@ class AIResultDialog(QDialog):
             "可以连续追问（如「再简化一点」「换成列表推导式」）。\n"
             "取消勾选则每次都是独立提问。")
         follow_row.addWidget(self.multi_turn_check)
+
+        self.new_session_btn = QPushButton("＋ 新会话")
+        self.new_session_btn.setToolTip(
+            "清空对话上下文并开始新话题。\n"
+            "上一个话题的记录会留在窗口里，但不再发送给模型。")
+        self.new_session_btn.clicked.connect(self.start_new_session)
+        follow_row.addWidget(self.new_session_btn)
         layout.addLayout(follow_row)
 
         # 按钮
@@ -518,6 +554,57 @@ class AIResultDialog(QDialog):
         btn_layout.addWidget(close_btn)
 
         layout.addLayout(btn_layout)
+
+    # --------------------------------------------------------
+    # 等待/推理状态反馈
+    # --------------------------------------------------------
+    def _start_waiting(self, phase: str = "生成中"):
+        """开始显示带计时的等待状态
+
+        为什么要计时：大模型（尤其本地 Ollama 在 CPU 上）首个 token
+        可能要等十几秒。此前状态栏只有静态"正在生成..."，用户无法判断
+        是真的在跑还是已经卡死。加上累计耗时后，"没反应"变成"可见进度"。
+        """
+        self._wait_phase = phase
+        self._wait_start = time.time()
+        self._first_chunk_at = None
+        self._stream_chars = 0
+        self.status_label.setStyleSheet(
+            "color: #f0ad4e; padding: 4px; font-size: 12px;")
+        if getattr(self, "_wait_timer", None) is None:
+            self._wait_timer = QTimer(self)
+            self._wait_timer.setInterval(200)
+            self._wait_timer.timeout.connect(self._tick_waiting)
+        self._wait_timer.start()
+        self._tick_waiting()
+
+    def _tick_waiting(self):
+        """定时刷新等待文案（每 200ms）"""
+        if getattr(self, "_wait_start", None) is None:
+            return
+        elapsed = time.time() - self._wait_start
+        phase = getattr(self, "_wait_phase", "生成中")
+        if self._first_chunk_at is None:
+            # 还没收到任何片段：连上了但模型在思考
+            self.status_label.setText(
+                "%s… 已等待 %.1f 秒（模型思考中，首字输出较慢属正常）"
+                % (phase, elapsed))
+        else:
+            speed = ""
+            if elapsed > 0:
+                speed = " · %.0f 字/秒" % (self._stream_chars / elapsed)
+            self.status_label.setText(
+                "接收中… %.1f 秒 · 已收到 %d 字%s"
+                % (elapsed, self._stream_chars, speed))
+
+    def _stop_waiting(self):
+        """停止等待计时"""
+        try:
+            if getattr(self, "_wait_timer", None) is not None:
+                self._wait_timer.stop()
+        except Exception:
+            pass
+        self._wait_start = None
 
     def _apply_style(self):
         """应用样式"""
@@ -562,6 +649,88 @@ class AIResultDialog(QDialog):
     # --------------------------------------------------------
     # 流式接收
     # --------------------------------------------------------
+    def start_new_session(self):
+        """开始新会话：清空上下文，但保留窗口内已有记录
+
+        为什么保留记录：用户可能想对照上一个话题的结论。
+        但上下文（会发给模型的部分）必须清空，否则新话题会带上
+        无关的旧对话，既费 token 也干扰回答。
+        """
+        cleared = False
+        try:
+            client = getattr(self, '_client', None)
+            if client is not None and hasattr(client, 'reset_history'):
+                client.reset_history()
+                cleared = True
+        except Exception:
+            cleared = False
+        # 清掉追加缓冲，避免后续片段拼到旧文本上
+        self._chunk_start = None
+        self._chunk_buf = ''
+        self._result_text += "\n\n---\n\n**（新会话开始，上下文已清空）**\n\n"
+        try:
+            self.browser.setMarkdown(self._result_text)
+        except Exception:
+            self.browser.setPlainText(self._result_text)
+        if cleared:
+            self.status_label.setText("已开始新会话 · 上下文已清空")
+        else:
+            # 不要静默：没有客户端时上下文其实没被清，必须让用户知道
+            self.status_label.setText(
+                "已开始新会话（注意：未绑定 AI 客户端，上下文未清空）")
+        self.status_label.setStyleSheet(
+            "color: #4ec9b0; padding: 4px; font-size: 12px;")
+        self.follow_edit.setFocus()
+
+    # --------------------------------------------------------
+    # 缓存命中
+    # --------------------------------------------------------
+    def show_cached(self, text: str):
+        """直接显示缓存结果（不发请求）
+
+        命中缓存时仍要：
+          * 让按钮可用（复制/替换/插入）；
+          * 允许继续追问 —— 此时把缓存内容当作首轮的 assistant 回复
+            写回客户端历史，保证追问的上下文与"重新生成"一致。
+        """
+        self._result_text = text or ""
+        try:
+            self.browser.setMarkdown(self._result_text)
+        except Exception:
+            self.browser.setPlainText(self._result_text)
+
+        self.status_label.setText(
+            "✓ 来自缓存（未发起新请求）· 输入追问可继续对话")
+        self.status_label.setStyleSheet(
+            "color: #4ec9b0; padding: 4px; font-size: 12px;")
+        self.progress.setRange(0, 1)
+        self.progress.setValue(1)
+
+        self.copy_btn.setEnabled(bool(self._result_text))
+        if self._enable_insert:
+            self.replace_btn.setEnabled(bool(self._result_text))
+            self.insert_btn.setEnabled(bool(self._result_text))
+
+        self.cancel_btn.setVisible(False)
+        self.follow_edit.setEnabled(True)
+        self.follow_btn.setEnabled(True)
+
+        # 把缓存内容补进历史，使追问的上下文与首次生成一致
+        try:
+            client = getattr(self, '_client', None)
+            if client is not None and hasattr(client, '_history'):
+                sys_p = getattr(self, '_system_prompt', '') or ''
+                code = getattr(self, '_code_context', '') or ''
+                if code.strip():
+                    client._history.extend([
+                        {"role": "user",
+                         "content": "（缓存命中，原始代码略）"},
+                        {"role": "assistant", "content": self._result_text},
+                    ])
+                    client._trim_history()
+        except Exception:
+            pass
+
     def set_worker(self, worker: AIWorker):
         """绑定 Worker（首轮）"""
         self._worker = worker
@@ -572,6 +741,8 @@ class AIResultDialog(QDialog):
 
         self.cancel_btn.setVisible(True)
         self.cancel_btn.clicked.connect(worker.cancel)
+        # 开始显示带计时的等待状态
+        self._start_waiting("生成中")
 
     # --------------------------------------------------------
     # 多轮追问
@@ -607,11 +778,9 @@ class AIResultDialog(QDialog):
         self.follow_edit.clear()
         self.follow_edit.setEnabled(False)
         self.follow_btn.setEnabled(False)
-        self.status_label.setText("生成中…")
-        self.status_label.setStyleSheet(
-            "color: #d4d4d4; padding: 4px; font-size: 12px;")
         self.progress.setRange(0, 0)
         self.cancel_btn.setVisible(True)
+        self._start_waiting("追问中")
 
         use_history = self.multi_turn_check.isChecked()
         worker = AIWorker(
@@ -644,7 +813,12 @@ class AIResultDialog(QDialog):
         except Exception:
             self.browser.setPlainText(self._result_text)
 
-        self.status_label.setText("✓ 完成")
+        elapsed = 0.0
+        if getattr(self, '_wait_start', None):
+            elapsed = time.time() - self._wait_start
+        self._stop_waiting()
+        self.status_label.setText(
+            "✓ 完成 · 总耗时 %.1f 秒" % elapsed if elapsed else "✓ 完成")
         self.status_label.setStyleSheet(
             "color: #7ec850; padding: 4px; font-size: 12px;")
         self.progress.setRange(0, 1)
@@ -662,6 +836,14 @@ class AIResultDialog(QDialog):
         追问场景下 `_chunk_start` 记录了本轮开始的位置，
         新片段追加在其后（而不是覆盖整段显示）。
         """
+        # 首个片段到达 → 记录时刻，状态从"思考中"切到"接收中"
+        if getattr(self, "_first_chunk_at", None) is None:
+            self._first_chunk_at = time.time()
+            # 立即刷新一次文案：否则要等 200ms 定时器才从
+            # "模型思考中" 变成 "接收中"，首字反馈会有可感的延迟
+            self._tick_waiting()
+        self._stream_chars = getattr(self, "_stream_chars", 0) + len(text)
+
         start = getattr(self, '_chunk_start', None)
         if start is None:
             self._result_text += text
@@ -705,12 +887,20 @@ class AIResultDialog(QDialog):
             self.insert_btn.setEnabled(bool(self._result_text))
 
         self.cancel_btn.setVisible(False)
+        # 停下来计时，并显示总耗时
+        elapsed = 0.0
+        if getattr(self, '_wait_start', None):
+            elapsed = time.time() - self._wait_start
+        self._stop_waiting()
+        if elapsed:
+            self.status_label.setText("✓ 完成 · 总耗时 %.1f 秒" % elapsed)
         # 首轮完成 → 允许追问
         self.follow_edit.setEnabled(True)
         self.follow_btn.setEnabled(True)
 
     def _on_error(self, err: str):
         """失败"""
+        self._stop_waiting()
         self.status_label.setText(f"✗ 失败: {err}")
         self.status_label.setStyleSheet(
             "color: #f14c4c; padding: 4px; font-size: 12px;"
@@ -890,6 +1080,35 @@ class AIConfigDialog(QDialog):
             "color: #4ec9b0; font-size: 11px; padding: 4px 0;")
         self.ollama_hint.setVisible(False)
         layout.addWidget(self.ollama_hint)
+
+        # 结果缓存开关
+        self.cache_check = QCheckBox("复用结果缓存（相同代码 + 相同动作不重复请求）")
+        self.cache_check.setToolTip(
+            "开启后，若 provider / 模型 / 温度 / token 上限 / 提示词完全相同，\n"
+            "直接显示上次结果，省一次请求。\n"
+            "多轮追问不使用缓存。缓存仅存内存，退出即清空。\n"
+            "如需强制重新生成，取消勾选此项。")
+        try:
+            self.cache_check.setChecked(
+                QSettings("QingCao", "AI").value(
+                    "result_cache", True, type=bool))
+        except Exception:
+            self.cache_check.setChecked(True)
+        layout.addWidget(self.cache_check)
+
+        # 会话窗口开关
+        self.session_check = QCheckBox("复用同一个 AI 对话窗口（非模态，保留上下文）")
+        self.session_check.setToolTip(
+            "开启（默认）：所有 AI 动作共用一个非模态窗口，\n"
+            "切换标签、继续操作都不会丢上下文，可直接追问。\n"
+            "关闭：每次动作弹一个独立模态对话框（旧行为）。")
+        try:
+            self.session_check.setChecked(
+                QSettings("QingCao", "AI").value(
+                    "session_window", True, type=bool))
+        except Exception:
+            self.session_check.setChecked(True)
+        layout.addWidget(self.session_check)
 
         # 提示
         hint = QLabel(
@@ -1159,6 +1378,14 @@ class AIConfigDialog(QDialog):
             settings.setValue("api_key", api_key)
             settings.setValue("model", model)
             settings.setValue("base_url", base_url)
+            # 结果缓存开关
+            try:
+                settings.setValue("result_cache",
+                                  self.cache_check.isChecked())
+                settings.setValue("session_window",
+                                  self.session_check.isChecked())
+            except Exception:
+                pass
             settings.sync()
 
             QMessageBox.information(self, "保存成功", "AI 配置已保存")
@@ -1603,6 +1830,9 @@ class Plugin(PluginBase):
         # 注册快捷键
         self._register_shortcuts()
 
+        # 注册命令面板命令
+        self._register_commands()
+
         # 内联补全（默认关闭；此前该模块是死代码，从未接线）
         self._setup_inline_completer()
 
@@ -1753,6 +1983,15 @@ class Plugin(PluginBase):
         self.ollama_panel = None
         self._ollama_dock = None
 
+        # 关闭会话窗口
+        try:
+            sess = getattr(self, '_session_window', None)
+            if sess is not None:
+                sess.close()
+        except Exception:
+            pass
+        self._session_window = None
+
         # 关闭所有活动对话框
         for dlg in list(self._active_dialogs):
             try:
@@ -1778,6 +2017,8 @@ class Plugin(PluginBase):
         """注册菜单项"""
         # C1: 避开主窗口的 Ctrl+Shift+E / Ctrl+Shift+R
         menu_items = [
+            ("工具/AI 助手/💬 打开 AI 对话窗口",
+             self._on_open_session_window, None),
             ("工具/AI 助手/💡 解释代码", self._on_explain, "Ctrl+Alt+E"),
             ("工具/AI 助手/🔧 重构代码", self._on_refactor,
              "Ctrl+Alt+Shift+R"),
@@ -1992,6 +2233,104 @@ class Plugin(PluginBase):
                                  3000, "success")
 
     # --------------------------------------------------------
+    # 命令面板集成
+    # --------------------------------------------------------
+    def _register_commands(self):
+        """把 AI 动作注册到命令面板（Ctrl+Shift+P 可搜索）
+
+        设计说明：
+            命令面板是"不想找菜单"用户的最快入口。这里注册的都是
+            **已有动作**的别名，复用同一条流式实现（带缓存、多轮、
+            结果可插入），不另起一套逻辑。
+
+            额外注册一个「快速问答」命令，它走 `quick_*` 那条
+            **非 UI 的编程式 API**，把结果直接写入剪贴板 ——
+            适合"只想拿一段文字、不想开对话框"的场景。
+        """
+        cmds = [
+            ("ai.explain", "AI: 解释代码", self._on_explain),
+            ("ai.refactor", "AI: 重构代码", self._on_refactor),
+            ("ai.fix", "AI: 修复 Bug", self._on_fix),
+            ("ai.comment", "AI: 添加注释", self._on_comment),
+            ("ai.docstring", "AI: 生成 Docstring", self._on_docstring),
+            ("ai.tests", "AI: 生成单元测试", self._on_tests),
+            ("ai.optimize", "AI: 性能优化", self._on_optimize),
+            ("ai.review", "AI: Code Review", self._on_review),
+            ("ai.summary", "AI: 代码摘要", self._on_summary),
+            ("ai.quick_explain", "AI: 快速解释（结果复制到剪贴板）",
+             self._on_quick_explain),
+            ("ai.clear_cache", "AI: 清空结果缓存", self._on_clear_cache),
+            ("ai.cache_stats", "AI: 查看缓存统计", self._on_cache_stats),
+        ]
+        for name, desc, cb in cmds:
+            try:
+                self.api.register_command(name, cb, description=desc)
+            except Exception as e:
+                self.api.log("注册命令 %s 失败: %s" % (name, e), "error")
+
+    def _on_quick_explain(self):
+        """走 quick_* 编程式 API：不开对话框，结果写剪贴板
+
+        这条路径与 UI 的流式路径共用同一套 PROMPT_EXPLAIN 模板，
+        因此结果语义一致；区别只是"交付方式"（剪贴板 vs 对话框）。
+        """
+        code, lang, _fp = self._get_context()
+        if not code.strip():
+            self.api.show_message("无代码", "请先打开文件或选中代码。")
+            return
+        if not self._ensure_client():
+            return
+        try:
+            from core.ai_client import quick_explain
+            # 用当前已配置的客户端，避免 quick_* 再读一遍设置
+            set_ai_client(self._client)
+            text = quick_explain(code, lang=lang)
+        except Exception as e:
+            self.api.show_message("AI 快速解释失败", str(e))
+            return
+        if not text:
+            self.api.show_status("AI 未返回内容", 3000, "warning")
+            return
+        try:
+            QApplication.clipboard().setText(text)
+        except Exception:
+            pass
+        self.api.show_status(
+            "AI 解释已复制到剪贴板（%d 字）" % len(text), 5000, "success")
+
+    def _on_clear_cache(self):
+        """清空 AI 结果缓存"""
+        try:
+            cache = get_result_cache()
+            if cache is None:
+                self.api.show_status("缓存不可用", 3000, "warning")
+                return
+            n = cache.stats().get("entries", 0)
+            cache.clear()
+            self.api.show_status("已清空 AI 结果缓存（%d 条）" % n,
+                                 4000, "success")
+        except Exception as e:
+            self.api.log("清空缓存失败: %s" % e, "error")
+
+    def _on_cache_stats(self):
+        """显示缓存统计"""
+        try:
+            cache = get_result_cache()
+            if cache is None:
+                self.api.show_message("AI 缓存", "缓存不可用。")
+                return
+            self.api.show_message(
+                "AI 结果缓存",
+                cache.stats_text() + "\n\n"
+                "说明：键由 provider/model/temperature/max_tokens/"
+                "system/提示词共同决定，任一项改变都不会命中旧结果。\n"
+                "缓存仅存于内存，退出即清空。\n\n"
+                "如需强制重新生成，在 工具 → AI 助手 → ⚙ 配置 AI 中"
+                "取消勾选「复用结果缓存」。")
+        except Exception as e:
+            self.api.log("读取缓存统计失败: %s" % e, "error")
+
+    # --------------------------------------------------------
     # 核心动作
     # --------------------------------------------------------
     def _get_context(self) -> Tuple[str, str, str]:
@@ -2103,19 +2442,70 @@ class Plugin(PluginBase):
                 framework="pytest"
             )
 
-        # 创建对话框
+        # ---- 选择承载窗口 ----
+        #
+        # 两种模式：
+        #   * 会话模式（默认）：复用同一个**非模态**窗口。
+        #     好处是切换标签/继续操作时窗口与上下文都不丢，
+        #     并且可以在同一窗口里连续执行多个动作形成对话。
+        #   * 每次新建对话框：受"独立会话窗口"首选项控制，保留旧行为
+        #     （模态，一个动作一个窗口）。
         main_window = self.api._host_window()
-        dlg = AIResultDialog(
-            title=title,
-            main_window=main_window,
-            enable_insert=True,
-            parent=main_window,
-        )
+        use_session = self._session_window_enabled()
+        if use_session:
+            dlg = self._get_or_create_session(main_window)
+            # 在已有内容后追加分隔，标识本次动作
+            if dlg._result_text.strip():
+                dlg._result_text += "\n\n---\n\n**▶ %s**\n\n" % title
+            else:
+                dlg._result_text = "**▶ %s**\n\n" % title
+            dlg._chunk_start = None
+            dlg._chunk_buf = ''
+            try:
+                dlg.browser.setMarkdown(dlg._result_text)
+            except Exception:
+                dlg.browser.setPlainText(dlg._result_text)
+        else:
+            dlg = AIResultDialog(
+                title=title,
+                main_window=main_window,
+                enable_insert=True,
+                parent=main_window,
+            )
+            self._active_dialogs.append(dlg)
+
         # 追问所需的状态：client、system、原始代码、token 档位
         dlg._client = self._client
         dlg._code_context = code
         dlg._max_tokens = tokens_for(token_tier)
-        self._active_dialogs.append(dlg)
+        dlg._system_prompt = system_prompt
+        dlg._action_title = title
+
+        # ---- 结果缓存 ----
+        #
+        # 同一段代码 + 同一动作常被重复请求（切标签回来、误关重开、
+        # 反复"再解释一次"）。命中缓存可省一次 HTTP 请求与相应费用。
+        # 注意：**多轮追问不使用缓存**（上下文不同），只有首轮查。
+        cache = get_result_cache()
+        cache_key = None
+        if cache is not None and self._cache_enabled():
+            try:
+                from core.ai_cache import AIResultCache
+                cache_key = AIResultCache.make_key(
+                    self._client, prompt, system_prompt, dlg._max_tokens)
+            except Exception:
+                cache_key = None
+            if cache_key:
+                hit = cache.get(cache_key)
+                if hit:
+                    dlg.show_cached(hit)
+                    if use_session:
+                        self._present_session(dlg)
+                    else:
+                        dlg.exec_()
+                        if dlg in self._active_dialogs:
+                            self._active_dialogs.remove(dlg)
+                    return
 
         # 创建 Worker（首轮：默认记住上下文，方便直接追问）
         worker = AIWorker(
@@ -2124,15 +2514,107 @@ class Plugin(PluginBase):
             use_history=True,
             max_tokens=dlg._max_tokens,
         )
+        # 首次成功结果写回缓存
+        if cache_key:
+            def _store(text, _key=cache_key, _c=cache):
+                try:
+                    _c.put(_key, text or "")
+                except Exception:
+                    pass
+            worker.finished_ok.connect(_store)
+
         dlg.set_worker(worker)
         worker.start()
 
-        # 显示对话框（exec_ 会阻塞直到关闭）
-        dlg.exec_()
+        if use_session:
+            # 非模态：立即把窗口呈现给用户，不阻塞调用方。
+            # 这样用户可以切标签、做别的操作，窗口与上下文都保留。
+            self._present_session(dlg)
+        else:
+            # 旧行为：模态对话框，阻塞到关闭
+            dlg.exec_()
+            if dlg in self._active_dialogs:
+                self._active_dialogs.remove(dlg)
 
-        # 清理
-        if dlg in self._active_dialogs:
-            self._active_dialogs.remove(dlg)
+    # --------------------------------------------------------
+    # 会话窗口
+    # --------------------------------------------------------
+    def _session_window_enabled(self) -> bool:
+        """是否复用同一个会话窗口（首选项，默认开启）"""
+        try:
+            return QSettings("QingCao", "AI").value(
+                "session_window", True, type=bool)
+        except Exception:
+            return True
+
+    def _get_or_create_session(self, main_window):
+        """取回或创建持久会话窗口
+
+        窗口中转的关键点：把 `exec_()`（模态阻塞）换成 `show()`，
+        这样"切标签丢失上下文"的问题自然消失 —— 窗口一直开着，
+        客户端历史也一直保留。
+        """
+        dlg = getattr(self, '_session_window', None)
+        if dlg is not None:
+            try:
+                # 已销毁则重建
+                dlg.isVisible()
+            except RuntimeError:
+                dlg = None
+                self._session_window = None
+        if dlg is None:
+            dlg = AIResultDialog(
+                title="AI 对话",
+                main_window=main_window,
+                enable_insert=True,
+                parent=main_window,
+            )
+            # 非模态：不阻塞调用方
+            dlg.setModal(False)
+            dlg.setWindowTitle("AI 对话（多轮，可继续追问）")
+            # 立刻绑定当前客户端，使"新会话/追问"在首轮动作之前
+            # 也能正常工作（不能等到 _run_ai_action 才赋值）
+            dlg._client = self._client
+            self._session_window = dlg
+            # 关闭时只隐藏，保留上下文；真正销毁交给 on_deactivate
+            dlg.finished.connect(lambda _r: None)
+        return dlg
+
+    def _present_session(self, dlg):
+        """把会话窗口显示到前台"""
+        try:
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
+        except Exception:
+            pass
+
+    def _on_open_session_window(self):
+        """菜单/命令：打开 AI 对话窗口"""
+        if not self._ensure_client():
+            return
+        main_window = self.api._host_window()
+        dlg = self._get_or_create_session(main_window)
+        if not dlg._result_text.strip():
+            dlg._result_text = (
+                "**AI 对话窗口**\n\n"
+                "· 用菜单里的任意 AI 动作开始（结果会出现在这里）\n"
+                "· 然后可在下方输入框连续追问，上下文会自动带上\n"
+                "· 窗口不会阻塞编辑器，切换标签也不会丢上下文\n"
+                "· 点「＋ 新会话」清空上下文开始新话题\n")
+            try:
+                dlg.browser.setMarkdown(dlg._result_text)
+            except Exception:
+                dlg.browser.setPlainText(dlg._result_text)
+        self._present_session(dlg)
+
+    def _cache_enabled(self) -> bool:
+        """是否启用 AI 结果缓存（首选项，默认开启）"""
+        try:
+            return QSettings("QingCao", "AI").value(
+                "result_cache", True, type=bool)
+        except Exception:
+            return True
 
     # --------------------------------------------------------
     # 具体动作
