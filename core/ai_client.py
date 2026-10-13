@@ -174,6 +174,32 @@ class AIClient(QObject):
     def is_cancelled(self):
         return self._cancel.is_set()
 
+    def chat_stream(self, prompt="", system="", callback=None):
+        """流式对话（基类默认实现：非流式 + 一次性回调）。
+
+        子类应重写本方法以提供**真正的增量输出**：
+
+          * `OpenAIClient`  —— OpenAI / Ollama / DeepSeek / 通义 / Kimi /
+            智谱 的 SSE（`/chat/completions`，`choices[0].delta.content`）
+          * `ClaudeClient`  —— Anthropic Messages SSE（`/messages`，
+            `content_block_delta` → `delta.text`）
+
+        为什么基类必须有这个方法：
+            原先 `chat_stream` 只定义在 `OpenAIClient` 上，而
+            `ClaudeClient` 继承的是 `AIClient` → 对 Claude 调用
+            `hasattr(client, 'chat_stream')` 为假，导致：
+              * 插件退化为**非流式**（用户盯着空白对话框直到全部生成完）；
+              * 任何直接调用 `client.chat_stream(...)` 的代码
+                抛 `AttributeError`。
+            基类提供兜底后，至少保证"接口存在、结果正确"，只是没有增量。
+        """
+        # 尊重取消语义：先清标志，再发一次请求
+        self._cancel.clear()
+        text = self.chat(prompt=prompt, system=system)
+        if callback and text:
+            callback(text)
+        return text
+
     def _chat(self, messages, system=""):
         raise NotImplementedError
 
@@ -286,9 +312,20 @@ class OpenAIClient(AIClient):
         return choices[0].get("message", {}).get("content", "")
 
     def chat_stream(self, prompt="", system="", callback=None):
-        """流式对话"""
+        """流式对话（OpenAI 兼容族：OpenAI / Ollama / DeepSeek / 通义 /
+        Moonshot / 智谱）。
+
+        协议：``POST {base}/chat/completions`` + SSE，每行
+        ``data: {"choices":[{"delta":{"content":"..."}}]}``，以
+        ``data: [DONE]`` 结束。
+        """
         if not self.api_key and self.provider not in ("ollama", "custom"):
             raise AIAuthError("未配置 API Key")
+
+        # 清除上一次的取消标志 —— 否则用户取消一次后，**后续请求会
+        # 立刻在第一行就 break，表现为"AI 永久无响应"**。
+        # （基类兜底实现有这一步，此处原先遗漏。）
+        self._cancel.clear()
 
         messages = [{"role": "user", "content": prompt}]
         full_messages = []
@@ -378,6 +415,89 @@ class ClaudeClient(AIClient):
             if isinstance(item, dict) and item.get("type") == "text":
                 text_parts.append(item.get("text", ""))
         return "".join(text_parts)
+
+    def chat_stream(self, prompt="", system="", callback=None):
+        """Anthropic Messages API 的**真正流式**实现（SSE）。
+
+        与 OpenAI 的区别：
+          * 端点      `/messages`（而非 `/chat/completions`）
+          * 鉴权头    `x-api-key` + `anthropic-version`（而非 Bearer）
+          * system    是**顶层字段**，不放在 messages 数组里
+          * 事件格式  每行 `event: xxx` + `data: {...}`，
+            `data` 里没有 `choices`，而是按 `type` 区分的对象：
+
+              {"type":"content_block_delta",
+               "delta":{"type":"text_delta","text":"片段"}}
+
+        因此**不能**复用 OpenAI 的解析逻辑（那正是原先的缺陷：
+        `ClaudeClient` 没有 `chat_stream`，于是退化为非流式）。
+        """
+        if not self.api_key:
+            raise AIAuthError("未配置 API Key")
+
+        self._cancel.clear()
+
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Accept": "text/event-stream",
+        }
+        payload = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.temperature,
+            "stream": True,
+        }
+        if system:
+            payload["system"] = system
+
+        url = self.base_url + "/messages"
+        resp = self._make_request(url, headers, payload, stream=True,
+                                  timeout=STREAM_TIMEOUT)
+
+        full_text = []
+        try:
+            for line in resp.iter_lines():
+                if self.is_cancelled():
+                    break
+                if not line:
+                    continue
+                line = line.decode("utf-8", errors="replace").strip()
+                # 只关心 data 行；event: 行本身不含内容
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+
+                ctype = chunk.get("type")
+                if ctype == "content_block_delta":
+                    delta = chunk.get("delta") or {}
+                    if delta.get("type") == "text_delta":
+                        text = delta.get("text") or ""
+                        if text:
+                            full_text.append(text)
+                            if callback:
+                                callback(text)
+                elif ctype == "error":
+                    err = chunk.get("error") or {}
+                    raise AIClientError(
+                        "API 错误: %s" % err.get("message", "未知错误"))
+                # 其它事件（message_start / content_block_start /
+                # ping / message_delta / message_stop）无需处理
+        finally:
+            try:
+                resp.close()
+            except Exception:
+                pass
+
+        return "".join(full_text)
 
 
 #!============================================================

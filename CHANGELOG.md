@@ -34,6 +34,51 @@
   下拉框 : ['llama3.2:latest']   ← 由 /api/tags 动态获取
   ```
 
+### 修复（AI 模块）
+
+- **Anthropic Claude 的流式输出从未生效**
+  `chat_stream` 原先只定义在 `OpenAIClient` 上，而 `ClaudeClient` 继承的是
+  `AIClient` → `hasattr(client, 'chat_stream')` 为假。插件因此**静默退化
+  为非流式**：用户要盯着空白对话框等到整段回复生成完（流式超时 300 秒）。
+  更糟的是任何直接调用 `client.chat_stream(...)` 的代码会抛
+  `AttributeError`。
+
+  修复分两处：
+  * `AIClient` 基类新增 `chat_stream` 兜底实现（非流式 + 一次性回调），
+    保证"接口存在、结果正确"，子类可重写以获得真正的增量输出。
+  * `ClaudeClient` 实现**真正的 Anthropic Messages SSE 流式**：
+    端点 `/messages`（非 `/chat/completions`）、头 `x-api-key` +
+    `anthropic-version`、`system` 放在**顶层**、解析
+    `content_block_delta` → `delta.text`，并处理 `error` 事件。
+
+  实测（mock Anthropic SSE）：增量 2 段 `['Hello', ', world']`、
+  URL 与鉴权头正确、`system` 在顶层。
+
+- **取消一次后，后续 AI 请求全部"无响应"**
+  `OpenAIClient.chat_stream` 开始时**没有清除上一次的取消标志**。
+  用户点过一次"取消"后，下一次请求会在第一行 SSE 就 `break`，
+  表现为 AI 永久无响应（需重启编辑器）。基类兜底实现有这一步，
+  `OpenAIClient` 遗漏。现已在流式入口统一 `self._cancel.clear()`。
+
+### 新增（AI 模块测试）
+
+- `tests/test_ai_client.py` —— **AI 模块此前在 `tests/` 下引用数为 0**，
+  这正是上述 Claude 缺陷能长期存在的原因。新增 35 个用例，全部基于
+  **mock HTTP**（不发真实网络请求）：
+  * OpenAI 兼容族：增量回调、URL/Bearer 头、payload 结构、
+    `[DONE]` 哨兵、忽略非 data 行、容错非法 JSON、空 choices、
+    空 key 鉴权规则
+  * Anthropic：`chat_stream` 存在性（回归防线）、增量回调、
+    `/messages` 端点、`x-api-key` + `anthropic-version`、`system` 顶层、
+    忽略 ping/message_start、忽略 `thinking_delta`、`error` 事件抛错、
+    非流式解析 content blocks
+  * 基类兜底、工厂映射（claude/anthropic → ClaudeClient）、
+    默认模型与 base_url、未知 provider 抛 `AIConfigError`
+  * 取消语义：收到首片即取消后不再继续、返回已收内容、
+    **取消标志在新请求时被清除**
+
+  全量套件 282 -> **317 passed**。
+
 ### 修复
 
 - **`ui/main_window.py` 关闭路径收尾（审计 F-2）**
