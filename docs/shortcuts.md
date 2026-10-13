@@ -93,6 +93,8 @@
 | `Ctrl+Shift+A` | AI 快捷菜单 |
 | `Ctrl+Alt+E` | 解释选中代码 |
 | `Ctrl+Alt+Shift+R` | 重构选中代码 |
+| `Ctrl+Alt+Space` | 请求 AI 行内补全（需先在菜单里开启） |
+| `Ctrl+Alt+Return` | 接受 AI 行内补全 |
 
 > 注意：README 正文中曾写"按 `Ctrl+Shift+E` 让 AI 解释"，那是错的 ——
 > `Ctrl+Shift+E` 已被"计算表达式"占用，AI 解释是 `Ctrl+Alt+E`。

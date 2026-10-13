@@ -107,6 +107,7 @@ try:
         load_ai_client_from_settings,
         save_ai_client_to_settings,
         set_ai_client,
+        tokens_for,
     )
     _AI_CLIENT_OK = True
 except ImportError as e:
@@ -273,12 +274,17 @@ class AIWorker(QThread):
     finished_err = pyqtSignal(str)
 
     def __init__(self, client, prompt: str,
-                 system: str = "", parent=None):
+                 system: str = "", parent=None,
+                 use_history: bool = False, max_tokens=None):
         super().__init__(parent)
         self.client = client
         self.prompt = prompt
         self.system = system
         self._cancelled = False
+        # 多轮上下文：True 时该请求会带上之前轮次并记录本轮
+        self.use_history = bool(use_history)
+        # 按任务分档的 token 上限（None = 用客户端默认）
+        self.max_tokens = max_tokens
 
     def cancel(self):
         """取消请求"""
@@ -301,6 +307,9 @@ class AIWorker(QThread):
 
             # 尝试流式调用
             full_text = ""
+            stream_kw = {"use_history": self.use_history}
+            if self.max_tokens:
+                stream_kw["max_tokens"] = self.max_tokens
             if hasattr(self.client, 'chat_stream'):
                 try:
                     def _on_chunk(text):
@@ -310,6 +319,7 @@ class AIWorker(QThread):
                         prompt=self.prompt,
                         system=self.system,
                         callback=_on_chunk,
+                        **stream_kw,
                     )
                 except Exception as e:
                     # 流式失败，回退到非流式
@@ -317,12 +327,14 @@ class AIWorker(QThread):
                     full_text = self.client.chat(
                         prompt=self.prompt,
                         system=self.system,
+                        use_history=self.use_history,
                     )
             else:
                 # 无流式接口，直接调用
                 full_text = self.client.chat(
                     prompt=self.prompt,
                     system=self.system,
+                    use_history=self.use_history,
                 )
 
             if self._cancelled:
@@ -448,6 +460,32 @@ class AIResultDialog(QDialog):
         self.browser.setOpenExternalLinks(True)
         layout.addWidget(self.browser, 1)
 
+        # 追问输入（多轮对话）
+        #
+        # 设计说明：只传历史而不给追问入口，多轮就没有意义。
+        # 这里放在浏览器与按钮之间，回车即发送。
+        follow_row = QHBoxLayout()
+        self.follow_edit = QLineEdit()
+        self.follow_edit.setPlaceholderText(
+            "继续追问（回车发送）—— 例如「把上面的代码改成用 for 循环」")
+        self.follow_edit.returnPressed.connect(self._on_follow_up)
+        self.follow_edit.setEnabled(False)
+        follow_row.addWidget(self.follow_edit, 1)
+
+        self.follow_btn = QPushButton("➤ 追问")
+        self.follow_btn.clicked.connect(self._on_follow_up)
+        self.follow_btn.setEnabled(False)
+        follow_row.addWidget(self.follow_btn)
+
+        self.multi_turn_check = QCheckBox("记住上下文")
+        self.multi_turn_check.setChecked(True)
+        self.multi_turn_check.setToolTip(
+            "勾选后，本次对话的往来会一并发送给模型，\n"
+            "可以连续追问（如「再简化一点」「换成列表推导式」）。\n"
+            "取消勾选则每次都是独立提问。")
+        follow_row.addWidget(self.multi_turn_check)
+        layout.addLayout(follow_row)
+
         # 按钮
         btn_layout = QHBoxLayout()
 
@@ -525,8 +563,9 @@ class AIResultDialog(QDialog):
     # 流式接收
     # --------------------------------------------------------
     def set_worker(self, worker: AIWorker):
-        """绑定 Worker"""
+        """绑定 Worker（首轮）"""
         self._worker = worker
+        self._system_prompt = getattr(worker, 'system', '') or ''
         worker.chunk_received.connect(self._on_chunk)
         worker.finished_ok.connect(self._on_finished)
         worker.finished_err.connect(self._on_error)
@@ -534,9 +573,102 @@ class AIResultDialog(QDialog):
         self.cancel_btn.setVisible(True)
         self.cancel_btn.clicked.connect(worker.cancel)
 
+    # --------------------------------------------------------
+    # 多轮追问
+    # --------------------------------------------------------
+    def _build_follow_prompt(self, question: str) -> str:
+        """把追问与原代码上下文组合。
+
+        首轮已经通过历史记录了原代码，但历史会被裁剪（默认 10 轮），
+        所以追问时**重新附上代码**更稳妥，也便于模型定位。
+        """
+        code = getattr(self, '_code_context', '') or ''
+        if not code.strip():
+            return question
+        return ("最初分析的代码：\n```\n%s\n```\n\n%s" % (code, question))
+
+    def _on_follow_up(self):
+        """发送追问（在同一对话框内继续对话）"""
+        if self._worker is not None and self._worker.isRunning():
+            return                      # 上一轮还没结束
+        question = self.follow_edit.text().strip()
+        if not question:
+            return
+        if self._client is None or not self._system_prompt:
+            return
+
+        # 把本轮问答追加到显示区，保持对话可读
+        try:
+            self._result_text += "\n\n---\n\n**你：** %s\n\n" % question
+            self.browser.setMarkdown(self._result_text)
+        except Exception:
+            pass
+
+        self.follow_edit.clear()
+        self.follow_edit.setEnabled(False)
+        self.follow_btn.setEnabled(False)
+        self.status_label.setText("生成中…")
+        self.status_label.setStyleSheet(
+            "color: #d4d4d4; padding: 4px; font-size: 12px;")
+        self.progress.setRange(0, 0)
+        self.cancel_btn.setVisible(True)
+
+        use_history = self.multi_turn_check.isChecked()
+        worker = AIWorker(
+            self._client,
+            self._build_follow_prompt(question),
+            self._system_prompt,
+            parent=self,
+            use_history=use_history,
+            max_tokens=getattr(self, '_max_tokens', None),
+        )
+        # 追问只累积新片段：清空当前累积，避免与上一轮拼接错乱
+        self._result_text = self._result_text        # 保留历史显示
+        self._chunk_start = len(self._result_text)
+        worker.chunk_received.connect(self._on_chunk)
+        worker.finished_ok.connect(self._on_follow_finished)
+        worker.finished_err.connect(self._on_error)
+        self.cancel_btn.clicked.disconnect()
+        self.cancel_btn.clicked.connect(worker.cancel)
+        self._worker = worker
+        worker.start()
+
+    def _on_follow_finished(self, full_text: str):
+        """追问完成"""
+        tail = full_text or ''
+        # 片段已逐个追加过；这里只做收尾状态
+        if not tail and len(self._result_text) <= getattr(self, '_chunk_start', 0):
+            self._result_text += "（无输出）"
+        try:
+            self.browser.setMarkdown(self._result_text)
+        except Exception:
+            self.browser.setPlainText(self._result_text)
+
+        self.status_label.setText("✓ 完成")
+        self.status_label.setStyleSheet(
+            "color: #7ec850; padding: 4px; font-size: 12px;")
+        self.progress.setRange(0, 1)
+        self.progress.setValue(1)
+        self.copy_btn.setEnabled(bool(self._result_text))
+        self.cancel_btn.setVisible(False)
+        # 允许继续追问
+        self.follow_edit.setEnabled(True)
+        self.follow_btn.setEnabled(True)
+        self.follow_edit.setFocus()
+
     def _on_chunk(self, text: str):
-        """收到流式片段"""
-        self._result_text += text
+        """收到流式片段
+
+        追问场景下 `_chunk_start` 记录了本轮开始的位置，
+        新片段追加在其后（而不是覆盖整段显示）。
+        """
+        start = getattr(self, '_chunk_start', None)
+        if start is None:
+            self._result_text += text
+        else:
+            self._result_text = self._result_text[:start] + \
+                (getattr(self, '_chunk_buf', '') + text)
+            self._chunk_buf = getattr(self, '_chunk_buf', '') + text
         try:
             self.browser.setMarkdown(self._result_text)
         except Exception:
@@ -550,7 +682,7 @@ class AIResultDialog(QDialog):
             pass
 
     def _on_finished(self, full_text: str):
-        """完成"""
+        """首轮完成"""
         if full_text:
             self._result_text = full_text
 
@@ -573,6 +705,9 @@ class AIResultDialog(QDialog):
             self.insert_btn.setEnabled(bool(self._result_text))
 
         self.cancel_btn.setVisible(False)
+        # 首轮完成 → 允许追问
+        self.follow_edit.setEnabled(True)
+        self.follow_btn.setEnabled(True)
 
     def _on_error(self, err: str):
         """失败"""
@@ -1468,6 +1603,9 @@ class Plugin(PluginBase):
         # 注册快捷键
         self._register_shortcuts()
 
+        # 内联补全（默认关闭；此前该模块是死代码，从未接线）
+        self._setup_inline_completer()
+
         # 注册 Ollama 管理面板（默认隐藏，从菜单打开）
         self._setup_ollama_panel()
 
@@ -1589,6 +1727,16 @@ class Plugin(PluginBase):
 
     def on_deactivate(self):
         """卸载时调用"""
+        # 停止内联补全（清建议 + 作废在途请求）
+        try:
+            comp = getattr(self, 'inline_completer', None)
+            if comp is not None:
+                comp.cancel()
+                comp.set_enabled(False)
+        except Exception:
+            pass
+        self.inline_completer = None
+
         # 停止 Ollama 状态定时器 + 等待后台线程结束
         try:
             if getattr(self, '_ollama_timer', None) is not None:
@@ -1686,11 +1834,27 @@ class Plugin(PluginBase):
             pass
 
     def _register_shortcuts(self):
-        """注册快捷键"""
+        """注册快捷键
+
+        注意（避免重复绑定）：
+            同一快捷键若既通过 `add_menu(..., shortcut)` 注册、又通过
+            `api.register_shortcut(...)` 注册，会生成**两个**带同名
+            QAction 的动作。Qt 对这种情况会打印
+            "Ambiguous shortcut overload" 并**只触发其中一个**。
+
+            因此约定：**菜单项的快捷键由 add_menu 负责**（菜单里能直接
+            看到按键提示，可发现性更好），不再用 register_shortcut 重复
+            注册；只有"没有对应菜单项"的快捷键才用 register_shortcut。
+
+        当前状态：
+            Ctrl+Shift+A     → 无菜单项，用 register_shortcut
+            Ctrl+Alt+E       → 有菜单项（💡 解释代码），由菜单负责
+            Ctrl+Alt+Shift+R → 有菜单项（🔧 重构代码），由菜单负责
+            Ctrl+Alt+Space / Ctrl+Alt+Return
+                             → 有菜单项，由菜单负责
+        """
         shortcuts = [
             ("Ctrl+Shift+A", self._show_ai_menu),
-            ("Ctrl+Alt+E", self._on_explain),
-            ("Ctrl+Alt+Shift+R", self._on_refactor),
         ]
 
         for key, callback in shortcuts:
@@ -1698,6 +1862,134 @@ class Plugin(PluginBase):
                 self.api.register_shortcut(key, callback)
             except Exception as e:
                 self.api.log(f"注册快捷键 {key} 失败: {e}", "error")
+
+    # --------------------------------------------------------
+    # AI 行内补全（此前 ui/ai_inline_completer.py 是死代码）
+    # --------------------------------------------------------
+    def _setup_inline_completer(self):
+        """创建内联补全器并注册菜单。
+
+        设计取舍：
+          * **默认关闭**。每次补全都是一次真实的 AI 请求，有延迟也有
+            费用；自动启用会打扰输入并可能产生大量请求。
+          * **显式触发**：用户按 Ctrl+Alt+Space 才请求，Ctrl+Alt+Return
+            接受建议。不做"输入即请求"。
+        """
+        try:
+            from ui.ai_inline_completer import AIInlineCompleter
+        except Exception as e:
+            self.api.log("内联补全不可用: %s" % e, "warning")
+            self.inline_completer = None
+            return
+
+        # 注意：`PluginBase` 继承自 `object`，**不是 QObject**，
+        # 因此不能把 `self` 当 parent 传给接受 QObject 的构造器
+        # （会抛 "argument 1 has unexpected type 'Plugin'"，
+        #  且会让整个插件激活失败 → 所有菜单消失）。
+        # 这里用无 parent + 插件实例持强引用的方式保证生命周期。
+        try:
+            self.inline_completer = AIInlineCompleter(None, None, parent=None)
+        except Exception as e:
+            self.api.log("创建内联补全器失败: %s" % e, "error")
+            self.inline_completer = None
+            return
+        # 默认关闭，并写入首选项以便持久化
+        enabled = False
+        try:
+            settings = QSettings("QingCao", "AI")
+            enabled = settings.value("inline_completion", False, type=bool)
+        except Exception:
+            pass
+        self.inline_completer.set_enabled(enabled)
+
+        # 菜单：开关 + 触发 + 接受
+        items = [
+            ("工具/AI 助手/⌨ 切换行内补全 (Ghost Text)",
+             self._toggle_inline_completer, None),
+            ("工具/AI 助手/⌨ 请求行内补全",
+             self._on_inline_request, "Ctrl+Alt+Space"),
+            ("工具/AI 助手/⌨ 接受行内补全",
+             self._on_inline_accept, "Ctrl+Alt+Return"),
+        ]
+        for path, cb, sc in items:
+            try:
+                action = self.api.add_menu(path, cb, sc)
+                if action:
+                    self._menus.append(action)
+            except Exception as e:
+                self.api.log("注册内联补全菜单失败: %s" % e, "error")
+
+    def _sync_inline_editor(self):
+        """让补全器绑定到当前编辑器（切换标签/首次使用时调用）"""
+        comp = getattr(self, 'inline_completer', None)
+        if comp is None:
+            return None
+        try:
+            editor = self.api.current_editor()
+            if editor is None:
+                return None
+            comp.set_client(self._client)
+            # 编辑器变了才重新绑定
+            if comp.editor is not getattr(editor, 'sc', None):
+                comp.editor = comp._resolve_scintilla(editor)
+                comp._apply_annotation_style()
+            return comp
+        except Exception:
+            return None
+
+    def _toggle_inline_completer(self):
+        """开关行内补全"""
+        comp = getattr(self, 'inline_completer', None)
+        if comp is None:
+            self.api.show_status("行内补全不可用", 3000, "warning")
+            return
+        now = not comp.enabled
+        comp.set_enabled(now)
+        try:
+            QSettings("QingCao", "AI").setValue("inline_completion", now)
+        except Exception:
+            pass
+        if now and not self._ensure_client():
+            comp.set_enabled(False)
+            return
+        self.api.show_status(
+            "AI 行内补全已%s。按 Ctrl+Alt+Space 请求建议，"
+            "Ctrl+Alt+Return 接受。" % ("开启" if now else "关闭"),
+            5000, "info")
+
+    def _on_inline_request(self):
+        """快捷键：请求行内补全"""
+        comp = getattr(self, 'inline_completer', None)
+        if comp is None:
+            return
+        if not comp.enabled:
+            self.api.show_status(
+                "AI 行内补全未开启：工具 → AI 助手 → ⌨ 切换行内补全",
+                4000, "info")
+            return
+        if not self._ensure_client():
+            return
+        comp = self._sync_inline_editor()
+        if comp is None:
+            self.api.show_status("没有可用的编辑器", 3000, "warning")
+            return
+        if not comp.request_now(force=True):
+            # 未发起：可能光标列数不足或正在请求
+            if comp._busy:
+                self.api.show_status("正在请求补全…", 2000, "info")
+            else:
+                self.api.show_status(
+                    "请先把光标移到已有代码行之后（至少 3 列）",
+                    4000, "info")
+
+    def _on_inline_accept(self):
+        """快捷键：接受行内补全建议"""
+        comp = getattr(self, 'inline_completer', None)
+        if comp is None or not comp.has_suggestion():
+            return
+        if comp.accept_suggestion():
+            self.api.show_status("已插入 AI 补全（Ctrl+Z 可撤销）",
+                                 3000, "success")
 
     # --------------------------------------------------------
     # 核心动作
@@ -1762,6 +2054,7 @@ class Plugin(PluginBase):
 
     def _run_ai_action(self, prompt_template: str, title: str,
                         system_prompt: str,
+                        token_tier: str = "short",
                         **format_kwargs):
         """
         执行 AI 动作的通用方法。
@@ -1770,6 +2063,9 @@ class Plugin(PluginBase):
             prompt_template: 提示词模板（含 {code}, {lang} 等占位符）
             title: 对话框标题
             system_prompt: 系统提示词
+            token_tier: 输出预算档位（tiny/short/medium/large）——
+                原先所有动作都固定用 4096，对"解释代码"这类只输出
+                一两段文字的任务会白等更久、也更费 token。
             **format_kwargs: 模板额外参数
 
         修复说明（P3-4）:
@@ -1815,10 +2111,19 @@ class Plugin(PluginBase):
             enable_insert=True,
             parent=main_window,
         )
+        # 追问所需的状态：client、system、原始代码、token 档位
+        dlg._client = self._client
+        dlg._code_context = code
+        dlg._max_tokens = tokens_for(token_tier)
         self._active_dialogs.append(dlg)
 
-        # 创建 Worker
-        worker = AIWorker(self._client, prompt, system_prompt)
+        # 创建 Worker（首轮：默认记住上下文，方便直接追问）
+        worker = AIWorker(
+            self._client, prompt, system_prompt,
+            parent=dlg,
+            use_history=True,
+            max_tokens=dlg._max_tokens,
+        )
         dlg.set_worker(worker)
         worker.start()
 
@@ -1838,6 +2143,7 @@ class Plugin(PluginBase):
             PROMPT_EXPLAIN,
             "💡 解释代码",
             "你是资深开发者，用中文简洁地解释代码逻辑，分点说明。",
+            token_tier='short',
         )
 
     def _on_refactor(self):
@@ -1846,6 +2152,7 @@ class Plugin(PluginBase):
             PROMPT_REFACTOR,
             "🔧 重构代码",
             "你是重构专家，保持功能不变，提升可读性和可维护性。",
+            token_tier='medium',
         )
 
     def _on_fix(self):
@@ -1854,6 +2161,7 @@ class Plugin(PluginBase):
             PROMPT_FIX,
             "🐛 修复 Bug",
             "你是调试专家，找出代码中的 bug 并修复。",
+            token_tier='medium',
         )
 
     def _on_comment(self):
@@ -1862,6 +2170,7 @@ class Plugin(PluginBase):
             PROMPT_COMMENT,
             "💬 添加注释",
             "你是文档专家，为代码添加清晰的中文注释。",
+            token_tier='medium',
         )
 
     def _on_docstring(self):
@@ -1871,6 +2180,7 @@ class Plugin(PluginBase):
             "📖 生成 Docstring",
             "你是 Python 文档专家，使用 Google 风格 docstring。",
             style="Google",
+            token_tier='short',
         )
 
     def _on_tests(self):
@@ -1880,6 +2190,7 @@ class Plugin(PluginBase):
             "🧪 生成单元测试",
             "你是测试工程师，生成完整的单元测试。",
             framework="pytest",
+            token_tier='large',
         )
 
     def _on_optimize(self):
@@ -1888,6 +2199,7 @@ class Plugin(PluginBase):
             PROMPT_OPTIMIZE,
             "⚡ 性能优化",
             "你是性能优化专家，优化代码性能但保持功能不变。",
+            token_tier='medium',
         )
 
     def _on_review(self):
@@ -1896,6 +2208,7 @@ class Plugin(PluginBase):
             PROMPT_REVIEW,
             "🔍 Code Review",
             "你是资深开发者，用中文分点指出代码中的问题。",
+            token_tier='medium',
         )
 
     def _on_summary(self):
@@ -1904,6 +2217,7 @@ class Plugin(PluginBase):
             PROMPT_SUMMARY,
             "📝 代码摘要",
             "用中文简洁总结代码的核心功能。",
+            token_tier='tiny',
         )
 
     def _on_convert(self, dst_lang: str):
@@ -1913,6 +2227,7 @@ class Plugin(PluginBase):
             f"🔄 转换为 {dst_lang}",
             "你是多语言专家，保持代码功能等价地转换语言。",
             dst_lang=dst_lang,
+            token_tier='large',
         )
 
     # --------------------------------------------------------

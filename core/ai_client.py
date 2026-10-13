@@ -36,6 +36,34 @@ DEFAULT_MAX_TOKENS = 4096
 DEFAULT_TEMPERATURE = 0.3
 STREAM_TIMEOUT = 300
 
+# 多轮历史保留的最大轮数（一轮 = user + assistant）。
+# 历史会随请求一起发送，无上限会撑爆模型上下文窗口。
+MAX_HISTORY_TURNS = 10
+
+# 按任务类型分档的 max_tokens。
+#
+# 为什么需要分档：原先所有请求都用 DEFAULT_MAX_TOKENS=4096。
+# 对"生成单元测试 / 重构"这类任务 4096 是合理的，但对
+# "解释代码 / 代码摘要"这类只需要一两段文字的任务，模型可能一直
+# 输出到上限，白白增加等待时间与 token 费用。
+#
+# 取值保守（宁大勿小），避免把输出截断：
+#   tiny   —— 摘要、一行说明
+#   short  —— 解释、加注释、Docstring
+#   medium —— 重构、性能优化、Code Review
+#   large  —— 生成测试、语言转换（可能整文件重写）
+TOKEN_TIERS = {
+    "tiny": 512,
+    "short": 1024,
+    "medium": 2048,
+    "large": 4096,
+}
+
+
+def tokens_for(tier: str) -> int:
+    """把档位名换成 max_tokens（未知档位回退到默认值）"""
+    return TOKEN_TIERS.get(tier, DEFAULT_MAX_TOKENS)
+
 
 class AIClientError(Exception):
     pass
@@ -133,10 +161,44 @@ class AIClient(QObject):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self._cancel = threading.Event()
+        # 多轮对话历史（此前只声明、从未使用，见 chat(use_history=...)）
+        self._history: List[Dict[str, str]] = []
+        self.max_history_turns = MAX_HISTORY_TURNS
+
+    # --------------------------------------------------------
+    # 多轮对话历史
+    # --------------------------------------------------------
+    def reset_history(self):
+        """清空对话历史（开始新话题时调用）"""
         self._history = []
 
-    def chat(self, prompt="", system="", messages=None):
-        """同步对话"""
+    def get_history(self) -> List[Dict[str, str]]:
+        """返回历史副本（勿直接改内部列表）"""
+        return [dict(m) for m in self._history]
+
+    def history_turns(self) -> int:
+        """已记录的历史条数（user + assistant 各算一条）"""
+        return len(self._history)
+
+    def _trim_history(self):
+        """只保留最近 N 轮（一轮 = user + assistant）。
+
+        防止长会话把 token 撑爆 —— 历史会随每次请求一起发送，
+        无上限增长会很快超出模型上下文窗口。
+        """
+        max_msgs = max(2, int(self.max_history_turns) * 2)
+        if len(self._history) > max_msgs:
+            self._history = self._history[-max_msgs:]
+
+    def chat(self, prompt="", system="", messages=None,
+             use_history=False):
+        """同步对话
+
+        参数:
+            use_history: 为 True 时把本次对话并入多轮历史，
+                并把历史一并发送给模型（实现"接着上文聊"）。
+                流式接口 `chat_stream` 同样支持该参数。
+        """
         if messages is None:
             messages = []
             if prompt:
@@ -144,7 +206,15 @@ class AIClient(QObject):
         if not self.api_key and self.provider not in ("ollama", "custom"):
             raise AIAuthError("未配置 API Key")
         try:
-            result = self._chat(messages, system)
+            to_send = list(messages)
+            if use_history:
+                to_send = self._history + to_send
+            result = self._chat(to_send, system)
+            if use_history:
+                self._history.extend(messages)
+                self._history.append({"role": "assistant",
+                                      "content": result or ""})
+                self._trim_history()
             self.response_ready.emit(result)
             return result
         except Exception as e:
@@ -152,21 +222,32 @@ class AIClient(QObject):
             raise AIClientError(str(e))
 
     def chat_async(self, prompt="", system="",
-                   callback=None, error_callback=None):
-        """异步对话"""
+                   callback=None, error_callback=None,
+                   use_history=False):
+        """异步对话（在后台线程执行 `chat`，通过回调返回结果）
+
+        这是**编程式 API**，面向脚本或需要"发起即返回"的场景。
+        UI（plugins/ai_assistant）不用它 —— 那里用 `AIWorker` +
+        `chat_stream`，因为需要流式增量与可取消。
+
+        注意：返回值是 `None`（不阻塞），结果通过 `callback` 交付；
+        `error_callback` 收到错误字符串。取消请用 `cancel()`。
+        """
         self._cancel.clear()
 
         def worker():
             try:
-                result = self.chat(prompt, system)
+                result = self.chat(prompt, system, use_history=use_history)
                 if callback:
                     callback(result)
             except Exception as e:
                 if error_callback:
                     error_callback(str(e))
 
-        t = threading.Thread(target=worker, daemon=True)
+        t = threading.Thread(target=worker, daemon=True,
+                             name="ai-chat-async")
         t.start()
+        return t
 
     def cancel(self):
         self._cancel.set()
@@ -174,7 +255,8 @@ class AIClient(QObject):
     def is_cancelled(self):
         return self._cancel.is_set()
 
-    def chat_stream(self, prompt="", system="", callback=None):
+    def chat_stream(self, prompt="", system="", callback=None,
+                    use_history=False):
         """流式对话（基类默认实现：非流式 + 一次性回调）。
 
         子类应重写本方法以提供**真正的增量输出**：
@@ -195,7 +277,11 @@ class AIClient(QObject):
         """
         # 尊重取消语义：先清标志，再发一次请求
         self._cancel.clear()
-        text = self.chat(prompt=prompt, system=system)
+        messages = []
+        if prompt:
+            messages.append({"role": "user", "content": prompt})
+        text = self.chat(messages=messages, system=system,
+                         use_history=use_history)
         if callback and text:
             callback(text)
         return text
@@ -311,13 +397,19 @@ class OpenAIClient(AIClient):
             raise AIClientError("API 返回空结果")
         return choices[0].get("message", {}).get("content", "")
 
-    def chat_stream(self, prompt="", system="", callback=None):
+    def chat_stream(self, prompt="", system="", callback=None,
+                    use_history=False, max_tokens=None):
         """流式对话（OpenAI 兼容族：OpenAI / Ollama / DeepSeek / 通义 /
         Moonshot / 智谱）。
 
         协议：``POST {base}/chat/completions`` + SSE，每行
         ``data: {"choices":[{"delta":{"content":"..."}}]}``，以
         ``data: [DONE]`` 结束。
+
+        参数:
+            use_history: 并入并发送多轮历史（实现"接着上文聊"）
+            max_tokens:  覆盖本次请求的 token 上限（按任务分档用，
+                         默认沿用实例的 max_tokens）
         """
         if not self.api_key and self.provider not in ("ollama", "custom"):
             raise AIAuthError("未配置 API Key")
@@ -327,7 +419,8 @@ class OpenAIClient(AIClient):
         # （基类兜底实现有这一步，此处原先遗漏。）
         self._cancel.clear()
 
-        messages = [{"role": "user", "content": prompt}]
+        user_msg = {"role": "user", "content": prompt}
+        messages = self._history + [user_msg] if use_history else [user_msg]
         full_messages = []
         if system:
             full_messages.append({"role": "system", "content": system})
@@ -341,7 +434,7 @@ class OpenAIClient(AIClient):
             "model": self.model,
             "messages": full_messages,
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens or self.max_tokens,
             "stream": True,
         }
 
@@ -374,7 +467,14 @@ class OpenAIClient(AIClient):
             except json.JSONDecodeError:
                 continue
         resp.close()
-        return "".join(full_text)
+        text = "".join(full_text)
+        if use_history:
+            # 只记录**已完成**的轮次；被取消时也记录已收到的部分，
+            # 这样用户"接着上文"时上下文与所见内容一致。
+            self._history.append(user_msg)
+            self._history.append({"role": "assistant", "content": text})
+            self._trim_history()
+        return text
 
 
 #!============================================================
@@ -416,7 +516,8 @@ class ClaudeClient(AIClient):
                 text_parts.append(item.get("text", ""))
         return "".join(text_parts)
 
-    def chat_stream(self, prompt="", system="", callback=None):
+    def chat_stream(self, prompt="", system="", callback=None,
+                    use_history=False, max_tokens=None):
         """Anthropic Messages API 的**真正流式**实现（SSE）。
 
         与 OpenAI 的区别：
@@ -437,6 +538,9 @@ class ClaudeClient(AIClient):
 
         self._cancel.clear()
 
+        user_msg = {"role": "user", "content": prompt}
+        convo = self._history + [user_msg] if use_history else [user_msg]
+
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
@@ -445,8 +549,8 @@ class ClaudeClient(AIClient):
         }
         payload = {
             "model": self.model,
-            "max_tokens": self.max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens or self.max_tokens,
+            "messages": convo,
             "temperature": self.temperature,
             "stream": True,
         }
@@ -497,7 +601,12 @@ class ClaudeClient(AIClient):
             except Exception:
                 pass
 
-        return "".join(full_text)
+        text = "".join(full_text)
+        if use_history:
+            self._history.append(user_msg)
+            self._history.append({"role": "assistant", "content": text})
+            self._trim_history()
+        return text
 
 
 #!============================================================
@@ -680,6 +789,20 @@ def save_ai_client_to_settings(client):
 
 #!============================================================
 #!便捷函数
+#!
+#!定位说明（避免误当成死代码删掉）：
+#!    这里的 quick_* 与 chat_async 是**编程式公开 API**，面向脚本、
+#!    插件内部或未来的批处理场景，提供"一句话拿结果"的同步/异步入口。
+#!
+#!    编辑器 UI（plugins/ai_assistant）走的是**另一条路径**：
+#!    `AIWorker` + `chat_stream`，因为它需要流式增量输出、
+#!    可取消、以及按任务分档的 token 预算。两条路径共用同一套
+#!    PROMPT_* 模板与客户端，因此不会出现提示词不一致。
+#!
+#!    两者都不要删：
+#!      * 删 quick_*    → 失去无 UI 场景的调用方式
+#!      * 删 UI 路径    → 失去流式体验
+#!    新增提示词时请同时评估两边是否需要接入。
 #!============================================================
 def quick_chat(prompt, system=""):
     client = get_ai_client()

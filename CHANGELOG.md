@@ -34,6 +34,74 @@
   下拉框 : ['llama3.2:latest']   ← 由 /api/tags 动态获取
   ```
 
+### 新增（AI 能力）
+
+- **多轮对话（追问）**
+  `AIClient._history` 此前**只声明、从未使用**，AI 只能一问一答。
+  现实现为真正可用的上下文：
+  * `chat` / `chat_stream` 均支持 `use_history=True`（三个实现：
+    基类兜底、`OpenAIClient`、`ClaudeClient`）；
+  * 历史随请求发送，因此模型能"接着上文"回答；
+  * `max_history_turns`（默认 10 轮）自动裁剪，避免长会话撑爆上下文窗口；
+  * 新增 `reset_history()` / `get_history()` / `history_turns()`。
+
+  UI 侧在 AI 结果对话框加入了**追问输入框**（回车发送）与"记住上下文"
+  开关：首轮完成后可直接输入「再简化一点」「换成列表推导式」等继续对话，
+  追问会自动附带最初分析的代码，便于模型定位。
+
+- **按任务分档的 token 预算**
+  原先所有动作固定 `max_tokens=4096`。对"解释代码/代码摘要"这类只输出
+  一两段文字的任务，模型可能一直输出到上限，白等更久也更费 token。
+  现引入 `TOKEN_TIERS`（tiny/short/medium/large = 512/1024/2048/4096）
+  与 `tokens_for(tier)`，并给 10 个 AI 动作分别定档：
+  摘要 → tiny；解释/Docstring → short；重构/修复/注释/优化/Review → medium；
+  生成测试/语言转换 → large。
+
+- **AI 行内补全（Ghost Text）接线**
+  `ui/ai_inline_completer.py` 此前是**死代码**（完整实现但从未实例化）。
+  本次重写并接线，同时修掉它原有的三个缺陷：
+
+  | 原缺陷 | 现方案 |
+  |---|---|
+  | `_pending` 由工作线程写、主线程读，输入被静默丢弃 | 改为在工作线程只发信号，**主线程**回调里复位 |
+  | 每次建议都挂一个不可取消的 5 秒 `singleShot`，快速操作会堆积 | 复用一个可 `start()` 重置的 `QTimer` |
+  | 每次按键都可能触发 AI 请求（有延迟、有费用） | 改为**显式触发**，默认**关闭** |
+
+  渲染改用 Scintilla **注解**（`SCI_ANNOTATIONSETTEXT`）而非 CallTip：
+  注解本就是"给某行加提示"设计的，且不会像 CallTip 那样遮挡代码。
+  接受建议用 `SCI_INSERTTEXT` 插入，**可被 Ctrl+Z 撤销**。
+
+  入口：菜单 工具 → AI 助手 → ⌨ 切换/请求/接受行内补全；
+  快捷键 `Ctrl+Alt+Space`（请求）、`Ctrl+Alt+Return`（接受）。
+
+- **修正 `_clean` 的围栏解析**
+  生成结果形如 ```` ```python\nreturn 1\n``` ```` 时，原实现先把 ``` 全部
+  `replace` 掉再取第一行，会得到**空行**（结果为空）或把语言标记
+  `python` 当成代码返回。现先剥围栏并跳过语言标记行，再取首个非空行。
+
+### 修复（AI 模块交互）
+
+- **同一快捷键被重复绑定**
+  菜单项通过 `add_menu(..., shortcut)` 绑定一次，`_register_shortcuts()`
+  又用 `register_shortcut()` 绑定一次 → 产生两个同名 QAction，Qt 打印
+  "Ambiguous shortcut overload" 且**只触发其中一个**。
+  现约定：有菜单项的快捷键由菜单负责（菜单里能看到按键提示），
+  `register_shortcut` 只用于没有菜单项的（现仅 `Ctrl+Shift+A`）。
+
+- **`QObject` 子类化错误导致插件整体激活失败**
+  `PluginBase` 继承自 `object` 而非 `QObject`；创建 `AIInlineCompleter`
+  时传 `parent=self` 会抛 `TypeError`，使插件的 `on_activate` 中断 →
+  **全部 22 个 AI 菜单项消失**。改为无 parent + 插件实例持强引用。
+  （同类问题此前已在 `QTimer(self)` 上踩过一次，已在两处加注释说明。）
+
+### 测试
+
+- `tests/test_ai_client.py` 新增多轮历史（13 个）与 token 分档（5 个）用例
+- `tests/test_ai_inline_completer.py` 新增 23 个用例（含围栏/语言标记解析、
+  最小间隔、取消作废在途请求、接受可撤销）
+
+全量套件 317 → **356 passed**。
+
 ### 修复（AI 模块）
 
 - **Anthropic Claude 的流式输出从未生效**

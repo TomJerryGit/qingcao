@@ -440,3 +440,144 @@ class TestChatNonStream:
         with pytest.raises(AI.AIAuthError) as ei:
             AI.OpenAIClient(api_key="", provider="openai").chat("q")
         assert "API Key" in str(ei.value)
+
+
+# =========================================================
+# 多轮对话历史（此前 _history 只声明、从未使用）
+# =========================================================
+
+class TestChatHistory:
+    def _client(self):
+        c = AI.OpenAIClient(api_key="k", provider="openai")
+        c.timeout = 1
+        return c
+
+    def test_history_empty_by_default(self):
+        c = self._client()
+        assert c.get_history() == []
+        assert c.history_turns() == 0
+
+    def test_no_history_recorded_when_disabled(self, patch_http):
+        patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "答案"}}]}))
+        c = self._client()
+        c.chat("问题")
+        assert c.get_history() == [], "默认不应记录历史"
+
+    def test_history_recorded_when_enabled(self, patch_http):
+        patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "答案"}}]}))
+        c = self._client()
+        c.chat("问题", use_history=True)
+        h = c.get_history()
+        assert len(h) == 2
+        assert h[0] == {"role": "user", "content": "问题"}
+        assert h[1] == {"role": "assistant", "content": "答案"}
+        assert c.history_turns() == 2
+
+    def test_second_turn_sends_previous_context(self, patch_http):
+        """第二轮必须把第一轮带上去 —— 这是'多轮'的本质"""
+        rec = patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "A1"}}]}))
+        c = self._client()
+        c.chat("Q1", use_history=True)
+        c.chat("Q2", use_history=True)
+        sent = rec.payload["messages"]
+        roles = [(m["role"], m["content"]) for m in sent]
+        assert roles == [("user", "Q1"), ("assistant", "A1"),
+                         ("user", "Q2")], roles
+
+    def test_system_not_duplicated_into_history(self, patch_http):
+        rec = patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "A"}}]}))
+        c = self._client()
+        c.chat("Q", system="SYS", use_history=True)
+        # system 每次作为独立首条发送，不进入 history 本体
+        assert rec.payload["messages"][0] == {"role": "system", "content": "SYS"}
+        assert all(m["role"] != "system" for m in c.get_history())
+
+    def test_history_is_trimmed(self, patch_http):
+        patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "A"}}]}))
+        c = self._client()
+        c.max_history_turns = 2          # 上限 2 轮 = 4 条
+        for i in range(6):
+            c.chat("Q%d" % i, use_history=True)
+        assert c.history_turns() <= 4, c.get_history()
+        # 保留的必须是最新的
+        assert c.get_history()[-1]["content"] == "A"
+
+    def test_reset_history(self, patch_http):
+        patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "A"}}]}))
+        c = self._client()
+        c.chat("Q", use_history=True)
+        assert c.history_turns() == 2
+        c.reset_history()
+        assert c.history_turns() == 0
+
+    def test_get_history_returns_copy(self, patch_http):
+        patch_http(FakeResponse(json_data={
+            "choices": [{"message": {"content": "A"}}]}))
+        c = self._client()
+        c.chat("Q", use_history=True)
+        h = c.get_history()
+        h.append({"role": "user", "content": "篡改"})
+        assert c.history_turns() == 2, "外部修改不应影响内部历史"
+
+    def test_stream_history_recorded(self, patch_http):
+        patch_http(FakeResponse(lines=openai_sse("Hello", "!")))
+        c = self._client()
+        c.chat_stream("Q", use_history=True)
+        h = c.get_history()
+        assert len(h) == 2
+        assert h[1] == {"role": "assistant", "content": "Hello!"}
+
+    def test_stream_second_turn_includes_context(self, patch_http):
+        rec = patch_http(FakeResponse(lines=openai_sse("A1")))
+        c = self._client()
+        c.chat_stream("Q1", use_history=True)
+        c.chat_stream("Q2", use_history=True)
+        roles = [(m["role"], m["content"]) for m in rec.payload["messages"]]
+        assert roles == [("user", "Q1"), ("assistant", "A1"), ("user", "Q2")]
+
+    def test_claude_stream_history(self, patch_http):
+        patch_http(FakeResponse(lines=anthropic_sse("你好")))
+        c = AI.ClaudeClient(api_key="k")
+        c.chat_stream("Q", use_history=True)
+        assert c.get_history()[-1]["content"] == "你好"
+
+
+# =========================================================
+# token 分档
+# =========================================================
+
+class TestTokenTiers:
+    def test_tiers_are_ordered(self):
+        vals = [AI.TOKEN_TIERS[t] for t in ("tiny", "short", "medium", "large")]
+        assert vals == sorted(vals), "档位应递增"
+        assert len(set(vals)) == len(vals)
+
+    def test_tokens_for_known_and_unknown(self):
+        assert AI.tokens_for("tiny") == AI.TOKEN_TIERS["tiny"]
+        assert AI.tokens_for("large") == AI.TOKEN_TIERS["large"]
+        # 未知档位回退到默认值，而不是抛异常
+        assert AI.tokens_for("nope") == AI.DEFAULT_MAX_TOKENS
+
+    def test_stream_respects_max_tokens_override(self, patch_http):
+        rec = patch_http(FakeResponse(lines=openai_sse("x")))
+        c = AI.OpenAIClient(api_key="k", provider="openai", max_tokens=4096)
+        c.chat_stream("q", max_tokens=AI.tokens_for("tiny"))
+        assert rec.payload["max_tokens"] == AI.TOKEN_TIERS["tiny"]
+
+    def test_stream_uses_instance_default_when_not_overridden(self, patch_http):
+        rec = patch_http(FakeResponse(lines=openai_sse("x")))
+        c = AI.OpenAIClient(api_key="k", provider="openai", max_tokens=1234)
+        c.chat_stream("q")
+        assert rec.payload["max_tokens"] == 1234
+
+    def test_claude_stream_respects_override(self, patch_http):
+        rec = patch_http(FakeResponse(lines=anthropic_sse("x")))
+        c = AI.ClaudeClient(api_key="k", max_tokens=4096)
+        c.chat_stream("q", max_tokens=AI.tokens_for("short"))
+        assert rec.payload["max_tokens"] == AI.TOKEN_TIERS["short"]
