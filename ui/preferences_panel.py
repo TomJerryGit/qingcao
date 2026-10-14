@@ -113,6 +113,27 @@ class GeneralPage(QWidget):
         self.splash_cb.setChecked(prefs.get("splash_screen", True))
         startup_layout.addWidget(self.splash_cb)
 
+        # P7 接线：splash_duration 此前是"有默认值、无 UI、零读取"的
+        # 假开关。现在 main.py 会用它保证启动画面的最小可见时长，
+        # 这里补上对应的界面项。
+        splash_dur_row = QHBoxLayout()
+        splash_dur_row.addSpacing(20)
+        splash_dur_row.addWidget(QLabel("显示时长:"))
+        self.splash_duration_spin = QSpinBox()
+        self.splash_duration_spin.setRange(0, 5000)
+        self.splash_duration_spin.setSingleStep(100)
+        self.splash_duration_spin.setSuffix(" ms")
+        self.splash_duration_spin.setValue(
+            prefs.get("splash_duration", 800)
+        )
+        self.splash_duration_spin.setEnabled(self.splash_cb.isChecked())
+        self.splash_cb.toggled.connect(
+            self.splash_duration_spin.setEnabled
+        )
+        splash_dur_row.addWidget(self.splash_duration_spin)
+        splash_dur_row.addStretch()
+        startup_layout.addLayout(splash_dur_row)
+
         layout.addWidget(startup_group)
 
         # ---- 更新 ----
@@ -140,6 +161,8 @@ class GeneralPage(QWidget):
         self.prefs.set("reopen_last_files",
                        self.reopen_files_cb.isChecked())
         self.prefs.set("splash_screen", self.splash_cb.isChecked())
+        self.prefs.set("splash_duration",
+                       self.splash_duration_spin.value())
         self.prefs.set("check_update", self.check_update_cb.isChecked())
         self.prefs.set("telemetry", self.telemetry_cb.isChecked())
 

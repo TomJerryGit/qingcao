@@ -28,13 +28,15 @@
 """
 
 import datetime
+import logging
 import os
 import re
+import shutil
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PyQt5.Qsci import QsciLexerCPP, QsciLexerPython, QsciScintilla
-from PyQt5.QtCore import QDateTime, QObject, QSettings, QTimer, pyqtSignal
+from PyQt5.QtCore import QDateTime, QObject, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
 
 from app.event_bus import (
@@ -61,9 +63,12 @@ from core.commands import (
     merge_commands,
 )
 from core.document import Document
-from core.lsp_client import LspClient
+from core.lsp_client import LspClient, LspServerRegistry
 from core.search import SearchEngine, SearchOptions
 from core.undo import UndoManager
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -119,6 +124,98 @@ CURSOR_TRAIL_DURATION = 0.2
 
 
 # ============================================================
+# P6: LSP 接线辅助函数
+# ============================================================
+def lsp_language_for_file(filepath: Optional[str]) -> Optional[str]:
+    """文件路径 → LSP languageId（不认识则 None）。
+
+    P6 修复：``toggle_lsp`` 原先硬编码 ``ext not in ('.py', '.pyw')``，
+    与本模块的 ``LSP_LANGUAGE_BY_EXT``（20+ 种语言）自相矛盾。
+    统一以本函数（即 LSP_LANGUAGE_BY_EXT）作为"是否支持"的唯一判据。
+    """
+    if not filepath:
+        return None
+    ext = os.path.splitext(filepath)[1].lower()
+    return LSP_LANGUAGE_BY_EXT.get(ext)
+
+
+def lsp_server_language_for_file(filepath: Optional[str]) -> Optional[str]:
+    """文件路径 → :class:`LspServerRegistry` 中的服务器键。
+
+    languageId 与注册表键不总是同名（例如 .ts 的 languageId 是
+    ``typescript``，而 QScintilla/注册表里的服务器键是
+    ``javascript``），因此先按 languageId 精确查，查不到再退化为
+    按扩展名匹配注册表。
+    """
+    language = lsp_language_for_file(filepath)
+    if language is None:
+        return None
+    try:
+        if LspServerRegistry.get(language) is not None:
+            return language
+        return LspServerRegistry.detect_language(filepath)
+    except Exception:
+        return None
+
+
+def lsp_install_hint(language: Optional[str]) -> str:
+    """返回语言的安装提示，例如 ``pip install python-lsp-server``。"""
+    if not language:
+        return ""
+    try:
+        config = LspServerRegistry.get(language) or {}
+    except Exception:
+        config = {}
+    command = config.get('command') or []
+    executable = command[0] if command else language
+    install = list(config.get('install') or [])
+    if install:
+        # python 的 install 形如
+        # [sys.executable, '-m', 'pip', 'install', 'python-lsp-server']，
+        # 去掉解释器前缀，给出用户可直接复制执行的命令。
+        if len(install) >= 3 and install[1] == '-m':
+            return ' '.join(install[2:])
+        return ' '.join(install)
+    return f"请手动安装 {executable}"
+
+
+def lsp_command_available(command: Optional[List[str]]) -> bool:
+    """启动命令是否可用（PATH 查找 / 绝对路径存在性检查）。"""
+    if not command:
+        return False
+    program = command[0]
+    try:
+        if os.path.isabs(program):
+            return os.path.isfile(program)
+        return shutil.which(program) is not None
+    except Exception:
+        return False
+
+
+# ============================================================
+# 偏好辅助（P8: 统一走 Preferences，不再散落裸 QSettings）
+# ============================================================
+DEFAULT_DATE_FORMAT = "%Y-%m-%d"
+DEFAULT_TIME_FORMAT = "%H:%M:%S"
+
+
+def resolve_datetime_format(date_format: Optional[str],
+                            time_format: Optional[str]) -> str:
+    """组合 ``date_format`` / ``time_format`` 得到"插入日期时间"的格式。
+
+    历史默认值 ``date_format`` 已经自带时间部分
+    (``"%Y-%m-%d %H:%M:%S"``)。因此只有在用户把它改成**纯日期**
+    （如 ``"%Y-%m-%d"``）时才追加 ``time_format``，否则会出现
+    ``"%Y-%m-%d %H:%M:%S %H:%M:%S"`` 这种重复时间。
+    """
+    date_fmt = date_format or DEFAULT_DATE_FORMAT
+    time_fmt = time_format or DEFAULT_TIME_FORMAT
+    if any(token in date_fmt for token in ("%H", "%I", "%M", "%S")):
+        return date_fmt
+    return f"{date_fmt} {time_fmt}"
+
+
+# ============================================================
 # 辅助函数
 # ============================================================
 def _normalize_bytes(data) -> bytes:
@@ -155,6 +252,8 @@ class EditorProxy(QObject):
         selection_changed(): 选区变更
         load_progress(int, int): 加载进度（已加载块, 总块数）
         lsp_status_changed(str): LSP 状态变更
+        lsp_error(str): LSP 失败原因 / 提示（P6，供主窗口显示）
+        definition_requested(str, int, int): 定义位于其它文件（P6）
     """
 
     modified_changed = pyqtSignal(bool)
@@ -163,6 +262,10 @@ class EditorProxy(QObject):
     selection_changed = pyqtSignal()
     load_progress = pyqtSignal(int, int)
     lsp_status_changed = pyqtSignal(str)
+    # P6: LSP 的用户可见提示（失败原因 / 安装提示）
+    lsp_error = pyqtSignal(str)
+    # P6: 定义位于**其它文件**时请求主窗口打开（路径, 行, 列）
+    definition_requested = pyqtSignal(str, int, int)
 
     # --------------------------------------------------------
     # 内置代码片段
@@ -216,6 +319,8 @@ class EditorProxy(QObject):
         self.lsp_client: Optional[LspClient] = None
         self.lsp_active: bool = False
         self._lsp_uri: str = ""
+        # P6: 当前 LSP 服务器在 LspServerRegistry 中的语言键（用于安装提示）
+        self._lsp_server_language: Optional[str] = None
         # P0-2: 文档变更 → didChange 的防抖定时器
         self._lsp_sync_timer = QTimer(self)
         self._lsp_sync_timer.setSingleShot(True)
@@ -458,6 +563,29 @@ class EditorProxy(QObject):
         except Exception as e:
             print(f"[EditorProxy] 加载块 {current} 失败: {e}")
 
+    def _prefs(self):
+        """获取全局 Preferences 单例（P8: 统一偏好读取）。
+
+        修复说明:
+            本文件原先有 4 处裸 ``QSettings("QingCao", "Editor")``，而
+            ``ui/editor_view.py`` 全部走 ``Preferences``。两者底层虽然
+            是同一个 QSettings 存储（``app/preferences.py`` 的
+            ``ORG_NAME="QingCao"`` / ``APP_NAME="Editor"``），但裸读
+            绕过了 Preferences 的类型转换与变更通知，也没有"单一
+            入口"可维护性 —— 例如同一个开关在两处用不同的默认值
+            （``settings.value(k, True, type=bool)`` vs
+            ``DEFAULTS[k]``）就会读出不一致的结果。
+            现在统一走 Preferences 单例。
+
+        返回:
+            Preferences 实例；不可用时返回 None（调用方回退默认值）
+        """
+        try:
+            from app.preferences import get_preferences
+            return get_preferences()
+        except Exception:
+            return None
+
     def save_file(self, filepath: Optional[str] = None) -> bool:
         """
         保存文件。
@@ -473,13 +601,20 @@ class EditorProxy(QObject):
             text = self.sc.text()
 
             # 应用偏好设置：清理行尾空白和末尾换行
-            settings = QSettings("QingCao", "Editor")
+            # P8: 统一走 Preferences（原先裸 QSettings("QingCao","Editor")
+            #     绕过了偏好层，默认值可能与 DEFAULTS 不一致）
+            prefs = self._prefs()
+            trim_ws = True
+            final_newline = True
+            if prefs is not None:
+                trim_ws = bool(prefs.get("trim_trailing_whitespace", True))
+                final_newline = bool(prefs.get("insert_final_newline", True))
 
-            if settings.value("trim_trailing_whitespace", True, type=bool):
+            if trim_ws:
                 lines = [l.rstrip() for l in text.splitlines()]
                 text = '\n'.join(lines)
 
-            if settings.value("insert_final_newline", True, type=bool):
+            if final_newline:
                 if text and not text.endswith('\n'):
                     text += '\n'
 
@@ -555,41 +690,34 @@ class EditorProxy(QObject):
     # 词法器
     # ========================================================
     def _apply_lexer(self, filepath: Optional[str]):
-        """根据文件扩展名应用语法高亮"""
-        if not filepath:
-            self.sc.setLexer(None)
-            return
+        """根据文件扩展名应用语法高亮。
 
-        ext = os.path.splitext(filepath)[1].lower()
+        P8/P5 清理（重复副本）:
+            本方法此前与 ``ui/editor_view.py`` 中
+            ``EditorWidget.set_lexer_by_filename()`` 是同一逻辑的两份
+            副本，而且已经漂移 —— ui 侧由 P5 扩展到了 30+ 种语言的
+            映射表（``LEXER_BY_EXTENSION``），core 侧只剩下
+            .py/.c/.log 三个分支。
 
+            权威实现是 **ui/editor_view.py**（见其中的 docstring）。
+            core 这里不再维护第二份映射表，直接委托给控件自身的
+            ``set_lexer_by_filename()``：它会按"插件注册表 → .log 专用
+            → 内置映射表 → 无高亮"的优先级处理，并顺带设置字体。
+
+            控件未实现该方法（例如裸 QsciScintilla）时退化为清空
+            词法器 —— 宁可没有高亮，也不要在这里复活第二份映射表。
+        """
+        setter = getattr(self.sc, 'set_lexer_by_filename', None)
+        if callable(setter):
+            try:
+                setter(filepath)
+                return
+            except Exception as e:
+                print(f"[EditorProxy] 应用词法器失败: {e}")
         try:
-            if ext in ('.py', '.pyw'):
-                self.sc.setLexer(QsciLexerPython())
-            elif ext in ('.cpp', '.cc', '.cxx', '.h', '.hpp', '.c'):
-                self.sc.setLexer(QsciLexerCPP())
-            elif ext == '.log':
-                # 使用自定义日志词法器（如果注册过）
-                try:
-                    from core.log_lexer import LogLexer
-                    self.sc.setLexer(LogLexer(self.sc))
-                except ImportError:
-                    self.sc.setLexer(None)
-            else:
-                # 检查是否有自定义词法器
-                try:
-                    custom = getattr(self.sc.window(), '_custom_lexers', {})
-                except Exception:
-                    custom = {}
-                if ext in custom:
-                    factory = custom[ext]
-                    lexer = factory()
-                    if lexer:
-                        self.sc.setLexer(lexer)
-                else:
-                    self.sc.setLexer(None)
-        except Exception as e:
-            print(f"[EditorProxy] 应用词法器失败: {e}")
             self.sc.setLexer(None)
+        except Exception:
+            pass
 
     def _detect_indent(self):
         """检测缩进风格"""
@@ -1539,8 +1667,9 @@ class EditorProxy(QObject):
     def _do_smart_highlight(self):
         """执行智能单词高亮（防抖后触发）"""
         try:
-            settings = QSettings("QingCao", "Editor")
-            if not settings.value("smart_highlight", True, type=bool):
+            # P8: 统一走 Preferences
+            prefs = self._prefs()
+            if prefs is not None and not prefs.get("smart_highlight", True):
                 return
 
             # 清除旧高亮
@@ -1616,8 +1745,9 @@ class EditorProxy(QObject):
     def _update_cursor_trail(self):
         """更新光标拖尾效果"""
         try:
-            settings = QSettings("QingCao", "Editor")
-            if not settings.value("cursor_trail", False, type=bool):
+            # P8: 统一走 Preferences
+            prefs = self._prefs()
+            if prefs is not None and not prefs.get("cursor_trail", False):
                 return
 
             pos = self.get_current_pos()
@@ -1686,9 +1816,13 @@ class EditorProxy(QObject):
         """替换片段中的内置变量"""
         now = datetime.datetime.now()
 
-        # 从偏好获取作者
-        settings = QSettings("QingCao", "Editor")
-        author = settings.value("author_name", "anonymous")
+        # 从偏好获取作者（P8: 统一走 Preferences；author_name 不在
+        # DEFAULTS 里，缺失时用 "anonymous"）
+        prefs = self._prefs()
+        if prefs is not None:
+            author = prefs.get("author_name", "anonymous")
+        else:
+            author = "anonymous"
 
         replacements = {
             '$TM_FILENAME': (
@@ -1745,9 +1879,20 @@ class EditorProxy(QObject):
     # 特殊插入
     # ========================================================
     def insert_datetime(self):
-        """插入当前日期时间"""
+        """插入当前日期时间。
+
+        P7/P8 接线：格式来自 Preferences 的 ``date_format`` /
+        ``time_format``（原先硬编码 ``"%Y-%m-%d %H:%M:%S"``，
+        用户在首选项里改了这一项也没有任何效果）。
+        """
         try:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            prefs = self._prefs()
+            date_fmt = time_fmt = None
+            if prefs is not None:
+                date_fmt = prefs.get("date_format", None)
+                time_fmt = prefs.get("time_format", None)
+            fmt = resolve_datetime_format(date_fmt, time_fmt)
+            ts = datetime.datetime.now().strftime(fmt)
             pos = self.get_current_pos()
             self.sc.SendScintilla(
                 QsciScintilla.SCI_INSERTTEXT,
@@ -1855,15 +2000,60 @@ class EditorProxy(QObject):
 
         返回:
             是否成功
+
+        P6 修复（三个已核实的缺陷）:
+            1. 原实现调用 LspClient 的 ``start()`` 时**零参数**；而
+               :meth:`LspClient.start` 的 ``command`` 是**必填位置参数**，
+               必然 TypeError，又被外层 ``except Exception`` 吞掉，
+               LSP 从未真正启动过。现在从 :class:`LspServerRegistry`
+               按语言取 command，并传 working_dir。
+            2. 原实现硬编码 ``ext not in ('.py', '.pyw') → return False``，
+               与模块级 ``LSP_LANGUAGE_BY_EXT``（20+ 种语言）自相矛盾。
+               现在统一用 ``lsp_language_for_file()`` 判断支持性。
+            3. 失败原因必须**用户可见**：通过 ``lsp_error`` 信号送出，
+               由主窗口显示在状态栏并写日志，不再只 print。
         """
         try:
             if enable and not self.lsp_client:
-                if not self.document.filepath:
+                filepath = self.document.filepath or ""
+                if not filepath:
+                    self.lsp_status_changed.emit("unsupported")
+                    self._report_lsp_error(
+                        "无法启用 LSP：请先保存当前文件（未保存的文件没有路径）"
+                    )
                     return False
 
-                # 只对 Python 文件启用
-                ext = os.path.splitext(self.document.filepath)[1].lower()
-                if ext not in ('.py', '.pyw'):
+                # P6: 用 LSP_LANGUAGE_BY_EXT 取代硬编码的 .py/.pyw 判断
+                language = lsp_language_for_file(filepath)
+                if not language:
+                    ext = os.path.splitext(filepath)[1].lower() or "(无扩展名)"
+                    self.lsp_status_changed.emit("unsupported")
+                    self._report_lsp_error(
+                        f"无法启用 LSP：暂不支持 {ext} 类型的文件"
+                    )
+                    return False
+
+                server_language = lsp_server_language_for_file(filepath)
+                command = None
+                if server_language:
+                    try:
+                        command = LspServerRegistry.get_command(server_language)
+                    except Exception:
+                        command = None
+                if not command:
+                    self.lsp_status_changed.emit("no_server")
+                    self._report_lsp_error(
+                        f"无法启用 LSP：{language} 暂无内置的语言服务器配置"
+                    )
+                    return False
+
+                # 服务器可执行文件缺失时给出**具体、可操作**的提示
+                if not lsp_command_available(command):
+                    self.lsp_status_changed.emit("not_found")
+                    self._report_lsp_error(
+                        f"未找到语言服务器 {command[0]}，请先安装："
+                        f"{lsp_install_hint(server_language)}"
+                    )
                     return False
 
                 self.lsp_client = LspClient()
@@ -1873,7 +2063,19 @@ class EditorProxy(QObject):
                 self.lsp_client.completion_ready.connect(
                     self._on_lsp_completion
                 )
-                self.lsp_client.start()
+                # P6: 服务器自身的错误也要让用户看到（附安装提示）
+                self.lsp_client.error_occurred.connect(
+                    self._on_lsp_client_error
+                )
+                # P6: request_definition 的结果回调
+                self.lsp_client.definition_ready.connect(
+                    self._on_lsp_definition
+                )
+                self._lsp_server_language = server_language
+
+                # P6: 修 start() 调用 —— 传 command + working_dir
+                working_dir = os.path.dirname(filepath) or os.getcwd()
+                self.lsp_client.start(list(command), working_dir=working_dir)
 
                 # 初始化
                 # P0-2 修复：URI 用 path_to_uri 生成（正确 URL 编码），
@@ -1910,15 +2112,113 @@ class EditorProxy(QObject):
                 self.lsp_client = None
                 self.lsp_active = False
                 self._lsp_uri = ""
+                self._lsp_server_language = None
                 self.lsp_status_changed.emit("off")
                 return True
 
             return False
 
         except Exception as e:
-            print(f"[EditorProxy] 切换 LSP 失败: {e}")
+            logger.error("[EditorProxy] 切换 LSP 失败: %s", e)
+            self._report_lsp_error(f"切换 LSP 失败: {e}")
             self.lsp_status_changed.emit("error")
             return False
+
+    def _report_lsp_error(self, message: str):
+        """P6: LSP 的失败/提示必须**用户可见**。
+
+        同时做两件事（刻意不只 print）：
+            1. 写 logging（进入日志文件）；
+            2. 发 ``lsp_error`` 信号 —— 主窗口接到后显示在状态栏
+               （见 ui/main_window.py::_on_lsp_message）。
+        """
+        try:
+            logger.warning("[EditorProxy][LSP] %s", message)
+        except Exception:
+            pass
+        try:
+            self.lsp_error.emit(str(message))
+        except Exception:
+            pass
+
+    def _on_lsp_client_error(self, message: str):
+        """P6: 语言服务器自身的错误 → 附上安装提示后交给用户。"""
+        try:
+            hint = lsp_install_hint(
+                getattr(self, '_lsp_server_language', None)
+            )
+            text = str(message)
+            if hint:
+                text = f"{text}（可尝试：{hint}）"
+            self._report_lsp_error(text)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理 LSP 错误失败: %s", e)
+        # 启动阶段就失败时，不要留下半死的客户端
+        if not self.lsp_active and self.lsp_client is not None:
+            try:
+                self.lsp_client.stop()
+            except Exception:
+                pass
+            self.lsp_client = None
+
+    def goto_definition(self) -> bool:
+        """P6: 转到定义（F12）。
+
+        这是 :meth:`LspClient.request_definition` 的**生产调用点**
+        （此前该方法零调用方）。结果由 ``_on_lsp_definition`` 处理：
+        同一文件内直接跳转，其它文件通过 ``definition_requested``
+        信号交给主窗口打开。
+
+        返回:
+            请求是否已发出
+        """
+        if not (self.lsp_active and self.lsp_client and self._lsp_uri):
+            self._report_lsp_error(
+                "转到定义需要先启用 LSP：工具 → 启用 LSP（智能补全）"
+            )
+            return False
+        try:
+            line, col = self.sc.getCursorPosition()
+            self.lsp_client.request_definition(self._lsp_uri, line, col)
+            return True
+        except Exception as e:
+            logger.error("[EditorProxy] 请求转到定义失败: %s", e)
+            self._report_lsp_error(f"转到定义失败: {e}")
+            return False
+
+    def _on_lsp_definition(self, result):
+        """P6: LSP 转到定义结果 → 跳转（或请求主窗口打开目标文件）。"""
+        try:
+            if not result:
+                self._report_lsp_error("未找到定义")
+                return
+
+            locations = result if isinstance(result, list) else [result]
+            target = locations[0] if locations else None
+            if not isinstance(target, dict):
+                self._report_lsp_error("未找到定义")
+                return
+
+            uri = target.get('uri') or ""
+            start = (target.get('range') or {}).get('start') or {}
+            line = int(start.get('line', 0) or 0)
+            character = int(start.get('character', 0) or 0)
+            path = LspClient.uri_to_path(uri) if uri else ""
+
+            current = self.document.filepath or ""
+            if path and os.path.normcase(path) != os.path.normcase(current):
+                # 定义在别的文件：交给主窗口打开
+                self.definition_requested.emit(path, line, character)
+                return
+
+            pos = self._lsp_pos_to_scintilla(line, character)
+            if pos < 0:
+                self._report_lsp_error("定义位置无效，无法跳转")
+                return
+            self.sc.SendScintilla(QsciScintilla.SCI_GOTOPOS, pos)
+            self.sc.ensureLineVisible(line)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理转到定义结果失败: %s", e)
 
     def _lsp_pos_to_scintilla(self, line: int, character: int) -> int:
         """LSP position → Scintilla 字节偏移

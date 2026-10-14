@@ -151,6 +151,35 @@ def setup_portable_mode():
 
 
 # ============================================================
+# 偏好读取（P7 接线）
+# ============================================================
+def _pref(key, default=None):
+    """
+    读取用户偏好设置（供启动流程使用）。
+
+    说明（P7）:
+        main.py 此前完全绕过 Preferences。例如 splash_screen 在首选项
+        面板里可以勾选，main.py 第 9 步却无条件创建启动画面，用户改了
+        毫无反应。该 helper 统一走 app.preferences.Preferences，
+        并保留 QSettings 回退，保证启动流程永远能拿到一个值。
+
+    读取偏好绝不能阻断启动，因此这里吞掉所有异常。
+    """
+    try:
+        from app.preferences import Preferences
+
+        return Preferences().get(key, default)
+    except Exception:
+        pass
+    try:
+        from PyQt5.QtCore import QSettings
+
+        return QSettings(ORG_NAME, "Editor").value(key, default)
+    except Exception:
+        return default
+
+
+# ============================================================
 # 国际化设置（P3-5 修复）
 # ============================================================
 def _detect_language() -> str:
@@ -187,6 +216,22 @@ def _detect_language() -> str:
         pass
 
     # ---- 2. 系统 locale ----
+    # P7 接线：language_auto_detect 之前零读取。关闭后不再按系统
+    # locale 猜测语言，直接使用默认值（用户在首选项里手选的语言
+    # 已在第 1 步返回）。
+    auto_detect = True
+    try:
+        from PyQt5.QtCore import QSettings
+
+        auto_detect = QSettings(ORG_NAME, "Editor").value(
+            "language_auto_detect", True, type=bool
+        )
+    except Exception:
+        auto_detect = True
+
+    if not auto_detect:
+        return "zh_CN"
+
     try:
         from PyQt5.QtCore import QLocale
         sys_locale = QLocale.system().name()
@@ -283,16 +328,53 @@ def setup_locale():
 # ============================================================
 # 日志系统（带轮转）
 # ============================================================
+def _log_settings():
+    """
+    读取日志相关偏好（P7 接线）。
+
+    返回:
+        (level_name, max_bytes)
+
+    说明（P7）:
+        log_level / log_max_size 两个键此前只在首选项里存在，
+        setup_logging() 永远使用硬编码的 INFO 与 LOG_MAX_SIZE
+        （10MB），用户改了没有反应。debug_mode 作为最高优先级
+        覆盖（True 时强制 DEBUG）。
+    """
+    level_name = "INFO"
+    max_bytes = LOG_MAX_SIZE
+    try:
+        from PyQt5.QtCore import QSettings
+
+        settings = QSettings(ORG_NAME, "Editor")
+        raw = settings.value("log_level", "INFO", type=str) or "INFO"
+        if str(raw).upper() in ("DEBUG", "INFO", "WARNING",
+                                "ERROR", "CRITICAL"):
+            level_name = str(raw).upper()
+        if settings.value("debug_mode", False, type=bool):
+            level_name = "DEBUG"
+        mb = settings.value("log_max_size", 10, type=int)
+        if mb and int(mb) > 0:
+            max_bytes = int(mb) * 1024 * 1024
+    except Exception:
+        pass
+    return level_name, max_bytes
+
+
 def setup_logging():
     """初始化运行日志（含简单轮转）"""
     import logging
 
+    # P7：log_level / log_max_size / debug_mode 现在真正生效
+    level_name, max_bytes = _log_settings()
+    level = getattr(logging, level_name, logging.INFO)
+
     os.makedirs(LOGS_DIR, exist_ok=True)
 
-    # 日志轮转：超过 10MB 则重命名
+    # 日志轮转：超过 max_bytes 则重命名
     try:
         if os.path.exists(RUNTIME_LOG) and \
-                os.path.getsize(RUNTIME_LOG) > LOG_MAX_SIZE:
+                os.path.getsize(RUNTIME_LOG) > max_bytes:
             backup = RUNTIME_LOG + ".1"
             if os.path.exists(backup):
                 try:
@@ -304,7 +386,7 @@ def setup_logging():
         pass
 
     logger = logging.getLogger("QingCao")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
 
     # 避免重复添加 handler
     if logger.handlers:
@@ -313,7 +395,7 @@ def setup_logging():
     # 文件处理器
     try:
         fh = logging.FileHandler(RUNTIME_LOG, encoding="utf-8")
-        fh.setLevel(logging.INFO)
+        fh.setLevel(level)
         formatter = logging.Formatter(
             "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
         )
@@ -325,7 +407,7 @@ def setup_logging():
     # 控制台处理器
     try:
         ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
+        ch.setLevel(level)
         ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
         logger.addHandler(ch)
     except Exception:
@@ -814,9 +896,13 @@ def main():
     # 9. 启动画面
     # --------------------------------------------------------
     splash = None
-    if not args['no_splash']:
+    splash_started = 0.0
+    # P7 接线：splash_screen 之前只在首选项面板里读写，main.py 无条件
+    # 创建启动画面（只有命令行 --no-splash 能关掉）。
+    if not args['no_splash'] and bool(_pref("splash_screen", True)):
         try:
             splash = create_splash()
+            splash_started = time.monotonic()
             splash.show()
             splash.showMessage(
                 f"正在启动 {APP_NAME} v{__version__}...",
@@ -977,11 +1063,27 @@ def main():
     # --------------------------------------------------------
     # 18. 关闭启动画面
     # --------------------------------------------------------
+    # P7 接线：splash_duration（毫秒）之前零读取。
+    # QSplashScreen 本身没有"显示时长"参数（构造函数只接受 QPixmap），
+    # 因此这里实现为**最小可见时长**：主窗口已经就绪，但启动画面显示
+    # 时间不足 splash_duration 时，用单次定时器延迟关闭，保证用户确实
+    # 能看到它；否则立即关闭（不拖慢启动）。
     if splash:
         try:
-            splash.finish(window)
+            duration_ms = int(_pref("splash_duration", 800) or 0)
+            elapsed_ms = int((time.monotonic() - splash_started) * 1000)
+            remaining_ms = max(0, duration_ms - elapsed_ms)
+            if remaining_ms > 0:
+                QTimer.singleShot(
+                    remaining_ms, lambda: splash.finish(window)
+                )
+            else:
+                splash.finish(window)
         except Exception:
-            pass
+            try:
+                splash.finish(window)
+            except Exception:
+                pass
 
     # --------------------------------------------------------
     # 19. 延迟初始化（会话恢复、更新检查、遥测等）
@@ -1001,8 +1103,16 @@ def main():
 
             # ---- 自动备份恢复（backup/autosave 目录） ----
             # B2 修复：同 B2-1，改用 SessionManager.check_and_recover_crash
+            #
+            # P1 修复：目录必须与**写入端**（SessionManager.AUTOSAVE_DIR）
+            # 同一个来源。原实现用 `os.path.join(BACKUP_DIR, "autosave")`，
+            # 与写入端可能不是同一路径，会出现"备份写了、恢复找不到"。
             try:
+                from app.session import AUTOSAVE_DIR as _autosave_dir
+                auto_backup = _autosave_dir
+            except Exception:
                 auto_backup = os.path.join(BACKUP_DIR, "autosave")
+            try:
                 meta_path = os.path.join(auto_backup, "meta.json")
                 if os.path.isfile(meta_path):
                     sess = getattr(window, 'session', None)

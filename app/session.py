@@ -48,18 +48,29 @@ from PyQt5.QtWidgets import QDockWidget, QMainWindow, QSplitter
 # ============================================================
 SESSION_FILE = "session.json"
 SESSION_VERSION = 2
-SESSION_BACKUP_DIR = "data/backups"
 MAX_SESSION_BACKUPS = 5
 AUTOSAVE_INTERVAL_MS = 120000  # 2 分钟
 MAX_RECENT_SESSIONS = 10
 
-# 自动备份目录（相对项目根目录）
-# 基于应用根目录的绝对路径（相对路径会随工作目录变化）
+# 应用根目录（绝对路径）
+#
+# 为什么必须绝对化（真实缺陷，与"插件全部不加载"同源）：
+#   相对路径的含义取决于**当前工作目录**。从资源管理器双击 exe 时
+#   cwd 恰好是程序目录，一切正常；但通过快捷方式/任务栏/其他目录启动时，
+#   `session.json` 会写到别处 —— 表现为"打开的文件列表、光标位置、
+#   面板布局每次启动都丢"。同理 `data/backups` 也会漂移。
 try:
     from infrastructure.plugin_loader import app_root_dir as _app_root
-    AUTOSAVE_DIR = os.path.join(_app_root(), "backup", "autosave")
+
+    _APP_ROOT = _app_root()
 except Exception:  # pragma: no cover
-    AUTOSAVE_DIR = os.path.join("backup", "autosave")
+    _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SESSION_FILE = os.path.join(_APP_ROOT, "session.json")
+SESSION_BACKUP_DIR = os.path.join(_APP_ROOT, "data", "backups")
+
+# 自动备份目录
+AUTOSAVE_DIR = os.path.join(_APP_ROOT, "backup", "autosave")
 AUTOSAVE_META = "meta.json"
 
 
@@ -98,6 +109,8 @@ class SessionManager(QObject):
     session_restored = pyqtSignal(int)
     autosave_saved = pyqtSignal(int)
     crash_recovered = pyqtSignal(int)
+    # 草稿恢复完成（恢复的未保存文件数量）
+    drafts_recovered = pyqtSignal(int)
 
     # --------------------------------------------------------
     def __init__(self, parent: Optional[QObject] = None,
@@ -919,18 +932,40 @@ class SessionManager(QObject):
                 })
 
             # 写元数据
-            meta = {
-                'timestamp': datetime.datetime.now().isoformat(),
-                'count': len(files),
-                'files': files,
-            }
-            meta_path = os.path.join(auto_save_dir, AUTOSAVE_META)
-            with open(meta_path, 'w', encoding='utf-8') as f:
-                json.dump(meta, f, indent=2, ensure_ascii=False)
-
+            #
+            # 只有**确实备份到了内容**时才写 meta.json。
+            #
+            # 原因（真实缺陷）：崩溃恢复的判定是"meta.json 是否存在"
+            # （main.py 的 deferred_init / check_and_recover_crash）。
+            # 若没有修改中的文件也照写 meta（count=0），
+            # 那么每次正常退出都会留下一个"看起来有可恢复内容"的 meta，
+            # 下次启动就可能弹出一个**空的崩溃恢复**，误导用户。
             if files:
+                meta = {
+                    'timestamp': datetime.datetime.now().isoformat(),
+                    'count': len(files),
+                    'files': files,
+                }
+                meta_path = os.path.join(auto_save_dir, AUTOSAVE_META)
+                # 原子写：先写临时文件再替换，避免写一半留下坏 meta
+                tmp_path = meta_path + '.tmp'
+                with open(tmp_path, 'w', encoding='utf-8') as f:
+                    json.dump(meta, f, indent=2, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, meta_path)
+
                 print(f"[Session] 自动备份: {len(files)} 个文件")
                 self.autosave_saved.emit(len(files))
+            else:
+                # 没有需要备份的内容：清掉可能残留的旧 meta，
+                # 避免"空的崩溃恢复"
+                try:
+                    meta_path = os.path.join(auto_save_dir, AUTOSAVE_META)
+                    if os.path.exists(meta_path):
+                        os.remove(meta_path)
+                except Exception:
+                    pass
 
             return len(files)
 
@@ -966,6 +1001,130 @@ class SessionManager(QObject):
     # ========================================================
     # 崩溃恢复（新增）
     # ========================================================
+    def find_recoverable_drafts(self) -> list:
+        """查找可恢复的草稿（崩溃/异常退出留下的未保存内容）
+
+        缺陷背景（真实缺陷，已核实）：
+            `core/document.py` 每 60 秒把未保存内容写进
+            `backup/drafts/<hash>.draft`，但**全仓没有任何代码读取它**
+            —— 只写、只删。于是崩溃后用户的未保存内容确实躺在磁盘上，
+            却永远不会被捞回来，等价于没有备份。
+
+        本方法提供读取端；由启动流程调用并询问用户是否恢复。
+
+        返回:
+            [{'path': 草稿路径, 'original': 原文路径, 'text': 正文,
+              'mtime': 时间戳}, ...]，按时间倒序
+        """
+        try:
+            from core.document import DocumentModel
+            drafts = DocumentModel.list_drafts()
+        except Exception as e:
+            print(f"[Session] 读取草稿失败: {e}")
+            return []
+
+        return [
+            {'path': p, 'original': orig, 'text': text, 'mtime': mt}
+            for (p, orig, text, mt) in drafts
+        ]
+
+    def check_and_recover_drafts(self, parent=None,
+                                 drafts: Optional[list] = None) -> int:
+        """提示用户恢复草稿，返回实际恢复的文件数
+
+        参数:
+            parent: 父窗口（用于弹对话框）
+            drafts: 草稿列表（默认自动查找）
+        """
+        if drafts is None:
+            drafts = self.find_recoverable_drafts()
+        if not drafts:
+            return 0
+
+        # 询问用户
+        if parent is not None:
+            try:
+                from PyQt5.QtWidgets import QMessageBox
+                preview = "\n".join(
+                    "  · %s" % (d['original'] or "(未命名)")
+                    for d in drafts[:8]
+                )
+                more = "" if len(drafts) <= 8 else \
+                    "\n  … 另有 %d 个" % (len(drafts) - 8)
+                btn = QMessageBox.question(
+                    parent,
+                    "恢复未保存的内容",
+                    "检测到上次退出时**未保存**的内容（共 %d 项）：\n\n%s%s\n\n"
+                    "是否现在恢复？"
+                    % (len(drafts), preview, more),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes,
+                )
+                if btn != QMessageBox.Yes:
+                    return 0
+            except Exception as e:
+                print(f"[Session] 草稿恢复询问失败: {e}")
+
+        tabs = self._get_tabs()
+        if tabs is None:
+            return 0
+
+        # 与 `_recover_files` 相同的加载方式：MemoryProvider + EditorWidget
+        EditorWidget = None
+        try:
+            from ui.editor_view import EditorWidget as EW
+            EditorWidget = EW
+        except ImportError:
+            pass
+
+        from core.content_provider import MemoryProvider
+
+        restored = 0
+        for d in drafts:
+            try:
+                text = d['text']
+                original = d['original']
+
+                provider = MemoryProvider()
+                provider.open(initial_text=text)
+
+                if EditorWidget is None:
+                    continue
+                editor = EditorWidget(provider=provider)
+
+                if original:
+                    title = os.path.basename(original) + " [未保存]"
+                else:
+                    title = "未命名 [未保存]"
+
+                if hasattr(tabs, 'addTab'):
+                    idx = tabs.addTab(editor, title)
+                    tabs.setCurrentIndex(idx)
+                elif hasattr(tabs, 'add_tab'):
+                    tabs.add_tab(title)
+
+                # 标记为已修改：它会被再次纳入自动备份，不会二次丢失
+                try:
+                    proxy = getattr(editor, 'proxy', None)
+                    if proxy is not None:
+                        proxy.is_modified = True
+                        if getattr(proxy, 'sc', None) is not None:
+                            proxy.sc.setModified(True)
+                except Exception:
+                    pass
+
+                restored += 1
+            except Exception as e:
+                print(f"[Session] 恢复草稿失败: {e}")
+
+        if restored:
+            print(f"[Session] 已恢复 {restored} 个未保存草稿")
+            try:
+                self.drafts_recovered.emit(restored)
+            except Exception:
+                pass
+        return restored
+
     def check_and_recover_crash(self, parent=None,
                                  auto_save_dir: Optional[str] = None
                                  ) -> int:

@@ -154,6 +154,9 @@ class ContentProvider(ABC):
         self._has_bom: bool = False
         self._mtime: float = 0.0
         self._hash: Optional[str] = None
+        # 字符对齐块边界缓存（见 _aligned_block_bounds）
+        self._bounds_cache: Optional[list] = None
+        self._bounds_cache_key = None
 
     # --------------------------------------------------------
     # 抽象方法
@@ -257,6 +260,166 @@ class ContentProvider(ABC):
     def read_text(self) -> str:
         """读取全部内容为文本"""
         return self.decode(self.read_all())
+
+    # --------------------------------------------------------
+    # 块边界对齐（修复跨块多字节字符损坏）
+    # --------------------------------------------------------
+    # 缺陷背景（P0-A，已用 tools/probe_block_boundary.py 实测复现）：
+    #   块按固定字节偏移切分（block_id * 64KiB），一个 UTF-8 多字节字符
+    #   可能正好横跨边界。按块独立 decode 时，两半都无法解码，被
+    #   `errors='replace'` 换成 U+FFFD。用户屏幕上看到 "�"，
+    #   而**一旦保存就会把 EF BF BD 写回磁盘，原字节永久丢失**。
+    #
+    #   实测：65536 字节处放一个"测"，逐块拼接与 read_text() 均得到
+    #   '�'（因为 read_all 也是拼接块字节后再整体解码，同样在边界断开）。
+    #
+    # 修复思路：
+    #   把每个块的**结束位置向前收缩**到最后一个完整字符的边界，
+    #   下一个块从该边界开始。于是每块都能独立、无损地解码，
+    #   且 read_all() 拼接后也正好还原原文（块之间首尾相接、无重叠无空隙）。
+    #
+    # 只在多字节可变长编码（UTF-8 系）下启用；单字节编码下对齐结果与
+    # 原始偏移完全一致，因此本逻辑对它们是无操作。
+    _UTF8_ENCODINGS = ('utf-8', 'utf8', 'utf_8', 'utf-8-sig', 'utf8-sig')
+
+    def _needs_boundary_alignment(self) -> bool:
+        """当前编码是否为多字节可变长（需要字符边界对齐）"""
+        enc = (self._encoding or '').lower().replace('_', '-')
+        return enc in ('utf-8', 'utf8', 'utf-8-sig', 'utf8-sig')
+
+    def _aligned_block_bounds(self) -> list:
+        """返回 [(start, end), ...]，每块边界都落在字符边界上。
+
+        结果按 `_size` 缓存，避免热路径重复扫描。
+        文件内容变化（size 或脏块）时缓存自动失效。
+        """
+        cache_key = (self._size, len(self._dirty_blocks))
+        if getattr(self, '_bounds_cache_key', None) == cache_key:
+            return self._bounds_cache
+
+        size = self._size
+        bs = self._block_size
+        total = max(1, self._total_blocks)
+
+        # 脏块内的字节以内存为准，其余从文件读
+        def _raw(start: int, end: int) -> bytes:
+            bid = start // bs
+            if bid in self._dirty_blocks:
+                blk = bytes(self._dirty_blocks[bid])
+                base = bid * bs
+                return blk[max(0, start - base):end - base]
+            if self._mmap:
+                try:
+                    return self._mmap[start:end]
+                except (ValueError, OSError):
+                    pass
+            if self._file:
+                try:
+                    self._file.seek(start)
+                    return self._file.read(end - start)
+                except Exception:
+                    pass
+            return b''
+
+        bounds = []
+        start = 0
+        for _ in range(total):
+            if start >= size:
+                break
+            end = min(start + bs, size)
+            if end < size:
+                # 以 end 为基准向前试探，找到最近的、可独立解码的字符边界
+                win_start = max(start, end - 4)
+                win = _raw(win_start, end)
+                end = self._align_forward(win, win_start, end)
+                if end <= start:
+                    # 极端兜底：保证至少前进 1 字节，避免死循环
+                    end = min(start + bs, size)
+            bounds.append((start, end))
+            start = end
+
+        self._bounds_cache = bounds
+        self._bounds_cache_key = cache_key
+        return bounds
+
+    @staticmethod
+    def _is_char_start(buf: bytes, pos: int, end_limit: int) -> bool:
+        """判断 buf[pos] 是否是一个**完整** UTF-8 字符的起始字节
+
+        只检查"不是延续字节"是不够的：一个字符的内部也可能出现
+        `0xE6` 这类字节（例如 "测" = e6 b5 8b，若从第二个字节 b5 起算
+        就永远对不齐）。必须向后验证**完整序列**：
+
+            ASCII      0xxxxxxx                      -> 1 字节
+            2 字节     110xxxxx 10xxxxxx              -> 2 字节
+            3 字节     1110xxxx 10xxxxxx 10xxxxxx     -> 3 字节
+            4 字节     11110xxx 10xxxxxx ×3          -> 4 字节
+        """
+        if pos < 0 or pos >= len(buf):
+            return False
+        b0 = buf[pos]
+        if b0 < 0x80:
+            return True
+        if 0xC2 <= b0 <= 0xDF:
+            need = 1
+        elif 0xE0 <= b0 <= 0xEF:
+            need = 2
+        elif 0xF0 <= b0 <= 0xF4:
+            need = 3
+        else:
+            # 延续字节 (0x80-0xBF) 或非法首字节 (0xC0/0xC1/0xF5+)
+            return False
+        if pos + need >= end_limit:
+            # 序列不完整（数据在此处被截断）
+            return False
+        for k in range(1, need + 1):
+            if (buf[pos + k] & 0xC0) != 0x80:
+                return False
+        return True
+
+    def _align_forward(self, win: bytes, win_start: int, end: int) -> int:
+        """把 end 收缩到最近的、可独立解码的字符边界
+
+        判定方式：以 `end` 为基准，向前最多试探 3 个位置，选出第一个
+        **能作为完整字符串首**的位置。该位置的字节同时满足：
+          * 它是某个完整 UTF-8 字符的起始字节（向后验证序列）；
+          * 它前面一个字节不是"被截断的多字节序列开头"。
+
+        参数:
+            win: [win_start, end) 区间的字节（含边界前的若干字节）
+            win_start: 窗口起始偏移（下界保护）
+            end: 待调整的结束偏移
+
+        返回:
+            调整后的结束偏移（<= end）
+        """
+        if not win:
+            return end
+        n = len(win)
+        # 以 end 为基准向前试探：end, end-1, end-2, end-3
+        for back in range(0, min(4, n + 1)):
+            pos = n - back          # 在 win 中的下标（相对）
+            if pos < 0:
+                pos = 0
+            abs_pos = win_start + pos
+            if abs_pos > end:
+                continue
+            if self._is_char_start(win, pos, n):
+                # 再确认前一个字节不是"被截断的多字节序列开头"
+                if pos == 0:
+                    return abs_pos
+                prev = win[pos - 1]
+                if (prev & 0xC0) == 0xC0 and (prev & 0x1F) != 0:
+                    # 前一字节像首字节，但它的序列跨越了 pos —— 该序列
+                    # 若完整则应从 prev 开始，说明 pos 不是真正的边界
+                    continue
+                return abs_pos
+        return end
+
+    def _invalidate_bounds_cache(self):
+        """内容/尺寸变化后调用，使对齐边界缓存失效"""
+        self._bounds_cache_key = None
+        self._bounds_cache = None
 
     # ========================================================
     # 修复：在基类提供默认实现
@@ -492,6 +655,20 @@ class LocalFileProvider(ContentProvider):
         # 3. 自动检测
         elif not self._has_bom and detect:
             self._encoding = self._detect_encoding(sample)
+            # 3b. ASCII 必须验证**整个文件**（P0-A 相关修复）
+            #
+            # 缺陷背景（实测）：采样只有 4096 字节，若前 4KB 全是 ASCII
+            # 而后面才是中文，chardet 会高置信度地判成 ascii。随后
+            #   decode(errors='replace') → 汉字变 U+FFFD
+            #   encode(errors='replace') → U+FFFD 变 '?'（ascii 下不可编码）
+            # 于是**一保存整个文件的中文全部被销毁**。
+            #
+            # 因此：只有当 ASCII 声明在整个文件上都成立时才接受它。
+            if self._encoding == ENCODING_ASCII and self._size > len(sample):
+                if self._has_non_ascii_beyond(sample):
+                    # 在后续内容上重新检测（含非 ASCII 字节，chardet 能识别）
+                    tail = self._read_verify_bytes()
+                    self._encoding = self._detect_encoding(tail)
 
         # 4. 行尾符检测
         self._eol = self._detect_eol(sample)
@@ -540,6 +717,81 @@ class LocalFileProvider(ContentProvider):
         # 3. 尝试 Latin-1（永远成功）
         return ENCODING_LATIN1
 
+    # 验证 ASCII 声明时要扫描的最大字节数（避免大文件全量扫描拖慢打开）
+    _ASCII_VERIFY_LIMIT = 32 * 1024 * 1024
+
+    def _read_verify_bytes(self) -> bytes:
+        """读取用于编码复检的字节（跳过已采样的头部）
+
+        优先返回**含非 ASCII 字节**的那一小段，这样 chardet 才能据此
+        判出真实编码；全部都是 ASCII 时返回空 bytes。
+        """
+        try:
+            if self._size <= self._ASCII_VERIFY_LIMIT:
+                if self._mmap:
+                    return bytes(self._mmap[:])
+                if self._file:
+                    pos = self._file.tell()
+                    self._file.seek(0)
+                    data = self._file.read()
+                    self._file.seek(pos)
+                    return data
+        except Exception:
+            pass
+
+        # 大文件：分块扫描，返回第一个含非 ASCII 字节的块
+        chunk = 256 * 1024
+        try:
+            src = self._mmap
+            if src is not None:
+                for off in range(0, self._size, chunk):
+                    part = bytes(src[off:off + chunk])
+                    if any(b > 127 for b in part):
+                        return part
+                return b''
+            if self._file:
+                pos = self._file.tell()
+                self._file.seek(0)
+                for _ in range(0, self._size, chunk):
+                    part = self._file.read(chunk)
+                    if not part:
+                        break
+                    if any(b > 127 for b in part):
+                        return part
+                self._file.seek(pos)
+        except Exception:
+            pass
+        return b''
+
+    def _has_non_ascii_beyond(self, sample: bytes) -> bool:
+        """检查采样之后的文件内容里是否存在非 ASCII 字节"""
+        try:
+            if self._mmap:
+                start = len(sample)
+                end = min(self._size, start + self._ASCII_VERIFY_LIMIT)
+                part = bytes(self._mmap[start:end])
+                return any(b > 127 for b in part)
+            if self._file:
+                pos = self._file.tell()
+                self._file.seek(len(sample))
+                remaining = min(self._size - len(sample),
+                                self._ASCII_VERIFY_LIMIT)
+                found = False
+                while remaining > 0:
+                    part = self._file.read(min(256 * 1024, remaining))
+                    if not part:
+                        break
+                    remaining -= len(part)
+                    if any(b > 127 for b in part):
+                        found = True
+                        break
+                self._file.seek(pos)
+                return found
+        except Exception:
+            pass
+        # 检测失败时保守认为"可能存在非 ASCII"，避免误判为 ascii
+        return True
+
     def _detect_eol(self, sample: bytes) -> str:
         """检测行尾符"""
         if not sample:
@@ -566,7 +818,12 @@ class LocalFileProvider(ContentProvider):
             block_id: 块索引（从 0 开始）
 
         返回:
-            块的字节内容
+            块的字节内容（**完整字符对齐**，不会以半个多字节字符结尾）
+
+        注意（P0-A 修复）：
+            原先固定按 `block_id * block_size` 切分，横跨边界的 UTF-8
+            字符会被解码成 U+FFFD 并在保存时永久损坏原文件。
+            现在使用 `_aligned_block_bounds()` 返回的字符对齐边界。
         """
         if not self.is_open:
             raise ProviderClosedError("提供者未打开")
@@ -578,8 +835,17 @@ class LocalFileProvider(ContentProvider):
         if block_id in self._dirty_blocks:
             return bytes(self._dirty_blocks[block_id])
 
-        start = block_id * self._block_size
-        end = min(start + self._block_size, self._size)
+        # 字符对齐边界（多字节编码下避免跨块损坏；单字节编码下等同于原偏移）
+        if self._needs_boundary_alignment():
+            bounds = self._aligned_block_bounds()
+            if block_id < len(bounds):
+                start, end = bounds[block_id]
+            else:
+                start = block_id * self._block_size
+                end = min(start + self._block_size, self._size)
+        else:
+            start = block_id * self._block_size
+            end = min(start + self._block_size, self._size)
 
         if start >= self._size:
             return b''
@@ -647,15 +913,28 @@ class LocalFileProvider(ContentProvider):
     # --------------------------------------------------------
     def save(self, filepath: Optional[str] = None) -> bool:
         """
-        持久化脏块到磁盘。
-
-        使用原子写入（临时文件 + 重命名）避免中途失败损坏文件。
+        持久化内容到磁盘。**始终使用原子写入**（临时文件 + fsync + 替换），
+        因此中途失败（磁盘满、断电、进程被杀）都不会损坏原文件。
 
         参数:
             filepath: 另存为路径（None 则覆盖原文件）
 
         返回:
             是否成功
+
+        修复记录（P1-D，原实现与 docstring 不符）：
+            原 docstring 声称"使用原子写入（临时文件 + 重命名）避免中途失败
+            损坏文件"，但实际只有"另存为不同路径"才走 `_save_as_full()`；
+            常规覆盖保存走的是 `_save_dirty_blocks()` —— 那是**原地写**：
+                open(target, 'r+b') -> seek/write -> truncate(new_size)
+            没有任何临时文件或备份副本。
+
+            更严重的是上层 `EditorProxy._sync_content_to_provider()` 在保存前
+            会把**全部块**标脏，所以每次 Ctrl+S 实际上都是"整文件原地重写"。
+            一旦在写盘过程中失败，原文件已被截断/覆盖，用户数据无法回退。
+
+            现在无条件走 `_save_as_full()`。代价是每次都重写整个文件
+            （本来也是这样），换来的是"要么全成、要么原文件不动"。
         """
         if not self.is_open:
             raise ProviderClosedError("提供者未打开")
@@ -674,12 +953,8 @@ class LocalFileProvider(ContentProvider):
         target = os.path.abspath(target)
 
         try:
-            # 若另存为不同文件，需要写入完整内容
-            if filepath and target != self._filepath:
-                return self._save_as_full(target)
-
-            # 场景1：脏块少于全部块，使用原地写入
-            return self._save_dirty_blocks(target)
+            # 统一走原子全量写入（含 mkstemp + fsync + os.replace）
+            return self._save_as_full(target)
 
         except Exception as e:
             print(f"[LocalFileProvider] 保存失败: {e}")
@@ -954,8 +1229,12 @@ class LocalFileProvider(ContentProvider):
         try:
             current_mtime = os.path.getmtime(self._filepath)
             return abs(current_mtime - self._mtime) > 0.001
-        except Exception:
-            return False
+        except Exception as e:
+            # 不能把"检查失败"当成"没被改过"（fail-open）：
+            # 那样外部篡改会被静默忽略，用户下次保存就覆盖掉别人的修改。
+            # 这里改为**保守判定为已变更**（fail-safe），并把原因打出来。
+            print(f"[LocalFileProvider] 外部变更检查失败（保守判定为已变更）: {e}")
+            return True
 
     def reload(self) -> bool:
         """重新加载文件内容"""

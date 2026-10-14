@@ -142,6 +142,52 @@ class SearchOptions:
             parts.append("escaped")
         return " ".join(parts)
 
+    # --------------------------------------------------------
+    # 偏好接线（P7）
+    # --------------------------------------------------------
+    @classmethod
+    def from_preferences(cls, **overrides) -> "SearchOptions":
+        """
+        构造 SearchOptions，并从 Preferences 读取性能相关默认值。
+
+        接线的偏好键（app/preferences.py 的 DEFAULTS）:
+            search_threads  -> threads
+            use_hyperscan   -> use_hyperscan
+            search_timeout  -> timeout_seconds
+
+        背景（P7）:
+            修复前这三个键在首选项里有定义、用户可写，但
+            SearchOptions 永远使用硬编码的 DEFAULT_THREADS（4）、
+            DEFAULT_SEARCH_TIMEOUT（30）与 use_hyperscan=True，
+            用户改了毫无反应 —— 典型的"假开关"。
+
+        容错:
+            读取失败（无 QSettings / 无 Preferences / 值类型异常）
+            一律静默回退到 dataclass 默认值，绝不能让搜索启动失败。
+        """
+        options = cls(**overrides)
+        try:
+            from app.preferences import get_preferences
+
+            prefs = get_preferences()
+
+            threads = int(prefs.get("search_threads", DEFAULT_THREADS))
+            options.threads = max(1, min(MAX_THREADS, threads))
+
+            options.use_hyperscan = bool(
+                prefs.get("use_hyperscan", HYPERSCAN_AVAILABLE)
+            )
+
+            timeout = float(
+                prefs.get("search_timeout", DEFAULT_SEARCH_TIMEOUT)
+            )
+            if timeout > 0:
+                options.timeout_seconds = timeout
+        except Exception:
+            # 偏好不可用：保持 dataclass 默认值
+            pass
+        return options
+
 
 # ============================================================
 # 匹配结果
@@ -410,7 +456,9 @@ class SearchEngine:
             options: 搜索选项
         """
         self.provider = provider
-        self.options = options or SearchOptions()
+        # P7：未显式传入 options 时，从 Preferences 取 search_threads /
+        # use_hyperscan / search_timeout，而不是硬编码默认值。
+        self.options = options or SearchOptions.from_preferences()
 
         # 取消标志
         self._cancel_event = threading.Event()
@@ -1534,7 +1582,9 @@ def build_search_options(pattern: str, **kwargs) -> SearchOptions:
     用法:
         options = build_search_options("hello", case_sensitive=True)
     """
-    options = SearchOptions(pattern=pattern)
+    # P7：走 from_preferences()，让 search_threads / use_hyperscan /
+    # search_timeout 三个偏好对便捷入口同样生效。
+    options = SearchOptions.from_preferences(pattern=pattern)
     for key, value in kwargs.items():
         if hasattr(options, key):
             setattr(options, key, value)

@@ -218,8 +218,17 @@ class LspPanel(QDockWidget):
 
             if lang:
                 installed = self.installer.is_installed(lang)
-                status = "已启用" if installed else "未安装"
-                color = "#7ec850" if installed else "#f0ad4e"
+                # P6: 区分"装了服务器"与"当前文件真的连上了 LSP"
+                active = bool(getattr(proxy, 'lsp_active', False))
+                if active:
+                    status = "已连接"
+                    color = "#7ec850"
+                elif installed:
+                    status = "已安装（未启用）"
+                    color = "#4ec9b0"
+                else:
+                    status = "未安装"
+                    color = "#f0ad4e"
                 self.current_label.setText(
                     f'<span style="color:{color};">'
                     f'{os.path.basename(filepath)} · {lang} · {status}'

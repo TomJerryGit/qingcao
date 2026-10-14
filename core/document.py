@@ -1012,6 +1012,96 @@ class Document(QObject):
     # ========================================================
     # 草稿自动保存
     # ========================================================
+    # ========================================================
+    # 草稿目录（P1 修复：统一路径 + 补齐读取端）
+    # ========================================================
+    @staticmethod
+    def _draft_dir() -> str:
+        """草稿目录（**绝对路径**，全模块唯一来源）
+
+        缺陷背景（已核实）：
+            原先 `_save_draft` 与 `delete_draft` 各自拼一份相对路径
+            `<仓库>/backup/drafts`，而 `main.py` 的 ensure_directories
+            建的是 `<DATA_DIR>/drafts`（即 `data/drafts`）——
+            两套路径互不相认。改为统一走应用根目录。
+        """
+        try:
+            from infrastructure.plugin_loader import app_root_dir
+            base = app_root_dir()
+        except Exception:  # pragma: no cover
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base, "backup", "drafts")
+
+    @staticmethod
+    def _draft_name(filepath: Optional[str]) -> str:
+        """由文件路径推导草稿文件名（无路径时返回空串）"""
+        if not filepath:
+            return ""
+        return hashlib.md5(filepath.encode('utf-8')).hexdigest()[:16] + ".draft"
+
+    def draft_path(self) -> Optional[str]:
+        """当前文档的草稿文件路径（未命名文档返回 None）"""
+        name = self._draft_name(self.meta.filepath)
+        if not name:
+            return None
+        return os.path.join(self._draft_dir(), name)
+
+    @staticmethod
+    def read_draft(path: str):
+        """读取草稿文件，返回 (原文路径, 正文) ；无法解析时返回 (None, None)
+
+        格式（由 `_save_draft` 写入）::
+
+            # QingCao Draft
+            # Original: <路径或 (未命名)>
+            # Saved: <ISO 时间>
+            # Encoding: <编码>
+            # ---
+            <正文>
+
+        返回:
+            (original_path_or_empty, text) 或 (None, None)
+        """
+        try:
+            with open(path, encoding='utf-8', errors='replace') as f:
+                head = [f.readline() for _ in range(5)]
+                text = f.read()
+        except Exception:
+            return None, None
+
+        if not head or not head[0].startswith("# QingCao Draft"):
+            return None, None
+
+        original = ""
+        for line in head[1:4]:
+            if line.startswith("# Original:"):
+                original = line.split(":", 1)[1].strip()
+        if original == "(未命名)":
+            original = ""
+        return original, text
+
+    @classmethod
+    def list_drafts(cls) -> list:
+        """列出所有草稿，返回 [(路径, 原文路径, 正文, mtime)]（按时间倒序）"""
+        out = []
+        d = cls._draft_dir()
+        if not os.path.isdir(d):
+            return out
+        for name in os.listdir(d):
+            if not name.endswith(".draft"):
+                continue
+            p = os.path.join(d, name)
+            original, text = cls.read_draft(p)
+            if text is None:
+                continue
+            try:
+                mt = os.path.getmtime(p)
+            except OSError:
+                mt = 0.0
+            out.append((p, original or "", text, mt))
+        out.sort(key=lambda x: x[3], reverse=True)
+        return out
+
     def _save_draft(self):
         """保存草稿到临时目录"""
         if not self.meta.modified:
@@ -1024,47 +1114,46 @@ class Document(QObject):
             return
 
         try:
-            draft_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "backup", "drafts"
-            )
+            draft_dir = self._draft_dir()
             os.makedirs(draft_dir, exist_ok=True)
 
             # 使用文件路径哈希作为草稿名
+            # 未命名文档：原先用 `id(self)`（内存地址，每次运行都变）会被
+            # `delete_draft()`（无 filepath 直接 return）永久遗弃成孤儿。
+            # 现改为按标签序号稳定命名，与 autosave 的 untitled_N 对齐。
             if self.meta.filepath:
-                name_hash = hashlib.md5(
-                    self.meta.filepath.encode('utf-8')
-                ).hexdigest()[:16]
+                name = self._draft_name(self.meta.filepath)
             else:
-                name_hash = "untitled_" + str(id(self))
+                name = "untitled_%d.draft" % getattr(self, '_untitled_index', 0)
 
-            draft_file = os.path.join(draft_dir, f"{name_hash}.draft")
+            draft_file = os.path.join(draft_dir, name)
 
-            with open(draft_file, 'w', encoding='utf-8') as f:
+            # 原子写：先前缀临时文件，成功后替换，避免写一半留下坏草稿
+            tmp_file = draft_file + ".tmp"
+            with open(tmp_file, 'w', encoding='utf-8') as f:
                 f.write("# QingCao Draft\n")
                 f.write(f"# Original: {self.meta.filepath or '(未命名)'}\n")
                 f.write(f"# Saved: {datetime.datetime.now().isoformat()}\n")
                 f.write(f"# Encoding: {self.meta.encoding}\n")
                 f.write("# ---\n")
                 f.write(self.get_text())
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, draft_file)
 
         except Exception as e:
             print(f"[Document] 草稿保存失败: {e}")
 
     def delete_draft(self):
-        """删除草稿文件"""
-        if not self.meta.filepath:
-            return
+        """删除当前文档的草稿文件
 
+        注意：调用方必须确保"内容已确实保存成功"，否则会丢掉唯一的
+        崩溃恢复副本（见 `close_document` 的修复说明）。
+        """
+        draft_file = self.draft_path()
+        if not draft_file:
+            return
         try:
-            draft_dir = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "backup", "drafts"
-            )
-            name_hash = hashlib.md5(
-                self.meta.filepath.encode('utf-8')
-            ).hexdigest()[:16]
-            draft_file = os.path.join(draft_dir, f"{name_hash}.draft")
             if os.path.exists(draft_file):
                 os.remove(draft_file)
         except Exception:
@@ -1384,11 +1473,23 @@ class DocumentModel(QObject):
         if filepath and filepath in self._documents:
             del self._documents[filepath]
 
-        # 删除草稿
-        try:
-            document.delete_draft()
-        except Exception:
-            pass
+        # 删除草稿 —— **仅在内容未被修改时**
+        #
+        # 缺陷背景（真实缺陷，已核实）：
+        #   原实现**无条件** delete_draft()，不看 meta.modified。
+        #   于是"未保存就关闭标签"会把唯一一份草稿删掉，而退出路径
+        #   （Discard）也会走到这里 —— 用户未保存的编辑彻底消失，
+        #   且因为草稿原本就没有读取端，连手动找回都不可能。
+        #
+        # 现在的规则：
+        #   * 已修改（有未保存内容）→ **保留草稿**，让它成为崩溃/下次启动
+        #     的恢复来源；
+        #   * 未修改（内容已落盘）→ 草稿已无价值，删除。
+        if not getattr(document.meta, 'modified', False):
+            try:
+                document.delete_draft()
+            except Exception:
+                pass
 
         # 关闭文档
         document.close()

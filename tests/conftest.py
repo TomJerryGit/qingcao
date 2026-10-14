@@ -58,6 +58,25 @@ def _isolate_qsettings(tmp_path_factory):
 
     这样即使测试中途崩溃，也不会影响用户已保存的首选项。
 
+    ⚠ 为什么需要 monkeypatch（真实缺陷，已实测）:
+        仅调用 `QSettings.setDefaultFormat(IniFormat)` + `setPath(...)`
+        **不足以**隔离。PyQt5 的 `QSettings(org, app)` 两参构造
+        **总是使用 NativeFormat**，完全忽略 `setDefaultFormat`：
+
+            默认格式 = 1 (IniFormat)
+            QSettings('QingCao','Editor').format()      -> 0 (注册表)
+            QSettings(IniFormat,UserScope,org,app)      -> 1 (INI 文件)
+
+        而 `app/preferences.py` 用的正是 `QSettings(ORG_NAME, APP_NAME)`
+        —— 于是**所有测试都在读写真实注册表**：
+          * 测试之间互相污染（前一个用例写的值影响后一个）
+          * 污染开发者的真实首选项
+        实测症状：`preferences.get("local_completion", True)` 返回 False
+        （默认应为 True），因为注册表里残留了别的用例写入的 false。
+
+        因此这里把 `app.preferences.QSettings` 换成强制 IniFormat 的包装，
+        让被测代码"以为"在用普通 QSettings，实际落到临时 .ini。
+
     覆盖范围：
         - unittest.TestCase 里的 QSettings 调用
           （pytest 对 unittest.TestCase 也应用 autouse fixture）
@@ -75,8 +94,47 @@ def _isolate_qsettings(tmp_path_factory):
         QSettings.IniFormat, QSettings.SystemScope, ini_dir
     )
 
+    # 强制两参构造走 IniFormat（见上方说明）
+    #
+    # 注意：必须在 **类级别** 替换 `PyQt5.QtCore.QSettings`，而不是只改
+    # `app.preferences.QSettings`。因为测试与生产代码经常这样写：
+    #     from PyQt5.QtCore import QSettings
+    #     QSettings(ORG, APP)
+    # 若只打补丁到 app.preferences，这些直接 import 的地方仍会写真实注册表
+    # （实测：tests/test_preferences_wiring.py 里 `settings.setValue(...)`
+    #  写入注册表，而 main._pref 通过 Preferences 读临时 ini → 断言失败）。
+    from PyQt5 import QtCore as _qtcore
+    _real_qsettings = _qtcore.QSettings
+
+    class _ForcedIniQSettings(_real_qsettings):
+        """两参构造也强制 IniFormat，确保隔离真正生效
+
+        只改写 `QSettings(org: str, app: str)` 这一种重载。
+        必须放行其它重载，例如 `QSettings(fileName, Format)` ——
+        test_secure_storage 等用例用的就是它，若一并改写会抛
+        "arguments did not match any overloaded call"。
+        """
+
+        def __init__(self, *args, **kwargs):
+            if (len(args) == 2
+                    and isinstance(args[0], str)
+                    and isinstance(args[1], str)):
+                args = (_real_qsettings.IniFormat,
+                        _real_qsettings.UserScope,
+                        args[0], args[1])
+            super().__init__(*args, **kwargs)
+
+    _qtcore.QSettings = _ForcedIniQSettings
+
+    import app.preferences as _prefs_mod
+    _prefs_orig = getattr(_prefs_mod, 'QSettings', None)
+    _prefs_mod.QSettings = _ForcedIniQSettings
+
     yield
-    # tmp_path_factory 自动清理，无需手动处理
+
+    _qtcore.QSettings = _real_qsettings
+    if _prefs_orig is not None:
+        _prefs_mod.QSettings = _prefs_orig
 
 
 # ============================================================
@@ -147,21 +205,36 @@ def tmp_dir():
 # P2-C7: monkeypatch 未使用，已移除
 @pytest.fixture
 def preferences(qapp, tmp_path):
-    """隔离的 Preferences 实例（不污染用户真实设置）"""
-    # 强制使用 IniFormat + 临时目录
+    """隔离的 Preferences 实例（不污染用户真实设置）
+
+    说明（测试隔离修复）：
+        会话级 `_isolate_qsettings` 已经把 **所有** QSettings（含
+        `QSettings(org, app)` 两参形式）重定向到临时 .ini。
+
+        本 fixture 原先还额外调用 `setPath(IniFormat, ..., tmp_path)`，
+        但 `QSettings.setPath` 是**进程级全局状态**，而 `tmp_path` 是
+        **每个用例独立**的目录 —— 用例结束后路径仍指向已被删除的目录，
+        后续用例/未被 fixture 覆盖的代码（如 `main._pref()` 新建的
+        Preferences）就会读写到一个不存在的路径，造成"写入读不到"。
+
+        因此这里不再改全局路径，改为：复用会话级隔离目录，并在用例
+        开始时**清空**其中的设置，保证每个用例都从干净默认值出发。
+    """
     from PyQt5.QtCore import QSettings
-    ini_dir = str(tmp_path / "settings")
-    os.makedirs(ini_dir, exist_ok=True)
 
-    QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, ini_dir)
+    from app import preferences as _prefs_module
+    from app.preferences import Preferences
 
-    try:
-        from app.preferences import Preferences
-        prefs = Preferences()
-        yield prefs
-    except ImportError:
-        yield None
+    # 清掉上一个用例可能残留的值（同一会话共享一个临时 ini）
+    # 注意 ORG_NAME / APP_NAME 是**模块级常量**，不是 Preferences 的类属性
+    settings = QSettings(QSettings.IniFormat, QSettings.UserScope,
+                         _prefs_module.ORG_NAME,
+                         _prefs_module.APP_NAME)
+    settings.clear()
+    settings.sync()
+
+    prefs = Preferences()
+    yield prefs
 
 
 @pytest.fixture

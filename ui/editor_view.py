@@ -34,11 +34,13 @@
 """
 
 import os
+import re
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.Qsci import QsciLexerCPP, QsciLexerPython, QsciScintilla
+from PyQt5 import Qsci
+from PyQt5.Qsci import QsciScintilla
 from PyQt5.QtCore import QMimeData, QPoint, QRectF, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import (
     QBrush,
@@ -59,6 +61,7 @@ from app.preferences import Preferences
 from core.content_provider import MemoryProvider
 from core.document import Document, LocalFileProvider
 from core.editor import EditorProxy
+from core.local_completer import get_local_completer
 
 
 # ============================================================
@@ -110,6 +113,208 @@ CURSOR_TRAIL_DURATION = 0.2
 
 # 默认字号
 DEFAULT_FONT_SIZE = 12
+
+
+# ============================================================
+# 语法高亮：扩展名 -> QScintilla 词法器类名（P5）
+# ============================================================
+# 设计要点：
+#   1. 这里只登记**类名字符串**，实例化时用 getattr(PyQt5.Qsci, 名字)
+#      按名动态解析。不同 QScintilla 构建可能缺少某些词法器，动态
+#      解析可优雅降级为 setLexer(None)（零高亮），绝不会因 import
+#      一个不存在的名字而让整个模块导入失败。
+#   2. 优先级（高 -> 低）：
+#        a. 主窗口 _custom_lexers 插件注册表（按扩展名注册的工厂函数）
+#        b. .log -> core.log_lexer.LogLexer（专用自定义词法器）
+#        c. 本映射表（QScintilla 自带词法器）
+#        d. 未登记扩展名 -> setLexer(None)，零高亮但不报错
+#   3. 兜底说明：QScintilla 官方**没有** Go / Rust / TypeScript 词法器。
+#      .go/.rs 用 QsciLexerCPP 近似高亮，.ts/.tsx 用 QsciLexerJavaScript
+#      近似高亮（关键字着色大体正确，类型语法无法区分）。
+#      汇编**不能**用 QsciLexerAsm（C++ 抽象类，实例化即 TypeError），
+#      改用可实例化的 QsciLexerNASM；登记类名时请用
+#      is_instantiable_lexer() 自查。
+#   4. Markdown 只做语法高亮，不做实时预览联动。
+#   5. core/editor.py 中另有一份历史副本（EditorProxy 内的同名逻辑）。
+#      **本处是权威实现**，core 那份仅为兼容保留，修改请以这里为准。
+_LEXER_GROUPS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    # Python
+    ("QsciLexerPython", (".py", ".pyw", ".pyi")),
+    # C / C++ / 类 C；.go / .rs 无官方词法器，用 CPP 兜底
+    ("QsciLexerCPP", (
+        ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".hh",
+        ".ino", ".go", ".rs",
+    )),
+    # JSON（.jsonc/.json5 带注释，仍按 JSON 高亮）
+    ("QsciLexerJSON", (".json", ".jsonc", ".json5")),
+    # JavaScript / TypeScript（无 TS 词法器，用 JS 兜底）
+    ("QsciLexerJavaScript", (".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx")),
+    # HTML / XML 系
+    ("QsciLexerHTML", (".html", ".htm", ".xhtml")),
+    ("QsciLexerXML", (".xml", ".svg", ".xsl", ".xslt", ".plist")),
+    # CSS 及其方言
+    ("QsciLexerCSS", (".css", ".scss", ".less")),
+    # Markdown（仅高亮）
+    ("QsciLexerMarkdown", (".md", ".markdown", ".mdown", ".mkd")),
+    # YAML
+    ("QsciLexerYAML", (".yml", ".yaml")),
+    # SQL
+    ("QsciLexerSQL", (".sql",)),
+    # Shell 系
+    ("QsciLexerBash", (".sh", ".bash", ".zsh", ".ksh")),
+    # Windows 批处理
+    ("QsciLexerBatch", (".bat", ".cmd")),
+    # 其他主流语言
+    ("QsciLexerJava", (".java",)),
+    ("QsciLexerCSharp", (".cs",)),
+    ("QsciLexerRuby", (".rb", ".rake", ".gemspec")),
+    ("QsciLexerPerl", (".pl", ".pm", ".t")),
+    ("QsciLexerLua", (".lua",)),
+    ("QsciLexerTeX", (".tex", ".ltx", ".sty")),
+    # 补丁 / 差异
+    ("QsciLexerDiff", (".diff", ".patch")),
+    # 配置文件
+    ("QsciLexerProperties", (".ini", ".cfg", ".conf", ".properties", ".desktop")),
+    # 构建系统
+    ("QsciLexerCMake", (".cmake",)),
+    ("QsciLexerMakefile", (".mk", ".mak", ".make")),
+    # 汇编
+    # 注意：**不能**用 QsciLexerAsm —— 它是 C++ 抽象类，实例化会抛
+    # "represents a C++ abstract class and cannot be instantiated"，
+    # 实测（本次 P5）会导致 .asm/.s 静默零高亮。
+    # QsciLexerNASM / QsciLexerMASM 都是可实例化的具体类。
+    ("QsciLexerNASM", (".asm", ".s")),
+)
+
+# 展开后的最终映射：扩展名（小写，含点）-> 词法器类名
+LEXER_BY_EXTENSION: Dict[str, str] = {
+    ext: lexer_name
+    for lexer_name, extensions in _LEXER_GROUPS
+    for ext in extensions
+}
+
+
+def resolve_lexer_class(lexer_name: Optional[str]):
+    """
+    按类名从 PyQt5.Qsci 动态解析词法器类。
+
+    参数:
+        lexer_name: 形如 "QsciLexerJSON" 的类名
+
+    返回:
+        词法器类；该类在本 QScintilla 构建中不存在时返回 None
+    """
+    if not lexer_name:
+        return None
+    return getattr(Qsci, lexer_name, None)
+
+
+def is_instantiable_lexer(lexer_name: Optional[str]) -> bool:
+    """
+    判断某个 QScintilla 词法器是否**可以实例化**。
+
+    背景（P5 实测踩坑）: QScintilla 里有些 QsciLexer* 是 **C++ 抽象类**
+    （已实测 `QsciLexerAsm`、`QsciLexerCustom`）。`getattr` 能正常拿到
+    类对象、`hasattr` 也为 True，但 `QsciLexerAsm()` 会抛
+    "represents a C++ abstract class and cannot be instantiated" 的
+    TypeError —— 映射表一旦登记这类名字，就会**静默退化成零高亮**。
+
+    参数:
+        lexer_name: 形如 "QsciLexerJSON" 的类名
+
+    返回:
+        True 表示可以实例化；类不存在、或是抽象类时返回 False
+    """
+    lexer_class = resolve_lexer_class(lexer_name)
+    if lexer_class is None:
+        return False
+    try:
+        lexer_class()
+    except TypeError:
+        # 抽象类，或构造函数签名不符
+        return False
+    except Exception:
+        # 其它异常（例如极端环境下缺少 Qt 运行时）不判定为"不可实例化"，
+        # 交给真正的创建流程去处理
+        return True
+    return True
+
+
+def create_lexer_for_extension(ext: str, parent=None):
+    """
+    按扩展名创建 QScintilla 词法器实例。
+
+    参数:
+        ext: 扩展名（大小写不敏感，可带点也可不带点）
+        parent: 词法器的 QObject 父对象（通常传编辑器自身，保证生命周期）
+
+    返回:
+        词法器实例；未登记的扩展名、本构建缺类、或该类是抽象类时返回 None
+    """
+    if not ext:
+        return None
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    lexer_name = LEXER_BY_EXTENSION.get(ext.lower())
+    if not is_instantiable_lexer(lexer_name):
+        # 这里**显式**打印而不是静默返回 None：登记了不存在的类或
+        # 抽象类（如 QsciLexerAsm）属于配置错误，必须看得见。
+        if lexer_name:
+            print(
+                f"[EditorWidget] 词法器 {lexer_name} 不可实例化"
+                f"（不存在或为 C++ 抽象类），{ext} 将零高亮"
+            )
+        return None
+
+    lexer_class = resolve_lexer_class(lexer_name)
+    try:
+        return lexer_class(parent)
+    except TypeError:
+        # 极少数自定义词法器可能不接受 parent 参数
+        pass
+    except Exception as e:
+        print(f"[EditorWidget] 创建词法器 {lexer_name} 失败: {e}")
+        return None
+
+    try:
+        return lexer_class()
+    except Exception as e:
+        print(f"[EditorWidget] 创建词法器 {lexer_name} 失败: {e}")
+        return None
+
+
+# ============================================================
+# 本地补全（P10）
+# ============================================================
+# core/local_completer.py 的 LocalCompleter 是纯本地实现
+# （语言关键字 + 当前文件词频 + 全局词频 + 最近使用），此前完全未接线。
+# 默认**开启**——它零依赖、不联网，属于"像真正的代码编辑器"的基础能力。
+# 关闭方式: Preferences 里设 local_completion=False。
+DEFAULT_LOCAL_COMPLETION = True
+# 触发补全所需的最少前缀长度（与旧的 setAutoCompletionThreshold(2) 对齐）
+COMPLETION_MIN_PREFIX = 2
+# 单次最多给出的候选数
+COMPLETION_MAX_ITEMS = 50
+# 同一前缀的候选缓存有效期（秒）——避免同一前缀被反复重算
+COMPLETION_CACHE_TTL = 0.5
+# 重新索引文档词频的最小间隔（秒）——避免长文档每次按键全量扫描
+COMPLETION_INDEX_MIN_INTERVAL = 0.75
+# 候选缓存的最大条目数（超过则整体清空，避免无界增长）
+COMPLETION_CACHE_MAX_ENTRIES = 128
+# 扩展名 -> LocalCompleter.language_keywords 的语言键
+# （未登记的扩展名用 ""，表示只给文档词/全局词，不硬塞别的语言的关键字）
+COMPLETION_LANGUAGE_BY_EXT = {
+    ".py": "python",
+    ".pyw": "python",
+    ".pyi": "python",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".jsx": "javascript",
+    ".ts": "javascript",
+    ".tsx": "javascript",
+}
 
 
 # ============================================================
@@ -176,6 +381,23 @@ class EditorWidget(QsciScintilla):
         self._cursor_trail_enabled = self.prefs.get("cursor_trail", False)
         self._smart_highlight_enabled = self.prefs.get("smart_highlight", True)
         self._cursor_trail_points: List[Tuple[int, float]] = []
+
+        # P10: 本地补全状态（core/local_completer 的 LocalCompleter 是
+        # 全局单例；这里把它接进编辑器补全路径，此前它零调用方）
+        self._local_completer = get_local_completer()
+        self._completion_enabled = bool(
+            self.prefs.get("local_completion", DEFAULT_LOCAL_COMPLETION)
+        )
+        self._completion_min_prefix = max(
+            COMPLETION_MIN_PREFIX,
+            int(self.prefs.get("local_completion_min_prefix", COMPLETION_MIN_PREFIX)),
+        )
+        # 未保存缓冲区也有一个稳定的"文件键"，用于 LocalCompleter 的
+        # file_words / recent_words 隔离（避免多标签页互相污染）。
+        # 已保存的文件优先用真实路径，见 _completion_key()。
+        self._completion_buffer_key = f"<buffer:{id(self)}>"
+        self._completion_index_ts = 0.0
+        self._completion_cache: Dict[str, Tuple[float, List[str]]] = {}
 
         # 配置
         self._configure()
@@ -307,11 +529,8 @@ class EditorWidget(QsciScintilla):
         self.setScrollWidth(1)
         self.setScrollWidthTracking(True)
 
-        # 自动补全
-        self.setAutoCompletionSource(QsciScintilla.AcsAll)
-        self.setAutoCompletionThreshold(2)
-        self.setAutoCompletionCaseSensitivity(False)
-        self.setAutoCompletionReplaceWord(False)
+        # 自动补全（P10: 改为由 LocalCompleter 提供候选，见 _setup_autocompletion）
+        self._setup_autocompletion()
 
         # B: 禁用 QScintilla 内置 Ctrl+Z/Ctrl+Y 快捷键
         # 原因:
@@ -436,48 +655,296 @@ class EditorWidget(QsciScintilla):
         except Exception:
             pass
 
+        # P10: 用户"接受"一个补全项后记录使用，LocalCompleter 的
+        # 词频排序 / 最近使用才有意义。
+        # 优先接 SCN_AUTOCCOMPLETED（Scintilla 4.1+ 专门表示"完成插入"），
+        # 老版本回退到 SCN_AUTOCSELECTION；两者都缺则静默跳过。
+        try:
+            self.SCN_AUTOCCOMPLETED.connect(self._on_completion_accepted)
+        except Exception:
+            try:
+                self.SCN_AUTOCSELECTION.connect(self._on_completion_accepted)
+            except Exception:
+                pass
+
+    # ========================================================
+    # 本地补全（P10: 接线 core/local_completer.LocalCompleter）
+    # ========================================================
+    def _setup_autocompletion(self):
+        """
+        配置自动补全，并接管候选来源。
+
+        P10 之前:
+            setAutoCompletionSource(AcsAll) —— 走 QScintilla 内置弹窗，
+            只补"当前文档里出现过的单词"，没有语言关键字、没有词频排序，
+            且 core/local_completer.LocalCompleter **完全未被调用**。
+
+        P10 之后:
+            关闭 QScintilla 内置弹窗（AcsNone），改由本类在
+            SCN_CHARADDED / Ctrl+Space 时用 LocalCompleter 取候选，
+            再经 SCI_AUTOCSHOW 弹出（与 core/editor.py 的 LSP 补全
+            使用同一条 Scintilla 通道）。
+            "文档词补全"能力没有丢：LocalCompleter 的 file_words /
+            word_freq 就是文档词来源，见 _sync_completion_words。
+
+        不受影响的行为: 括号/引号自动闭合、智能缩进、折叠等与
+        补全无关的 QScintilla 行为一律未改动。
+        """
+        try:
+            # AcsNone: 内置弹窗关闭，避免与自定义候选在同一按键上互相覆盖
+            self.setAutoCompletionSource(QsciScintilla.AcsNone)
+        except Exception:
+            pass
+        try:
+            # -1 = 不使用内置阈值；触发门槛由 _completion_min_prefix 控制
+            self.setAutoCompletionThreshold(-1)
+        except Exception:
+            pass
+        try:
+            self.setAutoCompletionCaseSensitivity(False)
+            self.setAutoCompletionReplaceWord(False)
+        except Exception:
+            pass
+
+    def _completion_language(self) -> str:
+        """把当前文件扩展名映射到 LocalCompleter 的语言键（未知则空串）"""
+        ext = os.path.splitext(self._completion_key())[1].lower()
+        return COMPLETION_LANGUAGE_BY_EXT.get(ext, "")
+
+    def _completion_key(self) -> str:
+        """
+        当前缓冲区的词频键。
+
+        已保存文件用真实路径（这样 LocalCompleter 的 file_words
+        能与磁盘文件对应），未保存缓冲区用稳定的实例内键。
+        """
+        try:
+            filepath = getattr(self.document, "filepath", "") or ""
+        except Exception:
+            filepath = ""
+        return filepath or self._completion_buffer_key
+
+    def _current_prefix(self) -> Tuple[str, int]:
+        """
+        取光标左侧的标识符前缀。
+
+        返回:
+            (前缀, 前缀的 UTF-8 字节长度)；光标不在标识符末尾时返回 ("", 0)
+
+        说明: 本文件统一按**字节偏移**处理 Scintilla 位置
+        （见 _smart_home / _wrap_selection 的修复记录），这里同样用
+        SCI_GETCURRENTPOS 减行首位置得到字节偏移，避免中英文混排错位。
+        """
+        try:
+            pos = self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
+            line = self.SendScintilla(QsciScintilla.SCI_LINEFROMPOSITION, pos)
+            line_start = self.SendScintilla(
+                QsciScintilla.SCI_POSITIONFROMLINE, line
+            )
+            line_text = self.text(line)
+            offset = max(0, pos - line_start)
+            head = line_text.encode("utf-8")[:offset].decode("utf-8", "ignore")
+        except Exception:
+            return "", 0
+
+        match = re.search(r"[A-Za-z_][A-Za-z0-9_]*\Z", head)
+        if match is None:
+            return "", 0
+        prefix = match.group(0)
+        return prefix, len(prefix.encode("utf-8"))
+
+    def _sync_completion_words(self) -> None:
+        """
+        把当前文档内容同步给 LocalCompleter。
+
+        性能保护（P10）: 全量正则扫描文档词频在长文档上有成本，
+        因此按 COMPLETION_INDEX_MIN_INTERVAL 节流；候选结果本身
+        另有 COMPLETION_CACHE_TTL 前缀缓存。
+        """
+        now = time.time()
+        if (now - self._completion_index_ts) < COMPLETION_INDEX_MIN_INTERVAL:
+            return
+        try:
+            text = self.text()
+        except Exception:
+            return
+        try:
+            self._local_completer.update_from_file(self._completion_key(), text)
+        except Exception as e:
+            print(f"[EditorWidget] 更新补全词频失败: {e}")
+            return
+        self._completion_index_ts = now
+        self._completion_cache.clear()
+
+    def local_completions(self, prefix: str) -> List[str]:
+        """
+        用 LocalCompleter 计算候选词（公开方法，便于测试与插件复用）。
+
+        参数:
+            prefix: 已输入的前缀
+
+        返回:
+            候选词列表，排序为: 最近使用 -> 语言关键字 ->
+            当前文件词频 -> 全局词频
+        """
+        if not self._completion_enabled:
+            return []
+        if not prefix or len(prefix) < self._completion_min_prefix:
+            return []
+
+        self._sync_completion_words()
+        try:
+            items = self._local_completer.get_completions(
+                prefix,
+                filepath=self._completion_key(),
+                language=self._completion_language(),
+                limit=COMPLETION_MAX_ITEMS,
+            )
+        except Exception as e:
+            print(f"[EditorWidget] 本地补全计算失败: {e}")
+            return []
+        return [word for word, _source in items]
+
+    def trigger_local_completion(self, force: bool = False) -> List[str]:
+        """
+        按当前前缀弹出本地补全列表。
+
+        参数:
+            force: True 时忽略前缀长度门槛（供 Ctrl+Space 使用）
+
+        返回:
+            本次实际使用的候选词列表（可能来自前缀缓存）
+        """
+        if not self._completion_enabled:
+            return []
+
+        prefix, prefix_bytes = self._current_prefix()
+        if not prefix:
+            return []
+        if not force and len(prefix) < self._completion_min_prefix:
+            return []
+
+        now = time.time()
+        cached = self._completion_cache.get(prefix)
+        if cached is not None and (now - cached[0]) < COMPLETION_CACHE_TTL:
+            words = list(cached[1])
+        else:
+            words = self.local_completions(prefix)
+            self._completion_cache[prefix] = (now, list(words))
+            if len(self._completion_cache) > COMPLETION_CACHE_MAX_ENTRIES:
+                self._completion_cache.clear()
+
+        if not words:
+            return []
+
+        try:
+            self.SendScintilla(
+                QsciScintilla.SCI_AUTOCSHOW,
+                prefix_bytes,
+                " ".join(words).encode("utf-8"),
+            )
+        except Exception as e:
+            print(f"[EditorWidget] 弹出本地补全失败: {e}")
+        return words
+
+    def _on_completion_accepted(self, *args):
+        """
+        补全项被用户接受后的回调（P10）。
+
+        SCN_AUTOCCOMPLETED / SCN_AUTOCSELECTION 的第一个参数是选中的
+        词（sip 里是 str，个别版本是 bytes）；这里两种都兼容。
+        """
+        word = ""
+        for arg in args:
+            if isinstance(arg, str) and arg:
+                word = arg
+                break
+            if isinstance(arg, (bytes, bytearray)):
+                text = bytes(arg).decode("utf-8", "ignore")
+                if text:
+                    word = text
+                    break
+        if not word:
+            return
+        try:
+            self._local_completer.record_used(word)
+        except Exception as e:
+            print(f"[EditorWidget] 记录补全使用失败: {e}")
+
     # ========================================================
     # 语法高亮
     # ========================================================
     def set_lexer_by_filename(self, filepath: Optional[str]):
-        """根据文件扩展名设置词法器"""
+        """
+        根据文件扩展名设置词法器。
+
+        优先级（高 -> 低），与模块级 LEXER_BY_EXTENSION 的注释一致：
+            1. 主窗口 _custom_lexers 插件注册表（插件注册的优先）
+            2. .log -> core.log_lexer.LogLexer（专用词法器）
+            3. 内置扩展名映射表（LEXER_BY_EXTENSION）
+            4. 无匹配 / 本构建缺该词法器 -> setLexer(None)（零高亮，不报错）
+
+        说明：core/editor.py 中另有一份历史副本，**本处为权威实现**。
+
+        参数:
+            filepath: 文件路径（None / 空字符串表示清除词法器）
+        """
         if not filepath:
-            self.setLexer(None)
+            self.set_lexer(None)
             return
 
         ext = os.path.splitext(filepath)[1].lower()
 
+        # 1) 插件注册的自定义词法器优先
+        #    app/plugins.py 会往主窗口的 _custom_lexers 里按扩展名
+        #    注册工厂函数；此处对所有扩展名都先查注册表。
         try:
-            if ext in ('.py', '.pyw'):
-                self.setLexer(QsciLexerPython())
-            elif ext in ('.cpp', '.cc', '.cxx', '.h', '.hpp', '.c'):
-                self.setLexer(QsciLexerCPP())
-            elif ext == '.log':
-                # 使用自定义日志词法器（如果存在）
-                try:
-                    from core.log_lexer import LogLexer
-                    self.setLexer(LogLexer(self))
-                except ImportError:
-                    self.setLexer(None)
-            else:
-                # 检查自定义词法器注册表
-                custom = getattr(self.window(), '_custom_lexers', {})
-                if ext in custom:
-                    try:
-                        factory = custom[ext]
-                        lexer = factory()
-                        if lexer:
-                            self.setLexer(lexer)
-                            return
-                    except Exception:
-                        pass
-                self.setLexer(None)
+            custom = getattr(self.window(), '_custom_lexers', None)
+            factory = custom.get(ext) if isinstance(custom, dict) else None
+            if factory is not None:
+                lexer = factory()
+                if lexer is not None:
+                    self.set_lexer(lexer)
+                    return
         except Exception as e:
-            print(f"[EditorWidget] 设置词法器失败: {e}")
-            self.setLexer(None)
+            print(f"[EditorWidget] 自定义词法器创建失败({ext}): {e}")
+
+        # 2) .log 专用词法器
+        if ext == '.log':
+            try:
+                from core.log_lexer import LogLexer
+                self.set_lexer(LogLexer(self))
+            except Exception as e:
+                print(f"[EditorWidget] 日志词法器加载失败: {e}")
+                self.set_lexer(None)
+            return
+
+        # 3) 内置映射表；缺词法器时 create_lexer_for_extension 返回 None，
+        #    由 set_lexer(None) 完成"零高亮"降级。
+        try:
+            self.set_lexer(create_lexer_for_extension(ext, self))
+        except Exception as e:
+            print(f"[EditorWidget] 设置词法器失败({ext}): {e}")
+            self.set_lexer(None)
 
     def set_lexer(self, lexer):
-        """重写，同时设置字体"""
+        """重写，同时设置字体（并保证词法器生命周期）
+
+        生命周期说明（P5 实测发现）：
+            没有 QObject parent 的词法器在 Python 侧唯一的引用消失后
+            会被回收，而 Scintilla 只持有**裸指针**，于是
+            `self.lexer()` 变成 None（插件工厂返回的词法器正是这种）。
+            这里对无 parent 的词法器统一 `setParent(self)`，
+            让编辑器持有它 —— 内置路径虽然已经传了 parent，
+            插件/外部传入的路径也一并兜住。
+        """
+        if lexer is not None:
+            try:
+                if lexer.parent() is None:
+                    lexer.setParent(self)
+            except Exception:
+                pass
+
         super().setLexer(lexer)
         if lexer:
             try:
@@ -520,6 +987,11 @@ class EditorWidget(QsciScintilla):
         if key == Qt.Key_Escape:
             if self.SendScintilla(QsciScintilla.SCI_GETSELECTIONS) > 1:
                 self.proxy.clear_multi_cursors()
+                return
+
+        # Ctrl+Space：强制弹出本地补全（P10）
+        if key == Qt.Key_Space and modifiers == Qt.ControlModifier:
+            if self.trigger_local_completion(force=True):
                 return
 
         # 括号/引号包裹选区
@@ -804,6 +1276,11 @@ class EditorWidget(QsciScintilla):
         """
         try:
             char = chr(char_code)
+
+            # P10: 输入标识符字符后自动弹出本地补全
+            # （关键字 + 文档词 + 词频排序，均来自 LocalCompleter）
+            if char.isascii() and (char.isalnum() or char == "_"):
+                self.trigger_local_completion()
 
             if char not in PAIRS:
                 return
@@ -1234,6 +1711,16 @@ class EditorWidget(QsciScintilla):
             self._smart_highlight_enabled = self.prefs.get(
                 "smart_highlight", True
             )
+
+            # P10: 尊重补全开关（默认开启）与触发门槛
+            self._completion_enabled = bool(
+                self.prefs.get("local_completion", DEFAULT_LOCAL_COMPLETION)
+            )
+            self._completion_min_prefix = max(
+                COMPLETION_MIN_PREFIX,
+                int(self.prefs.get("local_completion_min_prefix", COMPLETION_MIN_PREFIX)),
+            )
+            self._completion_cache.clear()
 
             self.viewport().update()
 

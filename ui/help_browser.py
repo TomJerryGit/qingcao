@@ -66,6 +66,8 @@ HELP_TOPICS = {
 | Ctrl+A | 全选 |
 | Ctrl+D | 选中下一个 |
 | Ctrl+/ | 注释切换 |
+| Ctrl+Alt+D | 插入日期时间 |
+| Ctrl+Alt+Shift+V | 粘贴为纯文本 |
 
 ## 查找
 | 快捷键 | 功能 |
@@ -95,6 +97,9 @@ HELP_TOPICS = {
 | Ctrl+Shift+R | 录制宏 |
 | Ctrl+Shift+M | 回放宏 |
 | Ctrl+Shift+A | AI 助手 |
+| F5 | 运行当前文件（需调试插件） |
+| F12 | 转到定义（需启用 LSP） |
+| Ctrl+Shift+V | Vim 模式 |
 """,
 
     "插件开发": """

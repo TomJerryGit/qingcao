@@ -95,7 +95,6 @@ DEFAULTS: Dict[str, Any] = {
     "show_matching_braces": True,
     "brace_match_color": "#44FF44",
     "caret_width": 1,
-    "caret_blink_rate": 500,  # 毫秒
     "caret_line_visible": True,
     "auto_close_brackets": True,
     "auto_close_quotes": True,
@@ -107,7 +106,6 @@ DEFAULTS: Dict[str, Any] = {
     "mouse_wheel_zoom": True,
     "triple_click_select_line": True,
     "backspace_unindent": True,
-    "smooth_scroll": True,
     "cursor_trail": False,
     "smart_highlight": True,
     "smart_highlight_delay": 300,
@@ -128,7 +126,6 @@ DEFAULTS: Dict[str, Any] = {
     "search_highlight_color": "#FFFF00",
     "search_current_color": "#FF8000",
     "bracket_match_color": "#44FF44",
-    "icon_theme": "default",
 
     # ---- 行为设置 ----
     "auto_save": False,
@@ -140,7 +137,6 @@ DEFAULTS: Dict[str, Any] = {
     "auto_reload": True,
     "auto_reload_confirm": True,
     "restore_session": True,
-    "restore_undo_history": False,
     "reopen_last_files": True,
     "save_backup": True,
     "backup_dir": "backup",
@@ -151,24 +147,16 @@ DEFAULTS: Dict[str, Any] = {
     "default_encoding": "UTF-8",
     "default_line_ending": "auto",  # auto / lf / crlf / cr
     "detect_encoding": True,
-    "encoding_confidence": 0.7,
-    "follow_symlinks": False,
 
     # ---- 性能设置 ----
     "large_file_threshold": 10,  # MB
     "huge_file_threshold": 100,  # MB
-    "virtual_scroll": True,
-    "max_loaded_blocks": 2000,
     "search_threads": 4,
     "search_timeout": 30,  # 秒
     "use_hyperscan": True,
-    "cache_lexer_results": True,
     "gc_interval": 50,  # 每N次保存触发GC
-    "startup_delay_load": True,
     "splash_screen": True,
-    "splash_duration": 800,  # 毫秒
-    "delay_plugin_load": True,
-    "delay_plugin_ms": 50,
+    "splash_duration": 800,  # 毫秒（最小显示时长，见 main.py）
 
     # ---- 语言设置 ----
     "language": "zh_CN",
@@ -217,6 +205,12 @@ DEFAULTS: Dict[str, Any] = {
     "sound_effects": False,
     "sound_volume": 0.5,
 
+    # ---- 语言服务器 LSP（P6 接线，task-3 新增）----
+    # 说明：默认**关闭** —— LSP 需要用户本机装有对应的语言服务器
+    # （pylsp / typescript-language-server / rust-analyzer ...），
+    # 开启入口：工具 → 启用 LSP（智能补全），见 ui/main_window.py。
+    "lsp_enabled": False,
+
     # ---- 高级设置 ----
     "debug_mode": False,
     "log_level": "INFO",  # DEBUG / INFO / WARNING / ERROR
@@ -227,11 +221,36 @@ DEFAULTS: Dict[str, Any] = {
     "check_update": True,
     "update_channel": "stable",  # stable / beta / dev
     "portable_mode": False,
-    "config_sync": False,
-    "sync_provider": "gist",  # gist / webdav / custom
-    "gist_token": "",
     "gist_id": "",
 }
+
+# ============================================================
+# P7 清理记录：被删除的"假开关"
+# ============================================================
+# 下面这些键曾经存在于 DEFAULTS 中，但**全仓没有任何生产代码读取**
+# （既无 UI 之外的引用，也无运行时效果），用户改了不会有任何反应，
+# 属于"假开关"。为避免误导，已连同属性访问器与首选项 UI 项一并删除。
+# 本清单仅作文档记录，键本身已不存在于 DEFAULTS。
+#
+#   caret_blink_rate        光标闪烁频率：QScintilla 未接入
+#   smooth_scroll           平滑滚动：从未实现
+#   virtual_scroll          虚拟滚动：从未实现（大文件走分块读取）
+#   icon_theme              图标主题：资源集只有一套图标
+#   max_loaded_blocks       加载块上限：content_provider 自管分块
+#   cache_lexer_results     词法缓存开关：无对应缓存实现
+#   startup_delay_load      延迟加载：启动流程未使用
+#   delay_plugin_load       延迟加载插件：插件管理未使用
+#   delay_plugin_ms         延迟毫秒：同上
+#   config_sync             配置同步：同步由 app/sync.py 自管配置文件
+#   sync_provider           同步后端：同上（与 Preferences 脱钩）
+#   gist_token              Gist 令牌：同上（app/sync.py 用同名键读自己的配置）
+#   encoding_confidence     编码置信度阈值：content_provider 硬编码
+#   follow_symlinks         跟随符号链接：从未实现
+#   restore_undo_history    恢复撤销历史：撤销栈未持久化（成本高，删除）
+#
+# 保留但已接线（P7）：splash_screen / splash_duration（main.py）、
+# search_threads / use_hyperscan / search_timeout（core/search.py）、
+# log_level / log_max_size / language_auto_detect（main.py）。
 
 
 # ============================================================
@@ -603,14 +622,6 @@ class Preferences(QObject):
         self.set("caret_width", max(1, min(5, value)))
 
     @property
-    def caret_blink_rate(self) -> int:
-        return self.get("caret_blink_rate")
-
-    @caret_blink_rate.setter
-    def caret_blink_rate(self, value: int):
-        self.set("caret_blink_rate", max(0, value))
-
-    @property
     def auto_close_brackets(self) -> bool:
         return self.get("auto_close_brackets")
 
@@ -633,14 +644,6 @@ class Preferences(QObject):
     @smart_home.setter
     def smart_home(self, value: bool):
         self.set("smart_home", value)
-
-    @property
-    def smooth_scroll(self) -> bool:
-        return self.get("smooth_scroll")
-
-    @smooth_scroll.setter
-    def smooth_scroll(self, value: bool):
-        self.set("smooth_scroll", value)
 
     @property
     def cursor_trail(self) -> bool:
@@ -796,14 +799,6 @@ class Preferences(QObject):
         self.set("huge_file_threshold", max(10, value))
 
     @property
-    def virtual_scroll(self) -> bool:
-        return self.get("virtual_scroll")
-
-    @virtual_scroll.setter
-    def virtual_scroll(self, value: bool):
-        self.set("virtual_scroll", value)
-
-    @property
     def search_threads(self) -> int:
         return self.get("search_threads")
 
@@ -944,14 +939,6 @@ class Preferences(QObject):
     @portable_mode.setter
     def portable_mode(self, value: bool):
         self.set("portable_mode", value)
-
-    @property
-    def config_sync(self) -> bool:
-        return self.get("config_sync")
-
-    @config_sync.setter
-    def config_sync(self, value: bool):
-        self.set("config_sync", value)
 
     # ========================================================
     # 字体构造
@@ -1178,7 +1165,7 @@ class Preferences(QObject):
     def reset_appearance(self):
         """重置外观设置"""
         for key in ["theme_path", "color_scheme", "minimap_visible",
-                    "minimap_width", "selection_color", "icon_theme"]:
+                    "minimap_width", "selection_color"]:
             self.set(key, DEFAULTS[key], notify=False)
         self.sync()
 
@@ -1194,7 +1181,7 @@ class Preferences(QObject):
         """重置性能设置"""
         self.reset_to_defaults("search_")
         for key in ["large_file_threshold", "huge_file_threshold",
-                    "virtual_scroll", "use_hyperscan"]:
+                    "use_hyperscan"]:
             self.set(key, DEFAULTS[key], notify=False)
         self.sync()
 

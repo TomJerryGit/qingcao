@@ -306,6 +306,13 @@ class LspClient(QObject):
             working_dir: 工作目录
             env: 环境变量（追加到现有环境）
         """
+        # P6: command 为空时下方 command[0] 会 IndexError。
+        # 明确报错而不是崩在启动路径上（未知扩展名/无服务器配置的场景）。
+        if not command:
+            self._set_state(LspState.ERROR)
+            self.error_occurred.emit("启动失败: 未提供语言服务器命令")
+            return
+
         if self._state in (LspState.RUNNING, LspState.STARTING):
             self.stop()
 

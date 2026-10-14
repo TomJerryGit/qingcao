@@ -192,8 +192,20 @@ class FileOpsMixin:
             if not filepath:
                 self._save_file_as()
             else:
-                proxy.save_file()
-                self.status_bar.showMessage("已保存", 2000)
+                # 必须检查返回值（真实缺陷修复）：
+                #   原实现丢弃 `save_file()` 的 bool 返回值，无条件提示
+                #   "已保存"。于是磁盘满、权限不足、只读介质等情况下，
+                #   用户会**以为文件已经存好**，实际修改全部丢失。
+                ok = proxy.save_file()
+                if ok:
+                    self.status_bar.showMessage("已保存", 2000)
+                else:
+                    self._show_error(
+                        "保存失败",
+                        "文件未能写入磁盘：\n%s\n\n"
+                        "请检查磁盘空间、文件权限，或用「另存为」保存到其它位置。"
+                        % filepath
+                    )
 
         except Exception as e:
             self._show_error("保存失败", str(e))
@@ -239,22 +251,39 @@ class FileOpsMixin:
 
 
     def _save_all(self):
-        """保存所有文件"""
+        """保存所有文件
+
+        修复（真实缺陷）：原实现丢弃 `save_file()` 的返回值并把"调用了"
+        当成"成功了"，`saved += 1` 无条件累加；异常还被 `pass` 吞掉。
+        结果磁盘满时也报"已保存 N 个文件"，失败的文件用户完全不知道。
+        现在按**真实返回值**统计，并把失败清单报给用户。
+        """
         try:
             saved = 0
+            failed = []
             for i in range(self.tabs.count()):
                 w = self.tabs.widget(i)
                 if not hasattr(w, 'proxy'):
                     continue
                 proxy = w.proxy
                 if proxy and hasattr(proxy, 'is_modified') and proxy.is_modified:
+                    name = self.tabs.tabText(i)
                     try:
-                        proxy.save_file()
-                        saved += 1
-                    except Exception:
-                        pass
+                        if proxy.save_file():
+                            saved += 1
+                        else:
+                            failed.append(name)
+                    except Exception as e:
+                        failed.append("%s (%s)" % (name, e))
 
-            if saved:
+            if failed:
+                self._show_error(
+                    "部分文件保存失败",
+                    "以下文件未能写入磁盘：\n\n  · %s\n\n"
+                    "已成功保存 %d 个。请检查磁盘空间与文件权限。"
+                    % ("\n  · ".join(failed), saved)
+                )
+            elif saved:
                 self.status_bar.showMessage(f"已保存 {saved} 个文件", 2000)
             else:
                 self.status_bar.showMessage("没有需要保存的文件", 2000)

@@ -39,6 +39,7 @@
   保留旧名作为别名，向后兼容
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -85,6 +86,8 @@ from PyQt5.QtWidgets import (
 # ============================================================
 # 常量
 # ============================================================
+logger = logging.getLogger(__name__)
+
 APP_NAME = "青草编辑器"
 # P1-1: 版本号唯一来源 version.py
 try:
@@ -165,6 +168,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self.plugin_loader = None
         self.plugin_manager = None
 
+        # P8-5: 快捷键 → QAction 的运行时登记表。
+        # _add_action() 直接调用 QAction.setShortcut()，绕过了
+        # app/actions.py 的冲突检测；这里补一道"重复绑定"防线。
+        self._shortcut_owners: Dict[str, QAction] = {}
+
         # 关闭标志（避免 closeEvent 重入）
         self._closing = False
 
@@ -241,6 +249,24 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self._session_timer = QTimer(self)
         self._session_timer.timeout.connect(self._autosave_session)
         self._session_timer.start(SESSION_AUTOSAVE_INTERVAL)
+
+        # 自动备份定时器（P1 修复：崩溃恢复的**生产者**）
+        #
+        # 缺陷背景（真实缺陷，已核实）：
+        #   `SessionManager.start_autosave()` / `save_autosave()`
+        #   —— 唯一会备份"未保存文件正文"的代码 —— **全仓零调用点**。
+        #   于是 `backup/autosave/meta.json` 永不生成，
+        #   main.py 的崩溃恢复分支（判 meta.json 是否存在）永不进入，
+        #   草稿又没有任何读取端 → **崩溃后未保存内容 100% 丢失**。
+        #
+        #   注意：上面那个 `_session_timer` 连的是 `_autosave_session`，
+        #   它只调 `session.save(...)`（存文件名/光标/布局），
+        #   **不含正文**，因此不能替代本定时器。
+        if self.session is not None:
+            try:
+                self.session.start_autosave()
+            except Exception as e:
+                logging.warning("启动自动备份定时器失败: %s", e)
 
     # ========================================================
     # 中央区域
@@ -427,6 +453,14 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self._add_action(self.edit_menu, "✂ 剪切(&T)", "Ctrl+X", self._cut)
         self._add_action(self.edit_menu, "📋 复制(&C)", "Ctrl+C", self._copy)
         self._add_action(self.edit_menu, "📋 粘贴(&P)", "Ctrl+V", self._paste)
+        # P8-3: "粘贴为纯文本"。
+        #   历史沿革：Ctrl+Alt+V 在 Windows 上被系统解释为 AltGr+V 而
+        #   收不到；改到 Ctrl+Shift+V 后又与"Vim 模式"开关冲突，导致
+        #   该功能在 Qt 的 ambiguous shortcut 下**完全失效**。
+        #   现改绑 Ctrl+Alt+Shift+V（已穷举本文件所有 setShortcut /
+        #   register_shortcut 调用确认无重复）。
+        self._add_action(self.edit_menu, "📋 粘贴为纯文本", "Ctrl+Alt+Shift+V",
+                          self._paste_plain)
         self._add_action(self.edit_menu, "全选(&A)", "Ctrl+A",
                           self._select_all)
         self.edit_menu.addSeparator()
@@ -441,7 +475,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                           self._toggle_comment)
         self._add_action(self.edit_menu, "🧮 计算表达式", "Ctrl+Shift+E",
                           self._eval_expression)
-        self._add_action(self.edit_menu, "📅 插入日期时间", "F5",
+        # P8-2: F5 从"插入日期时间"改为"运行当前文件"（主流 IDE 语义）。
+        #   日期时间改绑 Ctrl+Alt+D，见下面的编辑菜单。
+        #   运行入口见 _run_current_file()：调试插件未激活时给出**明确
+        #   提示**，不再静默失败。
+        self._add_action(self.edit_menu, "📅 插入日期时间", "Ctrl+Alt+D",
                           self._insert_datetime)
         self.edit_menu.addSeparator()
         self._add_action(self.edit_menu, "📋 复制整行", "Ctrl+Shift+D",
@@ -459,8 +497,18 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         # ============ 视图菜单 ============
         self.view_menu = menubar.addMenu("视图(&V)")
 
-        self._add_action(self.view_menu, "▦ 列模式", "Alt+C",
-                          self._toggle_column_mode)
+        # P8-1: 列模式 —— 菜单项与工具栏按钮**共用同一个 QAction**。
+        #   修复前"视图 → 列模式"（_add_action）与工具栏
+        #   column_mode_action 各自 setShortcut("Alt+C")，Qt 判定为
+        #   ambiguous shortcut overload，按 Alt+C 两个都不触发。
+        #   该 QAction 在 _build_menus 中创建（早于 _build_toolbar），
+        #   工具栏在 _build_toolbar 里直接 addAction 复用。
+        self.column_mode_action = QAction("▦ 列模式", self)
+        self.column_mode_action.setCheckable(True)
+        self.column_mode_action.setShortcut(QKeySequence("Alt+C"))
+        self.column_mode_action.toggled.connect(self._toggle_column_mode)
+        self.view_menu.addAction(self.column_mode_action)
+        self._register_action_shortcut(self.column_mode_action)
         self.view_menu.addSeparator()
         self._add_action(self.view_menu, "🖥 无干扰模式", "F11",
                           self.toggle_distraction_free)
@@ -485,6 +533,14 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         # ============ 工具菜单 ============
         self.tools_menu = menubar.addMenu("工具(&T)")
+
+        # P8-2: F5 = 运行当前文件（原来的"插入日期时间"已改绑 Ctrl+Alt+D）
+        self._add_action(self.tools_menu, "▶ 运行当前文件", "F5",
+                          self._run_current_file)
+        # P6: F12 = 转到定义，把 LspClient.request_definition 接进生产路径
+        self._add_action(self.tools_menu, "🔎 转到定义", "F12",
+                          self._goto_definition)
+        self.tools_menu.addSeparator()
 
         self._add_action(self.tools_menu, "⌨ 命令面板", "Ctrl+Shift+P",
                           self._show_command_palette)
@@ -518,6 +574,16 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self.vim_mode_action.setShortcut(QKeySequence("Ctrl+Shift+V"))
         self.vim_mode_action.toggled.connect(self._toggle_vim_mode)
         self.tools_menu.addAction(self.vim_mode_action)
+        self._register_action_shortcut(self.vim_mode_action)
+
+        # P6: LSP 总开关（可勾选，**默认关闭** —— 需要用户本机装有
+        # 语言服务器；没有服务器时会在状态栏给出可操作的安装提示）。
+        # 不分配默认快捷键，避免与用户自定义/插件注册的键冲突。
+        self.lsp_action = QAction("启用/停用 LSP（智能补全）", self)
+        self.lsp_action.setCheckable(True)
+        self.lsp_action.setChecked(self._lsp_pref_enabled())
+        self.lsp_action.toggled.connect(self._toggle_lsp)
+        self.tools_menu.addAction(self.lsp_action)
         # --- 首选项入口 ---
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "⚙ 首选项...", "Ctrl+,",
@@ -849,9 +915,331 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         action = QAction(text, self)
         if shortcut:
             action.setShortcut(QKeySequence(shortcut))
+            # P8-5: 运行时重复检测（不抛异常，避免打断启动）
+            self._register_action_shortcut(action)
         action.triggered.connect(slot)
         menu.addAction(action)
         return action
+
+    def _register_action_shortcut(self, action: QAction):
+        """P8-5: 记录 QAction 的快捷键并检测重复绑定。
+
+        `_add_action()` 直接调用 `QAction.setShortcut()`，绕过了
+        `app/actions.py` 的冲突检测；此前的 Alt+C 重复绑定就是这样
+        悄悄产生的（Qt 判定 ambiguous shortcut，按键完全无响应）。
+
+        这里维护 `self._shortcut_owners: {快捷键字符串: QAction}`：
+        同一个非空快捷键被**另一个** QAction 再次绑定时，用
+        `logging.warning` 记录并保留首个绑定。刻意不抛异常 ——
+        启动期间不能因为一个冲突就整体失败。
+        """
+        try:
+            seq = action.shortcut()
+            if seq is None or seq.isEmpty():
+                return
+            key = seq.toString()
+            if not key:
+                return
+
+            owners = getattr(self, "_shortcut_owners", None)
+            if owners is None:
+                owners = {}
+                self._shortcut_owners = owners
+
+            previous = owners.get(key)
+            if previous is not None and previous is not action:
+                logger.warning(
+                    "快捷键冲突: %s 已绑定到「%s」，现又被「%s」绑定；"
+                    "后者的快捷键已失效（Qt ambiguous shortcut）",
+                    key, previous.text(), action.text(),
+                )
+                return
+            owners[key] = action
+        except Exception as e:
+            logger.warning("快捷键重复检测失败: %s", e)
+
+    # ========================================================
+    # 运行 / 转到定义 / LSP（P8-2 / P6）
+    # ========================================================
+    def _run_current_file(self):
+        """运行当前文件（P8-2: F5）。
+
+        优先交给已激活的调试类插件（如 python_debugger）；插件未激活
+        时**明确提示**用户，而不是静默什么都不做。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+            if not proxy:
+                self.status_bar.showMessage("没有打开的编辑器，无法运行", 4000)
+                return
+
+            filepath = ""
+            try:
+                filepath = (proxy.document.filepath or "") if proxy.document else ""
+            except Exception:
+                filepath = ""
+
+            if not filepath:
+                self.status_bar.showMessage("请先保存文件再运行", 4000)
+                return
+
+            # 1) 已激活的调试插件
+            for plugin in (self.plugins or []):
+                runner = getattr(plugin, "run_current", None)
+                if callable(runner):
+                    try:
+                        runner()
+                        return
+                    except Exception as e:
+                        logger.error("插件运行当前文件失败: %s", e)
+                        self.status_bar.showMessage(
+                            f"运行失败: {e}", 5000
+                        )
+                        return
+
+            # 2) 没有调试插件：给出可操作的提示（不静默失败）
+            self.status_bar.showMessage(
+                "未启用调试插件，无法运行当前文件；"
+                "请启用「python_debugger」等调试插件（工具 → 插件管理）。"
+                f"（{os.path.basename(filepath)}）",
+                6000,
+            )
+            logger.warning(
+                "运行当前文件：没有可用的调试插件（filepath=%s）", filepath
+            )
+        except Exception as e:
+            logger.error("运行当前文件失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"运行失败: {e}", 5000)
+            except Exception:
+                pass
+
+    def _goto_definition(self):
+        """转到定义（P6: F12）。
+
+        实际请求由 `EditorProxy.goto_definition()` 发出；失败原因
+        （未启用 LSP / 语言服务器缺失 等）通过 `lsp_error` 信号经
+        `_on_lsp_message` 显示在状态栏。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+            if not proxy or not hasattr(proxy, "goto_definition"):
+                self.status_bar.showMessage("没有活动的编辑器", 3000)
+                return
+            self._connect_lsp_signals(proxy)
+            if not proxy.goto_definition():
+                self.status_bar.showMessage(
+                    "转到定义不可用（详见状态栏提示 / 日志）", 5000
+                )
+        except Exception as e:
+            logger.error("转到定义失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"转到定义失败: {e}", 5000)
+            except Exception:
+                pass
+
+    def _lsp_pref_enabled(self) -> bool:
+        """读取 LSP 开关偏好（健壮：prefs 不可用时返回 False）"""
+        try:
+            if self.prefs is None:
+                return False
+            return bool(self.prefs.get("lsp_enabled", False))
+        except Exception:
+            return False
+
+    def _set_lsp_checked(self, checked: bool):
+        """设置 LSP 菜单勾选状态（阻断信号，避免递归）"""
+        try:
+            if not hasattr(self, "lsp_action"):
+                return
+            self.lsp_action.blockSignals(True)
+            self.lsp_action.setChecked(checked)
+            self.lsp_action.blockSignals(False)
+        except Exception:
+            pass
+
+    def _connect_lsp_signals(self, proxy):
+        """把编辑器代理的 LSP 信号接到状态栏（幂等）。
+
+        P6 要求"失败必须用户可见"：EditorProxy 通过 `lsp_error` 信号
+        发出人类可读的原因，主窗口负责显示 + 记日志。
+        """
+        if getattr(proxy, "_lsp_ui_connected", False):
+            return
+        connected = False
+        for sig_name, slot in (
+            ("lsp_error", self._on_lsp_message),
+            ("lsp_status_changed", self._on_lsp_status),
+            ("definition_requested", self._on_definition_requested),
+        ):
+            try:
+                sig = getattr(proxy, sig_name, None)
+                if sig is not None:
+                    sig.connect(slot)
+                    connected = True
+            except Exception as e:
+                logger.debug("连接 %s 失败: %s", sig_name, e)
+        if connected:
+            try:
+                proxy._lsp_ui_connected = True
+            except Exception:
+                pass
+
+    def _on_lsp_message(self, message: str):
+        """LSP 用户可见提示（失败原因 / 安装提示）"""
+        try:
+            logger.warning("[LSP] %s", message)
+        except Exception:
+            pass
+        try:
+            self.status_bar.showMessage(str(message), 8000)
+        except Exception:
+            pass
+
+    def _on_lsp_status(self, state: str):
+        """LSP 状态变化 → 状态栏"""
+        try:
+            text = {
+                "running": "LSP 已启动",
+                "off": "LSP 已停止",
+                "error": "LSP 错误（详见日志）",
+                "unsupported": "当前文件类型无 LSP 支持",
+                "no_server": "未配置该语言的 LSP 服务器",
+                "not_found": "未找到语言服务器，请先安装",
+            }.get(str(state), f"LSP: {state}")
+            self.status_bar.showMessage(text, 4000)
+        except Exception:
+            pass
+
+    def _on_definition_requested(self, filepath: str, line: int,
+                                 character: int):
+        """P6: 定义位于**别的文件**时打开它。
+
+        同一文件内的跳转由 `EditorProxy._on_lsp_definition` 直接完成，
+        不会走到这里。
+        """
+        try:
+            if not filepath:
+                return
+            current = ""
+            proxy = self.tabs.current_proxy()
+            if proxy is not None and getattr(proxy, "document", None) is not None:
+                current = proxy.document.filepath or ""
+
+            if os.path.normcase(filepath) == os.path.normcase(current):
+                return
+
+            if hasattr(self.tabs, "open_file"):
+                self.tabs.open_file(filepath, line=line)
+            else:
+                self.status_bar.showMessage(
+                    f"定义位于: {filepath}:{line + 1}", 6000
+                )
+        except Exception as e:
+            logger.error("打开定义位置失败: %s", e)
+
+    def _paste_plain(self):
+        """粘贴为纯文本（P8-3: Ctrl+Alt+Shift+V）。
+
+        与 `_paste` 的区别：直接插入系统剪贴板的纯文本，不经过
+        QScintilla 的富文本/多光标粘贴路径。``insert()`` 在有选区时
+        替换选区、无选区时插入。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+            if not proxy or not getattr(proxy, "sc", None):
+                self.status_bar.showMessage("没有活动的编辑器", 3000)
+                return
+            text = QApplication.clipboard().text()
+            if not text:
+                self.status_bar.showMessage("剪贴板为空", 3000)
+                return
+            proxy.sc.insert(text)
+            self.status_bar.showMessage("已粘贴为纯文本", 2000)
+        except Exception as e:
+            logger.error("粘贴为纯文本失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"粘贴失败: {e}", 4000)
+            except Exception:
+                pass
+
+    def _insert_datetime(self):
+        """插入日期时间（P7/P8: 统一走 EditorProxy，格式来自 Preferences）。
+
+        这里**覆盖**了 `EditOpsMixin._insert_datetime`
+        （ui/mixins/edit_ops_mixin.py:139）—— 那份实现把格式硬编码为
+        ``"%Y-%m-%d %H:%M:%S"``，**完全不读** Preferences 的
+        ``date_format`` / ``time_format``，用户在首选项里改了没反应。
+
+        `core/editor.py::insert_datetime` 是唯一读取这两个键的实现，
+        编辑器的右键菜单（ui/editor_view.py:1535）已经在用它。此处把
+        **编辑菜单** 也统一到同一条路径，避免两份实现再次漂移。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+            if proxy is None:
+                self.status_bar.showMessage("没有活动的编辑器", 3000)
+                return
+            if hasattr(proxy, "insert_datetime"):
+                proxy.insert_datetime()
+                return
+            # 兜底：代理缺该方法时退回 mixin 的历史实现
+            super()._insert_datetime()
+        except Exception as e:
+            logger.error("插入日期时间失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"插入日期时间失败: {e}", 4000)
+            except Exception:
+                pass
+
+    def _toggle_lsp(self, checked: bool):
+        """P6: 启用/停用当前编辑器的 LSP（工具菜单可勾选项）。
+
+        - 默认关闭：大多数用户本机没有语言服务器。
+        - **失败必须用户可见**：具体原因通过 `lsp_error` 信号进入
+          状态栏（`_on_lsp_message`），并写入日志。
+        - 失败时回滚勾选状态，避免菜单显示"已启用"但实际未生效。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+            if proxy is None or not hasattr(proxy, "toggle_lsp"):
+                self.status_bar.showMessage(
+                    "没有活动的编辑器，无法启用 LSP", 4000
+                )
+                self._set_lsp_checked(False)
+                return
+
+            self._connect_lsp_signals(proxy)
+
+            if checked:
+                ok = bool(proxy.toggle_lsp(True))
+                if not ok:
+                    # EditorProxy 已经通过 lsp_error 给出具体原因
+                    self._set_lsp_checked(False)
+                    return
+                filepath = ""
+                if getattr(proxy, "document", None) is not None:
+                    filepath = proxy.document.filepath or ""
+                if filepath:
+                    self._lsp_clients[filepath] = proxy
+            else:
+                proxy.toggle_lsp(False)
+                stale = [k for k, v in self._lsp_clients.items() if v is proxy]
+                for k in stale:
+                    self._lsp_clients.pop(k, None)
+
+            if self.prefs is not None:
+                try:
+                    self.prefs.set("lsp_enabled", bool(checked))
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error("切换 LSP 失败: %s", e)
+            self._set_lsp_checked(False)
+            try:
+                self.status_bar.showMessage(f"切换 LSP 失败: {e}", 5000)
+            except Exception:
+                pass
 
     # ========================================================
     # 工具栏
@@ -882,11 +1270,16 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                                                 self._show_global_search))
         toolbar.addSeparator()
 
-        # 列模式
-        self.column_mode_action = QAction("列模式", self)
-        self.column_mode_action.setCheckable(True)
-        self.column_mode_action.setShortcut(QKeySequence("Alt+C"))
-        self.column_mode_action.toggled.connect(self._toggle_column_mode)
+        # 列模式（P8-1: 与"视图 → 列模式"共用同一个 QAction。
+        # 全窗口只保留**一处** Alt+C 绑定，避免 Qt 的
+        # ambiguous shortcut overload 导致按键完全无响应。）
+        if getattr(self, 'column_mode_action', None) is None:
+            # 兜底：万一 _build_menus 未执行（只需工具栏的场景）
+            self.column_mode_action = QAction("列模式", self)
+            self.column_mode_action.setCheckable(True)
+            self.column_mode_action.setShortcut(QKeySequence("Alt+C"))
+            self.column_mode_action.toggled.connect(self._toggle_column_mode)
+            self._register_action_shortcut(self.column_mode_action)
         toolbar.addAction(self.column_mode_action)
 
         # 命令面板
@@ -1865,6 +2258,9 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             # P2-5: 同步列模式状态
             self._sync_column_mode_state()
 
+            # P6: LSP 总开关打开时，为新标签补上 LSP（幂等）
+            self._sync_lsp_for_current_tab()
+
         except Exception as e:
             print(f"[MainWindow] 标签切换失败: {e}")
 
@@ -1886,6 +2282,37 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 self.column_mode_action.blockSignals(False)
         except Exception as e:
             print(f"[MainWindow] 同步列模式状态失败: {e}")
+
+    def _sync_lsp_for_current_tab(self):
+        """P6: LSP 总开关打开时，切标签后为新编辑器补上 LSP（幂等）。
+
+        只对 `LSP_LANGUAGE_BY_EXT` 里认得出的文件类型自动启用，避免
+        每次切到 .txt / .log 都弹一次"不支持"的提示。
+        """
+        try:
+            if not hasattr(self, "lsp_action") or not self.lsp_action.isChecked():
+                return
+            proxy = self.tabs.current_proxy()
+            if proxy is None or not hasattr(proxy, "toggle_lsp"):
+                return
+            if getattr(proxy, "lsp_client", None) is not None:
+                return
+
+            filepath = ""
+            if getattr(proxy, "document", None) is not None:
+                filepath = proxy.document.filepath or ""
+            try:
+                from core.editor import lsp_language_for_file
+                if not filepath or not lsp_language_for_file(filepath):
+                    return
+            except Exception:
+                return
+
+            self._connect_lsp_signals(proxy)
+            if proxy.toggle_lsp(True) and filepath:
+                self._lsp_clients[filepath] = proxy
+        except Exception as e:
+            logger.debug("切换标签后同步 LSP 失败: %s", e)
 
     def _on_all_tabs_closed(self):
         """所有标签关闭"""
