@@ -106,6 +106,78 @@
 
 全量套件 430 -> **440 passed**。
 
+### 新增/修复（首选项"假开关"：改了没反应的开关 · P7）
+
+**接线（8 个键，此前只写不读）**
+
+| 键 | 现在的行为 |
+|---|---|
+| `splash_screen` | `main.py` 创建启动画面前检查，关掉就不再显示 |
+| `splash_duration` | `QSplashScreen` 构造签名无时长参数，实现为**最小可见时长** + 补上缺失的 UI 项 |
+| `search_threads` / `use_hyperscan` / `search_timeout` | 新增 `SearchOptions.from_preferences()`，`SearchEngine` 默认路径与 `build_search_options` 均走它；越界值夹到 1..16 |
+| `log_level` / `log_max_size` | `setup_logging()` 按偏好设置 logger/文件/控制台级别与轮转阈值；`debug_mode` 最高优先级覆盖 |
+| `language_auto_detect` | 关闭后不再按系统 locale 猜测语言 |
+
+**删除（15 个半成品：零读取、价值低）**
+
+`caret_blink_rate`、`smooth_scroll`、`virtual_scroll`、`icon_theme`、
+`max_loaded_blocks`、`cache_lexer_results`、`startup_delay_load`、
+`delay_plugin_load`、`delay_plugin_ms`、`config_sync`、`sync_provider`、
+`gist_token`、`encoding_confidence`、`follow_symlinks`、`restore_undo_history`
+
+—— `DEFAULTS`、属性访问器、面板 UI 三处**同时清理**，并清掉
+`reset_appearance`/`reset_performance` 里引用 `DEFAULTS[key]` 的键列表
+（漏删会 KeyError）。每删一个都记录在此（用户可见的行为变更）。
+
+**测试**：新增 `tests/test_preferences_wiring.py`（18 个用例）——
+删除键的三处清理断言、接线键的静态证据、`SearchOptions` 运行时行为，
+以及**核心防线**：`DEFAULTS` 里不允许出现基线之外的新"孤儿"键
+（既不在面板、也无人读取）。69 个存量孤儿已逐条登记，只允许缩小。
+
+### 新增/修复（接线审计：把"写了没接线"变成可自动检测 · P9）
+
+本项目反复出现**代码写好了但从未接线**（`start_autosave` 零调用点、
+`LocalCompleter` 零调用方、LSP 8 个请求零调用方、~35 个死模块）。
+新增 `tests/test_wiring_audit.py`（29 个用例 + 4 个已知未完成项）：
+
+* **关键 API 接线断言** —— `start_autosave`、`LocalCompleter.get_completions`、
+  `LspClient.request_definition`、`toggle_lsp`、草稿恢复入口必须有生产调用点；
+* **死模块基线** —— 35 个已确认死模块逐条登记，**只允许缩小**，
+  新增死模块即红（避免"删了没人发现"与"越积越多"）；
+* **端到端冒烟** —— 真实构造 `MainWindow`，执行打开文件、断言高亮、
+  写自动备份、断言面板 objectName 唯一等。
+
+审计过程中发现并登记了 **16 个任务清单之外的既有死模块**
+（`ui/refactor_dialog.py`、`ui/task_panel.py`、`ui/git_panel.py`、
+`ui/markdown_preview.py`、`ui/usage_stats_panel.py`、`core/benchmark.py` 等）。
+
+**重要方法论**：`xfail(strict=False)` 在功能接线成功后**会变成 XPASS 而不是失败**
+—— 留着就会让防线静默失效。本次逐条复核，把**已接线的 xfail 全部摘掉**恢复为
+硬断言（`start_autosave` 相关两条即因此摘除）。
+
+### 修复（测试隔离从未生效 · 重大）
+
+**实测证据**
+
+    QSettings('QingCao','Editor').format() = 0   (NativeFormat / 注册表)
+                                              ↑ 即使已调用 setDefaultFormat(IniFormat)
+
+`conftest.py` 声称"把所有 QSettings 写入重定向到 pytest 临时目录"，但
+**PyQt5 的 `QSettings(org, app)` 两参构造永远使用 NativeFormat，忽略
+`setDefaultFormat`**；而 `app/preferences.py` 用的正是这一形式。后果：
+
+* **所有测试都在读写真实注册表** —— 测试之间互相污染
+  （实测：前一个用例把 `local_completion` 写成 `false`，导致后一个用例
+   读到污染值而失败）；
+* **污染开发者的真实首选项**（实测机器上 `local_completion` 被改成 `false`）。
+
+**修复**：在类级别替换 `PyQt5.QtCore.QSettings`，只改写 `QSettings(str, str)`
+这一种重载（放行 `QSettings(fileName, Format)` 等合法重载，否则
+`test_secure_storage` 会抛 "arguments did not match any overloaded call"）。
+另修 `preferences` fixture 用每用例 `tmp_path` 调用**进程级全局**
+`QSettings.setPath` 的缺陷（用例结束后路径指向已删除目录），改为复用
+会话级隔离目录 + 每用例 `clear()`。
+
 ### 修复（面板默认不显示 · 性能优化引入的功能回归）
 
 **现象**：用户反馈"缺少部分功能"。逐项核对后确认**菜单功能没有缺失**

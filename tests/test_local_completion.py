@@ -15,7 +15,10 @@
 关于补全"被接受"信号（实测）：
     SCN_AUTOCCOMPLETED(selection: str, position: int, ch: int, method: int)
     SCN_AUTOCSELECTION(selection: str, position: int)
-生产代码优先接前者、缺失时回退后者；测试里两种参数个数都会尝试。
+生产代码优先接前者、缺失时回退后者。
+注意：这两个绑定信号**不能**直接 `emit()`（sip 内省限制，会抛
+"argument 1 has unexpected type 'str'"），所以验收改用
+`receivers(signal) > 0` 判连接 + 直调槽函数判 record_used。
 """
 
 import inspect
@@ -88,43 +91,16 @@ def editor(qapp, completer):
         pass
 
 
-# 实测（PyQt5/QScintilla）补全"被接受"信号的参数个数：
-#   SCN_AUTOCCOMPLETED(selection: str, position: int, ch: int, method: int)  -> 4
-#   SCN_AUTOCSELECTION(selection: str, position: int)                        -> 2
-# 生产代码优先接前者，缺失时回退后者；不同版本参数个数可能有差异，
-# 所以这里两组都试。
-_ACCEPT_SIGNAL_ARGS = (
-    ("SCN_AUTOCCOMPLETED", ("hello_world", 0, 0, 0)),
-    ("SCN_AUTOCSELECTION", ("hello_world", 0)),
-)
-
-
-def _emit_completion_acceptance(editor):
-    """向"补全被接受"信号发射一次测试事件，返回实际使用的信号名（失败返回 None）"""
-    for name, emit_args in _ACCEPT_SIGNAL_ARGS:
-        signal = getattr(editor, name, None)
-        if signal is None:
-            continue
-        try:
-            signal.emit(*emit_args)
-        except TypeError:
-            # 该版本参数个数不同 -> 退到保守的 2 参形式再试一次
-            try:
-                signal.emit("hello_world", 0)
-            except TypeError:
-                continue
-        return name
-    return None
-
-
 class _CountingCompleter:
-    """包装真实 LocalCompleter，统计生产代码的调用次数"""
+    """包装真实 LocalCompleter，统计生产代码的调用次数
+
+    只覆盖「本文件断言到的」两个入口；其余属性由 __getattr__ 透传。
+    """
 
     def __init__(self, inner):
         self._inner = inner
         self.get_completions_calls = 0
         self.update_from_file_calls = 0
-        self.record_used_calls = 0
         self.last_get_completions = None
 
     def get_completions(self, *args, **kwargs):
@@ -135,10 +111,6 @@ class _CountingCompleter:
     def update_from_file(self, *args, **kwargs):
         self.update_from_file_calls += 1
         return self._inner.update_from_file(*args, **kwargs)
-
-    def record_used(self, word):
-        self.record_used_calls += 1
-        return self._inner.record_used(word)
 
     def __getattr__(self, name):
         return getattr(self._inner, name)
