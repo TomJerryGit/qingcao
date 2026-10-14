@@ -206,17 +206,50 @@ class TestSoundWiring:
 # 惰性面板
 # ============================================================
 class TestLazyPanels:
-    def test_panels_not_built_at_startup(self, qapp):
+    def test_only_default_panels_built_at_startup(self, qapp):
+        """启动时只构造 _DEFAULT_PANELS，其余仍为延迟构造
+
+        历史：曾要求"启动时构造 0 个面板"，但那会导致
+          ① 界面开箱为空（用户观感"功能没了"）
+          ② 会话保存采集到空 docks → 覆盖用户布局
+        因此改为：构造一组常用默认面板，其余保持延迟。
+        """
         import ui.main_window as mw
 
         win = mw.MainWindow()
         try:
-            assert win._panels_built == set(), (
-                "启动时不应构造任何面板: %s" % win._panels_built
+            assert win._panels_built == set(win._DEFAULT_PANELS), (
+                "启动时应恰好构造默认面板，实际: %s" % win._panels_built
             )
-            assert win.outline is None
-            assert win.dir_tree is None
-            assert win.console is None
+            # 未列入默认的仍不应被构造
+            for name in ('outline', 'outline_enhanced',
+                         'minimap', 'console', 'search_bar'):
+                if name in win._DEFAULT_PANELS:
+                    continue
+                assert name not in win._panels_built, (
+                    "%s 不应在启动时构造" % name
+                )
+        finally:
+            win.close()
+
+    def test_default_panels_visible(self, qapp):
+        """默认面板不仅要构造，还要**可见**（否则界面依旧空白）"""
+        from PyQt5.QtWidgets import QDockWidget
+
+        import ui.main_window as mw
+
+        win = mw.MainWindow()
+        win.show()
+        try:
+            qapp.processEvents()
+            names = {d.objectName() for d in win.findChildren(QDockWidget)
+                     if d.isVisible()}
+            assert "DirectoryTreeDock" in names, (
+                "项目目录树应默认可见，实际可见: %s" % names
+            )
+            assert "GlobalSearchPanel" in names
+            assert "PluginsPanel" in names
+            assert "PerfMonitor" in names
         finally:
             win.close()
 
@@ -231,6 +264,36 @@ class TestLazyPanels:
 
             assert win._ensure_panel('perf_monitor') is True
             assert win.perf_monitor is not None
+        finally:
+            win.close()
+
+    def test_all_panels_have_object_name(self, qapp):
+        """每个面板都要有稳定 objectName —— 会话采集/恢复依赖它"""
+        import ui.main_window as mw
+
+        win = mw.MainWindow()
+        try:
+            expected = {
+                'outline': 'OutlinePanel',
+                'outline_enhanced': 'OutlineEnhancedDock',
+                'dir_tree': 'DirectoryTreeDock',
+                'minimap': 'MinimapDock',
+                'gsearch': 'GlobalSearchPanel',
+                'console': 'PythonConsole',
+                'plugins_panel': 'PluginsPanel',
+                'perf_monitor': 'PerfMonitor',
+                'search_bar': 'SearchBar',
+            }
+            for name, oname in expected.items():
+                assert win._ensure_panel(name) is True, name
+                obj = getattr(win, name, None)
+                if name in ('dir_tree', 'minimap'):
+                    obj = getattr(win, f"{name}_dock", None)
+                assert obj is not None, name
+                assert obj.objectName() == oname, (
+                    "%s 的 objectName 应为 %s，实际 %r"
+                    % (name, oname, obj.objectName())
+                )
         finally:
             win.close()
 

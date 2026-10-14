@@ -112,6 +112,11 @@ class SessionManager(QObject):
         # 会话数据缓存
         self._session_data: Dict[str, Any] = {}
 
+        # 上一次加载到的面板布局。
+        # 用途：面板是延迟构造的，若本次运行从未打开面板，保存时会采集到
+        # 空集合；此时沿用这份记录，避免把用户布局覆盖成空。
+        self._previous_docks: Dict[str, Any] = {}
+
         # 自动保存定时器
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
@@ -292,6 +297,13 @@ class SessionManager(QObject):
                 pass
 
         # 收集面板状态
+        #
+        # 注意（真实缺陷）：面板是**延迟构造**的，若本次运行从未打开任何面板，
+        # `findChildren(QDockWidget)` 会返回空集合，于是这里会把 `docks` 写成
+        # **空字典**，在关闭时**覆盖掉用户已有的面板布局** —— 下次启动便
+        # 无面板可恢复，界面看起来"功能没了"。
+        #
+        # 因此：只在**确实采集到面板**时才写入；否则保留原有记录不动。
         if main_window:
             try:
                 docks = {}
@@ -304,7 +316,15 @@ class SessionManager(QObject):
                         'floating': dock.isFloating(),
                         'area': int(main_window.dockWidgetArea(dock)),
                     }
-                data['docks'] = docks
+                if docks:
+                    data['docks'] = docks
+                else:
+                    # 不覆盖：沿用上一份会话里的面板布局
+                    prev = getattr(self, '_previous_docks', None)
+                    if prev:
+                        data['docks'] = prev
+                    else:
+                        data.pop('docks', None)
             except Exception:
                 pass
 
@@ -674,6 +694,8 @@ class SessionManager(QObject):
 
             # 恢复面板状态
             docks_data = data.get('docks', {})
+            # 记住上一份布局：本次运行若从未打开面板，保存时不要把它覆盖成空
+            self._previous_docks = dict(docks_data or {})
             if docks_data and main_window:
                 self._restore_docks(main_window, docks_data)
 
@@ -733,7 +755,13 @@ class SessionManager(QObject):
 
     def _restore_docks(self, main_window: QMainWindow,
                        docks_data: Dict[str, Any]):
-        """恢复面板状态"""
+        """恢复面板状态
+
+        注意（延迟构造相关）：面板是按需构造的，会话里记录的面板此刻可能
+        还不存在。原实现只遍历 `findChildren(QDockWidget)`，对未构造的面板
+        直接跳过 —— 于是"上次打开过的面板"再也不会出现。这里改为：先按
+        会话记录**构造**对应面板，再设置其可见性。
+        """
         # area 值映射（PyQt5 5.15+ 要求必须是 Qt.DockWidgetArea 枚举）
         AREA_MAP = {
             1: Qt.LeftDockWidgetArea,
@@ -742,7 +770,35 @@ class SessionManager(QObject):
             8: Qt.BottomDockWidgetArea,
         }
 
+        # 会话记录的名字 -> 惰性面板属性名（用于按需构造）
+        #   TodoPanel / WordCountPanel 由插件自己创建（是 QDockWidget 子类），
+        #   不属于主窗口的惰性面板，因此不在这里映射；它们由插件在激活时
+        #   自行按偏好决定是否显示。
+        NAME_TO_PANEL = {
+            "OutlinePanel": "outline",
+            "OutlineEnhancedDock": "outline_enhanced",
+            "DirectoryTreeDock": "dir_tree",
+            "MinimapDock": "minimap",
+            "GlobalSearchPanel": "gsearch",
+            "PythonConsole": "console",
+            "PluginsPanel": "plugins_panel",
+            "PerfMonitor": "perf_monitor",
+            "SearchBar": "search_bar",
+        }
+
         try:
+            # 1) 先按会话记录构造缺失的面板
+            ensure = getattr(main_window, "_ensure_panel", None)
+            if callable(ensure):
+                for name in list(docks_data.keys()):
+                    panel = NAME_TO_PANEL.get(name)
+                    if panel:
+                        try:
+                            ensure(panel)
+                        except Exception:
+                            pass
+
+            # 2) 再恢复位置与可见性
             for dock in main_window.findChildren(QDockWidget):
                 name = dock.objectName() or dock.windowTitle()
                 info = docks_data.get(name)

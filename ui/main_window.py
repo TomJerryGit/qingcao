@@ -927,6 +927,23 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self.setCorner(Qt.TopRightCorner, Qt.RightDockWidgetArea)
         self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
 
+        # 构造"开箱即有"的常用面板。
+        #
+        # 必须在这里（而不是等用户点菜单）完成，原因有二：
+        #   1. 会话恢复 `_restore_session` 在 200ms 后执行，它按
+        #      `findChildren(QDockWidget)` 恢复可见性 —— 面板必须已存在；
+        #   2. 会话**保存**会采集已存在的面板；若一个都没有，就会把
+        #      用户布局覆盖成空（见 app/session.py 的 _capture_docks）。
+        #
+        # 注意：各构造器末尾保留了旧版的 `hide()`（面板默认不显示）。
+        # 因此这里构造后需要**显式显示**，否则界面依旧是空的。
+        for name in self._DEFAULT_PANELS:
+            try:
+                if self._ensure_panel(name):
+                    self._show_panel(name)
+            except Exception as e:
+                print(f"[MainWindow] 默认面板 {name} 构造失败: {e}")
+
     # ========================================================
     # 面板惰性构造（P1-3）
     # ========================================================
@@ -944,6 +961,44 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         'dir_tree', 'minimap', 'gsearch',
         'console', 'plugins_panel', 'perf_monitor', 'search_bar',
     )
+
+    # 启动时构造的面板（**保留**延迟构造，但恢复"开箱即有"的界面）
+    #
+    # 为什么需要（真实回归）：改成纯延迟构造后，启动时一个面板都不存在
+    #   → 会话保存采集到空的 docks
+    #   → 关闭时覆盖掉用户已有的面板布局
+    #   → 之后每次启动界面都是空的（只剩欢迎页）
+    # 用户观感就是"功能不见了"。这里在启动时只构造这几个常用面板
+    # （仍少于原先的 9 个），既保住冷启动优化，又让界面开箱可用。
+    _DEFAULT_PANELS = (
+        'dir_tree',        # 左侧：项目目录树
+        'gsearch',         # 底部：全局搜索
+        'plugins_panel',   # 右侧：插件
+        'perf_monitor',    # 底部：性能监控
+    )
+
+    def _show_panel(self, name: str) -> bool:
+        """显示指定面板（按属性名，兼容"面板本身是 dock"与"面板包在 dock 里"两种形式）
+
+        为什么要单独一个方法：各面板的封装形式不统一 ——
+        `outline`/`gsearch`/`console`/`plugins_panel`/`perf_monitor`
+        本身就是 QDockWidget，而 `dir_tree`/`minimap` 是
+        `QDockWidget` 包住一个内容控件（`dir_tree_dock`/`minimap_dock`）。
+        """
+        target = getattr(self, name, None)
+        if target is None:
+            return False
+        if name in ("dir_tree", "minimap"):
+            target = getattr(self, name + "_dock", None) or target
+        try:
+            target.setVisible(True)
+            # 折叠状态下 setVisible 不会真正展开，这里确保还原
+            if hasattr(target, "show"):
+                target.show()
+            return True
+        except Exception as e:
+            print(f"[MainWindow] 显示面板 {name} 失败: {e}")
+            return False
 
     def _ensure_panel(self, name: str) -> bool:
         """确保指定面板已构造。
@@ -978,6 +1033,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.outline_panel import OutlinePanel
             self.outline = OutlinePanel(self)
+            self.outline.setObjectName("OutlinePanel")
             self.outline.symbol_clicked.connect(self._on_symbol_clicked)
             self.addDockWidget(Qt.LeftDockWidgetArea, self.outline)
         except Exception as e:
@@ -994,6 +1050,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.outline_panel import OutlinePanel
             self.outline_enhanced = OutlinePanel(self, enhanced=True)
+            self.outline_enhanced.setObjectName("OutlineEnhancedDock")
             self.outline_enhanced.symbol_clicked.connect(
                 self._on_symbol_clicked
             )
@@ -1047,6 +1104,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.global_search_panel import GlobalSearchPanel
             self.gsearch = GlobalSearchPanel(self)
+            self.gsearch.setObjectName("GlobalSearchPanel")
             self.gsearch.match_activated.connect(
                 self._on_search_match_activated
             )
@@ -1066,6 +1124,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.python_console import PythonConsole
             self.console = PythonConsole(self)
+            self.console.setObjectName("PythonConsole")
             self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
             self.console.hide()
         except Exception as e:
@@ -1081,6 +1140,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 main_window=self,
                 plugin_manager=None,
             )
+            self.plugins_panel.setObjectName("PluginsPanel")
             self.addDockWidget(
                 Qt.RightDockWidgetArea, self.plugins_panel
             )
@@ -1094,6 +1154,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.perf_monitor import PerfMonitor
             self.perf_monitor = PerfMonitor(self)
+            self.perf_monitor.setObjectName("PerfMonitor")
             self.addDockWidget(
                 Qt.BottomDockWidgetArea, self.perf_monitor
             )
@@ -1107,6 +1168,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         try:
             from ui.panels import SearchBar
             self.search_bar = SearchBar(self)
+            self.search_bar.setObjectName("SearchBar")
             self.addToolBar(Qt.BottomToolBarArea, self.search_bar)
             self.search_bar.hide()
         except Exception as e:
