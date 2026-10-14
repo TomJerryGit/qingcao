@@ -532,6 +532,31 @@ class EditorPage(QWidget):
         )
         edit_layout.addWidget(self.trim_ws_cb)
 
+        # ---- 代码补全（P10：本地补全器接线后补上的 UI）----
+        # 这两个键此前只在 ui/editor_view.py 里读取，没有登记也没有面板项，
+        # 而补全默认开启 —— 用户无法关闭或调整触发前缀长度。
+        self.local_completion_cb = QCheckBox(
+            "输入时自动提示补全（关键字 / 词频 / 文档词）"
+        )
+        self.local_completion_cb.setChecked(
+            prefs.get("local_completion", True)
+        )
+        edit_layout.addWidget(self.local_completion_cb)
+
+        prefix_row = QHBoxLayout()
+        prefix_row.addWidget(QLabel("补全触发前缀长度:"))
+        self.completion_prefix_spin = QSpinBox()
+        self.completion_prefix_spin.setRange(1, 10)
+        self.completion_prefix_spin.setValue(
+            int(prefs.get("local_completion_min_prefix", 2))
+        )
+        self.completion_prefix_spin.setToolTip(
+            "输入多少个字符后才弹出补全候选（默认 2）"
+        )
+        prefix_row.addWidget(self.completion_prefix_spin)
+        prefix_row.addStretch()
+        edit_layout.addLayout(prefix_row)
+
         layout.addWidget(edit_group)
 
         # 保存
@@ -567,6 +592,12 @@ class EditorPage(QWidget):
                        self.auto_close_cb.isChecked())
         self.prefs.set("trim_trailing_whitespace",
                        self.trim_ws_cb.isChecked())
+
+        # 代码补全
+        self.prefs.set("local_completion",
+                       self.local_completion_cb.isChecked())
+        self.prefs.set("local_completion_min_prefix",
+                       self.completion_prefix_spin.value())
 
         self.prefs.set("auto_save", self.auto_save_cb.isChecked())
         self.prefs.set("insert_final_newline",

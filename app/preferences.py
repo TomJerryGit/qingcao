@@ -110,6 +110,13 @@ DEFAULTS: Dict[str, Any] = {
     "smart_highlight": True,
     "smart_highlight_delay": 300,
 
+    # ---- 代码补全（P10 接线：本地补全器）----
+    # 背景：core/local_completer.py 的本地补全能力此前完全未接线，
+    # 接线后发现这两个键**既不在 DEFAULTS、也没有面板项** ——
+    # 而补全默认开启，用户无法关闭或调整前缀长度。现补登记 + 面板项。
+    "local_completion": True,           # 输入时自动弹出补全候选
+    "local_completion_min_prefix": 2,   # 触发补全所需的最少前缀字符数
+
     # ---- 外观设置 ----
     "theme_path": "",
     "theme_follow_system": True,
