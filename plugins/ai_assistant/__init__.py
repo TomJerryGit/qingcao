@@ -1606,6 +1606,9 @@ class OllamaPanel(QWidget):
         self._models: List[Dict[str, Any]] = []
         self._pull_thread = None
         self._busy = False
+        # 关闭中标志：后台线程据此跳过信号发送，避免"对象已销毁"的
+        # RuntimeError（见 _safe_emit 的说明）
+        self._closing = False
         self._build_ui()
         # 后台线程 → 主线程的连接
         self._refresh_done.connect(self._on_refresh_done)
@@ -1702,6 +1705,39 @@ class OllamaPanel(QWidget):
         )
         self.status_label.setText(text)
 
+    # --------------------------------------------------------
+    # 线程安全的信号发送
+    # --------------------------------------------------------
+    def _safe_emit(self, signal, *args) -> bool:
+        """在后台线程完成后安全地发信号。
+
+        为什么需要（真实缺陷）：
+            刷新/拉取用的是 **daemon 线程**，它们不会阻止进程退出，
+            也不保证在面板析构前结束。若面板已经被 Qt 销毁，而线程仍在
+            `signal.emit(...)`，会抛：
+
+                RuntimeError: wrapped C/C++ object of type OllamaPanel
+                              has been deleted
+
+            这会在关闭编辑器时打出 traceback（pytest 里表现为
+            PytestUnhandledThreadExceptionWarning）。
+
+        防护分两层：
+            1. `_closing` 标志 —— 关闭时置位，线程据此直接跳过发送；
+            2. `except RuntimeError` —— 兜住"标志检查与 emit 之间对象被
+               销毁"的竞态窗口。
+        """
+        if getattr(self, "_closing", False):
+            return False
+        try:
+            signal.emit(*args)
+            return True
+        except RuntimeError:
+            # 底层 C++ 对象已销毁：属于正常退出路径，静默忽略
+            return False
+        except Exception:
+            return False
+
     def refresh(self):
         """刷新服务状态 + 模型列表（后台线程）"""
         if self._busy:
@@ -1722,7 +1758,8 @@ class OllamaPanel(QWidget):
             except Exception as e:
                 ok, status, models, running = (
                     False, "探测异常: %s" % e, [], [])
-            panel._refresh_done.emit(ok, status, models, running)
+            # 面板可能已被销毁 —— 必须走安全发送
+            panel._safe_emit(panel._refresh_done, ok, status, models, running)
 
         th = threading.Thread(target=_worker, daemon=True,
                               name="ollama-refresh")
@@ -1831,11 +1868,13 @@ class OllamaPanel(QWidget):
                 total = ev.get("total") or 0
                 done_n = ev.get("completed") or 0
                 pct = int(done_n * 100 / total) if total else 0
-                panel._pull_progress.emit(pct, str(ev.get("status") or ""))
+                # 面板可能在拉取过程中被销毁 —— 走安全发送
+                panel._safe_emit(panel._pull_progress, pct,
+                                 str(ev.get("status") or ""))
                 return not getattr(panel, '_pull_cancelled', False)
 
             ok2, msg = panel._client.pull_model(name, progress=on_event)
-            panel._pull_done.emit(ok2, msg)
+            panel._safe_emit(panel._pull_done, ok2, msg)
 
         th = threading.Thread(target=_worker, daemon=True, name="ollama-pull")
         th.start()
@@ -1916,12 +1955,17 @@ class OllamaPanel(QWidget):
     # 线程收尾（避免 QThread 运行中被销毁 —— Qt 会 abort）
     # --------------------------------------------------------
     def _stop_threads(self, timeout_ms: int = 1500):
-        """等待后台线程结束（尽力而为）。
+        """等待后台线程结束并阻止其继续发信号。
 
         面板用的是 daemon `threading.Thread`，因此**不会**出现
-        `QThread` 那种"运行中被析构 → qFatal"的问题；这里只是尽量
-        让进行中的请求收尾，避免退出时打出无意义的 traceback。
+        `QThread` 那种"运行中被析构 → qFatal"的问题；但 daemon 线程
+        **不会阻塞进程退出**，也不保证在面板析构前结束 ——
+        若它在对象销毁后才 `emit`，会抛
+        `RuntimeError: wrapped C/C++ object ... has been deleted`。
+
+        因此这里**先置 `_closing` 标志**（线程据此跳过发送），再 join。
         """
+        self._closing = True
         for attr in ('_refresh_thread', '_pull_thread'):
             th = getattr(self, attr, None)
             if th is None:
