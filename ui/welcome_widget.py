@@ -87,6 +87,44 @@ from app.event_bus import FileOpenedEvent, StatusMessageEvent, bus
 
 
 # ============================================================
+# 主题色（欢迎页此前是**硬编码深色**，导致护眼等浅色主题下
+# 出现"深色欢迎页 + 浅色工具栏"的割裂观感）
+#
+# `C` 是"当前主题颜色"的**模块级代理**：所有样式表通过它的属性
+# 读取颜色，因此切换主题后只要重新执行一次样式构建即可生效。
+# 见 WelcomeWidget.refresh_theme。
+# ============================================================
+class _ThemeProxy:
+    """主题颜色代理：属性取值来自当前主题，缺失时回退 Dark+ 默认值"""
+
+    def __init__(self):
+        self._colors = None
+
+    def bind(self, colors) -> None:
+        self._colors = colors
+
+    def __getattr__(self, name: str):
+        colors = self.__dict__.get("_colors")
+        if colors is not None:
+            val = getattr(colors, name, None)
+            if val:
+                return val
+        # 回退：内置暗色主题的取值（保证任何情况下都能渲染）
+        from infrastructure.theme_loader import BuiltinThemes
+        return getattr(BuiltinThemes.dark_night().colors, name, "#1e1e1e")
+
+
+C = _ThemeProxy()
+
+# 首次导入即绑定默认主题，避免在主题系统初始化前访问 C 出错
+try:
+    from infrastructure.theme_loader import BuiltinThemes as _BT
+    C.bind(_BT.dark_night().colors)
+except Exception:  # pragma: no cover
+    pass
+
+
+# ============================================================
 # 常量
 # ============================================================
 APP_NAME = "青草编辑器"
@@ -98,6 +136,9 @@ except ImportError:  # pragma: no cover
     APP_VERSION = "0.0.0"
 APP_SLOGAN = "青草枯荣，野火重生"
 APP_DESCRIPTION = "轻量 · 极速 · 可扩展"
+
+# QSettings 组织名（与 main.py 的 ORG_NAME 保持一致）
+ORG_NAME = "QingCao"
 
 AUTHOR = "hedongwei"
 EMAIL = "1265338136@qq.com"
@@ -157,25 +198,48 @@ class WelcomeHeader(QWidget):
         self.title_label = QLabel(APP_NAME)
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet(
-            "font-size: 28px; font-weight: bold; "
-            "color: #7ec850; letter-spacing: 4px;"
+            f"font-size: 28px; font-weight: bold; "
+            f"color: {C.success}; letter-spacing: 4px;"
         )
         layout.addWidget(self.title_label)
 
         # 版本信息
         version_label = QLabel(f"v{APP_VERSION}  ·  {APP_DESCRIPTION}")
+        version_label.setObjectName("welcome_version")
         version_label.setAlignment(Qt.AlignCenter)
-        version_label.setStyleSheet("font-size: 12px; color: #888;")
+        version_label.setStyleSheet(
+            f"font-size: 12px; color: {C.line_number_fg};")
         layout.addWidget(version_label)
 
         # 标语
         self.slogan_label = QLabel(APP_SLOGAN)
+        self.slogan_label.setObjectName("welcome_slogan")
         self.slogan_label.setAlignment(Qt.AlignCenter)
         self.slogan_label.setStyleSheet(
-            "font-size: 13px; color: #666; "
-            "font-style: italic; letter-spacing: 2px;"
+            f"font-size: 13px; color: {C.line_number_fg}; "
+            f"font-style: italic; letter-spacing: 2px;"
         )
         layout.addWidget(self.slogan_label)
+
+    def refresh_theme(self, theme=None):
+        """重放头部内联样式（标题/版本/标语颜色随主题）"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        self.title_label.setStyleSheet(
+            f"font-size: 28px; font-weight: bold; "
+            f"color: {C.success}; letter-spacing: 4px;"
+        )
+        for lbl in self.findChildren(QLabel):
+            name = lbl.objectName()
+            if name == "welcome_version":
+                lbl.setStyleSheet(
+                    f"font-size: 12px; color: {C.line_number_fg};")
+            elif name == "welcome_slogan":
+                lbl.setStyleSheet(
+                    f"font-size: 13px; color: {C.line_number_fg}; "
+                    f"font-style: italic; letter-spacing: 2px;"
+                )
 
 
 # ============================================================
@@ -203,9 +267,10 @@ class QuickActionsPanel(QWidget):
 
         # 标题
         title = QLabel("快速开始")
+        self.title_label = title
         title.setStyleSheet(
-            "font-size: 14px; font-weight: bold; "
-            "color: #d4d4d4; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; "
+            f"color: {C.panel_fg}; padding: 4px 0;"
         )
         layout.addWidget(title)
 
@@ -235,29 +300,62 @@ class QuickActionsPanel(QWidget):
         else:
             btn.setText(f"{icon}  {text}")
 
-        btn.setStyleSheet("""
-            QPushButton#quick_action_button {
-                background-color: #2d2d2d;
-                color: #d4d4d4;
-                border: 1px solid #3c3c3c;
+        btn.setStyleSheet(f"""
+            QPushButton#quick_action_button {{
+                background-color: {C.menu_bg};
+                color: {C.panel_fg};
+                border: 1px solid {C.border};
                 border-radius: 6px;
                 font-size: 12px;
                 text-align: left;
                 padding: 8px 12px;
-            }
-            QPushButton#quick_action_button:hover {
-                background-color: #094771;
-                border-color: #0e639c;
-                color: white;
-            }
-            QPushButton#quick_action_button:pressed {
-                background-color: #0a4d7a;
-            }
+            }}
+            QPushButton#quick_action_button:hover {{
+                background-color: {C.menu_selection};
+                border-color: {C.accent};
+                color: {C.selection_foreground};
+            }}
+            QPushButton#quick_action_button:pressed {{
+                background-color: {C.button_pressed};
+            }}
         """)
 
         btn.clicked.connect(lambda: self.action_triggered.emit(key))
 
         return btn
+
+    def refresh_theme(self, theme=None):
+        """重放快捷操作按钮样式（卡片底色/边框随主题）"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        if getattr(self, "title_label", None) is not None:
+            self.title_label.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; "
+                f"color: {C.panel_fg}; padding: 4px 0;"
+            )
+        for btn in self.findChildren(QPushButton):
+            if btn.objectName() != "quick_action_button":
+                continue
+            btn.setStyleSheet(f"""
+                QPushButton#quick_action_button {{
+                    background-color: {C.menu_bg};
+                    color: {C.panel_fg};
+                    border: 1px solid {C.border};
+                    border-radius: 6px;
+                    font-size: 12px;
+                    text-align: left;
+                    padding: 8px 12px;
+                }}
+                QPushButton#quick_action_button:hover {{
+                    background-color: {C.menu_selection};
+                    border-color: {C.accent};
+                    color: {C.selection_foreground};
+                }}
+                QPushButton#quick_action_button:pressed {{
+                    background-color: {C.button_pressed};
+                }}
+            """)
 
 
 # ============================================================
@@ -307,8 +405,8 @@ class RecentFilesList(QWidget):
 
         self.title_label = QLabel("最近打开")
         self.title_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; "
-            "color: #d4d4d4; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; "
+            f"color: {C.panel_fg}; padding: 4px 0;"
         )
         title_layout.addWidget(self.title_label)
 
@@ -317,19 +415,19 @@ class RecentFilesList(QWidget):
         # 清空按钮
         self.clear_btn = QToolButton()
         self.clear_btn.setText("清空")
-        self.clear_btn.setStyleSheet("""
-            QToolButton {
-                color: #888;
+        self.clear_btn.setStyleSheet(f"""
+            QToolButton {{
+                color: {C.line_number_fg};
                 background-color: transparent;
                 border: none;
                 font-size: 11px;
                 padding: 2px 6px;
-            }
-            QToolButton:hover {
-                color: #f14c4c;
-                background-color: #3c3c3c;
+            }}
+            QToolButton:hover {{
+                color: {C.error};
+                background-color: {C.menu_selection};
                 border-radius: 3px;
-            }
+            }}
         """)
         self.clear_btn.clicked.connect(self._clear_recent)
         title_layout.addWidget(self.clear_btn)
@@ -347,26 +445,26 @@ class RecentFilesList(QWidget):
         self.list_widget.itemDoubleClicked.connect(
             self._on_item_double_clicked
         )
-        self.list_widget.setStyleSheet("""
-            QListWidget#recent_list {
+        self.list_widget.setStyleSheet(f"""
+            QListWidget#recent_list {{
                 background-color: transparent;
                 border: none;
-                color: #d4d4d4;
+                color: {C.panel_fg};
                 font-size: 12px;
                 outline: none;
-            }
-            QListWidget#recent_list::item {
+            }}
+            QListWidget#recent_list::item {{
                 padding: 6px 10px;
                 border-radius: 4px;
                 margin: 1px 0;
-            }
-            QListWidget#recent_list::item:hover {
-                background-color: #2a2d2e;
-            }
-            QListWidget#recent_list::item:selected {
-                background-color: #094771;
-                color: white;
-            }
+            }}
+            QListWidget#recent_list::item:hover {{
+                background-color: {C.menu_bg};
+            }}
+            QListWidget#recent_list::item:selected {{
+                background-color: {C.menu_selection};
+                color: {C.selection_foreground};
+            }}
         """)
 
         layout.addWidget(self.list_widget, 1)
@@ -415,7 +513,7 @@ class RecentFilesList(QWidget):
         # 空状态
         if self.list_widget.count() == 0:
             empty_item = QListWidgetItem("（暂无最近打开的文件）")
-            empty_item.setForeground(QColor("#666"))
+            empty_item.setForeground(QColor(C.line_number_fg))
             empty_item.setFlags(Qt.NoItemFlags)
             empty_item.setTextAlignment(Qt.AlignCenter)
             self.list_widget.addItem(empty_item)
@@ -521,6 +619,51 @@ class RecentFilesList(QWidget):
         """刷新列表"""
         self._load_recent()
 
+    def refresh_theme(self, theme=None):
+        """重放标题/清空按钮/列表样式"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        self.title_label.setStyleSheet(
+            f"font-size: 14px; font-weight: bold; "
+            f"color: {C.panel_fg}; padding: 4px 0;"
+        )
+        self.clear_btn.setStyleSheet(f"""
+            QToolButton {{
+                color: {C.line_number_fg};
+                background-color: transparent;
+                border: none;
+                font-size: 11px;
+                padding: 2px 6px;
+            }}
+            QToolButton:hover {{
+                color: {C.error};
+                background-color: {C.menu_selection};
+                border-radius: 3px;
+            }}
+        """)
+        self.list_widget.setStyleSheet(f"""
+            QListWidget#recent_list {{
+                background-color: transparent;
+                border: none;
+                color: {C.panel_fg};
+                font-size: 12px;
+                outline: none;
+            }}
+            QListWidget#recent_list::item {{
+                padding: 6px 10px;
+                border-radius: 4px;
+                margin: 1px 0;
+            }}
+            QListWidget#recent_list::item:hover {{
+                background-color: {C.menu_bg};
+            }}
+            QListWidget#recent_list::item:selected {{
+                background-color: {C.menu_selection};
+                color: {C.selection_foreground};
+            }}
+        """)
+
 
 # ============================================================
 # 每日技巧面板
@@ -550,9 +693,10 @@ class TipsPanel(QWidget):
         title_layout = QHBoxLayout()
 
         title = QLabel("💡 每日技巧")
+        self.title_label = title
         title.setStyleSheet(
-            "font-size: 14px; font-weight: bold; "
-            "color: #d4d4d4; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; "
+            f"color: {C.panel_fg}; padding: 4px 0;"
         )
         title_layout.addWidget(title)
 
@@ -561,19 +705,19 @@ class TipsPanel(QWidget):
         # 换一条按钮
         self.next_btn = QToolButton()
         self.next_btn.setText("换一条")
-        self.next_btn.setStyleSheet("""
-            QToolButton {
-                color: #888;
+        self.next_btn.setStyleSheet(f"""
+            QToolButton {{
+                color: {C.line_number_fg};
                 background-color: transparent;
                 border: none;
                 font-size: 11px;
                 padding: 2px 6px;
-            }
-            QToolButton:hover {
-                color: #7ec850;
-                background-color: #3c3c3c;
+            }}
+            QToolButton:hover {{
+                color: {C.success};
+                background-color: {C.menu_selection};
                 border-radius: 3px;
-            }
+            }}
         """)
         self.next_btn.clicked.connect(self._load_tip)
         title_layout.addWidget(self.next_btn)
@@ -583,16 +727,16 @@ class TipsPanel(QWidget):
         # 技巧文本
         self.tip_label = QLabel()
         self.tip_label.setWordWrap(True)
-        self.tip_label.setStyleSheet("""
-            QLabel {
-                background-color: #2d2d2d;
-                color: #d4d4d4;
-                border-left: 3px solid #7ec850;
+        self.tip_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {C.panel_bg};
+                color: {C.panel_fg};
+                border-left: 3px solid {C.success};
                 border-radius: 4px;
                 padding: 12px 16px;
                 font-size: 12px;
                 line-height: 1.6;
-            }
+            }}
         """)
         self.tip_label.setMinimumHeight(60)
 
@@ -607,6 +751,42 @@ class TipsPanel(QWidget):
 
         self._current_tip = random.choice(available_tips)
         self.tip_label.setText(self._current_tip)
+
+    def refresh_theme(self, theme=None):
+        """重放标题/换一条按钮/技巧卡片样式"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        if getattr(self, "title_label", None) is not None:
+            self.title_label.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; "
+                f"color: {C.panel_fg}; padding: 4px 0;"
+            )
+        self.next_btn.setStyleSheet(f"""
+            QToolButton {{
+                color: {C.line_number_fg};
+                background-color: transparent;
+                border: none;
+                font-size: 11px;
+                padding: 2px 6px;
+            }}
+            QToolButton:hover {{
+                color: {C.success};
+                background-color: {C.menu_selection};
+                border-radius: 3px;
+            }}
+        """)
+        self.tip_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {C.panel_bg};
+                color: {C.panel_fg};
+                border-left: 3px solid {C.success};
+                border-radius: 4px;
+                padding: 12px 16px;
+                font-size: 12px;
+                line-height: 1.6;
+            }}
+        """)
 
 
 # ============================================================
@@ -633,9 +813,10 @@ class StatsPanel(QWidget):
 
         # 标题
         title = QLabel("📊 使用统计")
+        self.title_label = title
         title.setStyleSheet(
-            "font-size: 14px; font-weight: bold; "
-            "color: #d4d4d4; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; "
+            f"color: {C.panel_fg}; padding: 4px 0;"
         )
         layout.addWidget(title)
 
@@ -658,26 +839,30 @@ class StatsPanel(QWidget):
 
             # 统计项
             item_widget = QWidget()
-            item_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #2d2d2d;
+            item_widget.setObjectName("stat_card")
+            item_widget.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {C.panel_bg};
                     border-radius: 4px;
-                }
+                }}
             """)
             item_layout = QVBoxLayout(item_widget)
             item_layout.setContentsMargins(10, 8, 10, 8)
             item_layout.setSpacing(2)
 
             value_label = QLabel("0")
+            value_label.setObjectName("stat_value")
             value_label.setStyleSheet(
-                "font-size: 20px; font-weight: bold; "
-                "color: #7ec850; background: transparent;"
+                f"font-size: 20px; font-weight: bold; "
+                f"color: {C.success}; background: transparent;"
             )
             item_layout.addWidget(value_label)
 
             label = QLabel(f"{icon} {display}")
+            label.setObjectName("stat_name")
             label.setStyleSheet(
-                "font-size: 11px; color: #888; background: transparent;"
+                f"font-size: 11px; color: {C.line_number_fg}; "
+                f"background: transparent;"
             )
             item_layout.addWidget(label)
 
@@ -734,6 +919,37 @@ class StatsPanel(QWidget):
         """刷新统计"""
         self._load_stats()
 
+    def refresh_theme(self, theme=None):
+        """重放统计卡片样式（卡片底色/数值色随主题）"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        if getattr(self, "title_label", None) is not None:
+            self.title_label.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; "
+                f"color: {C.panel_fg}; padding: 4px 0;"
+            )
+        for card in self.findChildren(QWidget):
+            if card.objectName() == "stat_card":
+                card.setStyleSheet(f"""
+                    QWidget {{
+                        background-color: {C.panel_bg};
+                        border-radius: 4px;
+                    }}
+                """)
+        for lbl in self.findChildren(QLabel):
+            name = lbl.objectName()
+            if name == "stat_value":
+                lbl.setStyleSheet(
+                    f"font-size: 20px; font-weight: bold; "
+                    f"color: {C.success}; background: transparent;"
+                )
+            elif name == "stat_name":
+                lbl.setStyleSheet(
+                    f"font-size: 11px; color: {C.line_number_fg}; "
+                    f"background: transparent;"
+                )
+
 
 # ============================================================
 # 底部信息
@@ -763,18 +979,19 @@ class WelcomeFooter(QWidget):
 
         # 开发者
         author_label = QLabel(f"开发者: {AUTHOR}")
-        author_label.setStyleSheet("color: #666; font-size: 11px;")
+        author_label.setStyleSheet(
+            f"color: {C.line_number_fg}; font-size: 11px;")
         layout.addWidget(author_label)
 
         # 分隔符
         sep = QLabel("·")
-        sep.setStyleSheet("color: #444;")
+        sep.setStyleSheet(f"color: {C.border};")
         layout.addWidget(sep)
 
         # 邮箱
         email_label = QLabel(f"📧 {EMAIL}")
         email_label.setStyleSheet(
-            "color: #888; font-size: 11px;"
+            f"color: {C.line_number_fg}; font-size: 11px;"
         )
         email_label.setToolTip("点击复制邮箱")
         email_label.setCursor(Qt.PointingHandCursor)
@@ -783,13 +1000,13 @@ class WelcomeFooter(QWidget):
 
         # 分隔符
         sep2 = QLabel("·")
-        sep2.setStyleSheet("color: #444;")
+        sep2.setStyleSheet(f"color: {C.border};")
         layout.addWidget(sep2)
 
         # 文档链接
         docs_label = QLabel("📖 文档")
-        docs_label.setStyleSheet("""
-            color: #4dabf7;
+        docs_label.setStyleSheet(f"""
+            color: {C.info};
             font-size: 11px;
             text-decoration: underline;
         """)
@@ -799,13 +1016,13 @@ class WelcomeFooter(QWidget):
 
         # 分隔符
         sep3 = QLabel("·")
-        sep3.setStyleSheet("color: #444;")
+        sep3.setStyleSheet(f"color: {C.border};")
         layout.addWidget(sep3)
 
         # GitHub
         github_label = QLabel("🐙 GitHub")
-        github_label.setStyleSheet("""
-            color: #4dabf7;
+        github_label.setStyleSheet(f"""
+            color: {C.info};
             font-size: 11px;
             text-decoration: underline;
         """)
@@ -820,6 +1037,25 @@ class WelcomeFooter(QWidget):
             bus.emit_status(f"已复制邮箱: {EMAIL}", 2000, "success")
         except Exception:
             pass
+
+    def refresh_theme(self, theme=None):
+        """重放 Footer 文字与链接颜色"""
+        colors = getattr(theme, "colors", None) if theme else None
+        if colors is not None:
+            C.bind(colors)
+        for lbl in self.findChildren(QLabel):
+            t = lbl.text()
+            if t == "·":
+                lbl.setStyleSheet(f"color: {C.border};")
+            elif t.startswith("开发者") or t.startswith("📧"):
+                lbl.setStyleSheet(
+                    f"color: {C.line_number_fg}; font-size: 11px;")
+            elif t.startswith(("📖", "🐙")):
+                lbl.setStyleSheet(f"""
+                    color: {C.info};
+                    font-size: 11px;
+                    text-decoration: underline;
+                """)
 
 
 # ============================================================
@@ -868,22 +1104,136 @@ class WelcomeWidget(QWidget):
         self.main_window = main_window
 
         # 设置背景
+        #
+        # 注意：这里与 content/scroll 都必须用**主题色**。
+        # 此前是硬编码 #1e1e1e，导致浅色主题（如护眼）下出现
+        # "深色欢迎页 + 浅色工具栏"的割裂观感。
         self.setAutoFillBackground(True)
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet("""
-            WelcomeWidget {
-                background-color: #1e1e1e;
-            }
-        """)
+
+        # 主动绑定"当前主题色"：
+        #   `load_theme()` 在启动时只调用 apply_qss 应用全局样式表，**不会**
+        #   遍历控件调用 refresh_theme；而本控件的样式全部是**内联**的，
+        #   构造时若不绑定当前主题，就会用 C 的默认值（暗夜）渲染 ——
+        #   这正是"护眼主题下欢迎页仍是深色"的直接原因。
+        #
+        # 注意：这里**不要**用宽 except 吞掉异常。之前写成
+        # `except Exception: pass` 掩盖了 ORG_NAME 未定义导致的 NameError，
+        # 结果"修复"看起来生效、实际完全没执行。
+        self._bind_current_theme()
 
         # 构建 UI
         self._build_ui()
+
+        # 构建完成后再应用样式：scroll/content 是在 _build_ui 里创建的
+        self._apply_own_style()
 
         # 连接信号
         self._connect_signals()
 
         # 淡入动画
         self._setup_animation()
+
+    def _bind_current_theme(self):
+        """把当前生效主题的颜色绑定到模块级代理 C
+
+        为什么构造时就要做：本控件的样式全是**内联**的
+        （setStyleSheet 只在构建时求值一次），而启动路径
+        `main.load_theme()` 只调用 `apply_qss` 应用全局样式表，
+        **不会**遍历控件调用 `refresh_theme`。因此若构造时不绑定，
+        就会用 C 的默认值（暗夜）渲染 —— 表现为"护眼主题下欢迎页
+        仍是深色"。
+        """
+        from PyQt5.QtCore import QSettings
+
+        from infrastructure.theme_loader import ThemeLoader
+
+        theme = None
+        # 1) 已加载过主题的实例（ThemeLoader 内部会缓存 current_theme）
+        try:
+            theme = getattr(ThemeLoader(), "current_theme", None)
+        except Exception as e:                       # pragma: no cover
+            print(f"[Welcome] 读取当前主题失败: {e}")
+
+        # 2) 回退：从设置里按名称加载
+        if theme is None:
+            try:
+                name = QSettings(ORG_NAME, "Editor").value(
+                    "theme_name", "", type=str)
+                if name:
+                    theme = ThemeLoader().load_by_name(name)
+            except Exception as e:                   # pragma: no cover
+                print(f"[Welcome] 按名称加载主题失败: {e}")
+
+        if theme is not None and getattr(theme, "colors", None) is not None:
+            C.bind(theme.colors)
+
+    def _apply_own_style(self):
+        """把主题色应用到本控件及其直接子容器（供 refresh_theme 复用）"""
+        self.setStyleSheet(f"""
+            WelcomeWidget {{
+                background-color: {C.window_bg};
+            }}
+        """)
+        content = getattr(self, "_content_widget", None)
+        if content is not None:
+            content.setStyleSheet(
+                f"background-color: {C.window_bg};")
+        scroll = getattr(self, "_scroll_area", None)
+        if scroll is not None:
+            scroll.setStyleSheet(f"""
+                QScrollArea {{
+                    background-color: transparent;
+                    border: none;
+                }}
+                QScrollBar:vertical {{
+                    background-color: {C.scrollbar_bg};
+                    width: 10px;
+                    border-radius: 5px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background-color: {C.scrollbar_fg};
+                    border-radius: 5px;
+                    min-height: 20px;
+                }}
+                QScrollBar::handle:vertical:hover {{
+                    background-color: {C.scrollbar_hover};
+                }}
+                QScrollBar::add-line:vertical,
+                QScrollBar::sub-line:vertical {{
+                    height: 0;
+                }}
+            """)
+
+    def refresh_theme(self, theme=None):
+        """主题切换回调（由 ThemeLoader.notify_widgets 调用）
+
+        为什么需要：本控件大量使用**内联样式表**。内联样式不会随全局
+        QSS 变化自动更新，`unpolish/polish` 也无法重算 —— 必须重新
+        `setStyleSheet`。因此这里重新绑定主题色，再让各面板重放样式。
+
+        修复背景：此前这些样式全部硬编码为暗色（#1e1e1e 等），
+        导致浅色主题（如护眼）下出现"深色欢迎页 + 浅色工具栏"的割裂观感。
+        """
+        try:
+            colors = getattr(theme, "colors", None) if theme else None
+            if colors is not None:
+                C.bind(colors)
+            for panel in (getattr(self, "header", None),
+                          getattr(self, "quick_actions", None),
+                          getattr(self, "recent_files", None),
+                          getattr(self, "tips_panel", None),
+                          getattr(self, "stats_panel", None),
+                          getattr(self, "footer", None)):
+                fn = getattr(panel, "refresh_theme", None)
+                if callable(fn):
+                    try:
+                        fn(theme)
+                    except Exception:
+                        pass
+            self._apply_own_style()
+        except Exception:
+            pass
 
     # --------------------------------------------------------
     # UI 构建
@@ -897,36 +1247,16 @@ class WelcomeWidget(QWidget):
 
         # 滚动区域
         scroll = QScrollArea()
+        self._scroll_area = scroll
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("""
-            QScrollArea {
-                background-color: transparent;
-                border: none;
-            }
-            QScrollBar:vertical {
-                background-color: #252526;
-                width: 10px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #444;
-                border-radius: 5px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #666;
-            }
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {
-                height: 0;
-            }
-        """)
+        # 样式由 _apply_own_style() 统一处理（主题相关）
 
         # 内容容器
         content = QWidget()
-        content.setStyleSheet("background-color: #1e1e1e;")
+        self._content_widget = content
+        # 样式由 _apply_own_style() 统一处理
 
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)

@@ -1274,6 +1274,15 @@ class ThemeLoader(QObject):
 
             app.setStyleSheet(qss)
 
+            # 绑定"当前主题颜色"给欢迎页等使用**内联样式**的控件。
+            # 它们不随全局 QSS 更新（setStyleSheet 只在构建时求值一次），
+            # 因此需要知道当前主题色以便重放样式。
+            try:
+                from ui.welcome_widget import C as _welcome_colors
+                _welcome_colors.bind(theme.colors)
+            except Exception:
+                pass
+
             # B(调色板): 同时应用 QPalette
             self.apply_palette(app, theme)
 
