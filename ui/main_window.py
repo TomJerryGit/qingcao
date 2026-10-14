@@ -2819,6 +2819,17 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             if hasattr(self, '_session_timer'):
                 self._session_timer.stop()
 
+            # 停止自动备份定时器（P1 收尾）
+            #
+            # 与构造处的 `start_autosave()` 配对。虽然定时器停不停都不影响
+            # 进程退出，但显式停止能让"最后一次保存"发生在可预期的时刻，
+            # 也避免对象析构后回调仍被触发。
+            try:
+                if self.session is not None:
+                    self.session.stop_autosave()
+            except Exception as e:
+                logging.debug("停止自动备份定时器失败: %s", e)
+
             # 阶段 2.1（关闭路径收尾）：停止插件后台线程与文件监听。
             #
             # 背景：closeEvent 原先只停两个主窗口定时器就 app.quit()，

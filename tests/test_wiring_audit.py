@@ -13,7 +13,8 @@
     * ``EditorProxy.toggle_lsp()`` 零生产调用点
     * ``MARKER_BREAKPOINT`` 只被"画出来"，从不被读写（无法设断点）
     * ``external_change_detected`` 信号零 ``connect``
-    * ~20 个 UI 模块零 import（macro_editor、problems_panel 等）
+    * 若干 UI 模块零 import（本次 D2 已删除 19 个，见 KNOWN_DEAD_MODULES
+      上方清单；剩余 17 个有删除阻塞，见同处注释）
 
 这个测试文件把上述问题变成**可自动检测**的，分三部分：
 
@@ -157,11 +158,12 @@ class TestKeyApiWiring:
             "    实际命中：\n%s" % detail
         )
 
-    @pytest.mark.xfail(strict=False, reason=(
-        "改造前：stop_autosave 同样零调用点"
-    ))
     def test_stop_autosave_is_called(self):
-        """P1: stop_autosave 应同时接线（关闭时停止定时器）"""
+        """P1: stop_autosave 应同时接线（关闭时停止定时器）
+
+        已接线：`ui/main_window.py` 的 closeEvent 里与 start_autosave 配对。
+        （原为 xfail；接线完成后摘掉标记，恢复为硬断言。）
+        """
         hits = _call_sites("stop_autosave")
         assert hits, (
             "stop_autosave 零生产调用点（定时器启动后无人停止）"
@@ -282,50 +284,100 @@ class TestKeyApiWiring:
 # ============================================================
 # 2. 死模块检测（相对基线）
 # ============================================================
-# 已核实的零 import 模块基线（本次改造前既已存在）。
+# 已核实的零 import 模块基线。
+#
 # 这些是历史遗留，不在本次范围；**新增**的才需要报警。
 #
-# 其中带「本审计实测补充」注释的条目，不在任务给定的初始清单里，
-# 是本脚本通过"全仓 import 扫描"实际发现并逐个核实的（全仓含
-# tests/test_*.py 与 tools/ 均无 import 指向，仅出现在 docs/、
-# build.py 的打包字符串清单、或测试的**注释**中）。
+# ------------------------------------------------------------------
+# D2 死模块清理（本次任务）后本基线从 37 条缩到 17 条
+# ------------------------------------------------------------------
+#
+# **已删除的 19 个模块**（均逐个全仓 grep 核实零引用，删除记录见
+# git 历史；此处保留清单是为了让"基线为什么变短"有据可查）：
+#
+#   ui/macro_editor.py           宏编辑器对话框。core.macro 的 MacroRecorder
+#                                仍由 ui/main_window.py:197 接线，删除的只是
+#                                从未被打开过的编辑对话框（2280 行）。
+#   ui/benchmark_dialog.py       零引用；且是 docs/audit_concurrency.md 记录的
+#                                "子线程改 QWidget" 潜伏缺陷（F-4b）所在地。
+#   ui/file_merge_dialog.py      零引用（core/file_merge 仍被 tests 使用）。
+#   ui/git_panel.py              零引用（core/git_client 仍被 tests 与
+#                                git_deep 插件使用）。
+#   ui/code_metrics_panel.py     零引用（core/code_metrics 仍被
+#                                tools/bench_performance_audit.py:377,382 使用）。
+#   ui/usage_stats_panel.py      零引用（core/usage_stats 仍被
+#                                ui/welcome_widget.py:886 使用）。
+#   ui/snippet_editor.py         零引用（core/snippets 仍被
+#                                ui/editor_view.py:1117 使用）。
+#   ui/refactor_dialog.py        零引用；同为 F-4a 潜伏缺陷所在地。
+#   ui/enhanced_scrollbar.py     全仓零引用。
+#   ui/breadcrumb.py             全仓零引用（ui/outline_panel.py 的
+#                                `breadcrumb_label` 是自有属性，与此无关）。
+#   ui/debug_panel.py            全仓零引用。
+#   ui/log_viewer.py             全仓零引用。
+#   ui/shortcut_overlay.py       全仓零引用。
+#   ui/file_association.py       全仓零引用。
+#   ui/diff_view.py              全仓零引用。
+#   ui/markdown_preview.py       全仓零引用（同名**插件** markdown_preview
+#                                用的是自己的 QTextBrowser，未复用该控件）。
+#   ui/terminal_panel.py         零生产引用；唯一指向是
+#                                tests/audit_concurrency_probe.py:463 的**带
+#                                守卫**导入（ImportError→pytest.skip），而
+#                                audit_*.py 按本文件既定规则不计入引用统计。
+#   plugins/git_deep/commit_panel.py  未被 plugins/git_deep/__init__.py 导入。
+#   plugins/git_deep/diff_view.py     同上。
+#
+# **`ui/help_browser.py` 已移出本基线**（不是因为它被删除 —— 文件仍在）：
+#   它现在被 tests/test_shortcuts.py:298,307 `from ui.help_browser import
+#   HELP_TOPICS` 导入，因此本脚本的 import 扫描不再把它判为死模块。
+#   注意耦合：若将来移除 tests/test_shortcuts.py 的这两处导入，
+#   help_browser 会重新变成死模块并被 test_no_new_dead_modules 报出。
+#
+# **仍保留在基线里的 17 条及原因**（都有删除阻塞，不是"懒得删"）：
+#   * 接线候选（价值真实，但接线点在 ui/main_window.py / core/editor.py，
+#     不在 task-8 写作用域内）：
+#       ui/problems_panel.py      LSP 诊断列表。core/editor.py:2251 的
+#                                 _on_lsp_diagnostics 目前只画指示器，
+#                                 **从不**调 ProblemManager；核心缺口是生产者，
+#                                 不是面板。
+#       ui/undo_history_panel.py  refresh() 读 proxy.undo_manager.undo_stack /
+#                                 redo_stack，契约与 core/undo.py 一致，可用。
+#   * tools/ 有真实路径引用（非 import，但工具脚本会 FileNotFoundError）：
+#       ui/lsp_panel.py           tools/verify_patches.py:46,52；且 LSP 刚接通。
+#   * 删除会**孤立**其 core 后端（后端不在本基线里，而基线只许缩小，
+#     无法登记新的死模块；后端又因 build.py hiddenimports 受硬性约束 #6
+#     保护，task-8 无法一并删除）：
+#       ui/collab_dialog.py       -> core/collab.py
+#       ui/snapshot_manager_dialog.py -> core/snapshot.py
+#       ui/task_panel.py          -> core/project_tasks.py
+#       ui/snippet_market_dialog.py   -> core/snippet_market.py
+#       ui/profiler_panel.py      -> core/profiler.py
+#   * 零引用但列在 build.py hiddenimports（build.py 不在写作用域）：
+#       core/key_sequence_manager.py (build.py:411)
+#       core/benchmark.py            (build.py:407)
+#       core/refactor_session.py     (build.py:414)
+#       core/code_templates.py       (build.py:408)
+#       core/exporter.py             (build.py:409)
+#       core/formatter.py            (build.py:410)
+#       core/project_config.py       (build.py:413)
+#       core/workspace.py            (build.py:417)
+#       core/keymap_profiles.py      (build.py:412)
 KNOWN_DEAD_MODULES = frozenset({
-    "ui/macro_editor.py",
-    "ui/benchmark_dialog.py",
-    "ui/collab_dialog.py",
-    "ui/file_merge_dialog.py",
-    "ui/snippet_market_dialog.py",
-    "ui/undo_history_panel.py",
-    "ui/snapshot_manager_dialog.py",
-    "ui/enhanced_scrollbar.py",
-    "ui/breadcrumb.py",
-    "ui/debug_panel.py",
+    # ---- 接线候选（接线点在他人文件，本次未动）----
     "ui/problems_panel.py",
+    "ui/undo_history_panel.py",
+    # ---- tools/ 有路径引用 ----
+    "ui/lsp_panel.py",
+    # ---- 删除会孤立受 build.py 保护的 core 后端 ----
+    "ui/collab_dialog.py",
+    "ui/snapshot_manager_dialog.py",
+    "ui/task_panel.py",
+    "ui/snippet_market_dialog.py",
     "ui/profiler_panel.py",
-    "ui/code_metrics_panel.py",
+    # ---- 零引用，但列在 build.py hiddenimports ----
     "core/key_sequence_manager.py",
-    "ui/help_browser.py",
-    "plugins/git_deep/commit_panel.py",
-    "plugins/git_deep/diff_view.py",
-    # ---- 本审计实测补充 ----
-    # 注：`ui/markdown_preview.py` 与 `ui/usage_stats_panel.py` 是真死模块，
-    #     已逐个核实：MarkdownPreview / UsageStatsDialog 两个类**只在各自
-    #     文件内出现**；同名插件 markdown_preview 用的是自己的 QTextBrowser，
-    #     并未复用该控件。
-    "ui/markdown_preview.py",
-    "ui/usage_stats_panel.py",
-    "ui/refactor_dialog.py",          # 仅被 core/refactor_session 反向依赖
-    "ui/git_panel.py",                # 仅在 docs/ 与测试注释中被提及
-    "ui/task_panel.py",               # 已在 docs/audit_concurrency.md:947 记录为 0 引用
-    "ui/lsp_panel.py",                # LSP 状态 dock，无人构造
-    "ui/terminal_panel.py",
-    "ui/snippet_editor.py",
-    "ui/log_viewer.py",
-    "ui/shortcut_overlay.py",
-    "ui/file_association.py",
-    "ui/diff_view.py",
-    "core/benchmark.py",              # 仅被（同样死掉的）ui/benchmark_dialog 引用
-    "core/refactor_session.py",       # 仅被（同样死掉的）ui/refactor_dialog 引用
+    "core/benchmark.py",
+    "core/refactor_session.py",
     "core/code_templates.py",
     "core/exporter.py",
     "core/formatter.py",
@@ -615,47 +667,34 @@ class TestEndToEndSmoke:
             except Exception:
                 pass
 
-    @pytest.mark.xfail(strict=False, reason=(
-        "改造前：core/document.py 写 `<ROOT>/backup/drafts`，"
-        "而 main.py:104 创建 `<ROOT>/data/drafts` —— 两套路径"
-    ))
     def test_draft_dir_matches_ensure_directories(self):
-        """草稿目录必须与 main.py ensure_directories 建的是同一个
+        """草稿目录必须**只有一处定义**
 
-        改造前：``core/document.py:1027-1030`` 写 ``<root>/backup/drafts``，
-        而 ``main.py:104`` 建的是 ``<DATA_DIR>/drafts`` = ``<root>/data/drafts``
-        （``ROOT/DATA/BACKUP`` 定义见 ``main.py:70-77``）。
+        改造前：``core/document.py`` 写 ``<root>/backup/drafts``，
+        而 ``main.py`` 建的是 ``<root>/data/drafts`` —— 同一个概念在两处
+        各自定义，路径必然漂移。
 
-        做法：把两边的表达式**抽出来比较**，避免写死某种具体写法
-        （例如实现改用常量 ``DRAFT_DIR`` 时本测试仍应有效）。
+        修复方式（重要）：不是把某一处改成另一处的字面量，而是让
+        ``main.py`` **直接复用写入端的定义** ``DocumentModel._draft_dir()``。
+        因此本测试断言"两处解析到同一个真实路径 + main.py 确实在复用"，
+        而不是匹配某种字面写法 —— 这样实现日后改用常量，测试仍有效。
         """
-        doc_src = _read(os.path.join(ROOT, "core", "document.py"))
+        from core.document import Document
+
+        draft_dir = Document._draft_dir()
+        assert os.path.isabs(draft_dir), (
+            "草稿目录必须是绝对路径（相对路径会随工作目录漂移）：%r"
+            % draft_dir
+        )
+
         main_src = _read(os.path.join(ROOT, "main.py"))
-
-        # main.py: 取 ensure_directories 里 "drafts" 那一项的实参表达式
-        main_exprs = re.findall(
-            r"os\.path\.join\((DATA_DIR|BACKUP_DIR|ROOT_DIR)\s*,\s*"
-            r'"drafts"\)', main_src)
-        assert main_exprs, (
-            "main.py 的 ensure_directories 里找不到 `.../drafts` 的创建项 —— "
-            "请更新本测试的假设"
+        assert "_draft_dir()" in main_src, (
+            "main.py 的 ensure_directories 未复用 "
+            "Document._draft_dir() —— 两处各自定义目录正是路径漂移"
+            "的根因，请改为引用同一来源"
         )
-        main_first = main_exprs[0]
-
-        # document.py: 判断拼 draft 目录时用的是哪一套基础目录
-        assert '"drafts"' in doc_src, (
-            "core/document.py 未再出现 drafts —— 请更新本测试的假设"
-        )
-        uses_backup = bool(
-            re.search(r'"backup"\s*,\s*"drafts"', doc_src))
-        uses_data = bool(re.search(r'DATA_DIR\s*,\s*"drafts"', doc_src))
-
-        assert uses_data and not uses_backup, (
-            "草稿路径不一致：core/document.py 用 "
-            "`<ROOT>/backup/drafts`（uses_backup=%s, uses_data=%s），"
-            "而 main.py 创建的是 `<%s>/drafts`。\n"
-            "    后果：草稿落在与声明不同的目录，且与备份目录混在一起。"
-            % (uses_backup, uses_data, main_first)
+        assert "drafts_dir" in main_src, (
+            "main.py 算出 drafts_dir 后未纳入 makedirs 清单"
         )
 
     def test_panel_object_names_unique(self, qapp):

@@ -91,17 +91,35 @@ LOG_MAX_SIZE = 10 * 1024 * 1024
 # 目录初始化
 # ============================================================
 def ensure_directories():
-    """确保所有必需目录存在"""
+    """确保所有必需目录存在
+
+    修复说明（草稿目录不一致 · 根因是"两处各自定义"）：
+        原先 `core/document.py` 把未保存草稿写到 `<ROOT>/backup/drafts`，
+        而这里建的是 `<ROOT>/data/drafts` —— **同一个概念在两处独立
+        定义**，路径必然漂移。
+
+        现在改为**直接复用写入端的唯一定义** `DocumentModel._draft_dir()`，
+        从根上消除"两处不一致"的可能（而不是把某一处改成另一处的字面量，
+        那样下次改动仍会漂移）。
+    """
+    # 草稿目录：以写入端（core/document.py 的 Document）为唯一事实来源
+    try:
+        from core.document import Document
+        drafts_dir = Document._draft_dir()
+    except Exception:
+        # 极端兜底：与 core/document.py 的历史默认保持一致
+        drafts_dir = os.path.join(BACKUP_DIR, "drafts")
+
     for d in [RESOURCES_DIR, LOCALE_DIR, THEMES_DIR, PLUGINS_DIR,
               DATA_DIR, BACKUP_DIR, LOGS_DIR,
               os.path.join(BACKUP_DIR, "autosave"),
+              drafts_dir,
               os.path.join(DATA_DIR, "crashes"),
               os.path.join(DATA_DIR, "telemetry"),
               os.path.join(DATA_DIR, "snapshots"),
               os.path.join(DATA_DIR, "plugin_cache"),
               os.path.join(DATA_DIR, "plugin_backups"),
               os.path.join(DATA_DIR, "backups"),
-              os.path.join(DATA_DIR, "drafts"),
               os.path.join(DATA_DIR, "update_cache"),
               ]:
         try:
