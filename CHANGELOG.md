@@ -34,6 +34,78 @@
   下拉框 : ['llama3.2:latest']   ← 由 /api/tags 动态获取
   ```
 
+### 修复（插件全部不加载 · 根因是相对路径依赖工作目录）
+
+**这是"每次打包都丢菜单"的真正根因。**
+
+**现象**：用户的自检报告显示
+
+    plugin_manager: <PluginManager total=0 active=0>
+    插件目录存在: True          <-- 目录明明存在，却一个插件都发现不到
+
+**根因**：插件目录写成**相对路径**
+
+    PluginManager(main_window=self, plugin_dir="plugins")   # 相对！
+    self.plugin_dir = os.path.abspath(plugin_dir)           # 相对当前工作目录
+
+相对路径的含义取决于**当前工作目录**：
+
+    cwd = exe 所在目录   -> total=10 active=10   （我此前一直这样测，所以复现不到）
+    cwd = C:\           -> total=0  active=0    （用户通过快捷方式/其他目录启动）
+
+为什么极难排查：报告里"插件目录存在: True"是用**绝对路径**判断的，
+与真正用于发现的相对路径不是同一个东西 —— 两个判断互相矛盾，
+看起来像"目录在、插件却找不到"。
+
+**修复**：新增插件目录的绝对解析，并在所有相关入口使用：
+
+    infrastructure/plugin_loader.py:
+        app_root_dir()        -> 冻结时为 _internal，源码时为仓库根
+        resolve_plugin_dir()  -> 兼容相对/绝对；依次尝试
+                                 应用根目录 / exe 目录 / 绝对化 / cwd，
+                                 取第一个真实存在的
+
+    plugin_loader.PluginLoader.__init__ / discover  -> resolve_plugin_dir
+    app/plugin_manager.PluginManager.__init__       -> resolve_plugin_dir
+    ui/main_window.py                               -> 传入绝对路径
+    ui/plugins_panel.py                             -> 兜底绝对解析
+
+**顺带修正同类的"工作目录依赖"隐患**（同一根因，避免用户踩到别的）：
+
+    core/crash_stats.py        CRASH_DIR         -> 应用根目录下绝对路径
+    app/session.py             AUTOSAVE_DIR      -> 同上（自动备份）
+    app/plugins.py             插件数据目录       -> 同上
+    app/config_manager.py      插件列表扫描       -> 用绝对插件目录
+    infrastructure/icon_manager.py   DEFAULT_ICON_DIR
+    infrastructure/sound_manager.py  DEFAULT_SOUND_DIR
+
+**实测（同一 exe，两种工作目录）**
+
+    修复前: cwd=exe 目录 -> 10/10 ；cwd=C:\ -> 0/0     （随工作目录变化）
+    修复后: cwd=exe 目录 -> 10/10 ；cwd=C:\ -> 10/10   （不再依赖工作目录）
+
+### 修复（自检报告采样过早会误报"插件全丢"）
+
+报告原先用**固定 6 秒**写出。冷启动受磁盘/杀毒软件扫描（首次解压
+400+ 文件时尤甚）影响可达十几秒，若报告在 `_load_plugins` 完成前写出，
+就会记录成 `total=0` —— 看起来"插件全丢了"，实际只是**采样太早**。
+
+现改为**轮询等待插件加载完成**（最多 60 秒），并在报告中写明
+`采样耗时: N 秒（轮询 M 次后写出）`，便于区分"加载失败"与"采样过早"。
+
+（写这个修复时我漏了 `import time`，ruff 的 F821 立刻抓到并修正。）
+
+### 新增（回归测试）
+
+`tests/test_path_independence.py`（10 个用例）锁死**工作目录无关性**：
+  * `resolve_plugin_dir` 在 C:\、D:\、用户主目录、仓库根下结果一致且存在
+  * `app_root_dir()` 等于仓库根目录
+  * 崩溃/自动备份/图标/音效目录均为绝对路径且位于应用根目录下
+  * `PluginManager.plugin_dir` 为绝对路径
+  * 任意工作目录下都能列出插件
+
+全量套件 430 -> **440 passed**。
+
 ### 修复（面板默认不显示 · 性能优化引入的功能回归）
 
 **现象**：用户反馈"缺少部分功能"。逐项核对后确认**菜单功能没有缺失**

@@ -46,11 +46,19 @@ class ConfigManager:
                 pass
 
             # 读取插件列表
+            #
+            # 用绝对路径：相对路径取决于当前工作目录，从快捷方式/其他目录
+            # 启动时会扫描不到插件（实测 cwd=exe 目录能找到、cwd=C:\ 找不到）。
             try:
-                if os.path.isdir('plugins'):
+                from infrastructure.plugin_loader import resolve_plugin_dir
+                _pdir = resolve_plugin_dir('plugins')
+            except Exception:
+                _pdir = 'plugins'
+            try:
+                if os.path.isdir(_pdir):
                     data['plugins'] = [
-                        d for d in os.listdir('plugins')
-                        if os.path.isdir(os.path.join('plugins', d))
+                        d for d in os.listdir(_pdir)
+                        if os.path.isdir(os.path.join(_pdir, d))
                     ]
             except Exception:
                 pass

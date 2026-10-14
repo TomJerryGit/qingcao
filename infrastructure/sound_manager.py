@@ -87,7 +87,16 @@ except ImportError as _mm_err:
 # 常量
 # ============================================================
 # 默认音效目录
-DEFAULT_SOUND_DIR = "resources/sounds"
+def _default_sound_dir() -> str:
+    """资源目录用绝对路径（相对路径随工作目录变化）"""
+    try:
+        from infrastructure.plugin_loader import app_root_dir
+        return os.path.join(app_root_dir(), "resources", "sounds")
+    except Exception:  # pragma: no cover
+        return os.path.join("resources", "sounds")
+
+
+DEFAULT_SOUND_DIR = _default_sound_dir()
 
 # 默认主音量（0.0 - 1.0）
 DEFAULT_MASTER_VOLUME = 0.7

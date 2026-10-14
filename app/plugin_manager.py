@@ -505,7 +505,14 @@ class PluginManager(QObject):
         super().__init__(parent)
 
         self.main_window = main_window
-        self.plugin_dir = plugin_dir
+        # 解析成绝对路径：相对路径的含义取决于**当前工作目录**，
+        # 从快捷方式/其他目录启动时会解析到错误位置，导致插件发现数为 0，
+        # 界面表现为"AI/Git 等菜单全部消失"。
+        try:
+            from infrastructure.plugin_loader import resolve_plugin_dir
+            self.plugin_dir = resolve_plugin_dir(plugin_dir)
+        except Exception:
+            self.plugin_dir = plugin_dir
         self.auto_confirm_dangerous = auto_confirm_dangerous
 
         # 配置

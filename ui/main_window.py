@@ -2148,7 +2148,15 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
 
         try:
             from app.plugins import PluginAPI
-            from infrastructure.plugin_loader import PluginLoader
+            from infrastructure.plugin_loader import (
+                PluginLoader,
+                resolve_plugin_dir,
+            )
+
+            # 插件目录必须用**绝对路径**：相对路径取决于当前工作目录，
+            # 从快捷方式/其他目录启动时会解析到错误位置 → 插件发现数为 0
+            # → 菜单全部消失（实测：cwd=exe 目录 total=10，cwd=C:\ total=0）
+            _plugin_dir = resolve_plugin_dir("plugins")
 
             # P0-3 修复：先创建 PluginManager（高层 API，包装
             # PluginLoader）。原实现在这里创建，但随后直接调用
@@ -2159,7 +2167,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                     from app.plugin_manager import PluginManager
                     self.plugin_manager = PluginManager(
                         main_window=self,
-                        plugin_dir="plugins",
+                        plugin_dir=_plugin_dir,
                     )
                 except Exception as e:
                     print(f"[MainWindow] PluginManager 创建失败: {e}")
@@ -2194,7 +2202,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                     "[MainWindow] 警告：PluginManager 不可用，"
                     "回退到无权限确认的加载路径"
                 )
-                loader = PluginLoader(plugin_dir="plugins")
+                loader = PluginLoader(plugin_dir=_plugin_dir)
 
                 # 关键：api_factory 是函数，接收 spec，返回 PluginAPI 实例
                 def api_factory(spec):
@@ -2219,7 +2227,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                         return None
 
                 result = loader.load_all(
-                    plugin_dir="plugins",
+                    plugin_dir=_plugin_dir,
                     api_factory=api_factory,
                     auto_activate=True,
                 )

@@ -141,7 +141,7 @@ FALLBACK_REGISTRY_URLS = [
 ]
 
 # 插件目录
-PLUGINS_DIR = "plugins"
+PLUGINS_DIR = "plugins"   # 使用前请经 resolve_plugin_dir 解析
 THEMES_DIR = "themes"
 
 # 缓存目录

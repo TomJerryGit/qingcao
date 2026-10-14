@@ -20,7 +20,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
-CRASH_DIR = os.path.join("data", "crashes")
+# 基于应用根目录的绝对路径（相对路径会随工作目录变化）
+try:
+    from infrastructure.plugin_loader import app_root_dir as _app_root
+    CRASH_DIR = os.path.join(_app_root(), "data", "crashes")
+except Exception:  # pragma: no cover
+    CRASH_DIR = os.path.join("data", "crashes")
 DEFAULT_RECENT_DAYS = 7
 DEFAULT_TRIGGER_COUNT = 3
 

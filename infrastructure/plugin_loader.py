@@ -52,8 +52,69 @@ from PyQt5.QtCore import QFileSystemWatcher, QObject, QTimer, pyqtSignal
 # ============================================================
 # 常量
 # ============================================================
-# 插件目录
+# 插件目录（**相对/绝对均可**，见 resolve_plugin_dir）
 DEFAULT_PLUGIN_DIR = "plugins"
+
+
+def app_root_dir() -> str:
+    """应用根目录（绝对路径）
+
+    冻结运行时为 `_internal`（`ROOT_DIR`/`PLUGINS_DIR` 的基准），
+    源码运行时为仓库根目录。
+    """
+    if getattr(sys, "frozen", False):
+        # PyInstaller onedir：数据文件在 _MEIPASS（即 _internal）
+        base = getattr(sys, "_MEIPASS", None)
+        if base:
+            return base
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def resolve_plugin_dir(plugin_dir: Optional[str] = None) -> str:
+    """把插件目录解析成**绝对路径**。
+
+    为什么必须这样做（真实缺陷）：
+        `plugin_dir` 原先写死相对路径 `"plugins"`，其含义取决于**当前工作
+        目录**。从资源管理器双击 exe 时 cwd 恰好是 exe 目录，一切正常；
+        但通过**快捷方式、任务栏固定项、或其他工作目录**启动时，
+        `plugins` 会解析到别处 —— 插件发现数直接变成 0，界面上表现为
+        "AI/Git 等菜单全部消失"，而 `插件目录存在` 却仍是 True
+        （因为那是另一条用绝对路径的判断）。
+
+    实测（同一 exe）:
+        cwd = exe 目录   -> total=10 active=10
+        cwd = C:\\        -> total=0  active=0     <-- 用户遇到的情形
+
+    解析顺序：
+        1. 已是绝对路径 -> 原样返回
+        2. 相对路径 -> 依次尝试：应用根目录、exe/脚本所在目录、当前工作目录
+           （取第一个真实存在的；都不存在时返回"应用根目录/相对路径"，
+           以便错误信息可读）
+    """
+    if not plugin_dir:
+        plugin_dir = DEFAULT_PLUGIN_DIR
+    if os.path.isabs(plugin_dir):
+        return plugin_dir
+
+    candidates = []
+    try:
+        candidates.append(os.path.join(app_root_dir(), plugin_dir))
+    except Exception:
+        pass
+    try:
+        candidates.append(
+            os.path.join(os.path.dirname(os.path.abspath(sys.executable)),
+                         plugin_dir))
+    except Exception:
+        pass
+    candidates.append(os.path.abspath(plugin_dir))
+    candidates.append(os.path.join(os.getcwd(), plugin_dir))
+
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return candidates[0]
 
 # 插件清单文件名
 PLUGIN_MANIFEST = "plugin.json"
@@ -459,7 +520,8 @@ class PluginLoader(QObject):
         """
         super().__init__(parent)
 
-        self.plugin_dir = os.path.abspath(plugin_dir)
+        # 解析成绝对路径：相对路径会随工作目录变化，导致插件发现为 0
+        self.plugin_dir = resolve_plugin_dir(plugin_dir)
         self.enable_watcher = enable_watcher
         self.hot_reload_enabled = hot_reload_enabled
 
@@ -496,7 +558,7 @@ class PluginLoader(QObject):
             PluginSpec 列表
         """
         if plugin_dir:
-            self.plugin_dir = os.path.abspath(plugin_dir)
+            self.plugin_dir = resolve_plugin_dir(plugin_dir)
 
         specs = []
 

@@ -70,7 +70,16 @@ from PyQt5.QtWidgets import QApplication, QStyle
 # 常量
 # ============================================================
 # 默认图标目录
-DEFAULT_ICON_DIR = "resources/icons"
+def _default_icon_dir() -> str:
+    """资源目录用绝对路径（相对路径随工作目录变化）"""
+    try:
+        from infrastructure.plugin_loader import app_root_dir
+        return os.path.join(app_root_dir(), "resources", "icons")
+    except Exception:  # pragma: no cover
+        return os.path.join("resources", "icons")
+
+
+DEFAULT_ICON_DIR = _default_icon_dir()
 
 # 内置图标尺寸
 DEFAULT_ICON_SIZES = [16, 20, 24, 32, 48, 64, 96, 128]

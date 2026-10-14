@@ -37,6 +37,7 @@ import datetime
 import os
 import shutil
 import sys
+import time
 import traceback
 
 
@@ -1084,7 +1085,7 @@ def main():
     # 报告路径：<ROOT_DIR>/plugin_report.txt
     #   冻结后 ROOT_DIR 是 _internal/，同时在 exe 同级再写一份副本。
     # --------------------------------------------------------
-    def _write_plugin_report():
+    def _write_plugin_report(elapsed: float = 0.0, attempts: int = 0):
         out = []
         try:
             import platform
@@ -1096,6 +1097,8 @@ def main():
             out.append("PLUGINS_DIR: %s" % PLUGINS_DIR)
             out.append("插件目录存在: %s" % os.path.isdir(PLUGINS_DIR))
             out.append("Python     : %s" % platform.python_version())
+            out.append("采样耗时   : %.1f 秒（轮询 %d 次后写出）"
+                       % (elapsed, attempts))
             out.append("")
 
             pm = getattr(window, "plugin_manager", None)
@@ -1169,8 +1172,37 @@ def main():
             except Exception:
                 pass
 
-    # 插件由主窗口的 100ms 定时器加载，这里留足时间
-    QTimer.singleShot(6000, _write_plugin_report)
+    # 插件由主窗口的 100ms 定时器加载。
+    #
+    # 关键（真实缺陷）：**不能用固定延时**。原先写死 6 秒，但冷启动耗时
+    # 受磁盘、杀毒软件扫描（首次解压出 400+ 文件时尤其慢）影响可达十几秒。
+    # 若报告在 `_load_plugins` 完成前写出，就会记录成
+    #   plugin_manager: <PluginManager total=0 active=0>
+    # —— 看起来"插件全丢了"，实际只是**采样太早**。
+    # 这正是用户反馈"每次打包都丢菜单"的来源之一。
+    #
+    # 改为**轮询等待插件加载完成**（最多 60 秒），并在报告里写明实际耗时，
+    # 便于区分"加载失败"与"采样过早"。
+    _report_state = {"attempts": 0, "started": time.time()}
+    _report_timer = QTimer()
+
+    def _poll_and_report():
+        _report_state["attempts"] += 1
+        pm = getattr(window, "plugin_manager", None)
+        loader = getattr(pm, "loader", None)
+        specs = getattr(loader, "specs", None) or {}
+        elapsed = time.time() - _report_state["started"]
+
+        # 已加载出插件 → 立即写报告；否则继续等（最多 60 秒）
+        if specs or elapsed >= 60.0:
+            _report_timer.stop()
+            _write_plugin_report(elapsed, _report_state["attempts"])
+        else:
+            _report_timer.start(500)
+
+    _report_timer.setSingleShot(True)
+    _report_timer.timeout.connect(_poll_and_report)
+    _report_timer.start(1000)
 
     # --------------------------------------------------------
     # 20. 进入事件循环

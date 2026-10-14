@@ -213,7 +213,16 @@ class PluginAPI(QObject):
                 "data", "plugins", plugin_name
             )
         except Exception:
-            self._data_dir = os.path.join("data", "plugins", plugin_name)
+            # 基于应用根目录，避免相对路径随工作目录变化
+            try:
+                from infrastructure.plugin_loader import (
+                    app_root_dir as _app_root,
+                )
+                _base = _app_root()
+            except Exception:
+                _base = "."
+            self._data_dir = os.path.join(
+                _base, "data", "plugins", plugin_name)
 
     # ========================================================
     # 权限校验

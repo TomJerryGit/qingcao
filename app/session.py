@@ -54,7 +54,12 @@ AUTOSAVE_INTERVAL_MS = 120000  # 2 分钟
 MAX_RECENT_SESSIONS = 10
 
 # 自动备份目录（相对项目根目录）
-AUTOSAVE_DIR = os.path.join("backup", "autosave")
+# 基于应用根目录的绝对路径（相对路径会随工作目录变化）
+try:
+    from infrastructure.plugin_loader import app_root_dir as _app_root
+    AUTOSAVE_DIR = os.path.join(_app_root(), "backup", "autosave")
+except Exception:  # pragma: no cover
+    AUTOSAVE_DIR = os.path.join("backup", "autosave")
 AUTOSAVE_META = "meta.json"
 
 
@@ -1184,7 +1189,10 @@ class SessionManager(QObject):
         try:
             if backup_dir is None:
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_dir = os.path.join("backup", f"autosave_{timestamp}")
+                backup_dir = os.path.join(
+                os.path.dirname(AUTOSAVE_DIR),
+                f"autosave_{timestamp}"
+            )
 
             os.makedirs(backup_dir, exist_ok=True)
 

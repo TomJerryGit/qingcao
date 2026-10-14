@@ -856,11 +856,13 @@ class PluginsPanel(QDockWidget):
 
     def _open_plugin_dir(self):
         """打开插件目录"""
+        plugin_dir = None
         if self.plugin_manager:
-            plugin_dir = getattr(self.plugin_manager, 'plugin_dir',
-                                  'plugins')
-        else:
-            plugin_dir = 'plugins'
+            plugin_dir = getattr(self.plugin_manager, 'plugin_dir', None)
+        if not plugin_dir:
+            # 兜底：绝对解析，避免相对路径随工作目录变化
+            from infrastructure.plugin_loader import resolve_plugin_dir
+            plugin_dir = resolve_plugin_dir('plugins')
 
         if os.path.isdir(plugin_dir):
             self._open_dir(plugin_dir)
