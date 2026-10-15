@@ -238,13 +238,38 @@ class FileOpsMixin:
             )
 
             if path:
-                # 通过 document 保存到新路径
-                proxy.document.save(path)
+                # 必须走 EditorProxy.save_file(path)，**不能**直接调
+                # proxy.document.save(path)。
+                #
+                # 缺陷背景（P0-B，已实测复现的数据丢失）：
+                #   `Document.save()` 只把 provider 里**已有的字节**写盘，
+                #   而编辑器当前内容要到 `EditorProxy._sync_content_to_provider()`
+                #   才会同步进 provider。原实现绕过同步点，于是"另存为"
+                #   写下的是**打开文件时**的旧内容：
+                #       打开 = 'OLD LINE 1\nOLD LINE 2\n'
+                #       编辑 = 'NEW CONTENT A\n...'
+                #       另存为返回 True，磁盘上却仍是 OLD 内容
+                #   而 Document.save 还返回 True、清 modified、删草稿，
+                #   用户看到"成功"，编辑全部丢失且连草稿都救不回来。
+                #
+                #   save_file(path) 会依次做：同步内容 → 保存 → 清脏标记
+                #   → 通知 LSP → 删草稿，是唯一正确的入口。
+                if not proxy.save_file(path):
+                    self._show_error(
+                        "另存为失败",
+                        "文件未能写入磁盘：\n%s\n\n"
+                        "请检查目标路径的权限与磁盘空间。" % path
+                    )
+                    return
 
                 # 更新标签标题
                 idx = self.tabs.currentIndex()
                 if idx >= 0:
                     self.tabs.setTabText(idx, os.path.basename(path))
+
+                self.status_bar.showMessage(
+                    "已另存为: %s" % os.path.basename(path), 3000
+                )
 
         except Exception as e:
             self._show_error("另存为失败", str(e))

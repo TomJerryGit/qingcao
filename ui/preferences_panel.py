@@ -76,20 +76,32 @@ class GeneralPage(QWidget):
         layout.setSpacing(12)
 
         # ---- 界面语言 ----
+        #
+        # 决策（i18n）：**移除语言选择项**，明确标注"仅中文"。
+        #
+        # 原因（已核实）：国际化在本项目中**完全无效** ——
+        #   1) UI 里没有任何一条字符串走 `tr()`/`_()`（`core/i18n.py`
+        #      的 `I18nManager.tr()` 全仓零调用），gettext 无处施展；
+        #   2) Qt 的 `.qm` 路径拼错（`locale/<lang>/qingcao.qm` 不存在，
+        #      实际文件是 `locale/<lang>/LC_MESSAGES/*.mo`），
+        #      `QTranslator` 分支永远不会执行；
+        #   3) 翻译目录只有 49 条菜单/按钮词，覆盖不到 0.1% 的 UI。
+        #
+        # 于是"语言"是一个**假开关**：切到 English 后界面依然是全中文。
+        # 与其留着一个骗人的选项，不如如实告知用户当前仅支持中文。
+        # （如果将来要真正国际化，需要先让 UI 全面使用 tr() 并修好
+        #   .qm/.mo 的加载路径，那是独立的大工程。）
         lang_group = QGroupBox("界面语言")
-        lang_layout = QFormLayout(lang_group)
+        lang_layout = QVBoxLayout(lang_group)
 
-        self.lang_combo = QComboBox()
-        self.lang_combo.addItems([
-            "简体中文 (zh_CN)",
-            "English (en_US)",
-            "日本語 (ja_JP)",
-            "한국어 (ko_KR)",
-        ])
-        current = prefs.get("language", "zh_CN")
-        idx = {'zh_CN': 0, 'en_US': 1, 'ja_JP': 2, 'ko_KR': 3}.get(current, 0)
-        self.lang_combo.setCurrentIndex(idx)
-        lang_layout.addRow("语言:", self.lang_combo)
+        lang_note = QLabel(
+            "当前版本**仅提供简体中文界面**。\n"
+            "其它语言的翻译尚未完成，因此不提供语言切换选项"
+            "（避免出现「切了没反应」的假开关）。"
+        )
+        lang_note.setWordWrap(True)
+        lang_note.setObjectName("language_note")
+        lang_layout.addWidget(lang_note)
 
         layout.addWidget(lang_group)
 
@@ -153,9 +165,9 @@ class GeneralPage(QWidget):
 
     def apply(self):
         """保存设置"""
-        langs = ['zh_CN', 'en_US', 'ja_JP', 'ko_KR']
-        self.prefs.set("language",
-                       langs[self.lang_combo.currentIndex()])
+        # 界面语言：当前版本仅中文，不再写入 language 键
+        # （原先会写用户选择的值，但该值对界面毫无影响 —— 假开关）
+        self.prefs.set("language", "zh_CN")
         self.prefs.set("restore_session",
                        self.restore_session_cb.isChecked())
         self.prefs.set("reopen_last_files",

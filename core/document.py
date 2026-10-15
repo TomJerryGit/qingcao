@@ -196,6 +196,16 @@ class Document(QObject):
     reloaded = pyqtSignal(str)
     encoding_changed = pyqtSignal(str, str)
     external_change_detected = pyqtSignal(str)
+    # 文档关联的文件路径发生变化（另存为）
+    #
+    # 为什么需要（INV-L1/L2 修复）：
+    #   另存为会更新 `meta.filepath`，但**依赖路径的外部状态**（例如
+    #   EditorProxy 的 LSP document URI）必须同步更新。原先没有任何通知
+    #   机制，只能在某个具体入口里手动补 —— 而"另存为"存在多条入口
+    #   （`EditorProxy.save_file(path)`、`Document.save(path)`），
+    #   漏掉任何一条就会出现"内容存到新文件、LSP 仍操作旧文档"。
+    #   改为由 Document 在路径真正变化时**统一广播**，调用方无需各自记得。
+    filepath_changed = pyqtSignal(str)
     bookmarks_changed = pyqtSignal()
     folds_changed = pyqtSignal()
 
@@ -405,6 +415,13 @@ class Document(QObject):
                     self.meta.title = os.path.basename(target)
                     self.meta.language = self._detect_language(target)
                     self._setup_file_watcher(target)
+                    # 统一广播路径变化：依赖路径的外部状态（LSP URI 等）
+                    # 必须跟着换。原先无通知机制，只能由各调用点自行补，
+                    # 漏掉任一条入口就会出现"内容存新文件、LSP 操作旧文档"。
+                    try:
+                        self.filepath_changed.emit(target)
+                    except Exception:
+                        pass
 
                 self.meta.modified = False
                 self.meta.last_saved_at = time.time()
@@ -607,9 +624,26 @@ class Document(QObject):
         if reload and self.meta.filepath:
             try:
                 if hasattr(self.provider, 'reload'):
-                    self.provider.reload()
+                    re_ok = self.provider.reload()
             except Exception:
-                pass
+                re_ok = False
+            else:
+                # 关键（INV-C 修复）：重载之后必须**通知编辑器刷新**。
+                #
+                # 缺陷背景（审计测试复现）：
+                #   `change_encoding` 重载了 provider（文本已按新编码正确
+                #   解码），但没有任何代码把新文本写回 `EditorProxy.sc`
+                #   —— 于是编辑器**继续显示旧编码解出的乱码**，而 provider
+                #   已是正确文本。两者不一致时，任何基于 provider 的功能
+                #   （查找/替换/另存为/全局替换）看到的是另一份内容。
+                #
+                #   发出 `reloaded` 信号，由 EditorProxy 负责把文本同步回
+                #   编辑器（core 层不应直接操作 QScintilla）。
+                if re_ok:
+                    try:
+                        self.reloaded.emit(self.meta.filepath or "")
+                    except Exception:
+                        pass
 
         self.encoding_changed.emit(old, encoding)
         return True
@@ -618,8 +652,26 @@ class Document(QObject):
     # 行尾符
     # ========================================================
     def set_eol(self, eol: str):
-        """设置行尾符（实际转换在保存时进行）"""
+        """设置行尾符（用户显式切换；实际转换在保存时由 provider 完成）
+
+        修复（INV-E1，审计测试复现）：
+            原先只改 `meta.eol` + 标脏。而保存路径写入时读的是
+            **`provider._eol`**（见 `ContentProvider._apply_eol`），
+            两者不同步 → 用户在状态栏切了 LF→CRLF，保存后磁盘仍是 LF。
+
+            这里显式同步到 provider，并**标记为"用户显式指定"**：
+            只有显式指定过才在保存时做行尾转换。否则会影响那些
+            "探测结果本身不可靠"的文件（例如整篇没有换行的文件，
+            `_detect_eol` 在 0 比 0 时默认取 CRLF，若照样转换，
+            保存会把**原文没有的换行**也改写掉）。
+        """
         self.meta.eol = eol
+        try:
+            if self.provider is not None:
+                self.provider._eol = eol
+                self.provider._eol_explicit = True
+        except Exception as e:
+            print(f"[Document] 同步行尾符到 provider 失败: {e}")
         self.mark_modified()
 
     def detect_eol(self) -> str:

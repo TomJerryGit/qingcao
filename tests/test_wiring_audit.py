@@ -285,6 +285,82 @@ class TestKeyApiWiring:
             "但 ui/main_window.py 会调用它 → 转到定义永远不可用。"
         )
 
+    def test_lsp_requests_have_result_handlers(self):
+        """B 阶段防线：LSP 的每个请求方法都必须有**结果信号 connect**
+
+        缺陷背景（本项目最典型的一类）：
+            `LspClient` 实现了 10 个请求与对应信号，但
+            `request_hover/references/rename/document_symbols/code_actions/
+            formatting/signature_help` 的信号**全仓零 connect** ——
+            请求发得出去、结果永远回不来，功能等于不存在。
+
+            本测试要求：每个请求方法在 `core/editor.py` 里都有对应的
+            `xxx_ready.connect(...)`，防止将来加请求时忘记接结果。
+        """
+        editor_src = _read(os.path.join(ROOT, "core", "editor.py"))
+        # 请求方法 → 结果信号
+        pairs = {
+            "request_hover": "hover_ready",
+            "request_definition": "definition_ready",
+            "request_references": "references_ready",
+            "request_rename": "rename_ready",
+            "request_document_symbols": "document_symbols_ready",
+            "request_code_actions": "code_actions_ready",
+            "request_formatting": "formatting_ready",
+            "request_signature_help": "signature_help_ready",
+        }
+        problems = []
+        for method, sig in pairs.items():
+            if not re.search(r"\." + method + r"\s*\(", editor_src):
+                problems.append("%s 无生产调用点" % method)
+            if not re.search(r"\." + sig + r"\.connect\s*\(", editor_src):
+                problems.append("%s 结果信号未 connect" % sig)
+        assert not problems, (
+            "LSP 请求与结果信号接线不完整（发了请求收不到结果）：\n      "
+            + "\n      ".join(problems)
+        )
+
+    def test_no_ui_bypasses_content_sync(self):
+        """P0-B 防线：UI 层不得直接调 `document.save()` 保存用户文件
+
+        缺陷背景（已实测复现的数据丢失）：
+            `_save_file_as` 曾调用 `proxy.document.save(path)`，绕过
+            `EditorProxy._sync_content_to_provider()` —— 而 Document 只持有
+            provider，**拿不到 QScintilla 里的当前文本**。于是"另存为"
+            写下的是**打开文件时**的旧内容：
+
+                打开 = 'OLD LINE 1\\nOLD LINE 2\\n'
+                编辑 = 'NEW CONTENT A\\n...'
+                另存为返回 True，磁盘上却仍是 OLD
+
+            而 `Document.save` 还返回 True、清 modified、删草稿 ——
+            用户看到"成功"，编辑全部丢失且连草稿都救不回来。
+
+        现在 UI 层一律走 `proxy.save_file(path)`（同步 → 保存 → 清标记
+        → 通知 LSP → 删草稿）。`document.save()` 在**生产代码中只允许
+        出现在 `EditorProxy.save_file()` 内部**（即在同步之后）。
+
+        本测试把这个不变量固化，防止将来有人再图省事直接调 Document。
+        """
+        offenders = []
+        for path, src in _all_py_sources().items():
+            rel = _rel(path)
+            # 只约束 UI 层与插件（core 内部的正确调用在 editor.py）
+            if not (rel.startswith("ui/") or rel.startswith("plugins/")):
+                continue
+            for n, line in enumerate(src.split("\n"), 1):
+                s = line.strip()
+                if s.startswith("#"):
+                    continue
+                if re.search(r"\bdocument\.save\s*\(", s):
+                    offenders.append("%s:%d  %s" % (rel, n, s[:70]))
+        assert not offenders, (
+            "UI/插件层直接调用了 `document.save()` —— 这会绕过内容同步，"
+            "导致写入磁盘的是 provider 里的**旧内容**（P0-B 数据丢失）。\n"
+            "    请改用 `proxy.save_file(path)`。\n"
+            "    违规位置：\n      " + "\n      ".join(offenders)
+        )
+
 
 # ============================================================
 # 2. 死模块检测（相对基线）

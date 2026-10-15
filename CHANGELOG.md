@@ -106,6 +106,137 @@
 
 全量套件 430 -> **440 passed**。
 
+### 修复（「另存为」丢失编辑 —— P0-B，已复现的数据丢失）
+
+**现象（实测复现）**
+
+    打开文件      : 'OLD LINE 1\nOLD LINE 2\n'
+    用户编辑后    : 'NEW CONTENT A\nNEW CONTENT B\nNEW SHOULD BE SAVED'
+    另存为返回    : True                ← 报告成功
+    磁盘实际内容  : 'OLD LINE 1\nOLD LINE 2\n'   ← 旧内容！
+                    ❌ 编辑全部丢失，且没有任何提示
+
+**根因**：`ui/mixins/file_ops_mixin.py` 的 `_save_file_as` 调用
+`proxy.document.save(path)`，**绕过**唯一的同步点
+`EditorProxy._sync_content_to_provider()`。而 `Document` 只持有 provider、
+**拿不到 QScintilla 里的当前文本** —— 于是写下的是"打开文件时"的内容。
+更糟的是 `Document.save` 还返回 True、清 modified、删草稿，
+用户看到"成功"，编辑丢失且连草稿恢复都救不回来。
+
+**修复**：`_save_file_as` 改走 `proxy.save_file(path)`（同步内容 → 保存
+→ 清脏标记 → 通知 LSP → 删草稿），并检查返回值、失败时明确报错。
+经全仓核查，生产代码中 `document.save()` 仅剩
+`EditorProxy.save_file()` 内部一处正确调用。
+
+**防线**：`tests/test_wiring_audit.py` 新增
+`test_no_ui_bypasses_content_sync` —— 禁止 UI/插件层直接调
+`document.save()`，防止将来再图省事绕过同步。
+
+### 修复（另存为后 LSP 指向旧文档 · INV-L1/L2）
+
+另存为更新了 `document.filepath`，但 `EditorProxy._lsp_uri` 仍是旧 URI，
+而 `_notify_lsp_saved()` / `request_definition()` 都用
+`self._lsp_uri or ...` 取值 —— 一旦为真值就永远用旧的。后果：
+didSave/didChange 发给旧文档、服务器对旧路径的诊断画到当前编辑器、
+补全与跳转用新路径服务器不认识。
+
+**修复**：`Document` 新增 `filepath_changed` 信号统一广播路径变化，
+`EditorProxy` 据此注销旧文档、以新 URI 重新 did_open。
+**从机制上修**（而不是在某个入口手动补）——这样任何入口另存为都正确。
+
+**同时修复跨标签污染**：`_on_lsp_diagnostics` 原先**不比较 uri 与
+self._lsp_uri**，任何来源的诊断都会画到当前编辑器（标签 A 的诊断出现在
+标签 B）。现只接受属于本文档的诊断。
+
+### 修复（行尾符切换不生效 · INV-E1）
+
+`Document.set_eol` 只改 `meta.eol` + 标脏，其 docstring 声称"实际转换在
+保存时进行"，但**保存路径从不做转换**；`Document.convert_eol()` 在生产
+代码中零调用。于是状态栏把 LF 切成 CRLF、保存后磁盘仍是 LF。
+
+**修复**：`set_eol` 同步到 provider 并标记 `_eol_explicit`；
+`ContentProvider._apply_eol()` 在保存时按目标行尾转换
+（文本层转换，对 UTF-16 等编码也正确）。
+
+**注意实现边界**：只在用户**显式切换过**时转换。原因：`_eol` 在打开时
+由探测得出，而探测不可靠（整篇无换行的文件会因 `0 >= 0` 默认取 CRLF），
+若无条件转换会把**原文根本没有的换行**改写掉（实测曾让 `'short\n'`
+变成 `'short\r\n'`，破坏"保存不改动内容"的不变量）。
+
+### 修复（切换编码后编辑器不刷新 · INV-C）
+
+`Document.change_encoding` 重载了 provider（文本已按新编码正确解码），
+但没有任何代码把新文本写回编辑器 —— 用户继续看到旧编码解出的**乱码**，
+而 provider 已是正确文本。两者不一致时，查找/替换/另存为/全局替换
+都会看到与屏幕不同的内容。
+
+**修复**：`reloaded` 信号（原先零 connect）接到
+`EditorProxy._on_document_reloaded`，刷新文本并保留光标、清空撤销栈
+（重载等于整体替换，旧撤销历史不再适用）、同步脏标记为干净。
+
+### 新增（问题面板接线 · 补上缺失的**生产者**）
+
+`ui/problems_panel.py` 实现了完整 UI 并从 `ProblemManager` 读问题，但
+`set_file_problems()` **全仓零调用** —— 面板挂上去也永远空白。
+**缺口在生产端，不在消费端。**
+
+修复：
+  * 生产者：`EditorProxy._publish_problems()` 把 LSP 诊断转成 `Problem`
+    写入管理器（在 `_on_lsp_diagnostics` 尾部调用），severity 按 LSP 规范
+    映射 1/2/3/4 → error/warning/info/hint；
+  * 消费者：问题面板接入视图菜单（`视图 → 面板 → 问题`），
+    并在 `_LAZY_PANELS` 登记（可被会话恢复）。
+
+实测：2 条诊断 → 面板可见 `[warning] probe.py:1:2` 与 `[error]`，
+按严重度统计正确；外来 URI 的诊断被忽略。
+
+### 新增（LSP 其余 7 个能力接线）
+
+`LspClient` 实现了 10 个请求，但除 `request_definition` 外，其余请求的
+**结果信号全仓零 connect** —— 请求发得出去、结果永远回不来。
+
+现全部接通并加上用户入口（工具 → 🧠 LSP（智能））：
+
+| 功能 | 快捷键 | 结果展示 |
+|---|---|---|
+| 悬停信息 | Ctrl+Alt+H | 信息弹窗 |
+| 查找引用 | Shift+F12 | 位置列表 |
+| 重命名符号 | Ctrl+Alt+N | 报告影响位置数 |
+| 文档符号 | Ctrl+Alt+K | 符号列表（含层级） |
+| 代码操作 | Ctrl+Alt+O | 选单 |
+| 格式化文档 | Ctrl+Alt+L | 就地应用编辑 |
+| 签名帮助 | Ctrl+Shift+Space | 状态栏 |
+
+**如实说明**：重命名只报告影响范围、代码操作只报告选择结果 ——
+跨文件应用 `WorkspaceEdit` 涉及多文件原子写入，未在本轮范围；
+状态栏文案明确写了"应用尚未实现"，不假装完成。
+
+新增快捷键均已通过 `tests/test_shortcuts.py` 的**无重复扫描**
+（首次提交时 Ctrl+Alt+R 与"符号跳转"冲突，被该测试当场抓住）。
+
+新增防线：`test_lsp_requests_have_result_handlers` 要求每个请求方法都有
+对应的结果信号 connect。
+
+### 变更（国际化决策：删除语言选项，如实标注"仅中文"）
+
+**决策依据（已核实）**：国际化在本项目中**完全无效** ——
+
+1. UI 里没有任何一条字符串走 `tr()`/`_()`（`core/i18n.py` 的
+   `I18nManager.tr()` 全仓零调用），gettext 无处施展；
+2. Qt 的 `.qm` 路径拼错：`locale/<lang>/qingcao.qm` 不存在，实际文件是
+   `locale/<lang>/LC_MESSAGES/*.mo`，`QTranslator` 分支永远不会执行；
+3. 翻译目录只有 49 条菜单/按钮词，覆盖不到 0.1% 的 UI。
+
+于是"语言"是一个**假开关**：切到 English 后界面依然是全中文。
+
+**变更**：移除此选项，改为如实告知用户当前仅支持简体中文。
+（若将来要真正国际化，需先让 UI 全面使用 tr() 并修好 .qm/.mo 加载路径，
+那是独立的大工程。）
+  * `ui/preferences_panel.py`：语言下拉框 → 说明文字
+  * `ui/first_run_wizard.py`：语言单选页 → 说明页（`get_language()` 保留
+    以兼容调用方，恒返回 zh_CN）
+  * `tests/test_p1_features.py` 的向导用例同步更新（仍断言无乱码标签）
+
 ### 新增（Python 调试器：从"pdb 启动器"变成编辑器内真调试器 · D3）
 
 **改造前**：`plugins/python_debugger` 唯一动作是

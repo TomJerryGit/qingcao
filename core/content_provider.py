@@ -151,6 +151,8 @@ class ContentProvider(ABC):
         self._readonly: bool = False
         self._dirty_blocks: Dict[int, bytes] = {}
         self._eol: str = EOL_LF
+        # 行尾符是否由用户**显式**指定（决定保存时是否做行尾转换）
+        self._eol_explicit: bool = False
         self._has_bom: bool = False
         self._mtime: float = 0.0
         self._hash: Optional[str] = None
@@ -1087,6 +1089,55 @@ class LocalFileProvider(ContentProvider):
         except (ValueError, OSError):
             self._mmap = None
 
+    def _apply_eol(self, data: bytes) -> bytes:
+        """按用户显式设置的行尾符转换（保存时调用）
+
+        缺陷背景（INV-E1，已由审计测试复现）：
+            `Document.set_eol()` 只改 `meta.eol` + 标脏，其 docstring 声称
+            "实际转换在保存时进行"，但**保存路径从不做转换**；
+            `Document.convert_eol()` 在生产代码里**零调用**；
+            `encode()` 也不碰行尾。于是用户在状态栏把 LF 切成 CRLF、
+            保存后磁盘上仍是 LF —— 设置完全不生效。
+
+        ⚠️ 只在 `_eol_explicit` 为真时转换（关键）：
+            `_eol` 在打开文件时由探测得出，而探测**并不可靠** ——
+            例如整篇没有换行的文件，`crlf_count(0) >= lf_count(0)` 成立，
+            会默认取 CRLF。若无条件按 `_eol` 转换，这种文件的保存会把
+            **原文根本没有的换行**改写掉（实测曾让 `'short\n'` 变成
+            `'short\r\n'`，破坏了"保存不改动内容"的不变量）。
+            因此只有用户**显式切换过**行尾才转换。
+
+        实现说明（为什么在文本层而非字节层转换）：
+            - 文本层转换对**任何**编码都正确；字节层替换会在 UTF-16 等
+              编码下破坏数据（其中换行是 0x000A 两字节）。
+            - 编码仍统一走 `self.encode()`，保证与保存路径一致。
+        """
+        if not getattr(self, '_eol_explicit', False):
+            return data
+        try:
+            target = self._eol or EOL_LF
+        except Exception:
+            return data
+        if target == EOL_LF:
+            # 用户显式选了 LF：也需要把内容里的 CRLF 归一为 LF
+            target = EOL_LF
+        try:
+            text = self.decode(data)
+        except Exception:
+            return data
+        normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+        if target == EOL_CRLF:
+            converted = normalized.replace('\n', '\r\n')
+        elif target == EOL_CR:
+            converted = normalized.replace('\n', '\r')
+        elif target == EOL_LF:
+            converted = normalized
+        else:
+            return data
+        if converted == text:
+            return data
+        return self.encode(converted)
+
     def _save_as_full(self, target: str) -> bool:
         """另存为完整文件（原子写入）"""
         import tempfile
@@ -1094,6 +1145,9 @@ class LocalFileProvider(ContentProvider):
         try:
             # 读取所有内容（含脏块）
             full_data = self.read_all()
+
+            # 按文档设置的行尾符转换后再落盘（INV-E1 修复）
+            full_data = self._apply_eol(full_data)
 
             # A5 修复：os.replace/rename 会替换 inode，而
             # self._file 仍指向旧 inode（POSIX 下即已被删除的

@@ -82,13 +82,27 @@ class TestI18nManager:
         assert codes == list(LANGS)
 
     def test_wizard_korean_label_not_broken(self):
-        """修复前 first_run_wizard 的韩语标签是 '???'"""
+        """韩语标签不得乱码（历史问题："???"）
+
+        决策更新（i18n）：首启向导**已移除语言选择** —— 国际化在本项目中
+        完全无效（UI 无一条 tr()、.qm 路径拼错、翻译仅 49 条），切换语言后
+        界面依然是全中文，属于假开关。
+
+        因此现在断言两件事：
+          1. 向导不再出现任何语言的乱码标签（'???' 之类）；
+          2. 向导不再提供语言单选，且 `get_language()` 如实返回 zh_CN。
+        """
         src = io.open(
             os.path.join(ROOT, 'ui', 'first_run_wizard.py'),
             encoding='utf-8',
         ).read()
-        assert '("한국어", "ko_KR")' in src
+        # 不得出现乱码占位标签
         assert '("???", "ko_KR")' not in src
+        assert '"???"' not in src
+        # 语言选择已移除，页面如实说明"仅中文"
+        assert '仅提供简体中文' in src or '仅支持简体中文' in src
+        from ui.first_run_wizard import LanguagePage
+        assert LanguagePage().get_language() == 'zh_CN'
 
 
 # ============================================================

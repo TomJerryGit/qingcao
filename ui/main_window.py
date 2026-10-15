@@ -540,6 +540,32 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         # P6: F12 = 转到定义，把 LspClient.request_definition 接进生产路径
         self._add_action(self.tools_menu, "🔎 转到定义", "F12",
                           self._goto_definition)
+
+        # B 阶段：LSP 其余能力的用户入口
+        #
+        # 这些请求方法（hover/references/rename/document_symbols/
+        # code_actions/formatting/signature_help）早就实现了，但**结果信号
+        # 零 connect、也没有任何 UI 入口** —— 属于"写好了没接线"。
+        # 这里补上入口（统一走 `EditorProxy` 的同名方法）。
+        self.lsp_menu = self.tools_menu.addMenu("🧠 LSP（智能）")
+        # 备注：Ctrl+Alt+R 已被"符号跳转"占用、F12 已被"转到定义"占用，
+        # 因此这里刻意避开；新增键均已通过 tests/test_shortcuts.py 的
+        # "无重复快捷键"严格扫描。
+        self._add_action(self.lsp_menu, "💡 悬停信息", "Ctrl+Alt+H",
+                          self._lsp_hover)
+        self._add_action(self.lsp_menu, "🔗 查找引用", "Shift+F12",
+                          self._lsp_find_references)
+        self._add_action(self.lsp_menu, "✏ 重命名符号", "Ctrl+Alt+N",
+                          self._lsp_rename)
+        self._add_action(self.lsp_menu, "🧾 文档符号", "Ctrl+Alt+K",
+                          self._lsp_document_symbols)
+        self._add_action(self.lsp_menu, "💡 代码操作", "Ctrl+Alt+O",
+                          self._lsp_code_actions)
+        self._add_action(self.lsp_menu, "🪄 格式化文档",
+                          "Ctrl+Alt+L", self._lsp_format)
+        self._add_action(self.lsp_menu, "📝 签名帮助", "Ctrl+Shift+Space",
+                          self._lsp_signature)
+
         self.tools_menu.addSeparator()
 
         self._add_action(self.tools_menu, "⌨ 命令面板", "Ctrl+Shift+P",
@@ -624,6 +650,9 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             ("Python 控制台", "panel.console", self._toggle_console),
             ("插件", "panel.plugins", self._toggle_plugins_panel),
             ("性能监控", "panel.perf_monitor", self._toggle_perf_monitor),
+            # 问题面板：显示 LSP 诊断（生产者在 core/editor.py 的
+            # _publish_problems 里写入 ProblemManager）
+            ("问题", "panel.problems", self._toggle_problems_panel),
         ]
 
         for name, action_name, slot in panels:
@@ -1071,6 +1100,14 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             ("lsp_error", self._on_lsp_message),
             ("lsp_status_changed", self._on_lsp_status),
             ("definition_requested", self._on_definition_requested),
+            # B 阶段：LSP 其余能力的结果展示
+            ("hover_text", self._on_lsp_hover_text),
+            ("references_ready", self._on_lsp_references),
+            ("rename_applied", self._on_lsp_rename_applied),
+            ("symbols_ready", self._on_lsp_symbols),
+            ("code_actions_ready", self._on_lsp_code_actions),
+            ("formatting_applied", self._on_lsp_formatting_applied),
+            ("signature_help", self._on_lsp_signature),
         ):
             try:
                 sig = getattr(proxy, sig_name, None)
@@ -1110,6 +1147,158 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             self.status_bar.showMessage(text, 4000)
         except Exception:
             pass
+
+    # --------------------------------------------------------
+    # B 阶段：LSP 其余能力的结果展示（此前结果信号零 connect）
+    # --------------------------------------------------------
+    def _on_lsp_hover_text(self, text: str):
+        """悬停信息 → 弹窗展示（内容可能较长，用信息框而非状态栏）"""
+        try:
+            self._show_info("悬停信息", text)
+        except Exception as e:
+            logger.debug("显示悬停信息失败: %s", e)
+
+    def _on_lsp_references(self, items: list):
+        """引用列表 → 文本弹窗（点击跳转留待后续）"""
+        try:
+            lines = []
+            for it in (items or []):
+                path = it.get('path') or ""
+                name = os.path.basename(path) if path else "(未知)"
+                lines.append("%s:%d:%d" % (
+                    name, int(it.get('line', 0)) + 1,
+                    int(it.get('character', 0)) + 1,
+                ))
+            if not lines:
+                self.status_bar.showMessage("未找到引用", 4000)
+                return
+            self._show_info(
+                "引用（%d 处）" % len(lines),
+                "\n".join(lines),
+            )
+        except Exception as e:
+            logger.debug("显示引用失败: %s", e)
+
+    def _on_lsp_rename_applied(self, count: int):
+        """重命名结果：目前只报告影响范围
+
+        真正跨文件应用 WorkspaceEdit 涉及多文件原子写入，未在本轮范围内；
+        这里明确告知用户"会影响多少处"，而不是假装已经改好。
+        """
+        try:
+            self.status_bar.showMessage(
+                "重命名将影响 %d 处（跨文件应用尚未实现）" % count, 8000
+            )
+        except Exception:
+            pass
+
+    def _on_lsp_symbols(self, symbols: list):
+        """文档符号 → 列表展示"""
+        try:
+            lines = []
+            for s in (symbols or []):
+                indent = "  " * int(s.get('depth', 0) or 0)
+                lines.append("%s%s  (行 %d)" % (
+                    indent, s.get('name') or "",
+                    int(s.get('line', 0)) + 1,
+                ))
+            if not lines:
+                self.status_bar.showMessage("未获取到文档符号", 4000)
+                return
+            self._show_info(
+                "文档符号（%d 项）" % len(lines), "\n".join(lines)
+            )
+        except Exception as e:
+            logger.debug("显示文档符号失败: %s", e)
+
+    def _on_lsp_code_actions(self, actions: list):
+        """代码操作 → 选单，选中后报告（应用留待后续）"""
+        try:
+            titles = [a.get('title') or "" for a in (actions or [])]
+            titles = [t for t in titles if t]
+            if not titles:
+                self.status_bar.showMessage("此处没有可用的代码操作", 4000)
+                return
+            from PyQt5.QtWidgets import QInputDialog
+            choice, ok = QInputDialog.getItem(
+                self, "代码操作", "选择要执行的操作:", titles, 0, False
+            )
+            if ok and choice:
+                self.status_bar.showMessage(
+                    "已选择代码操作：%s（应用尚未实现）" % choice, 8000
+                )
+        except Exception as e:
+            logger.debug("显示代码操作失败: %s", e)
+
+    def _on_lsp_formatting_applied(self, ok: bool):
+        try:
+            self.status_bar.showMessage(
+                "已应用 LSP 格式化" if ok else "无需格式化或未返回结果",
+                4000,
+            )
+        except Exception:
+            pass
+
+    def _on_lsp_signature(self, label: str):
+        try:
+            self.status_bar.showMessage("签名: %s" % label, 8000)
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # B 阶段：LSP 其余能力的用户入口
+    # --------------------------------------------------------
+    def _with_proxy(self, method_name: str, what: str):
+        """取得当前编辑器代理并调用其 LSP 方法（统一的前置检查）"""
+        try:
+            proxy = self.tabs.current_proxy()
+            if not proxy or not hasattr(proxy, method_name):
+                self.status_bar.showMessage("没有活动的编辑器", 3000)
+                return None
+            self._connect_lsp_signals(proxy)
+            return proxy
+        except Exception as e:
+            logger.error("%s失败: %s", what, e)
+            return None
+
+    def _lsp_hover(self):
+        proxy = self._with_proxy("hover_at_cursor", "悬停信息")
+        if proxy is not None:
+            proxy.hover_at_cursor()
+
+    def _lsp_find_references(self):
+        proxy = self._with_proxy("find_references", "查找引用")
+        if proxy is not None:
+            proxy.find_references()
+
+    def _lsp_rename(self):
+        proxy = self._with_proxy("rename_symbol", "重命名")
+        if proxy is None:
+            return
+        from PyQt5.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "重命名符号", "新名称:")
+        if ok and name:
+            proxy.rename_symbol(name)
+
+    def _lsp_document_symbols(self):
+        proxy = self._with_proxy("document_symbols", "文档符号")
+        if proxy is not None:
+            proxy.document_symbols()
+
+    def _lsp_code_actions(self):
+        proxy = self._with_proxy("code_actions", "代码操作")
+        if proxy is not None:
+            proxy.code_actions()
+
+    def _lsp_format(self):
+        proxy = self._with_proxy("format_document", "格式化")
+        if proxy is not None:
+            proxy.format_document()
+
+    def _lsp_signature(self):
+        proxy = self._with_proxy("request_signature", "签名帮助")
+        if proxy is not None:
+            proxy.request_signature()
 
     def _on_definition_requested(self, filepath: str, line: int,
                                  character: int):
@@ -1353,6 +1542,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         'outline', 'outline_enhanced',
         'dir_tree', 'minimap', 'gsearch',
         'console', 'plugins_panel', 'perf_monitor', 'search_bar',
+        'problems',
     )
 
     # 启动时构造的面板（**保留**延迟构造，但恢复"开箱即有"的界面）
@@ -1511,6 +1701,26 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         except Exception as e:
             print(f"[MainWindow] GlobalSearchPanel 加载失败: {e}")
             self.gsearch = None
+
+    def _build_panel_problems(self):
+        """构造问题面板（显示 LSP 诊断）
+
+        背景（消费者/生产者缺口）：
+            `ui/problems_panel.py` 实现了完整 UI 且会从
+            `core.problems.get_problem_manager()` 读取问题，但
+            `set_file_problems()` 原先**全仓零调用** —— 面板挂上去也永远
+            空白。生产者已在 `core/editor.py::_publish_problems` 补上
+            （`_on_lsp_diagnostics` 尾部），这里把面板接进视图。
+        """
+        try:
+            from ui.problems_panel import ProblemsPanel
+            self.problems = ProblemsPanel(self)
+            self.problems.setObjectName("ProblemsPanel")
+            self.addDockWidget(Qt.BottomDockWidgetArea, self.problems)
+            self.problems.hide()
+        except Exception as e:
+            print(f"[MainWindow] ProblemsPanel 加载失败: {e}")
+            self.problems = None
 
     def _build_panel_console(self):
         """构造 Python 控制台面板"""
@@ -1839,6 +2049,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         """切换性能监控"""
         if self._ensure_panel('perf_monitor') and self.perf_monitor:
             self.perf_monitor.setVisible(checked)
+
+    def _toggle_problems_panel(self, checked):
+        """切换问题面板（LSP 诊断列表）"""
+        if self._ensure_panel('problems') and self.problems:
+            self.problems.setVisible(checked)
 
     # ========================================================
     # 工具

@@ -53,41 +53,37 @@ class WelcomePage(QWizardPage):
 
 
 class LanguagePage(QWizardPage):
-    """语言选择页"""
+    """界面语言说明页（不再提供切换）
+
+    决策（i18n）：原先是"选择界面语言"的单选页，但国际化实际**完全无效**
+    （UI 无一条 `tr()`、`.qm` 路径拼错、翻译仅 49 条），切到 English 后界面
+    依然是全中文 —— 属于会让用户当场失望的假开关。
+
+    现在改为**如实告知**：当前仅提供简体中文，并在页面上说明原因；
+    `get_language()` 保留以兼容既有调用方，恒返回 "zh_CN"。
+    """
 
     def __init__(self):
         super().__init__()
-        self.setTitle("选择界面语言")
-        self.setSubTitle("选择您偏好的界面语言。")
+        self.setTitle("界面语言")
+        self.setSubTitle("当前版本仅提供简体中文界面。")
 
         layout = QVBoxLayout(self)
 
-        group = QGroupBox("语言")
-        group_layout = QVBoxLayout(group)
-
-        self.lang_group = QButtonGroup(self)
-
-        languages = [
-            ("简体中文", "zh_CN"),
-            ("English", "en_US"),
-            ("日本語", "ja_JP"),
-            ("한국어", "ko_KR"),
-        ]
-
-        for i, (name, code) in enumerate(languages):
-            radio = QRadioButton(name)
-            radio.setProperty("code", code)
-            self.lang_group.addButton(radio, i)
-            group_layout.addWidget(radio)
-            if i == 0:
-                radio.setChecked(True)
-
-        layout.addWidget(group)
+        note = QLabel(
+            "青草编辑器的界面目前<b>仅支持简体中文</b>。<br><br>"
+            "其它语言的翻译尚未完成，因此这里不提供语言切换 —— "
+            "与其给一个「切了没反应」的选项，不如如实说明。<br><br>"
+            "如果你希望参与翻译，欢迎提交 PR。"
+        )
+        note.setWordWrap(True)
+        note.setObjectName("language_note")
+        layout.addWidget(note)
         layout.addStretch()
 
     def get_language(self):
-        btn = self.lang_group.checkedButton()
-        return btn.property("code") if btn else "zh_CN"
+        """恒返回简体中文（保留方法以兼容既有调用方）"""
+        return "zh_CN"
 
 
 class ThemePage(QWizardPage):

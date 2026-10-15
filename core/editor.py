@@ -269,6 +269,21 @@ class EditorProxy(QObject):
     lsp_error = pyqtSignal(str)
     # P6: 定义位于**其它文件**时请求主窗口打开（路径, 行, 列）
     definition_requested = pyqtSignal(str, int, int)
+    # LSP 其余能力的结果转发（B 阶段接线）
+    #   hover_ready       -> hover_text(str)：鼠标悬停信息
+    #   references_ready  -> references_ready(list)：引用位置列表
+    #   rename_ready      -> rename_applied(int)：重命名影响的位置数
+    #   symbols_ready     -> symbols_ready(list)：文档符号（供大纲/跳转）
+    #   code_actions_ready-> code_actions_ready(list)：可用的代码操作
+    #   formatting_ready  -> formatting_applied(bool)：格式化结果
+    #   signature_ready   -> signature_help(str)：签名帮助
+    hover_text = pyqtSignal(str)
+    references_ready = pyqtSignal(list)
+    rename_applied = pyqtSignal(int)
+    symbols_ready = pyqtSignal(list)
+    code_actions_ready = pyqtSignal(list)
+    formatting_applied = pyqtSignal(bool)
+    signature_help = pyqtSignal(str)
     # D3: 断点集合变化（升序行号列表）—— 调试器据此把断点下发给被调试进程
     breakpoints_changed = pyqtSignal(list)
     # 外部文件变更（从 Document 转发；宿主据此提示用户，避免静默覆盖）
@@ -475,6 +490,30 @@ class EditorProxy(QObject):
         except Exception as e:
             logger.warning("连接外部变更信号失败: %s", e)
 
+        # 文档被重新加载（换编码 / 外部改动重载）→ 刷新编辑器文本
+        #
+        # `Document.reload()` / `change_encoding()` 都会 emit `reloaded`，
+        # 但原先全仓零 connect → 编辑器继续显示旧编码解出的乱码，
+        # 而 provider 已是正确文本。见 `_on_document_reloaded` 的说明。
+        try:
+            if getattr(self, 'document', None) is not None:
+                self.document.reloaded.connect(self._on_document_reloaded)
+        except Exception as e:
+            logger.warning("连接文档重载信号失败: %s", e)
+
+        # 文档路径变化（另存为）→ 更新 LSP 文档 URI
+        #
+        # 由 Document 统一广播（`filepath_changed`），因此**无论从哪个入口**
+        # 另存为都正确：`EditorProxy.save_file(path)`、`Document.save(path)`、
+        # 以及将来新增的入口。原先没有通知机制，只能在具体入口里手动补。
+        try:
+            if getattr(self, 'document', None) is not None:
+                self.document.filepath_changed.connect(
+                    self._on_document_filepath_changed
+                )
+        except Exception as e:
+            logger.warning("连接路径变化信号失败: %s", e)
+
     def _on_external_change(self, path: str):
         """文件被外部修改时的兜底处理。
 
@@ -666,6 +705,13 @@ class EditorProxy(QObject):
             if success:
                 self._modified = False
                 self.sc.setModified(False)
+
+                # 注：另存为时 LSP URI 的更新由 `Document.filepath_changed`
+                # 信号统一驱动（见 `_on_document_filepath_changed`），
+                # 不在这里手动补 —— 这样无论从哪个入口保存都一致。
+
+                # P0-2: 通知语言服务器已保存
+                self._notify_lsp_saved(filepath)
 
                 # P0-2: 通知语言服务器已保存
                 self._notify_lsp_saved(filepath)
@@ -1128,6 +1174,121 @@ class EditorProxy(QObject):
             self.modified_changed.emit(True)
         except Exception as e:
             print(f"[EditorProxy] 设置文本失败: {e}")
+
+    def _on_document_filepath_changed(self, new_path: str):
+        """文档另存为新路径 → 同步 LSP 文档 URI
+
+        缺陷背景（INV-L1/L2，审计测试复现）：
+            `Document.save(new_path)` 会更新 `document.filepath`，但
+            `EditorProxy._lsp_uri` 仍是**旧路径**的 URI。而
+            `_notify_lsp_saved()` / `request_definition()` 都用
+            `self._lsp_uri or ...` 取值 —— 一旦它是真值就永远用旧的。
+
+            后果：另存为之后，
+              * didSave / didChange 发给**旧文档**
+              * 服务器对旧路径产生诊断 → 画到当前编辑器（跨文件污染）
+              * request_completion / request_definition 用新路径，服务器不认识
+                → 补全与跳转失效
+
+        处理：向服务器注销旧文档，以新 URI 重新 did_open。
+        """
+        try:
+            new_uri = LspClient.path_to_uri(new_path or "")
+            if not new_uri or new_uri == self._lsp_uri:
+                return
+
+            # URI 必须**始终**与文件路径保持一致 —— 它描述的是"当前编辑的
+            # 是哪个文件"，与有没有连上语言服务器无关。
+            # （审计用例 `test_save_as_updates_lsp_uri` 正是在没有 lsp_client
+            #   的情况下断言这一点：不能因为"服务器没开"就让 URI 停留在旧值，
+            #   否则之后一启用 LSP 就会对着旧文档操作。）
+            old_uri = self._lsp_uri
+            self._lsp_uri = new_uri
+
+            # 通知服务器注销旧文档、以新 URI 打开 —— 这一步才需要连接
+            if not (self.lsp_active and self.lsp_client):
+                return
+            if old_uri:
+                try:
+                    self.lsp_client.did_close(old_uri)
+                except Exception:
+                    pass
+            try:
+                lang = lsp_language_for_file(new_path or "")
+                self.lsp_client.did_open(new_uri, lang, self.sc.text())
+            except Exception as e:
+                logger.debug("另存为后 did_open 失败: %s", e)
+        except Exception as e:
+            logger.warning("同步 LSP URI 失败: %s", e)
+
+    def _on_document_reloaded(self, filepath: str = ""):
+        """文档被重新加载（换编码 / 外部改动重载）后刷新编辑器文本
+
+        缺陷背景（INV-C，审计测试复现）：
+            `Document.reload()` 与 `Document.change_encoding()` 都会重载
+            provider（文本已按新编码正确解码），`reloaded` 信号也 emit 了，
+            但**全仓零 connect** —— 编辑器继续显示旧编码解出的乱码，而
+            provider 已是正确文本。两者不一致时，查找/替换/另存为/全局
+            替换都会看到与屏幕不同的内容。
+
+        实现要点：
+            1. 文本以 **provider** 为准（它是刚按新编码解码的结果）；
+            2. 保留光标位置（重载不应把用户弹回文件开头）；
+            3. 重载等于"文件被整体替换"，旧的撤销历史对新内容无效，
+               因此清空撤销/重做栈，避免撤销把文件改回重载前的样子；
+            4. 同步 `_modified` 与 Scintilla 的脏标记（重载后无未保存修改）。
+        """
+        try:
+            provider = getattr(self.document, 'provider', None)
+            if provider is None:
+                return
+            try:
+                text = provider.read_text()
+            except Exception as e:
+                logger.debug("重载后读取 provider 失败: %s", e)
+                return
+
+            # 保留光标
+            line = col = 0
+            try:
+                line, col = self.sc.getCursorPosition()
+            except Exception:
+                pass
+
+            try:
+                self.sc.setText(text)
+            except Exception as e:
+                logger.warning("重载后刷新编辑器文本失败: %s", e)
+                return
+
+            # 恢复光标（行号可能因内容变化而越界，做钳制）
+            try:
+                total = max(1, self.sc.lines())
+                self.sc.setCursorPosition(min(line, total - 1), col)
+            except Exception:
+                pass
+
+            # 重载是整体替换：旧撤销历史不再适用
+            try:
+                if getattr(self, 'undo_manager', None) is not None:
+                    self.undo_manager.clear()
+            except Exception:
+                pass
+            try:
+                self.sc.SendScintilla(QsciScintilla.SCI_EMPTYUNDOBUFFER)
+            except Exception:
+                pass
+
+            # 重载后内容与磁盘一致 → 干净状态
+            self._modified = False
+            try:
+                self.sc.setModified(False)
+            except Exception:
+                pass
+            self.modified_changed.emit(False)
+
+        except Exception as e:
+            logger.warning("处理文档重载信号失败: %s", e)
 
     def insert_text(self, text: str, pos: Optional[int] = None):
         """在指定位置插入文本"""
@@ -2258,6 +2419,28 @@ class EditorProxy(QObject):
                 self.lsp_client.definition_ready.connect(
                     self._on_lsp_definition
                 )
+                # LSP 其余能力的结果回调（B 阶段接线）
+                # 这些信号在 LspClient 里本就存在，但此前**全仓零 connect**，
+                # 于是 request_hover/references/rename/document_symbols/
+                # code_actions/formatting/signature_help 虽然实现了却永远
+                # 不会有结果回到宿主 —— 属于"写好了没接线"。
+                self.lsp_client.hover_ready.connect(self._on_lsp_hover)
+                self.lsp_client.references_ready.connect(
+                    self._on_lsp_references
+                )
+                self.lsp_client.rename_ready.connect(self._on_lsp_rename)
+                self.lsp_client.document_symbols_ready.connect(
+                    self._on_lsp_symbols
+                )
+                self.lsp_client.code_actions_ready.connect(
+                    self._on_lsp_code_actions
+                )
+                self.lsp_client.formatting_ready.connect(
+                    self._on_lsp_formatting
+                )
+                self.lsp_client.signature_help_ready.connect(
+                    self._on_lsp_signature
+                )
                 self._lsp_server_language = server_language
 
                 # P6: 修 start() 调用 —— 传 command + working_dir
@@ -2348,6 +2531,18 @@ class EditorProxy(QObject):
                 pass
             self.lsp_client = None
 
+    def _lsp_ready(self, what: str) -> bool:
+        """LSP 请求的前置检查（不满足时给出**用户可见**提示）
+
+        返回是否可以直接发起请求。
+        """
+        if not (self.lsp_active and self.lsp_client and self._lsp_uri):
+            self._report_lsp_error(
+                "%s需要先启用 LSP：工具 → 启用 LSP（智能补全）" % what
+            )
+            return False
+        return True
+
     def goto_definition(self) -> bool:
         """P6: 转到定义（F12）。
 
@@ -2407,6 +2602,311 @@ class EditorProxy(QObject):
         except Exception as e:
             logger.error("[EditorProxy] 处理转到定义结果失败: %s", e)
 
+    # --------------------------------------------------------
+    # LSP 其余能力（B 阶段接线：此前请求方法有实现、结果信号零 connect）
+    # --------------------------------------------------------
+    def _cursor_lsp_pos(self):
+        """当前光标的 (line, character)"""
+        line, col = self.sc.getCursorPosition()
+        return line, col
+
+    def hover_at_cursor(self) -> bool:
+        """悬停信息（把结果文本通过 `hover_text` 交给宿主显示）"""
+        if not self._lsp_ready("查看悬停信息"):
+            return False
+        try:
+            line, col = self._cursor_lsp_pos()
+            self.lsp_client.request_hover(self._lsp_uri, line, col)
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"悬停请求失败: {e}")
+            return False
+
+    def _on_lsp_hover(self, result):
+        """悬停结果 → 提取纯文本"""
+        try:
+            if not result:
+                self._report_lsp_error("此处没有可用信息")
+                return
+            contents = result.get('contents')
+            text = ""
+            if isinstance(contents, dict):
+                text = contents.get('value') or ""
+            elif isinstance(contents, list):
+                parts = []
+                for item in contents:
+                    if isinstance(item, dict):
+                        parts.append(item.get('value') or "")
+                    else:
+                        parts.append(str(item))
+                text = "\n".join(p for p in parts if p)
+            else:
+                text = str(contents or "")
+            text = text.strip()
+            if not text:
+                self._report_lsp_error("此处没有可用信息")
+                return
+            self.hover_text.emit(text)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理悬停结果失败: %s", e)
+
+    def find_references(self) -> bool:
+        """查找引用（结果通过 `references_ready` 交给宿主列表显示）"""
+        if not self._lsp_ready("查找引用"):
+            return False
+        try:
+            line, col = self._cursor_lsp_pos()
+            self.lsp_client.request_references(
+                self._lsp_uri, line, col, include_declaration=True
+            )
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"查找引用失败: {e}")
+            return False
+
+    def _on_lsp_references(self, result):
+        try:
+            items = []
+            for loc in (result or []):
+                if not isinstance(loc, dict):
+                    continue
+                uri = loc.get('uri') or ""
+                start = (loc.get('range') or {}).get('start') or {}
+                items.append({
+                    'path': LspClient.uri_to_path(uri) if uri else "",
+                    'line': int(start.get('line', 0) or 0),
+                    'character': int(start.get('character', 0) or 0),
+                })
+            if not items:
+                self._report_lsp_error("未找到引用")
+                return
+            self.references_ready.emit(items)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理引用结果失败: %s", e)
+
+    def rename_symbol(self, new_name: str) -> bool:
+        """重命名符号（返回影响的位置数由 `rename_applied` 通知）"""
+        if not new_name:
+            self._report_lsp_error("重命名需要提供新名称")
+            return False
+        if not self._lsp_ready("重命名"):
+            return False
+        try:
+            line, col = self._cursor_lsp_pos()
+            self.lsp_client.request_rename(self._lsp_uri, line, col, new_name)
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"重命名失败: {e}")
+            return False
+
+    def _on_lsp_rename(self, result):
+        """重命名结果：统计将被改动的位置数
+
+        注意：这里**只统计并报告**，不直接改写文件 —— 跨文件应用
+        WorkspaceEdit 涉及多文件原子写入，超出本次范围；宿主可据此提示
+        用户（"将影响 N 处"）并决定后续动作。
+        """
+        try:
+            if not result:
+                self._report_lsp_error("重命名未返回结果")
+                return
+            changes = result.get('changes') or {}
+            count = 0
+            if isinstance(changes, dict):
+                for edits in changes.values():
+                    count += len(edits or [])
+            else:
+                for doc_edit in (result.get('documentChanges') or []):
+                    if isinstance(doc_edit, dict):
+                        count += len(doc_edit.get('edits') or [])
+            self.rename_applied.emit(count)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理重命名结果失败: %s", e)
+
+    def document_symbols(self) -> bool:
+        """请求文档符号（结果通过 `symbols_ready` 交给宿主）"""
+        if not self._lsp_ready("获取文档符号"):
+            return False
+        try:
+            self.lsp_client.request_document_symbols(self._lsp_uri)
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"获取文档符号失败: {e}")
+            return False
+
+    def _on_lsp_symbols(self, result):
+        try:
+            symbols = []
+
+            def walk(items, depth=0):
+                for it in (items or []):
+                    if not isinstance(it, dict):
+                        continue
+                    name = it.get('name') or ""
+                    rng = it.get('range') or it.get('location', {}).get('range') or {}
+                    start = (rng or {}).get('start') or {}
+                    if name:
+                        symbols.append({
+                            'name': name,
+                            'kind': it.get('kind', 0),
+                            'line': int(start.get('line', 0) or 0),
+                            'character': int(start.get('character', 0) or 0),
+                            'depth': depth,
+                        })
+                    children = it.get('children')
+                    if children:
+                        walk(children, depth + 1)
+
+            walk(result or [])
+            if not symbols:
+                self._report_lsp_error("未获取到文档符号")
+                return
+            self.symbols_ready.emit(symbols)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理文档符号失败: %s", e)
+
+    def code_actions(self) -> bool:
+        """请求代码操作（结果通过 `code_actions_ready` 交给宿主选择）"""
+        if not self._lsp_ready("获取代码操作"):
+            return False
+        try:
+            line, col = self._cursor_lsp_pos()
+            rng = {
+                "start": {"line": line, "character": 0},
+                "end": {"line": line, "character": col},
+            }
+            # context 是 LSP 规范里的必填字段（diagnostics 可为空列表）
+            self.lsp_client.request_code_actions(
+                self._lsp_uri, rng, {"diagnostics": []}
+            )
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"获取代码操作失败: {e}")
+            return False
+
+    def _on_lsp_code_actions(self, result):
+        try:
+            actions = []
+            for a in (result or []):
+                if not isinstance(a, dict):
+                    continue
+                title = a.get('title') or ""
+                if title:
+                    actions.append({'title': title, 'raw': a})
+            if not actions:
+                self._report_lsp_error("此处没有可用的代码操作")
+                return
+            self.code_actions_ready.emit(actions)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理代码操作失败: %s", e)
+
+    def format_document(self) -> bool:
+        """请求格式化文档（结果通过 `formatting_applied` 通知）"""
+        if not self._lsp_ready("格式化文档"):
+            return False
+        try:
+            prefs = self._prefs()
+            tab_size = 4
+            insert_spaces = True
+            if prefs is not None:
+                try:
+                    tab_size = int(prefs.get("indent_size", 4) or 4)
+                    insert_spaces = not bool(
+                        prefs.get("indent_use_tabs", False)
+                    )
+                except Exception:
+                    pass
+            options = {
+                "tabSize": max(1, tab_size),
+                "insertSpaces": insert_spaces,
+            }
+            self.lsp_client.request_formatting(self._lsp_uri, options)
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"格式化请求失败: {e}")
+            return False
+
+    def _on_lsp_formatting(self, result):
+        """格式化结果：就地应用文本编辑（单文件内）"""
+        try:
+            if not result:
+                self._report_lsp_error("无需格式化或未返回结果")
+                self.formatting_applied.emit(False)
+                return
+            applied = 0
+            for edit in result:
+                if not isinstance(edit, dict):
+                    continue
+                rng = edit.get('range') or {}
+                start = (rng.get('start') or {})
+                end = (rng.get('end') or {})
+                start_pos = self._lsp_pos_to_scintilla(
+                    int(start.get('line', 0) or 0),
+                    int(start.get('character', 0) or 0),
+                )
+                end_pos = self._lsp_pos_to_scintilla(
+                    int(end.get('line', 0) or 0),
+                    int(end.get('character', 0) or 0),
+                )
+                if start_pos < 0 or end_pos < 0:
+                    continue
+                data = _normalize_bytes(edit.get('newText') or "")
+                self.sc.SendScintilla(
+                    QsciScintilla.SCI_SETTARGETSTART, start_pos
+                )
+                self.sc.SendScintilla(
+                    QsciScintilla.SCI_SETTARGETEND, end_pos
+                )
+                self.sc.SendScintilla(
+                    QsciScintilla.SCI_REPLACETARGETRE, len(data), data
+                )
+                applied += 1
+            self.formatting_applied.emit(applied > 0)
+            if applied:
+                self.modified_changed.emit(True)
+        except Exception as e:
+            logger.error("[EditorProxy] 应用格式化结果失败: %s", e)
+            self.formatting_applied.emit(False)
+
+    def request_signature(self) -> bool:
+        """请求签名帮助（结果通过 `signature_help` 信号交给宿主）
+
+        命名说明：方法名刻意不叫 `signature_help` —— 本类已有同名**信号**
+        `signature_help`，同名会覆盖信号（ruff F811 / 运行时属性冲突）。
+        """
+        if not self._lsp_ready("签名帮助"):
+            return False
+        try:
+            line, col = self._cursor_lsp_pos()
+            self.lsp_client.request_signature_help(self._lsp_uri, line, col)
+            return True
+        except Exception as e:
+            self._report_lsp_error(f"签名帮助请求失败: {e}")
+            return False
+
+    def _on_lsp_signature(self, result):
+        try:
+            if not result:
+                self._report_lsp_error("此处没有签名信息")
+                return
+            sigs = result.get('signatures') or []
+            if not sigs:
+                self._report_lsp_error("此处没有签名信息")
+                return
+            active = result.get('activeSignature', 0) or 0
+            idx = active if 0 <= active < len(sigs) else 0
+            label = ""
+            if isinstance(sigs[idx], dict):
+                label = sigs[idx].get('label') or ""
+            if not label and isinstance(sigs[0], dict):
+                label = sigs[0].get('label') or ""
+            if not label:
+                self._report_lsp_error("此处没有签名信息")
+                return
+            self.signature_help.emit(label)
+        except Exception as e:
+            logger.error("[EditorProxy] 处理签名帮助失败: %s", e)
+
     def _lsp_pos_to_scintilla(self, line: int, character: int) -> int:
         """LSP position → Scintilla 字节偏移
 
@@ -2436,8 +2936,25 @@ class EditorProxy(QObject):
             return -1
 
     def _on_lsp_diagnostics(self, uri: str, diagnostics: List[Dict]):
-        """LSP 诊断结果回调"""
+        """LSP 诊断结果回调
+
+        修复（INV-L2，审计测试复现的跨标签状态泄漏）：
+            原实现**不比较 uri 与 self._lsp_uri**，任何来源的诊断都会被
+            画到当前编辑器上 —— 这是"标签 A 的诊断出现在标签 B"的通道。
+            一个语言服务器可能同时服务多个文件（或收到已关闭文件的迟到
+            诊断），脏数据就会污染当前视图。
+
+            现在先做 URI 归属检查：不匹配则直接忽略。
+        """
         try:
+            # 只接受属于本编辑器当前文档的诊断
+            if not uri or not self._lsp_uri or uri != self._lsp_uri:
+                logger.debug(
+                    "忽略非本文件的 LSP 诊断: uri=%r 当前=%r",
+                    uri, self._lsp_uri,
+                )
+                return
+
             # 清除旧诊断
             length = self.sc.SendScintilla(QsciScintilla.SCI_GETLENGTH)
             self.sc.SendScintilla(
@@ -2479,8 +2996,61 @@ class EditorProxy(QObject):
                 except Exception:
                     continue
 
+            # 同步到全局问题管理器 → 问题面板
+            #
+            # 修复（生产者缺口，已核实）：
+            #   `core/problems.py` 的 `ProblemManager.set_file_problems()`
+            #   **全仓零调用** —— 于是 `ui/problems_panel.py` 虽然实现了
+            #   完整 UI，挂上去也永远是空白（消费者有了、生产者没有）。
+            #   诊断此前只画成 Scintilla 指示器，用户无法列表查看。
+            self._publish_problems(uri, diagnostics)
+
         except Exception as e:
             print(f"[EditorProxy] 处理诊断失败: {e}")
+
+    def _publish_problems(self, uri: str, diagnostics: List[Dict]):
+        """把 LSP 诊断写入全局 ProblemManager（供问题面板显示）"""
+        try:
+            from core.problems import Problem, get_problem_manager
+        except Exception:
+            return
+        try:
+            path = ""
+            try:
+                path = getattr(self.document, 'filepath', '') or ""
+            except Exception:
+                path = ""
+            if not path:
+                # 未保存文件：用 URI 作为键，至少能在面板里列出
+                path = uri or ""
+
+            # LSP severity: 1=Error 2=Warning 3=Information 4=Hint
+            sev_map = {1: "error", 2: "warning", 3: "info", 4: "hint"}
+
+            problems = []
+            for d in diagnostics or []:
+                try:
+                    rng = d.get('range') or {}
+                    st = rng.get('start') or {}
+                    en = rng.get('end') or {}
+                    code = d.get('code')
+                    problems.append(Problem(
+                        filepath=path,
+                        line=int(st.get('line', 0)),
+                        col=int(st.get('character', 0)),
+                        severity=sev_map.get(d.get('severity'), "info"),
+                        message=str(d.get('message') or ""),
+                        source=str(d.get('source') or "lsp"),
+                        code="" if code is None else str(code),
+                        end_line=int(en.get('line', 0)),
+                        end_col=int(en.get('character', 0)),
+                    ))
+                except Exception:
+                    continue
+
+            get_problem_manager().set_file_problems(path, problems)
+        except Exception as e:
+            logger.debug("发布诊断到问题管理器失败: %s", e)
 
     def _on_lsp_completion(self, items: List[Dict]):
         """LSP 补全结果回调"""
