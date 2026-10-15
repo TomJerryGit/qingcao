@@ -88,6 +88,7 @@ MARKER_GIT_ADDED = 1          # Git 新增行
 MARKER_GIT_MODIFIED = 2       # Git 修改行
 MARKER_GIT_DELETED = 3        # Git 删除行
 MARKER_BREAKPOINT = 4         # 调试断点
+MARKER_DEBUG_LINE = 5         # 调试器当前停住的行（D3）
 
 # 多光标合并时间窗口（毫秒）
 MULTI_CURSOR_MERGE_INTERVAL = 300
@@ -254,6 +255,8 @@ class EditorProxy(QObject):
         lsp_status_changed(str): LSP 状态变更
         lsp_error(str): LSP 失败原因 / 提示（P6，供主窗口显示）
         definition_requested(str, int, int): 定义位于其它文件（P6）
+        breakpoints_changed(list): 断点集合变化（D3）
+        external_change_detected(str): 文件被外部修改（从 Document 转发）
     """
 
     modified_changed = pyqtSignal(bool)
@@ -266,6 +269,10 @@ class EditorProxy(QObject):
     lsp_error = pyqtSignal(str)
     # P6: 定义位于**其它文件**时请求主窗口打开（路径, 行, 列）
     definition_requested = pyqtSignal(str, int, int)
+    # D3: 断点集合变化（升序行号列表）—— 调试器据此把断点下发给被调试进程
+    breakpoints_changed = pyqtSignal(list)
+    # 外部文件变更（从 Document 转发；宿主据此提示用户，避免静默覆盖）
+    external_change_detected = pyqtSignal(str)
 
     # --------------------------------------------------------
     # 内置代码片段
@@ -452,6 +459,34 @@ class EditorProxy(QObject):
 
         except Exception as e:
             print(f"[EditorProxy] 连接信号失败: {e}")
+
+        # 外部文件变更 → 转发给宿主（接线修复）
+        #
+        # 缺陷背景：`Document.external_change_detected` 会 emit，但全仓
+        # 零 connect —— 文件被外部程序修改时信号无人接收，用户下次保存
+        # 就会**静默覆盖别人的修改**。宿主 app/tabs.py 另有一条 watcher
+        # 路径可以弹提示，但那条依赖文件系统通知；Document 侧的 mtime
+        # 检查正是 watcher 丢事件时的兜底。
+        try:
+            if getattr(self, 'document', None) is not None:
+                self.document.external_change_detected.connect(
+                    self._on_external_change
+                )
+        except Exception as e:
+            logger.warning("连接外部变更信号失败: %s", e)
+
+    def _on_external_change(self, path: str):
+        """文件被外部修改时的兜底处理。
+
+        只做"记日志 + 转发信号"：真正的重载/提示决策交给宿主
+        （`app/tabs.py` 已有带对话框的处理路径）。EditorProxy 属于 core
+        层，不应该直接弹 QMessageBox。
+        """
+        logger.warning("检测到外部文件变更: %s", path)
+        try:
+            self.external_change_detected.emit(path)
+        except Exception:
+            pass
 
     # ========================================================
     # 打开与保存
@@ -1546,6 +1581,158 @@ class EditorProxy(QObject):
         try:
             self.sc.markerDeleteAll(MARKER_BOOKMARK)
             self.document.clear_bookmarks()
+        except Exception:
+            pass
+
+    # ========================================================
+    # 断点与调试执行行（D3）
+    # ========================================================
+    def _ensure_debug_markers(self):
+        """按需定义调试相关标记（幂等）。
+
+        D3 背景：`MARKER_BREAKPOINT` 此前**只被 markerDefine 定义过图例**，
+        全仓没有任何 markerAdd / markerDelete —— 也就是说"断点"这个功能
+        根本不存在。这里补齐标记定义，真正的读写见下面的方法。
+        """
+        if getattr(self, '_debug_markers_ready', False):
+            return
+        try:
+            self.sc.markerDefine(QsciScintilla.Circle, MARKER_BREAKPOINT)
+            self.sc.setMarkerBackgroundColor(
+                QColor("#ff0000"), MARKER_BREAKPOINT
+            )
+        except Exception:
+            pass
+        # 当前执行行：Background 标记（不受任何边距是否可见影响）
+        try:
+            self.sc.markerDefine(QsciScintilla.Background, MARKER_DEBUG_LINE)
+            self.sc.setMarkerBackgroundColor(
+                QColor("#ffcc00"), MARKER_DEBUG_LINE
+            )
+        except Exception:
+            pass
+        self._debug_markers_ready = True
+
+    def get_breakpoints(self) -> List[int]:
+        """返回本文件已设断点的行号列表（升序，0 基行号）。
+
+        优先用控件自身的 `get_breakpoints()`（ui/editor_view.py 的权威
+        实现）；控件未实现时（裸 QsciScintilla / 单测）自行遍历。
+        """
+        try:
+            getter = getattr(self.sc, 'get_breakpoints', None)
+            if callable(getter):
+                return sorted(int(x) for x in getter())
+            total = int(self.sc.lines())
+            return [
+                line for line in range(total)
+                if self.sc.markersAtLine(line) & (1 << MARKER_BREAKPOINT)
+            ]
+        except Exception as e:
+            print(f"[EditorProxy] 读取断点失败: {e}")
+            return []
+
+    def _is_valid_break_line(self, line: int) -> bool:
+        """行号是否落在当前文档范围内（0 基）。
+
+        QScintilla 的 `markerAdd()` 对越界行是**静默失败**的，因此调用前
+        必须自己校验，否则会出现"返回 True 但断点没设上"的假成功。
+        """
+        try:
+            line = int(line)
+        except (TypeError, ValueError):
+            return False
+        if line < 0:
+            return False
+        try:
+            total = max(1, int(self.sc.lines()))
+        except Exception:
+            return True
+        return line < total
+
+    def add_breakpoint(self, line: int) -> bool:
+        """在指定行设置断点（幂等）。行号越界时返回 False。"""
+        try:
+            if not self._is_valid_break_line(line):
+                return False
+            line = int(line)
+            self._ensure_debug_markers()
+            if not (self.sc.markersAtLine(line) & (1 << MARKER_BREAKPOINT)):
+                self.sc.markerAdd(line, MARKER_BREAKPOINT)
+            self._emit_breakpoints_changed()
+            return True
+        except Exception as e:
+            print(f"[EditorProxy] 设置断点失败: {e}")
+            return False
+
+    def toggle_breakpoint(self, line: Optional[int] = None) -> bool:
+        """切换断点（默认当前行）。
+
+        与书签（`toggle_bookmark`）对称。优先委托给控件自身的
+        `_toggle_breakpoint_at_line()`（ui/editor_view.py 的权威实现）；
+        控件未实现时直接操作 marker。
+
+        行号越界（空文件 / 超出文件末尾）时返回 **False** 且不做修改 ——
+        返回值必须与实际效果一致。
+        """
+        try:
+            if line is None:
+                line, _ = self.sc.getCursorPosition()
+            if not self._is_valid_break_line(line):
+                return False
+            line = int(line)
+
+            toggler = getattr(self.sc, '_toggle_breakpoint_at_line', None)
+            if callable(toggler):
+                if not toggler(line):
+                    return False
+            else:
+                self._ensure_debug_markers()
+                if self.sc.markersAtLine(line) & (1 << MARKER_BREAKPOINT):
+                    self.sc.markerDelete(line, MARKER_BREAKPOINT)
+                else:
+                    self.sc.markerAdd(line, MARKER_BREAKPOINT)
+
+            self._emit_breakpoints_changed()
+            return True
+        except Exception as e:
+            print(f"[EditorProxy] 切换断点失败: {e}")
+            return False
+
+    def clear_breakpoints(self) -> int:
+        """清除所有断点，返回被清除的断点数量。"""
+        try:
+            count = len(self.get_breakpoints())
+            self.sc.markerDeleteAll(MARKER_BREAKPOINT)
+            self._emit_breakpoints_changed()
+            return count
+        except Exception as e:
+            print(f"[EditorProxy] 清除断点失败: {e}")
+            return 0
+
+    def _emit_breakpoints_changed(self):
+        """把最新断点集合广播出去（调试器用它同步到被调试进程）。"""
+        try:
+            self.breakpoints_changed.emit(self.get_breakpoints())
+        except Exception:
+            pass
+
+    def highlight_debug_line(self, line: int) -> bool:
+        """高亮调试器**当前停住的行**（D3 用户路径 1）。"""
+        try:
+            self._ensure_debug_markers()
+            self.sc.markerDeleteAll(MARKER_DEBUG_LINE)
+            handle = self.sc.markerAdd(int(line), MARKER_DEBUG_LINE)
+            self.sc.ensureLineVisible(int(line))
+            return handle >= 0
+        except Exception as e:
+            print(f"[EditorProxy] 高亮调试行失败: {e}")
+            return False
+
+    def clear_debug_line(self):
+        """清除"当前执行行"高亮。"""
+        try:
+            self.sc.markerDeleteAll(MARKER_DEBUG_LINE)
         except Exception:
             pass
 

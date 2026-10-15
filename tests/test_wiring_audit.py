@@ -236,12 +236,15 @@ class TestKeyApiWiring:
             "LspServerRegistry.get_command(lang) 取。" % len(bad)
         )
 
-    @pytest.mark.xfail(strict=False, reason=(
-        "改造前：MARKER_BREAKPOINT 只有 markerDefine（画图例），"
-        "全仓无 markerAdd/markerDelete 的断点读写"
-    ))
     def test_breakpoint_marker_is_read_write(self):
-        """MARKER_BREAKPOINT 必须能被"设置/清除"，而不只是被绘制"""
+        """MARKER_BREAKPOINT 必须能被"设置/清除"，而不只是被绘制
+
+        已接线：`ui/editor_view.py` 的 `_toggle_breakpoint_at_line` /
+        `get_breakpoints` / `clear_breakpoints` 会 markerAdd/markerDelete，
+        并有装订线单击 + F9 + 右键菜单三个入口。
+        （原为 xfail；接线完成后摘掉标记，恢复为硬断言 —— 否则接线再被
+         改坏时它只会变成 XPASS 而不报错，防线失效。）
+        """
         pattern = re.compile(
             r"marker(Add|Delete)\s*\(\s*[^,)]+,\s*MARKER_BREAKPOINT\b"
         )
@@ -256,12 +259,14 @@ class TestKeyApiWiring:
             "markerAdd(line, MARKER_BREAKPOINT) / markerDelete(...)。"
         )
 
-    @pytest.mark.xfail(strict=False, reason=(
-        "改造前：external_change_detected 只有 document.py:198 定义与 "
-        ":1007 emit，零 connect"
-    ))
     def test_external_change_signal_connected(self):
-        """external_change_detected 必须被 connect（否则外部改动无提示）"""
+        """external_change_detected 必须被 connect（否则外部改动无提示）
+
+        已接线：`core/editor.py` 的 `EditorProxy._connect_signals()` 把
+        `document.external_change_detected` 接到 `_on_external_change`，
+        并转发为 `EditorProxy.external_change_detected` 供宿主提示。
+        （原为 xfail；接线完成后摘掉标记，恢复为硬断言。）
+        """
         hits = [
             (p, n, s) for p, n, s in _call_sites(
                 "external_change_detected", exclude_def=False)
@@ -344,14 +349,25 @@ class TestKeyApiWiring:
 #                                 redo_stack，契约与 core/undo.py 一致，可用。
 #   * tools/ 有真实路径引用（非 import，但工具脚本会 FileNotFoundError）：
 #       ui/lsp_panel.py           tools/verify_patches.py:46,52；且 LSP 刚接通。
-#   * 删除会**孤立**其 core 后端（后端不在本基线里，而基线只许缩小，
-#     无法登记新的死模块；后端又因 build.py hiddenimports 受硬性约束 #6
-#     保护，task-8 无法一并删除）：
-#       ui/collab_dialog.py       -> core/collab.py
-#       ui/snapshot_manager_dialog.py -> core/snapshot.py
-#       ui/task_panel.py          -> core/project_tasks.py
-#       ui/snippet_market_dialog.py   -> core/snippet_market.py
-#       ui/profiler_panel.py      -> core/profiler.py
+#   * **完成态的功能引擎，保留而非删除**（Lead 决策，见下方说明）：
+#       ui/collab_dialog.py       -> core/collab.py        （协同编辑）
+#       ui/snapshot_manager_dialog.py -> core/snapshot.py  （快照管理）
+#       ui/task_panel.py          -> core/project_tasks.py （项目任务）
+#       ui/snippet_market_dialog.py   -> core/snippet_market.py（片段市场）
+#       ui/profiler_panel.py      -> core/profiler.py      （性能剖析）
+#
+#       说明：这 5 组**不是**废弃代码，而是"已实现但从未接线"的功能引擎
+#       （core 侧完整、零生产引用、零测试）。它们确实零引用，但：
+#         - 删除是**不可逆的产品决策**，超出"清理死代码"的授权范围；
+#         - 正确处置是**接线**而非删除（例如 problems_panel 只需
+#           在 _on_lsp_diagnostics 里补一次 ProblemManager 写入）；
+#         - 把死模块计数从 17 降到 3 属于"指标好看"，不是工程收益。
+#       因此明确**保留**，作为已知的技术债登记在此，而不是靠"删除会
+#       孤立 core 后端"这种机制性理由搪塞。
+#
+#       附带事实（供将来接线时参考）：build.py:442-447 是
+#       `for m in project_modules: try: __import__(m) except ImportError: pass`
+#       —— 漏删 hiddenimports **不会**导致打包失败，只会被静默跳过。
 #   * 零引用但列在 build.py hiddenimports（build.py 不在写作用域）：
 #       core/key_sequence_manager.py (build.py:411)
 #       core/benchmark.py            (build.py:407)
@@ -368,7 +384,7 @@ KNOWN_DEAD_MODULES = frozenset({
     "ui/undo_history_panel.py",
     # ---- tools/ 有路径引用 ----
     "ui/lsp_panel.py",
-    # ---- 删除会孤立受 build.py 保护的 core 后端 ----
+    # ---- 完成态功能引擎：Lead 决策保留（走接线，不删除）----
     "ui/collab_dialog.py",
     "ui/snapshot_manager_dialog.py",
     "ui/task_panel.py",

@@ -81,6 +81,7 @@ MARKER_GIT_ADDED = 1
 MARKER_GIT_MODIFIED = 2
 MARKER_GIT_DELETED = 3
 MARKER_BREAKPOINT = 4
+MARKER_DEBUG_LINE = 5
 
 # 缩进彩虹线颜色
 RAINBOW_COLORS = [
@@ -456,6 +457,27 @@ class EditorWidget(QsciScintilla):
         self.setMarginType(0, QsciScintilla.NumberMargin)
         self.setMarginWidth(0, 50)
 
+        # 断点/书签装订线（D3）
+        # 修复：markerDefine 早就定义了圆点标记，但**没有任何边距显示
+        # 它们**（原来只设了 margin 0 = 行号、margin 2 = 折叠），
+        # 于是 markerAdd 出来的书签/断点全都看不见。
+        # margin 1 紧贴行号右侧，正是"装订线"该在的位置。
+        #
+        # 为什么**不**把行号边距（margin 0）也设成可点：
+        #   行号边距上已有"双击切换书签"（见 mouseDoubleClickEvent）。
+        #   Qt 在**敏感边距**上会吞掉 mousePressEvent 并只发 marginClicked，
+        #   于是双击加书签会顺带留下一个断点 —— 属于交互回归。
+        #   因此断点单击只落在专用装订线上，行号区保持原样。
+        self.setMarginType(1, QsciScintilla.SymbolMargin)
+        self.setMarginWidth(1, 18)
+        self.setMarginSensitivity(1, True)
+        self.setMarginMarkerMask(
+            1,
+            (1 << MARKER_BOOKMARK) | (1 << MARKER_BREAKPOINT),
+        )
+        # Git 行标记是 Background 类型，直接画在文本区，不需要边距，
+        # 因此不进 margin 1 的掩码（避免装订线出现大色块）。
+
         # 折叠边距
         self.setMarginType(2, QsciScintilla.SymbolMargin)
         self.setMarginWidth(2, 14)
@@ -644,6 +666,13 @@ class EditorWidget(QsciScintilla):
                 QColor("#ff0000"), MARKER_BREAKPOINT
             )
 
+            # 调试器当前停住的行（D3）：背景高亮。
+            # Background 类型直接画在文本区，不依赖任何边距宽度。
+            self.markerDefine(QsciScintilla.Background, MARKER_DEBUG_LINE)
+            self.setMarkerBackgroundColor(
+                QColor("#ffcc00"), MARKER_DEBUG_LINE
+            )
+
         except Exception as e:
             print(f"[EditorWidget] 初始化标记失败: {e}")
 
@@ -652,6 +681,12 @@ class EditorWidget(QsciScintilla):
         try:
             self.cursorPositionChanged.connect(self._on_cursor_moved)
             self.SCN_CHARADDED.connect(self._on_char_added)
+        except Exception:
+            pass
+
+        # D3: 装订线（行号 margin 0 / 断点 margin 1）单击切换断点
+        try:
+            self.marginClicked.connect(self._on_margin_clicked)
         except Exception:
             pass
 
@@ -968,7 +1003,20 @@ class EditorWidget(QsciScintilla):
         - Backspace 删除成对符号
         - Esc 清除多光标
         - 代码片段触发
+        - F9 切换断点（D3）
         """
+        # D3: F9 切换当前行断点。
+        # 刻意**放在 Vim 模式之前**，且刻意**不注册全局 QShortcut**：
+        #   * 多标签场景下，每个编辑器各有一个全局 QShortcut 会造成
+        #     Qt 的 ambiguous shortcut（P8-1 的教训）；
+        #   * 放在 keyPressEvent 里天然只作用于**获得焦点的**编辑器。
+        if event.key() == Qt.Key_F9 and not event.modifiers():
+            self._toggle_breakpoint_at_line(
+                self.getCursorPosition()[0]
+            )
+            event.accept()
+            return
+
         # Vim 模式：优先让 VimMode 处理
         # （VimMode.handle_key 返回 True 表示已消化，直接 return）
         vim = getattr(self, '_vim_mode', None)
@@ -1513,6 +1561,101 @@ class EditorWidget(QsciScintilla):
             pass
 
     # ========================================================
+    # 断点（D3）
+    # ========================================================
+    def _on_margin_clicked(self, margin: int, line: int, modifiers):
+        """装订线单击 → 切换断点。
+
+        只有 margin 1（紧贴行号右侧的专用断点装订线）会切换断点。
+        行号边距（margin 0）**刻意保持不可点**：那里已有"双击切换
+        书签"的交互，而 Qt 在敏感边距上会吞掉 mousePressEvent，
+        两者叠加会让"双击加书签"顺带留下一个断点。
+
+        另外两个等价入口：F9（编辑器内，见 keyPressEvent）与右键菜单。
+        """
+        try:
+            if margin == 1:
+                self._toggle_breakpoint_at_line(line)
+                return True
+        except Exception as e:
+            print(f"[EditorWidget] 切换断点失败: {e}")
+        return False
+
+    def _toggle_breakpoint_at_line(self, line: int):
+        """在指定行切换断点标记（与 `_toggle_bookmark_at_line` 对称）。
+
+        行号越界（空文件 / 行号超过文件末尾）时返回 **False 且不做任何
+        修改**：QScintilla 的 `markerAdd()` 对越界行是**静默失败**的，
+        若此处无条件 `return True`，调用方会以为断点设上了而实际没有
+        —— 返回值必须与实际效果一致。
+        """
+        try:
+            line = int(line)
+            if line < 0 or line >= max(1, int(self.lines())):
+                return False
+            if self.markersAtLine(line) & (1 << MARKER_BREAKPOINT):
+                self.markerDelete(line, MARKER_BREAKPOINT)
+            else:
+                self.markerAdd(line, MARKER_BREAKPOINT)
+            # 通知代理（它会再广播 breakpoints_changed 给调试器）
+            try:
+                proxy = getattr(self, 'proxy', None)
+                if proxy is not None:
+                    proxy._emit_breakpoints_changed()
+            except Exception:
+                pass
+            return True
+        except Exception as e:
+            print(f"[EditorWidget] 切换断点失败: {e}")
+            return False
+
+    def get_breakpoints(self):
+        """返回已设断点的行号列表（升序）。"""
+        try:
+            total = self.lines()
+            return [
+                line for line in range(total)
+                if self.markersAtLine(line) & (1 << MARKER_BREAKPOINT)
+            ]
+        except Exception as e:
+            print(f"[EditorWidget] 读取断点失败: {e}")
+            return []
+
+    def clear_breakpoints(self):
+        """清除本编辑器的所有断点，返回清除数量。"""
+        try:
+            lines = self.get_breakpoints()
+            self.markerDeleteAll(MARKER_BREAKPOINT)
+            try:
+                proxy = getattr(self, 'proxy', None)
+                if proxy is not None:
+                    proxy._emit_breakpoints_changed()
+            except Exception:
+                pass
+            return len(lines)
+        except Exception as e:
+            print(f"[EditorWidget] 清除断点失败: {e}")
+            return 0
+
+    def highlight_debug_line(self, line: int):
+        """高亮调试器当前停住的行（D3）。"""
+        try:
+            self.markerDeleteAll(MARKER_DEBUG_LINE)
+            handle = self.markerAdd(int(line), MARKER_DEBUG_LINE)
+            self.ensureLineVisible(int(line))
+            return handle >= 0
+        except Exception as e:
+            print(f"[EditorWidget] 高亮调试行失败: {e}")
+            return False
+
+    def clear_debug_line(self):
+        """清除"当前执行行"高亮。"""
+        try:
+            self.markerDeleteAll(MARKER_DEBUG_LINE)
+        except Exception:
+            pass
+
+    # ========================================================
     # 右键上下文菜单
     # ========================================================
     def contextMenuEvent(self, event: QContextMenuEvent):
@@ -1586,6 +1729,16 @@ class EditorWidget(QsciScintilla):
 
         bookmark_act = menu.addAction(bookmark_text)
         bookmark_act.triggered.connect(proxy.toggle_bookmark)
+
+        # 断点（D3）：右键菜单入口，与 F9 / 装订线单击等价
+        is_breakpoint = bool(
+            self.markersAtLine(line) & (1 << MARKER_BREAKPOINT)
+        )
+        bp_text = "🔴 移除断点 (F9)" if is_breakpoint else "🔴 添加断点 (F9)"
+        bp_act = menu.addAction(bp_text)
+        bp_act.triggered.connect(
+            lambda _checked=False, ln=line: self._toggle_breakpoint_at_line(ln)
+        )
 
         menu.addSeparator()
 

@@ -106,6 +106,91 @@
 
 全量套件 430 -> **440 passed**。
 
+### 新增（Python 调试器：从"pdb 启动器"变成编辑器内真调试器 · D3）
+
+**改造前**：`plugins/python_debugger` 唯一动作是
+`subprocess.Popen([python, "-m", "pdb", file], creationflags=CREATE_NEW_CONSOLE)`
+—— 在独立黑框里起一个 pdb 进程，宿主**完全无法控制**（无断点下发、无单步、
+无变量查看）。而 `plugin.json` 却宣称"基于 pdb 的 Python 调试器"，属误导。
+宿主侧断点设施 `MARKER_BREAKPOINT` 只有 `markerDefine`（画图例），
+**全仓无 `markerAdd/markerDelete`** → 点行号边距毫无反应。
+
+**现在**：基于 **Python 标准库 `bdb` + stdio JSON 协议**的完整调试器，
+**零第三方依赖**（刻意不用 `debugpy`，避免"未安装就用不了"）：
+
+| 能力 | 实现 |
+|---|---|
+| 启动调试 / 终止 | `session.py` 的 `DebugSession`（管道 + 驱动子进程） |
+| 断点 | 宿主装订线单击 / **F9** / 右键菜单 → `markerAdd/markerDelete` |
+| 单步 | 跳过(next) / 进入(step) / 跳出(out) / 继续 |
+| 变量与调用栈 | `frame_locals` / `stack_frames`，面板变量树 + 栈帧列表 |
+| 停在断点 | 编辑器内**高亮当前执行行**（`MARKER_DEBUG_LINE`） |
+| 失败可见 | 后端探测 + 非 Python 文件 / 未保存 / 无标签 均有明确提示 |
+
+**关键实现取舍**：刻意不使用 `bdb` 的 `stopframe/stoplineno/returnframe`
+这套 stopinfo，而是自己实现 `dispatch_call/line/return` + 步进模式判定。
+原因：bdb 默认 `dispatch_call` 在"该帧不需停"时返回 None，等于**关掉该帧的
+局部跟踪** → 函数体内的断点会永不命中。自维护策略语义明确且可单测。
+
+**孤儿进程防护（三层）**：`stop()` 用 quit→wait→terminate→wait→kill→wait
+强制序列并断言 kill 被调用；驱动脚本在 stdin 读到 EOF（宿主崩溃/被强杀）时
+立即 `os._exit(0)`；插件 `on_deactivate()` + 模块级 `atexit` 兜底。
+（Windows 上父进程退出**不会**自动杀子进程，这三层都是必需的。）
+
+**顺带修复（两个真实实现缺陷，由端到端测试暴露）**
+
+1. **断点整体失效**：`set_breaks` 写成 `if result is not None: 记录`，
+   但 `bdb.Bdb.set_break()` **成功返回 None、失败返回错误字符串** ——
+   于是**只记录失败的、丢弃成功的**，真实运行里断点全部不生效。
+   已改为 `if result is None`（成功），失败行单独报给宿主。
+2. **越界行号假装成功**：QScintilla 的 `markerAdd()` 对越界行是
+   **静默失败**（不报错也不抛异常），而 `_toggle_breakpoint_at_line`
+   无条件返回 True → 调用方以为断点设上了。现改为越界返回 False。
+
+**附带**：新增 margin 1 断点装订线（18px）。此前 `markerDefine` 定义了
+红圆但**没有任何边距显示它**，即使 markerAdd 也看不见。
+
+### 修复（所有已知接线缺陷清零：4 个 xfail → 0）
+
+`tests/test_wiring_audit.py` 从"4 个 xfail"变为**全部硬断言**：
+
+| 原 xfail | 现状 |
+|---|---|
+| `stop_autosave` 零调用点 | 已接线（closeEvent 与 start_autosave 配对） |
+| `MARKER_BREAKPOINT` 无读写 | 已接线（D3） |
+| `external_change_detected` 零 connect | 已接线（`EditorProxy._connect_signals` 转发） |
+| 草稿目录两处不一致 | 已统一为**单一事实来源** |
+
+**草稿目录的修法值得记录**：不是把某一处改成另一处的字面量（那样下次改动
+仍会漂移），而是让 `main.py` 的 `ensure_directories()` 直接复用写入端定义
+`Document._draft_dir()`。对应测试也改为断言"两处解析到同一真实路径 +
+main.py 确实在复用"，而非匹配某种字面写法。
+
+**重要方法论**：`xfail(strict=False)` 在功能接线成功后会变成 **XPASS 而不是
+失败** —— 留着会让防线**静默失效**（以后再改坏也不会红）。本次逐条复核，
+把**每一个已接线的 xfail 都摘掉**恢复为硬断言。
+
+### 变更（死模块清理 · D2）
+
+删除 **19 个**已确认零引用的死模块（全仓 grep 核实，排除 docs/ 提及、
+build.py 的打包字符串清单、_archive/ 与 dist/ 产物）：
+
+    ui/macro_editor.py(2280行)  ui/benchmark_dialog.py  ui/file_merge_dialog.py
+    ui/git_panel.py  ui/code_metrics_panel.py  ui/usage_stats_panel.py
+    ui/snippet_editor.py  ui/refactor_dialog.py  ui/enhanced_scrollbar.py
+    ui/breadcrumb.py  ui/debug_panel.py  ui/log_viewer.py  ui/shortcut_overlay.py
+    ui/file_association.py  ui/diff_view.py  ui/markdown_preview.py
+    ui/terminal_panel.py  plugins/git_deep/commit_panel.py  plugins/git_deep/diff_view.py
+
+关键核实：删除后**没有任何 core/ 模块退化为新死模块**（被删 UI 依赖的后端
+macro / git_client / file_merge / code_metrics / usage_stats / snippets
+全部另有活引用）。`test_wiring_audit.py` 的死模块基线从 37 条缩到 **17 条**。
+
+**明确保留的 17 条**（登记在基线里，只允许缩小）：其中 5 组是
+**已完成但未接线的功能引擎**（协同编辑 / 快照 / 项目任务 / 片段市场 /
+性能剖析）。它们零引用，但删除是**不可逆的产品决策**，超出"清理死代码"
+的授权范围 —— 正确处置是**接线**而非删除，故明确保留为已知技术债。
+
 ### 新增/修复（首选项"假开关"：改了没反应的开关 · P7）
 
 **接线（8 个键，此前只写不读）**

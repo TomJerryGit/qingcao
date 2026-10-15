@@ -1,19 +1,22 @@
 {
   "name": "python_debugger",
   "display_name": "Python 调试器",
-  "version": "1.0.0",
-  "description": "基于 pdb 的简单 Python 调试器",
+  "version": "2.0.0",
+  "description": "编辑器内 Python 调试器：断点、单步（跳过/进入/跳出）、继续、局部变量与调用栈、终止。基于 Python 标准库 bdb + 管道 JSON 协议，无需安装任何第三方依赖；断点在行号装订线单击或按 F9 切换，调试启动快捷键 F7。",
   "author": "hedongwei",
   "license": "MIT",
   "type": "plugin",
   "category": "integration",
   "tags": [
     "python",
-    "debug"
+    "debug",
+    "bdb",
+    "breakpoint"
   ],
   "permissions": [
     "process",
     "editor_read",
+    "editor_write",
     "dialog"
   ],
   "dependencies": [],
