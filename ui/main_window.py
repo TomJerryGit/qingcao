@@ -341,6 +341,48 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         except Exception:
             pass
 
+        # 外部文件变更 → 在正常事件层级询问用户是否重新加载
+        #
+        # 为什么不在这里之外的地方弹框：信号由 `QFileSystemWatcher` 回调
+        # 发出，在回调里直接弹模态对话框会重入事件循环，并在窗口销毁阶段
+        # 崩溃（实测段错误 0xC0000005）。见 `TabManager._handle_file_change`。
+        try:
+            self.tabs.file_changed_externally.connect(
+                self._on_file_changed_externally
+            )
+        except Exception:
+            pass
+
+    def _on_file_changed_externally(self, filepath: str):
+        """外部文件变更：询问用户是否重新加载"""
+        if getattr(self, '_closing', False):
+            return
+        try:
+            editor = None
+            for i in range(self.tabs.count()):
+                w = self.tabs.widget(i)
+                proxy = getattr(w, 'proxy', None)
+                doc = getattr(proxy, 'document', None) if proxy else None
+                fp = getattr(doc, 'filepath', None) if doc else None
+                if fp and os.path.normcase(os.path.abspath(fp)) == \
+                        os.path.normcase(os.path.abspath(filepath)):
+                    editor = w
+                    break
+            if editor is None:
+                return
+
+            ret = QMessageBox.question(
+                self, "文件已修改",
+                f"文件已被外部程序修改：\n"
+                f"{os.path.basename(filepath)}\n\n是否重新加载？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if ret == QMessageBox.Yes:
+                self.tabs._reload_file(filepath, editor)
+        except Exception as e:
+            logger.debug("处理外部文件变更失败: %s", e)
+
     def _create_fallback_tabs(self):
         """创建后备标签管理器（当 TabManager 加载失败时使用）"""
         from PyQt5.QtWidgets import QTabWidget
@@ -2987,6 +3029,19 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             return
 
         self._closing = True
+
+        # 先停止文件监听并释放 provider 句柄
+        #
+        # 修复（实测段错误 0xC0000005 / 句柄泄漏）：
+        #   `QFileSystemWatcher` 的回调可能在窗口销毁过程中被事件循环触发，
+        #   此时弹模态对话框会访问正在析构的 Qt 对象 → 崩溃。
+        #   同时每个标签的 provider 持有文件句柄，不释放会在 Windows 上
+        #   阻止文件被外部程序修改。见 `TabManager.dispose` 的说明。
+        try:
+            if hasattr(self.tabs, 'dispose'):
+                self.tabs.dispose()
+        except Exception as e:
+            logger.debug("释放 TabManager 资源失败: %s", e)
 
         try:
             # 检查未保存文件

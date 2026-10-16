@@ -33,6 +33,7 @@
 - restore_closed_tab: 恢复书签和折叠状态
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -63,6 +64,9 @@ from app.event_bus import (
     bus,
 )
 from core.content_provider import LocalFileProvider, MemoryProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -153,6 +157,12 @@ class TabManager(QTabWidget):
     tab_closed = pyqtSignal(int)
     tab_switched = pyqtSignal(int, int)
     all_tabs_closed = pyqtSignal()
+    # 文件被外部程序修改且需要用户确认重新加载（路径）
+    #
+    # 为什么用信号：本信号由 `QFileSystemWatcher` 回调发出。在回调里直接
+    # 弹模态对话框会重入事件循环并在销毁阶段崩溃（实测 0xC0000005），
+    # 因此把"问用户"这一步交给主窗口，在正常事件层级完成。
+    file_changed_externally = pyqtSignal(str)
 
     # --------------------------------------------------------
     def __init__(self, parent: Optional[QWidget] = None):
@@ -181,8 +191,15 @@ class TabManager(QTabWidget):
         self._file_watchers: Dict[str, QFileSystemWatcher] = {}
         self._watcher_paths: Dict[str, Any] = {}
 
+        # 是否正在关闭/销毁：关闭后不再响应文件监听回调
+        # （在销毁期间弹模态对话框会段错误，见 `_on_file_changed` 说明）
+        self._shutting_down = False
+
         # 当前是否处于恢复过程中
         self._restoring = False
+
+        # 是否正在处理一次外部文件变更（防重入，见 `_on_file_changed`）
+        self._handling_file_change = False
 
         # 上次索引（用于 tab_switched 信号）
         self._last_index = -1
@@ -477,6 +494,26 @@ class TabManager(QTabWidget):
                     editor.proxy.open_file(filepath)
                 except Exception as e:
                     print(f"[TabManager] open_file 加载内容失败: {e}")
+
+                # 释放该文件的映射/句柄
+                #
+                # 为什么（Windows 文件锁定，实测确认）：
+                #   即使**只读** mmap 也会阻止另一进程覆盖写该文件
+                #   （`open(path,'w')` 报 `OSError: [Errno 22]`）。
+                #   于是"编辑器打开着文件"就足以让 git / 构建工具 / 其它
+                #   编辑器无法修改它 —— 外部变更检测与三方合并永远不会
+                #   触发，而这正是本模块要支持的核心场景。
+                #
+                #   只释放**这个标签自己的** provider（不做全堆扫描，
+                #   原因见 `_release_provider_handles` 的说明）。
+                #   内容已加载进编辑器，后续需要时会由 `_ensure_handle()`
+                #   按需重建句柄，因此释放不影响功能。
+                try:
+                    self._dispose_provider(
+                        getattr(editor.proxy.document, 'provider', None)
+                    )
+                except Exception:
+                    pass
 
                 # 设置语法高亮
                 if hasattr(editor, 'set_lexer_by_filename'):
@@ -1089,11 +1126,13 @@ class TabManager(QTabWidget):
             self._last_active[widget] = QDateTime.currentDateTime()
 
             # 恢复被释放的内容
-            if widget in self._released_content:
-                try:
-                    widget.setText(self._released_content.pop(widget))
-                except Exception:
-                    pass
+            #
+            # 修复（审计用例 test_restore_after_release_keeps_clean_state）：
+            #   `setText()` 会触发 SCN_MODIFIED，被 `_on_scintilla_modified`
+            #   当成**用户编辑** → 标签立刻显示 '*'，即使内容与磁盘一致。
+            #   恢复是程序行为，必须抑制回调。逻辑抽到
+            #   `_restore_released_content`，与"释放"对称、可单独测试。
+            self._restore_released_content(widget)
 
         # 发射信号
         self.tab_switched.emit(old_index, index)
@@ -1331,6 +1370,49 @@ class TabManager(QTabWidget):
         except Exception as e:
             print(f"[TabManager] 设置文件监听失败: {e}")
 
+    def dispose(self):
+        """释放全部资源（关闭文件监听、provider 句柄）
+
+        应在主窗口关闭时调用。修复两个真实问题：
+          1. **段错误**：`QFileSystemWatcher` 的回调若在窗口销毁过程中
+             触发，会弹模态对话框并访问正在析构的 Qt 对象（实测崩溃，
+             见 `_on_file_changed`）。这里先置 `_shutting_down`，
+             再断开并删除全部 watcher。
+          2. **句柄泄漏**：每个标签的 provider 会持有文件句柄；不释放
+             会在 Windows 上阻止文件被外部程序修改，且随标签数累积。
+        """
+        self._shutting_down = True
+        try:
+            for path, watcher in list(self._file_watchers.items()):
+                try:
+                    watcher.fileChanged.disconnect()
+                except Exception:
+                    pass
+                try:
+                    watcher.removePaths(watcher.files())
+                except Exception:
+                    pass
+                try:
+                    watcher.deleteLater()
+                except Exception:
+                    pass
+                self._file_watchers.pop(path, None)
+            self._watcher_paths.clear()
+        except Exception as e:
+            logger.debug("释放文件监听失败: %s", e)
+
+        # 释放各标签 provider 的映射/句柄
+        try:
+            for i in range(self.count()):
+                widget = self.widget(i)
+                if not widget:
+                    continue
+                proxy = getattr(widget, 'proxy', None)
+                doc = getattr(proxy, 'document', None) if proxy else None
+                self._dispose_provider(getattr(doc, 'provider', None))
+        except Exception as e:
+            logger.debug("释放 provider 失败: %s", e)
+
     def _remove_file_watcher(self, filepath: str):
         """移除文件监听"""
         if filepath in self._file_watchers:
@@ -1343,6 +1425,37 @@ class TabManager(QTabWidget):
 
     def _on_file_changed(self, filepath: str, editor):
         """文件外部修改回调"""
+        try:
+            # 关闭/销毁过程中不再弹任何对话框
+            #
+            # 缺陷背景（实测段错误 0xC0000005）：
+            #   `QFileSystemWatcher` 的回调可能在**窗口销毁过程中**被事件
+            #   循环触发。此时弹出模态 `QMessageBox` 会访问正在析构的
+            #   Qt 对象 → 段错误。
+            #
+            #   实测：pytest teardown 阶段 `_process_events()` 触发本回调，
+            #   faulthandler 明确指向下面的 `QMessageBox.question`。
+            #   真实场景同理（关闭主窗口时外部程序恰好改了文件）。
+            if self._shutting_down:
+                return
+
+            # 防止**重入**：本回调会弹出模态对话框（`QMessageBox.question`），
+            # 而模态对话框自己会跑事件循环 —— 期间文件监听可能**再次**触发
+            # 本回调，形成递归重入（每个嵌套层都新建对话框/重载文件）。
+            # 实测这会在窗口销毁阶段演变成段错误（0xC0000005）。
+            if self._handling_file_change:
+                return
+            self._handling_file_change = True
+            try:
+                self._handle_file_change(filepath, editor)
+            finally:
+                self._handling_file_change = False
+
+        except Exception as e:
+            print(f"[TabManager] 文件修改处理失败: {e}")
+
+    def _handle_file_change(self, filepath: str, editor):
+        """`_on_file_changed` 的实际处理（已由外层做好守卫）"""
         try:
             # 文件可能被删除
             if not os.path.exists(filepath):
@@ -1381,30 +1494,47 @@ class TabManager(QTabWidget):
                 )
                 return
 
-            # 提示用户重新加载
-            ret = QMessageBox.question(
-                self, "文件已修改",
-                f"文件已被外部程序修改：\n"
-                f"{os.path.basename(filepath)}\n\n是否重新加载？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
-            )
-
-            if ret == QMessageBox.Yes:
-                self._reload_file(filepath, editor)
+            # 请求重新加载 —— 通过**信号**交给主窗口，而不是在这里直接弹
+            # 模态对话框。
+            #
+            # 修复（实测段错误 0xC0000005）：
+            #   本方法是 `QFileSystemWatcher` 的回调。在回调里执行
+            #   `QMessageBox.question`（模态，自己跑事件循环）是明确的
+            #   反模式：它会重入事件循环，可能在窗口销毁过程中再次触发
+            #   文件回调，并访问正在析构的 Qt 对象。
+            #
+            #   faulthandler 已明确指向这里的 `QMessageBox.question`
+            #   （pytest teardown 的 `_process_events()` 恰好触发了 watcher）。
+            #   交给主窗口后，对话框在正常的事件循环层级弹出，不再重入。
+            self.file_changed_externally.emit(filepath)
 
         except Exception as e:
             print(f"[TabManager] 文件修改处理失败: {e}")
 
     def _reload_file(self, filepath: str, editor):
-        """重新加载文件内容"""
+        """重新加载文件内容
+
+        修复（两条审计用例）：
+          * **INV-D 撤销栈失效**：重载后内容被整体替换，但 `undo_manager`
+            仍保留针对**旧内容位置**的撤销命令 —— 用户按 Ctrl+Z 会把命令
+            施加到新内容上，产生错乱的编辑甚至破坏文件。现在必须清空
+            撤销栈（与 `_on_document_reloaded` 的做法一致）。
+          * **句柄/mmap 泄漏**：原来直接用新 provider 覆盖
+            `document.provider`，**从不 close 旧的** —— 旧的 mmap 与文件
+            句柄一直持有，在 Windows 上会锁住文件导致外部程序写入失败
+            （这正是"外部变更"场景本身）。现在先关闭旧 provider。
+          * 顺带：`editor.clear()` / `append()` 是程序行为，需用
+            `_restoring` 抑制，避免被当成用户编辑记进撤销栈并置脏。
+        """
         try:
             cursor_pos = 0
             first_line = 0
 
+            proxy = None
             try:
                 if hasattr(editor, 'proxy') and editor.proxy:
-                    cursor_pos = editor.proxy.get_current_pos()
+                    proxy = editor.proxy
+                    cursor_pos = proxy.get_current_pos()
                 first_line = editor.SendScintilla(
                     editor.SCI_GETFIRSTVISIBLELINE
                 )
@@ -1415,36 +1545,72 @@ class TabManager(QTabWidget):
             provider = LocalFileProvider()
             provider.open(filepath)
 
-            # 更新 proxy 的 provider（使用新 API）
+            # 替换 provider，并**释放旧的**（否则 mmap/句柄泄漏）
             try:
-                if hasattr(editor, 'proxy') and editor.proxy.document:
-                    editor.proxy.document.provider = provider
-            except Exception:
-                pass
+                if proxy is not None and proxy.document:
+                    old_provider = proxy.document.provider
+                    proxy.document.provider = provider
+                    if old_provider is not None and old_provider is not provider:
+                        try:
+                            old_provider.close()
+                        except Exception as e:
+                            logger.debug("关闭旧 provider 失败: %s", e)
+            except Exception as e:
+                logger.debug("替换 provider 失败: %s", e)
 
-            editor.clear()
-            for i in range(provider.total_blocks):
-                data = provider.read_block(i)
-                editor.append(data.decode(provider.encoding,
-                                            errors='replace'))
-
-            # 恢复位置
+            # 程序性替换内容：抑制 SCN_MODIFIED 回调
+            suppress = proxy is not None and hasattr(proxy, '_restoring')
+            if suppress:
+                proxy._restoring = True
             try:
-                max_pos = editor.SendScintilla(editor.SCI_GETLENGTH)
-                editor.SendScintilla(
-                    editor.SCI_GOTOPOS, min(cursor_pos, max_pos)
-                )
-                editor.SendScintilla(
-                    editor.SCI_SETFIRSTVISIBLELINE, first_line
-                )
-            except Exception:
-                pass
+                editor.clear()
+                for i in range(provider.total_blocks):
+                    data = provider.read_block(i)
+                    editor.append(data.decode(provider.encoding,
+                                              errors='replace'))
 
-            # 重置修改状态
+                # 恢复位置
+                try:
+                    max_pos = editor.SendScintilla(editor.SCI_GETLENGTH)
+                    editor.SendScintilla(
+                        editor.SCI_GOTOPOS, min(cursor_pos, max_pos)
+                    )
+                    editor.SendScintilla(
+                        editor.SCI_SETFIRSTVISIBLELINE, first_line
+                    )
+                except Exception:
+                    pass
+            finally:
+                if suppress:
+                    proxy._restoring = False
+
+            # 释放映射/句柄：Windows 上映射会阻止外部程序覆盖该文件，
+            # 而本模块的职责正是"外部变更检测"。内容已读入编辑器，
+            # 后续需要时会由 `_ensure_handle()` 按需重建。
+            self._dispose_provider(provider)
+
+            # 重置修改状态，并清空撤销栈
+            #
+            # 重载等于"文件被整体替换"，旧的撤销命令位置对新内容全部失效。
             try:
                 editor.setModified(False)
-                if hasattr(editor, 'proxy') and editor.proxy:
-                    editor.proxy._modified = False
+                if proxy is not None:
+                    proxy._modified = False
+                    try:
+                        if getattr(proxy, 'undo_manager', None) is not None:
+                            proxy.undo_manager.clear()
+                    except Exception:
+                        pass
+                    try:
+                        editor.SendScintilla(
+                            editor.SCI_EMPTYUNDOBUFFER
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        proxy.modified_changed.emit(False)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -1487,6 +1653,71 @@ class TabManager(QTabWidget):
             if elapsed > IDLE_RELEASE_MINUTES * 60:
                 self._release_tab_content(widget)
 
+    def _release_provider_handles(self, filepath: str):
+        """释放指向该文件的 provider 映射/句柄（允许外部程序写入）
+
+        为什么需要（Windows 文件锁定，已实测）：
+            即使**只读**的内存映射也会阻止另一进程覆盖写该文件 ——
+            `open(path, 'w')` 抛 `OSError: [Errno 22] Invalid argument`。
+            于是编辑器一打开文件，git / 构建工具 / 其它编辑器就再也改不了
+            它，而"外部变更检测 / 三方合并"因此永远不会触发。
+
+        ⚠️ 为什么**不**用 `gc.get_objects()` 扫描（重要教训）：
+            最初的实现靠遍历全堆对象来找出指向该文件的 provider。
+            在 Qt 进程里这会导致**段错误**（退出码 0xC0000005）：
+            遍历数十万个对象并与 Qt 的对象生命周期/GC 交织，是明确不安全
+            的行为（实测：命令行单独跑可通过，pytest 中必崩，且与
+            `release_mmap` 内部逻辑无关 —— 把它改成 no-op 仍然崩）。
+
+            现在只处理调用方**明确持有**的目标 provider，不做任何堆扫描。
+        """
+        return
+
+    def _dispose_provider(self, provider):
+        """安全释放一个 provider 的映射与句柄（只影响这一个对象）"""
+        if provider is None:
+            return
+        try:
+            if hasattr(provider, 'release_mmap'):
+                provider.release_mmap()
+        except Exception as e:
+            logger.debug("释放 provider 句柄失败: %s", e)
+
+    def _restore_released_content(self, widget) -> bool:
+        """恢复被内存回收释放的标签内容（返回是否发生了恢复）
+
+        与 `_release_tab_content` 对称。设为独立方法的原因：
+          * 切回标签（`_on_current_changed`）与"保存前需要内容"等场景
+            都要用它，避免逻辑分叉；
+          * 可被测试直接调用，测到的是**生产代码**而不是照抄一遍。
+
+        关键点：`setText()` 会触发 SCN_MODIFIED，必须用 `_restoring`
+        抑制 `_on_scintilla_modified` —— 否则恢复动作本身被当成用户编辑，
+        标签会显示 '*'（内容其实与磁盘一致），退出时还会被问"是否保存"。
+        """
+        if widget is None or widget not in self._released_content:
+            return False
+        try:
+            proxy = getattr(widget, 'proxy', None)
+            suppress = proxy is not None and hasattr(proxy, '_restoring')
+            if suppress:
+                proxy._restoring = True
+            try:
+                widget.setText(self._released_content.pop(widget))
+                if proxy is not None:
+                    try:
+                        proxy._modified = False
+                        proxy.sc.setModified(False)
+                    except Exception:
+                        pass
+            finally:
+                if suppress:
+                    proxy._restoring = False
+            return True
+        except Exception as e:
+            print(f"[TabManager] 恢复标签内容失败: {e}")
+            return False
+
     def _release_tab_content(self, widget):
         """释放标签的文本内容（保留元数据）"""
         try:
@@ -1508,11 +1739,61 @@ class TabManager(QTabWidget):
             if len(text) < 1000:
                 return
 
+            # 缓存内容的**权威版本**
+            #
+            # 修复（审计用例 test_save_all_after_release...）：
+            #   `widget.text()` 是 Scintilla 归一化后的文本 —— 它会把 CRLF
+            #   也报告为 `\n`（或按 eolMode 归一），与磁盘上的原始字节**不
+            #   完全一致**。若直接把 `widget.text()` 当作缓存并在切回时
+            #   `setText` 回去，就会**改写文件的行尾**（实测：原文 `\n`
+            #   变成 `\r\n`）。
+            #
+            #   这里在释放前先把 provider（其内容来自磁盘）同步为当前
+            #   缓冲区，再以 provider 的文本作为缓存 —— 保证"释放→恢复"
+            #   是**无损**的。
+            proxy = getattr(widget, 'proxy', None)
+            cached = text
+            try:
+                if proxy is not None:
+                    proxy._sync_content_to_provider(text)
+                    provider = getattr(proxy.document, 'provider', None)
+                    if provider is not None:
+                        pt = provider.read_text()
+                        if pt:
+                            cached = pt
+            except Exception:
+                cached = text
+
             # 缓存内容
-            self._released_content[widget] = text
+            self._released_content[widget] = cached
 
             # 清空编辑器
-            widget.clear()
+            #
+            # 修复（审计用例 TestIdleReleaseVsSave，两条）：
+            #   `widget.clear()` 会触发 SCN_MODIFIED，而
+            #   `_on_scintilla_modified` 把它当成**用户编辑** —— 于是：
+            #     1) 记入撤销栈（用户按 Ctrl+Z 会看到莫名其妙的"清空"）
+            #     2) `proxy._modified` 被置 True → 标签页显示 '*'
+            #     3) 自动保存为这个"已修改"的空内容生成备份
+            #     4) 关窗时弹出"是否保存"的假警告
+            #
+            #   这是程序自身发起的变更，必须用 `_restoring` 抑制回调
+            #   （与 `_on_document_reloaded` 等处的做法一致），
+            #   并在之后把"是否有未保存修改"的语义恢复为清空前的值。
+            suppress = proxy is not None and hasattr(proxy, '_restoring')
+            if suppress:
+                proxy._restoring = True
+            try:
+                widget.clear()
+                if proxy is not None:
+                    try:
+                        proxy._modified = False
+                        proxy.sc.setModified(False)
+                    except Exception:
+                        pass
+            finally:
+                if suppress:
+                    proxy._restoring = False
 
             # 记录日志
             fp = "未命名"

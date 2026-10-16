@@ -435,22 +435,15 @@ class SearchBar(QToolBar):
             return
 
         try:
-            # 修复 P0-C2: SearchEngine.search() 不接受参数
-            # 原代码 engine.search(pattern, pos, forward) 会抛
-            # TypeError，被 except 吞掉，用户表现为"按了没反应"。
-            # 改为：一次性拿到全部匹配，再在 Python 层做
-            # next/prev + 循环。
-            engine = SearchEngine(proxy.document.provider, options)
-            result = engine.search()  # 返回 SearchResult
+            # 在**编辑器缓冲区**里匹配（provider 只在保存时同步，
+            # 会漏掉刚输入的文字 —— 见 EditorProxy._buffer_find_all 说明）
+            spans = []
+            try:
+                spans = proxy._buffer_find_all(options)
+            except Exception:
+                spans = []
 
-            if result.error:
-                self._update_match_count(0, 0, False)
-                self._show_message(
-                    f"搜索失败: {result.error}", "error"
-                )
-                return
-
-            if result.is_empty:
+            if not spans:
                 self._update_match_count(0, 0, False)
                 self._show_message("未找到匹配", "warning")
                 return
@@ -461,35 +454,29 @@ class SearchBar(QToolBar):
             # 在 Python 层找下一个 / 上一个
             match = None
             if forward:
-                for m in result.matches:
-                    if m.start > pos:
-                        match = m
-                        break
+                match = next((s for s in spans if s[0] > pos), None)
             else:
-                for m in reversed(result.matches):
-                    if m.end <= pos:
-                        match = m
-                        break
+                match = next(
+                    (s for s in reversed(spans) if s[1] <= pos), None
+                )
 
             # 循环到另一端
             if match is None:
-                match = (result.matches[0] if forward
-                         else result.matches[-1])
+                match = spans[0] if forward else spans[-1]
                 self._show_message("已从另一端继续搜索", "info")
 
             # 选中并居中
-            proxy.set_selection(match.start, match.end)
+            proxy.set_selection(match[0], match[1])
             try:
                 line = proxy.sc.SendScintilla(
-                    proxy.sc.SCI_LINEFROMPOSITION, match.start
+                    proxy.sc.SCI_LINEFROMPOSITION, match[0]
                 )
                 proxy.sc.ensureLineVisible(line)
             except Exception:
                 pass
 
-            # 更新计数（这里简化：显示 "N/M" 中的总数 M）
-            # 完整实现需要一个"当前匹配索引"跟踪器，此处从简。
-            self._update_match_count(1, result.count, True)
+            # 更新计数（显示 "1/总数"，未跟踪当前索引）
+            self._update_match_count(1, len(spans), True)
 
         except Exception as e:
             print(f"[SearchBar] 搜索失败: {e}")
@@ -600,24 +587,33 @@ class SearchBar(QToolBar):
             return
 
         try:
-            # 先搜索所有匹配
+            # 在**编辑器缓冲区**里统计匹配（provider 是保存时的快照，
+            # 会漏掉未保存的编辑 —— 见 EditorProxy._buffer_find_all 说明）
             options = self._build_search_options()
-            engine = SearchEngine(proxy.document.provider, options)
-            result = engine.search()
+            spans = []
+            try:
+                spans = proxy._buffer_find_all(options)
+            except Exception:
+                spans = []
 
-            if result.is_empty:
+            if not spans:
                 self._show_message("没有可替换的匹配", "info")
                 return
 
-            # 确认对话框
-            count = result.count
+            # 预览：从缓冲区文本取行号与行内容
+            buffer_text = proxy.get_text() if hasattr(proxy, 'get_text') \
+                else proxy.sc.text()
             preview_lines = []
-
-            for match in result.matches[:5]:
+            for start, _end in spans[:5]:
+                line_no = buffer_text.encode("utf-8")[:start].count(b"\n") + 1
+                text_lines = buffer_text.split("\n")
+                line_text = (text_lines[line_no - 1]
+                             if 0 < line_no <= len(text_lines) else "")
                 preview_lines.append(
-                    f"  行 {match.line}: {match.line_text.strip()[:60]}"
+                    f"  行 {line_no}: {line_text.strip()[:60]}"
                 )
 
+            count = len(spans)
             preview = "\n".join(preview_lines)
             if count > 5:
                 preview += f"\n  ... 及其他 {count - 5} 处"
@@ -636,23 +632,22 @@ class SearchBar(QToolBar):
             if reply != QMessageBox.Yes:
                 return
 
-            # 执行替换
-            replace_engine = ReplaceEngine(proxy.document.provider)
-            replaced = replace_engine.replace_all(
-                result, replace_text,
-                is_regex=options.is_regex,
-                pattern=pattern,
+            # 执行替换 —— 直接在缓冲区上替换。
+            #
+            # 修复（审计用例 test_replace_all_reverts_editor_to_provider_snapshot）：
+            #   原实现在 provider 快照上替换，再用
+            #   `proxy.sc.setText(provider.read_text())` 覆盖编辑器 ——
+            #   快照不含未保存的编辑，于是这些编辑被**静默丢弃**。
+            #   现在走 replace_all_in_buffer，未保存内容得以保留。
+            replaced = proxy.replace_all_in_buffer(
+                pattern, replace_text,
+                case_sensitive=getattr(options, 'case_sensitive', False),
+                is_regex=getattr(options, 'is_regex', False),
+                whole_word=getattr(options, 'whole_word', False),
             )
 
             # 记录历史
             self._add_replace_history(replace_text)
-
-            # 刷新编辑器内容
-            try:
-                proxy.sc.setText(proxy.document.provider.read_text())
-                proxy.sc.setModified(True)
-            except Exception:
-                pass
 
             # 清除高亮
             self._clear_highlight()

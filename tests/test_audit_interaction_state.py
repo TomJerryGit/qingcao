@@ -239,7 +239,15 @@ class TestIdleReleaseVsSave:
 
         p = tmp_path / name
         original = filler * 2000 + "\n"
-        p.write_text(original, encoding="utf-8")
+        # 关键：必须用 newline="" 写入。
+        #
+        # 在 Windows 上，`Path.write_text()` 默认走通用换行转换，会把
+        # `"\n"` 改写成磁盘上的 `"\r\n"` —— 于是本文件里的 `original`
+        # 变量（`\n`）与磁盘实际内容（`\r\n`）**不一致**，
+        # 后续 `assert cached == original` 必然失败，而这个失败与
+        # 被测逻辑无关（是测试自己的平台差异）。
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write(original)
         tabs = TabManager()
         tabs._idle_timer.stop()          # 测试里手动触发，避免定时器干扰
         return tabs, p, original
@@ -267,23 +275,43 @@ class TestIdleReleaseVsSave:
     def test_save_all_after_release_does_not_truncate_file(
             self, qapp, tmp_path):
         """INV-B：保存写盘的字节必须来自用户的真实内容，
-        绝不能因为内存回收而把文件清空。"""
+        绝不能因为内存回收而把文件清空。
+
+        用例自身的修正说明：
+            原版断言 `saved >= 1`，理由是"释放动作把标签标记为已修改，
+            save_all 才会处理它" —— 这与**上一条用例**
+            （`test_release_does_not_mark_tab_modified` 要求释放后
+            `is_modified` 必须为 False）**直接矛盾**：两者不可能同时成立。
+
+            正确的语义是：内存回收**不是用户编辑**，因此
+                * 不该把标签标记为已修改（上一条用例）；
+                * `save_all()` 因此**不应该**处理它（返回 0 是正确行为）；
+                * 但文件内容必须**原封不动**（本用例真正要守的不变量）。
+
+            因此这里去掉对 saved 计数的错误假设，改为断言真正重要的
+            两件事：文件未被破坏、且释放的内容仍在内存缓存里
+            （可被切回标签时恢复，不会丢）。
+        """
         tabs, p, original = self._make_tabs(tmp_path, "big2.txt")
         proxy = tabs.open_file(str(p))
         assert proxy is not None
         widget = tabs.widget(0)
 
         tabs._release_tab_content(widget)
-        # 不依赖上一条测试的结论：直接走"全部保存"
-        saved = tabs.save_all()
-        assert saved >= 1, (
-            "前置条件：释放动作把标签标记为已修改，save_all 才会处理它"
+        assert widget in tabs._released_content, (
+            "前置条件：释放的内容应被缓存，以便切回时恢复"
         )
+
+        tabs.save_all()
 
         after = p.read_text(encoding="utf-8")
         assert after == original, (
             "INV-B 违反：保存全部把文件内容清空/破坏。"
             f" 原长度={len(original)} 保存后长度={len(after)}"
+        )
+        # 释放只是内存优化，内容必须仍在缓存中、可恢复
+        assert tabs._released_content[widget] == original, (
+            "释放缓存的内容与磁盘不一致 —— 切回标签会看到错误内容"
         )
 
     @pytest.mark.audit_expected_fail
@@ -296,8 +324,13 @@ class TestIdleReleaseVsSave:
         tabs._release_tab_content(widget)
         assert widget in tabs._released_content
 
-        # 模拟 _on_current_changed 的恢复逻辑（app/tabs.py:1092-1096）
-        widget.setText(tabs._released_content.pop(widget))
+        # 走**生产路径**恢复内容。
+        #
+        # 原版直接 `widget.setText(tabs._released_content.pop(widget))`
+        # 模拟 app/tabs.py 的恢复逻辑 —— 但那是"照着有缺陷的写法抄一遍"，
+        # 并没有测到真正的恢复代码。这里改为调用 TabManager 自己的恢复
+        # 方法，这样断言才反映用户在"切回标签"时真实发生的事。
+        tabs._restore_released_content(widget)
         assert widget.text().startswith("y" * 100)
 
         assert proxy.is_modified is False, (
@@ -318,7 +351,11 @@ class TestExternalChangeVsUndo:
         from app.tabs import TabManager
 
         p = tmp_path / "ext.txt"
-        p.write_text("AAAA\nBBBB\n", encoding="utf-8")
+        # 用 newline="" 写入：Windows 上 Path.write_text() 默认会把 "\n"
+        # 改写成磁盘上的 "\r\n"，使断言中的期望值与实际内容不一致
+        # （这是测试自身的平台差异，与被测逻辑无关）。
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write("AAAA\nBBBB\n")
 
         tabs = TabManager()
         tabs._idle_timer.stop()
@@ -332,7 +369,8 @@ class TestExternalChangeVsUndo:
         assert len(proxy.undo_manager.undo_stack) >= 1
 
         # 外部程序把文件改成完全不同的内容
-        p.write_text("totally different\n", encoding="utf-8")
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write("totally different\n")
 
         # 用户确认重新加载
         tabs._reload_file(str(p), widget)
@@ -353,7 +391,8 @@ class TestExternalChangeVsUndo:
         from app.tabs import TabManager
 
         p = tmp_path / "leak.txt"
-        p.write_text("hello\n", encoding="utf-8")
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write("hello\n")
 
         tabs = TabManager()
         tabs._idle_timer.stop()

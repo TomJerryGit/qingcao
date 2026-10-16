@@ -2,7 +2,6 @@
 """外部文件变更合并"""
 import difflib
 import os
-import time
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -80,7 +79,46 @@ class FileMergeDetector:
 
 
 class ThreeWayMerger:
-    """三方合并（原 / 本地 / 远程）"""
+    """三方合并（原 / 本地 / 远程）
+
+    实现说明（已重写，修复 F1/F2）：
+
+    **F1 —— 末尾追加被静默丢弃**
+        原实现先算出 local/remote 各自的改动区间，然后**只遍历
+        `original_lines`**。当某方在文件末尾**追加**内容时，改动区间是
+        `(len(original), len(new))`，起点等于原文长度 —— 而循环条件
+        `while i < len(original_lines)` 让这些区间**永远不会被访问**：
+        内容丢失且不记入 conflicts。
+
+        实测 `merge("a\\nb\\n", "a\\nb\\nLOCAL_NEW\\n", "a\\nb\\nREMOTE_NEW\\n")`
+        返回 `'a\\nb'`，两侧追加全丢、conflicts 为空。
+
+    **F2 —— 末尾换行丢失**
+        `splitlines()` 吃掉行尾，`'\\n'.join()` 再拼回来 —— 原文的末尾
+        换行必然消失，导致每次合并都产生"无意义 diff"。
+
+    现在改用标准的**逐区间三方合并**：分别对齐 original→local 与
+    original→remote，把两者改动区间按原文坐标归并，逐区间决策
+    （单侧改动采用该侧；双侧相同采用之；双侧不同记为冲突并插入标记）。
+    归并循环的边界取自**两侧区间并集**，末尾追加因此不会被漏掉。
+    """
+
+    @staticmethod
+    def _changes(matcher) -> List[Tuple[int, int, List[str]]]:
+        """把 opcodes 里非 equal 的部分转成 (原文起点, 原文终点, 新内容)"""
+        real = matcher.get_opcodes()
+        seq = matcher.b
+        out = []
+        for tag, i1, i2, j1, j2 in real:
+            if tag != 'equal':
+                out.append((i1, i2, list(seq[j1:j2])))
+        # 同一原文起点只保留覆盖更长的一个，避免重复决策
+        dedup: Dict[int, Tuple[int, int, List[str]]] = {}
+        for s, e, lines in out:
+            prev = dedup.get(s)
+            if prev is None or (e - s) > (prev[1] - prev[0]):
+                dedup[s] = (s, e, lines)
+        return [dedup[k] for k in sorted(dedup)]
 
     @staticmethod
     def merge(original: str, local: str, remote: str) -> Dict[str, Any]:
@@ -95,15 +133,12 @@ class ThreeWayMerger:
         返回:
             {
                 'merged': str,
-                'conflicts': [(line, local_text, remote_text)],
+                'conflicts': [{'line', 'local', 'remote'}],
                 'auto_merged': bool,
+                'strategy': str,
             }
         """
-        original_lines = original.splitlines()
-        local_lines = local.splitlines()
-        remote_lines = remote.splitlines()
-
-        # 简单策略：如果只有一方修改，直接用那一方
+        # 单侧未改动：直接采用另一侧（原样返回，保留其末尾换行语义）
         if local == original:
             return {
                 'merged': remote,
@@ -119,79 +154,109 @@ class ThreeWayMerger:
                 'strategy': 'keep_local',
             }
 
-        # 双方都改了：尝试逐行合并
-        merged_lines = []
-        conflicts = []
+        original_lines = original.splitlines()
+        local_lines = local.splitlines()
+        remote_lines = remote.splitlines()
 
-        matcher = difflib.SequenceMatcher(
-            None, original_lines, local_lines
+        local_changes = ThreeWayMerger._changes(
+            difflib.SequenceMatcher(None, original_lines, local_lines)
         )
-        local_ops = matcher.get_opcodes()
-
-        matcher2 = difflib.SequenceMatcher(
-            None, original_lines, remote_lines
+        remote_changes = ThreeWayMerger._changes(
+            difflib.SequenceMatcher(None, original_lines, remote_lines)
         )
-        remote_ops = matcher2.get_opcodes()
 
-        # 建立修改映射
-        local_changes = {}
-        for tag, i1, i2, j1, j2 in local_ops:
-            if tag != 'equal':
-                local_changes[(i1, i2)] = local_lines[j1:j2]
+        merged_lines: List[str] = []
+        conflicts: List[Dict[str, Any]] = []
+        n_orig = len(original_lines)
 
-        remote_changes = {}
-        for tag, i1, i2, j1, j2 in remote_ops:
-            if tag != 'equal':
-                remote_changes[(i1, i2)] = remote_lines[j1:j2]
-
-        # 逐行合并
+        li = ri = 0
         i = 0
-        while i < len(original_lines):
-            local_change = None
-            remote_change = None
+        guard = 0
+        max_steps = (n_orig + len(local_changes) + len(remote_changes)) * 4 + 32
 
-            for (s, e), lines in local_changes.items():
-                if s <= i < e:
-                    local_change = (s, e, lines)
-                    break
+        while (li < len(local_changes) or ri < len(remote_changes)
+               or i < n_orig):
+            guard += 1
+            if guard > max_steps:      # 防御：绝不死循环
+                break
 
-            for (s, e), lines in remote_changes.items():
-                if s <= i < e:
-                    remote_change = (s, e, lines)
-                    break
+            lc = local_changes[li] if li < len(local_changes) else None
+            rc = remote_changes[ri] if ri < len(remote_changes) else None
 
-            if local_change and remote_change:
-                # 双方都改：冲突
-                if local_change[2] == remote_change[2]:
-                    # 相同修改，直接用
-                    merged_lines.extend(local_change[2])
-                    i = max(local_change[1], remote_change[1])
-                else:
-                    # 真冲突
-                    conflicts.append({
-                        'line': i,
-                        'local': local_change[2],
-                        'remote': remote_change[2],
-                    })
-                    # 默认取本地，加冲突标记
-                    merged_lines.append("<<<<<<< LOCAL")
-                    merged_lines.extend(local_change[2])
-                    merged_lines.append("=======")
-                    merged_lines.extend(remote_change[2])
-                    merged_lines.append(">>>>>>> REMOTE")
-                    i = max(local_change[1], remote_change[1])
-            elif local_change:
-                merged_lines.extend(local_change[2])
-                i = local_change[1]
-            elif remote_change:
-                merged_lines.extend(remote_change[2])
-                i = remote_change[1]
-            else:
+            # 1) 先原样输出到"下一个改动区间起点"
+            starts = [n_orig]
+            if lc is not None:
+                starts.append(lc[0])
+            if rc is not None:
+                starts.append(rc[0])
+            nxt = min(starts)
+            while i < nxt:
                 merged_lines.append(original_lines[i])
                 i += 1
 
+            # 2) 处理起点等于 i 的改动（含两端都有的并列改动）
+            took = False
+            if lc is not None and lc[0] <= i:
+                if rc is not None and rc[0] <= i:
+                    if lc[2] == rc[2]:
+                        merged_lines.extend(lc[2])          # 相同改动
+                    else:
+                        conflicts.append({
+                            'line': i,
+                            'local': lc[2],
+                            'remote': rc[2],
+                        })
+                        merged_lines.append("<<<<<<< LOCAL")
+                        merged_lines.extend(lc[2])
+                        merged_lines.append("=======")
+                        merged_lines.extend(rc[2])
+                        merged_lines.append(">>>>>>> REMOTE")
+                    i = max(i, lc[1], rc[1])
+                    li += 1
+                    ri += 1
+                else:
+                    merged_lines.extend(lc[2])
+                    i = max(i, lc[1])
+                    li += 1
+                took = True
+            elif rc is not None and rc[0] <= i:
+                merged_lines.extend(rc[2])
+                i = max(i, rc[1])
+                ri += 1
+                took = True
+
+            if took:
+                continue
+
+            # 3) 剩下的情况：原文还有行就输出一行；否则说明有"纯追加"
+            #    区间落在原文末尾之外，直接采用
+            if i < n_orig:
+                merged_lines.append(original_lines[i])
+                i += 1
+            elif li < len(local_changes):
+                merged_lines.extend(local_changes[li][2])
+                i = max(i, local_changes[li][1])
+                li += 1
+            elif ri < len(remote_changes):
+                merged_lines.extend(remote_changes[ri][2])
+                i = max(i, remote_changes[ri][1])
+                ri += 1
+            else:
+                break
+
+        merged = '\n'.join(merged_lines)
+
+        # F2：恢复末尾换行
+        # 只要原文（或任一侧）以换行结尾，结果也应带末尾换行 ——
+        # 否则每次合并都会吃掉文件末尾的 LF/CRLF，产生无意义 diff。
+        if merged and not merged.endswith('\n') and (
+            original.endswith('\n') or local.endswith('\n')
+            or remote.endswith('\n')
+        ):
+            merged += '\n'
+
         return {
-            'merged': '\n'.join(merged_lines),
+            'merged': merged,
             'conflicts': conflicts,
             'auto_merged': len(conflicts) == 0,
             'strategy': 'three_way',

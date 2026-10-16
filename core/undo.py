@@ -245,6 +245,22 @@ class UndoManager(QObject):
 
         参数:
             command: 命令对象（已执行）
+
+        修复（INV-1，审计用例复现）：
+            原先只有 `_do_record()` 会 `redo_stack.clear()`，而 `record()`
+            里**合并分支直接 `return True`**（`_try_merge` 命中即返回），
+            绕过了清空逻辑：
+
+                undo_stack=[A, Z] -> undo() -> redo_stack=[Z]
+                begin_group(P) + record(Q) -> Q 合并进 pending group，return
+                => 内容已经被改变（P/Q 进了撤销栈），但 redo 栈仍留着 Z
+
+            用户此时按 Ctrl+Y 会重放 Z，而 Z 是针对**旧内容**的命令 ——
+            内容错乱且不可逆。
+
+            因此把"新操作使 redo 失效"提到 `record()` 入口：无论走合并
+            还是独立记录路径，只要记录了一条新命令，redo 栈都必须清空。
+            （`_do_record` 里的清空保留，作为直接调用它的其它路径的兜底。）
         """
         if self._disabled:
             return
@@ -256,6 +272,17 @@ class UndoManager(QObject):
             try:
                 # 统计
                 self.statistics.record_command()
+
+                # 新操作让重做栈失效 —— 必须放在合并判断**之前**，
+                # 因为合并分支也会 return（见 docstring）。
+                if self.redo_stack:
+                    self.redo_stack.clear()
+                    try:
+                        self.stack_changed.emit(
+                            len(self.undo_stack), 0
+                        )
+                    except Exception:
+                        pass
 
                 # 检查是否与 pending group 合并
                 if self._try_merge(command):

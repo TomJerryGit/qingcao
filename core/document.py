@@ -271,7 +271,19 @@ class Document(QObject):
                 readonly=readonly,
                 detect_encoding=detect_encoding
             )
+            # 释放旧 provider
+            #
+            # 修复（句柄/映射泄漏）：原先直接覆盖 `self.provider`，**从不
+            # 关闭旧的** —— 旧 provider 的文件句柄与内存映射一直存活。
+            # Windows 上这会**阻止外部程序覆盖该文件**，从而让"外部变更
+            # 检测"永远不可用；反复打开文件还会持续累积句柄。
+            _old_provider = self.provider
             self.provider = provider
+            if _old_provider is not None and _old_provider is not provider:
+                try:
+                    _old_provider.close()
+                except Exception as e:
+                    print(f"[Document] 关闭旧 provider 失败: {e}")
 
             # 更新元数据
             self.meta = DocumentMetadata()

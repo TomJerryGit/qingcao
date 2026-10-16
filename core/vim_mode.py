@@ -66,6 +66,58 @@ class VimMode(QObject):
         except Exception:
             pass
 
+    def _get_proxy(self):
+        """取与当前编辑器关联的 EditorProxy（没有则 None）
+
+        `VimMode` 只持有 QScintilla 控件，因此通过
+        `EditorProxy.__init__` 挂上的反向引用找回代理。
+        """
+        try:
+            return getattr(self.editor, '_qc_editor_proxy', None)
+        except Exception:
+            return None
+
+    def _vim_undo(self):
+        """Vim 的 `u`：撤销
+
+        修复（审计用例 TestVimUndo 复现）：
+            原先调用 `self.editor.undo()` —— QScintilla **内置**撤销栈。
+            而 `EditorProxy` 在 `_connect_signals` 里执行了
+            `SCI_SETUNDOCOLLECTION(0)` 禁用内置栈，因此 Vim 的撤销
+            **静默无效**，同时 `handle_key` 返回 True 吞掉了按键，
+            用户完全得不到反馈。
+
+            现在改走 `EditorProxy.undo()` —— 它才是记录编辑的那一个，
+            并且会把 `scintilla` 传给 `UndoManager`（否则命令只是被弹栈、
+            **不会真正执行**：`UndoManager.undo()` 的 scintilla 参数为
+            None 时只做栈操作）。
+        """
+        proxy = self._get_proxy()
+        if proxy is not None and hasattr(proxy, 'undo'):
+            try:
+                proxy.undo()
+                return
+            except Exception:
+                pass
+        try:
+            self.editor.undo()
+        except Exception:
+            pass
+
+    def _vim_redo(self):
+        """Vim 的 `Ctrl+R`：重做（同样走 EditorProxy，见 `_vim_undo`）"""
+        proxy = self._get_proxy()
+        if proxy is not None and hasattr(proxy, 'redo'):
+            try:
+                proxy.redo()
+                return
+            except Exception:
+                pass
+        try:
+            self.editor.redo()
+        except Exception:
+            pass
+
     def handle_key(self, event) -> bool:
         """
         处理按键。
@@ -85,7 +137,7 @@ class VimMode(QObject):
         if modifiers & Qt.ControlModifier:
             # Normal 模式拦截 Ctrl+R（重做，vim 中是重做）
             if self.state == VimState.NORMAL and key == Qt.Key_R:
-                self.editor.redo()
+                self._vim_redo()
                 return True
             return False
 
@@ -227,7 +279,7 @@ class VimMode(QObject):
 
         if text == 'u':
             for _ in range(count):
-                self.editor.undo()
+                self._vim_undo()
             return True
 
         if text == 'r':

@@ -31,6 +31,7 @@
 
 import hashlib
 import io
+import logging
 import mmap
 import os
 import stat
@@ -39,6 +40,9 @@ import time
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -50,6 +54,18 @@ MIN_BLOCK_SIZE = 4096                   # 最小块大小 4KB
 MAX_LOADED_BLOCKS = 2000                # 最多同时加载的块数
 LARGE_FILE_THRESHOLD = 10 * 1024 * 1024  # 大文件阈值 10MB
 HUGE_FILE_THRESHOLD = 100 * 1024 * 1024  # 超大文件阈值 100MB
+
+# 低于该大小的文件**不建立内存映射**，直接用文件读。
+#
+# 为什么（Windows 文件锁定，已实测）：
+#   即使**只读**的 mmap 也会阻止另一进程覆盖写该文件
+#   （`open(path,'w')` 抛 `OSError: [Errno 22]`）。编辑器一旦为某文件
+#   建立映射，git / 构建工具 / 其它编辑器就无法修改它 —— 于是
+#   "外部文件变更检测"与"三方合并"永远不会触发（这正是它们存在的意义）。
+#
+#   小文件逐个 read() 的开销可以忽略，且不留下驻锁；大文件才用映射
+#   换取 I/O 性能（`release_mmap()` 可在需要时主动释放）。
+MMAP_MIN_SIZE = 4 * 1024 * 1024         # 4MB
 
 # 常见编码
 ENCODING_UTF8 = 'utf-8'
@@ -435,6 +451,33 @@ class ContentProvider(ABC):
         """
         return False
 
+    def release_mmap(self):
+        """释放映射与文件句柄，允许其它程序修改本文件
+
+        为什么需要（Windows 文件锁定，已实测）：
+            即使**只读**的内存映射也会阻止另一进程覆盖写该文件 ——
+            `open(path, 'w')` 抛 `OSError: [Errno 22] Invalid argument`。
+            于是编辑器一打开文件，git / 构建工具 / 其它编辑器就无法修改
+            它，而"外部变更检测 / 三方合并"因此永远不会触发。
+
+            小文件（<= `MMAP_MIN_SIZE`）本就不建立映射，本方法对它们等价
+            于释放句柄；大文件才真正解开映射，由 CPython 的 mmap 析构器
+            安全回收（显式 `close()` 与 Qt 视图生命周期交织时曾引发段错误，
+            因此这里只丢弃引用）。
+
+        调用点：`TabManager.open_file` / `_reload_file`（各释放自己的
+        provider）。释放后 `read_block()` 会经 `_ensure_handle()` 按需重开。
+        """
+        self._mmap = None
+        fh = self._file
+        self._file = None
+        if fh is not None:
+            try:
+                if not getattr(fh, 'closed', True):
+                    fh.close()
+            except Exception:
+                pass
+
     def reload(self) -> bool:
         """
         重新加载文件内容。
@@ -582,28 +625,44 @@ class LocalFileProvider(ContentProvider):
         try:
             st = os.stat(self._filepath)
             self._readonly = readonly or not os.access(self._filepath, os.W_OK)
+            # 记住"磁盘上是否可写"，用于需要写入时把映射升级为读写
+            self._can_write = os.access(self._filepath, os.W_OK)
             self._size = st.st_size
             self._mtime = st.st_mtime
         except PermissionError as e:
             raise PermissionDeniedError(f"无法访问文件: {e}")
 
         # 打开文件句柄
+        #
+        # 关键（Windows 文件锁定缺陷）：
+        #   原先在文件可写时用 `'r+b'` + `mmap.ACCESS_WRITE`，并且**一直
+        #   持有**该映射。Windows 上写模式的内存映射会**独占锁定文件** ——
+        #   于是编辑器一打开文件，其它程序（git、构建工具、另一个编辑器）
+        #   就再也无法修改它，直到本编辑器关闭该文件。
+        #
+        #   这直接让"外部文件变更检测/三方合并"失去意义：那种情况**永远
+        #   不会发生**。实测：打开文件后 `Path.write_text()` 抛
+        #   `OSError: [Errno 22] Invalid argument`。
+        #
+        #   现在**默认只读打开**（共享读，不阻断外部写入）；只有真正需要
+        #   就地写入脏块时才由 `_ensure_writable()` 升级为读写映射，
+        #   且写入完成后即可释放（见 `release_write_handle()`）。
         try:
-            mode = 'r+b' if not self._readonly else 'rb'
-            self._file = open(self._filepath, mode)
+            self._file = open(self._filepath, 'rb')
         except PermissionError as e:
-            # 尝试只读打开
-            try:
-                self._file = open(self._filepath, 'rb')
-                self._readonly = True
-            except PermissionError:
-                raise PermissionDeniedError(f"无法打开文件: {e}")
+            raise PermissionDeniedError(f"无法打开文件: {e}")
 
-        # 创建 mmap
-        if self._size > 0:
+        # 创建 mmap（默认只读 —— 不锁文件）
+        #
+        # 只对**大文件**建映射（与 `read_block` / `_ensure_handle` 一致）。
+        # 小文件直接 read() 的开销可忽略，而且**不建立映射就不会锁住文件**
+        # —— Windows 上即使只读映射也会阻止外部程序覆盖写，那会让
+        # "外部变更检测 / 三方合并"永远不会触发。
+        if self._size > MMAP_MIN_SIZE:
             try:
-                access = mmap.ACCESS_READ if self._readonly else mmap.ACCESS_WRITE
-                self._mmap = mmap.mmap(self._file.fileno(), 0, access=access)
+                self._mmap = mmap.mmap(
+                    self._file.fileno(), 0, access=mmap.ACCESS_READ
+                )
             except (ValueError, OSError) as e:
                 # 空文件或无法映射
                 self._mmap = None
@@ -852,6 +911,26 @@ class LocalFileProvider(ContentProvider):
         if start >= self._size:
             return b''
 
+        # 按需重建句柄/映射（release_mmap 之后仍能快速读取）
+        #
+        # 只对**大文件**建立映射：小文件直接读更快，而且不留驻映射就
+        # 不会锁住文件（Windows 上映射会阻止外部程序覆盖写）。
+        # 这是"外部变更检测/三方合并"能真正触发的前提。
+        if self._size <= MMAP_MIN_SIZE:
+            if self._file is None or self._file.closed:
+                self._ensure_handle()
+            if self._file:
+                try:
+                    self._file.seek(start)
+                    data = self._file.read(end - start)
+                    self._loaded_blocks.add(block_id)
+                    return data
+                except (ValueError, OSError):
+                    pass
+        else:
+            if self._file is None or self._mmap is None:
+                self._ensure_handle()
+
         # mmap 读取
         if self._mmap:
             try:
@@ -1058,6 +1137,63 @@ class LocalFileProvider(ContentProvider):
             self._reopen_mmap()
             return False
 
+    def release_mmap(self):
+        """释放内存映射（保留文件描述符与全部状态）
+
+        为什么需要（Windows 文件锁定）：
+            即使只读的 `mmap` 也会**阻止文件被另一进程覆盖写**（`open(w)`
+            截断会失败，报 `OSError: [Errno 22] Invalid argument`）。
+            于是"编辑器打开着某个文件"就足以让 git / 构建工具 / 其它编辑器
+            无法修改它 —— 外部变更检测与三方合并永远不会触发。
+
+            因此把映射做成**可释放**的：读取时存在（快），需要让外部程序
+            写入（保存后、检测变更前、重新加载后）就释放；`read_block()`
+            在无映射时会回退到文件读取，所以释放后功能完全不受影响。
+
+        注意：文件描述符也一起释放 —— Windows 上"读句柄"同样会阻止
+        `open(path, 'w')` 截断。
+
+        安全说明：小文件（<= `MMAP_MIN_SIZE`）本就不建立映射，因此本方法
+        对它们只关句柄；大文件才需要真正解开映射。映射的显式 `close()`
+        在 Qt 事件循环下曾经引发段错误（0xC0000005），所以这里改为
+        **丢弃引用**，由 CPython 的 mmap 析构器安全回收（析构本身是安全的，
+        危险的是与 Qt 视图生命周期交织时的提前显式关闭）。
+        """
+        self._mmap = None
+        fh = self._file
+        self._file = None
+        if fh is not None:
+            try:
+                if not getattr(fh, 'closed', True):
+                    fh.close()
+            except Exception:
+                pass
+
+    def _ensure_handle(self) -> bool:
+        """确保文件句柄与 mmap 可用（按需重建）
+
+        `release_mmap()` 之后调用本方法即可恢复快速读取路径。
+        重建使用**只读**模式（写模式会锁文件，见 `open` 的说明）。
+        """
+        if not self._filepath or not os.path.exists(self._filepath):
+            return False
+        try:
+            if self._file is None or self._file.closed:
+                self._file = open(self._filepath, 'rb')
+            # 只对大文件建映射：小文件不留驻映射，避免锁住文件
+            # （Windows 上映射会阻止外部程序覆盖写）。
+            if (self._mmap is None and self._size > MMAP_MIN_SIZE):
+                try:
+                    self._mmap = mmap.mmap(
+                        self._file.fileno(), 0, access=mmap.ACCESS_READ
+                    )
+                except (ValueError, OSError) as e:
+                    logger.debug("重建 mmap 失败: %s", e)
+            return True
+        except Exception as e:
+            logger.debug("重建文件句柄失败: %s", e)
+            return False
+
     def _reopen_mmap(self):
         """重建 mmap（A4 新增，供 _save_dirty_blocks 内部调用）。
 
@@ -1081,10 +1217,11 @@ class LocalFileProvider(ContentProvider):
         if self._size <= 0:
             return
         try:
-            access = (mmap.ACCESS_READ if self._readonly
-                      else mmap.ACCESS_WRITE)
+            # 一律只读映射：写映射会独占锁住文件（Windows），使外部程序
+            # 无法修改已打开的文件 —— 那样"外部变更"永远不会发生。
+            # 写入路径不依赖写映射（见 `_save_as_full` 的原子替换）。
             self._mmap = mmap.mmap(
-                self._file.fileno(), 0, access=access
+                self._file.fileno(), 0, access=mmap.ACCESS_READ
             )
         except (ValueError, OSError):
             self._mmap = None
@@ -1233,8 +1370,11 @@ class LocalFileProvider(ContentProvider):
         if not self._filepath:
             return False
         try:
-            mode = 'rb' if self._readonly else 'r+b'
-            self._file = open(self._filepath, mode)
+            # 始终只读打开：写模式下 Windows 会独占锁住文件，
+            # 使外部程序（git / 构建工具 / 其它编辑器）无法修改它，
+            # 从而让"外部变更检测"永远失效。写入走
+            # `_save_as_full` 的临时文件 + 原子替换，不需要写模式句柄。
+            self._file = open(self._filepath, 'rb')
             return True
         except Exception as e:
             print(f"[LocalFileProvider] 重开文件句柄失败: {e}")

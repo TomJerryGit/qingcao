@@ -99,6 +99,14 @@ SMART_HIGHLIGHT_DELAY = 300
 # P0-2: 文档变更 → LSP didChange 的防抖延迟（毫秒）
 LSP_SYNC_DELAY = 300
 
+# 缓冲区 → Document.provider 的同步防抖延迟（毫秒）
+#
+# 取 0：QTimer 会自动重启，连续击键仍只触发一次；而 0ms 意味着
+# 事件循环下一轮即生效，不依赖用户等待 —— 查找/替换/另存为/插件
+# 读到的内容因此与屏幕一致。
+# 这样"编辑器缓冲区"与"provider 快照"两份内容源的问题被消除。
+PROVIDER_SYNC_DELAY = 0
+
 # 文件扩展名 → LSP languageId 映射（与
 # LspServerRegistry._servers 中的 language_id 保持一致）
 LSP_LANGUAGE_BY_EXT = {
@@ -322,8 +330,27 @@ class EditorProxy(QObject):
         self.sc = scintilla
         self.document = document
 
+        # 反向引用：让"只拿到 QScintilla 控件"的组件（例如 VimMode）
+        # 能找到本代理，从而使用**自研撤销栈**。
+        #
+        # 缺陷背景（审计用例 TestVimUndo 复现）：`VimMode.handle_key` 对
+        # `u` / `Ctrl+R` 调用的是 `self.editor.undo()/redo()` —— 即
+        # QScintilla **内置**撤销栈。而本代理在 `_connect_signals` 里执行了
+        # `SCI_SETUNDOCOLLECTION(0)` 禁用内置栈，于是 Vim 的撤销**静默无效**
+        # 且按键被 `handle_key` 吞掉（用户完全得不到反馈）。
+        try:
+            scintilla._qc_editor_proxy = self
+        except Exception:
+            pass
+
         # 撤销管理
         self.undo_manager = UndoManager()
+
+        # 被删除内容的暂存（SC_MOD_BEFOREDELETE 阶段填充，DELETETEXT
+        # 阶段用于构造可撤销的 DeleteCmd）。见 `read_buffer_range` 说明。
+        self._pending_delete_text = None
+        self._pending_delete_pos = -1
+        self._pending_delete_len = 0
 
         # 状态标志
         self._undoing = False
@@ -359,6 +386,32 @@ class EditorProxy(QObject):
         self._smart_hl_timer = QTimer(self)
         self._smart_hl_timer.setSingleShot(True)
         self._smart_hl_timer.timeout.connect(self._do_smart_highlight)
+
+        # 缓冲区 → provider 同步定时器（防抖）
+        #
+        # 修复（INV-A「双内容源」根因）：
+        #   在此之前，`document.provider` 只在**保存时**才与编辑器同步
+        #   （`_sync_content_to_provider` 只在 save_file / 打开文件时调用）。
+        #   于是打字过程中存在**两份内容**，所有基于 provider 的功能都会
+        #   看到过期快照：
+        #       * 编辑器内查找查不到刚输入的文字（实测 search_next 返回 False）
+        #       * 「全部替换」在快照上替换后用快照覆盖编辑器 →
+        #         未保存的编辑被静默丢弃
+        #       * 另存为写入旧内容（P0-B，已单独修复入口）
+        #       * 全局替换 / 插件读到的也是旧内容
+        #
+        #   现在在每次编辑后**防抖同步**缓冲区到 provider，让两者始终一致。
+        #   间隔取 0ms：既让连续击键只触发一次（QTimer 会自动重启），
+        #   又能在事件循环下一轮就生效（不依赖用户等待）。
+        #   超大文件跳过（见 `_schedule_provider_sync`），避免拖慢打字。
+        self._provider_sync_timer = QTimer(self)
+        self._provider_sync_timer.setSingleShot(True)
+        self._provider_sync_timer.setInterval(PROVIDER_SYNC_DELAY)
+        self._provider_sync_timer.timeout.connect(self._sync_provider_now)
+        # 超过该大小的文件不做实时同步（保存时仍会同步）
+        self._provider_sync_max_bytes = 8 * 1024 * 1024
+        # 小于该大小的文件**立即**同步（成本可忽略，保证 provider 始终新鲜）
+        self._provider_sync_immediate_bytes = 256 * 1024
 
         # 指示器初始化
         self._init_indicators()
@@ -866,6 +919,24 @@ class EditorProxy(QObject):
         if self._undoing or self._restoring:
             return
 
+        # 删除**之前**的通知：此时缓冲区里还有被删内容，先暂存下来。
+        #
+        # 修复（DeleteCmd 无法撤销）：SCN_MODIFIED 对删除不提供文本，
+        # 若直接用它构造 DeleteCmd，`deleted_text` 会是空 bytes，
+        # 而 `DeleteCmd.undo()` 在空内容时直接返回 —— 删除永久不可撤销。
+        # 详见 `read_buffer_range` 的说明。
+        if mod_type & QsciScintilla.SC_MOD_BEFOREDELETE:
+            try:
+                captured = self.read_buffer_range(position, length)
+                if captured:
+                    self._pending_delete_text = captured
+                    self._pending_delete_pos = position
+                    self._pending_delete_len = length
+            except Exception as e:
+                logger.debug("暂存被删内容失败: %s", e)
+            # BEFOREDELETE 本身不需要记录命令，等 DELETETEXT 通知再记录
+            return
+
         # 只处理插入和删除
         if not (mod_type & (QsciScintilla.SC_MOD_INSERTTEXT |
                             QsciScintilla.SC_MOD_DELETETEXT)):
@@ -880,9 +951,21 @@ class EditorProxy(QObject):
                 # InsertCmd 内部会处理 bytes
                 cmd = CommandPool.acquire_insert(position, text_bytes)
             else:
-                cmd = CommandPool.acquire_delete(
-                    position, length, text_bytes
-                )
+                # 删除：SCN_MODIFIED 不带文本，用 BEFOREDELETE 阶段暂存的
+                # 内容（位置/长度匹配时）。这样撤销才能真正还原被删文本。
+                deleted = b""
+                try:
+                    if (getattr(self, '_pending_delete_text', None)
+                            and self._pending_delete_pos == position
+                            and self._pending_delete_len == length):
+                        deleted = self._pending_delete_text
+                except Exception:
+                    deleted = b""
+                if not deleted:
+                    # 兜底：按当前缓冲区位置取（多光标/合并删除等场景）
+                    deleted = self.read_buffer_range(position, length)
+                self._pending_delete_text = None
+                cmd = CommandPool.acquire_delete(position, length, deleted)
 
             # 检测是否多光标/列模式
             try:
@@ -937,6 +1020,11 @@ class EditorProxy(QObject):
 
             # 触发智能高亮
             self._smart_hl_timer.start(SMART_HIGHLIGHT_DELAY)
+
+            # 缓冲区 → provider 实时同步（消除"双内容源"）
+            # 让查找/替换/另存为/插件读到的内容与屏幕一致，见
+            # `_schedule_provider_sync` 的说明。
+            self._schedule_provider_sync()
 
             # P0-2: 触发 LSP 文本同步（防抖）
             if self.lsp_active and self.lsp_client:
@@ -1159,6 +1247,36 @@ class EditorProxy(QObject):
     # ========================================================
     # 文本操作
     # ========================================================
+    def read_buffer_range(self, start: int, length: int) -> bytes:
+        """读取缓冲区的字节区间（用于撤销栈记录被删除的内容）
+
+        修复（DeleteCmd 无法撤销，审计用例 TestVimUndo 复现）：
+            SCN_MODIFIED 对**删除**通知**不提供文本**（`text` 为 None），
+            而原先直接用这个空值构造 `DeleteCmd`：
+
+                cmd = CommandPool.acquire_delete(position, length,
+                                                 text_bytes)   # text_bytes = b''
+
+            于是 `DeleteCmd.deleted_text` 永远是空 bytes，而
+            `DeleteCmd.undo()` 开头就是 `if not self.deleted_text: return`
+            —— **任何删除都无法撤销**（Ctrl+Z 后文本原样不动，内容永久丢失）。
+
+            正确做法是在收到 `SC_MOD_BEFOREDELETE`（删除**之前**触发，
+            此时缓冲区里还有原文）时读取待删区间并暂存，随后构造
+            `DeleteCmd` 时使用它。
+        """
+        try:
+            if start < 0 or length <= 0:
+                return b""
+            buf = self.sc.text().encode("utf-8")
+            end = min(start + length, len(buf))
+            if end <= start:
+                return b""
+            return buf[start:end]
+        except Exception as e:
+            logger.debug("读取缓冲区区间失败: %s", e)
+            return b""
+
     def get_text(self) -> str:
         """获取全部文本"""
         try:
@@ -1900,15 +2018,26 @@ class EditorProxy(QObject):
     # ========================================================
     # 搜索与高亮
     # ========================================================
-    def highlight_all(self, pattern: str) -> int:
+    def highlight_all(self, pattern: str, case_sensitive: bool = False,
+                      is_regex: bool = False,
+                      whole_word: bool = False) -> int:
         """
         高亮所有匹配项。
 
         参数:
-            pattern: 正则表达式
+            pattern: 搜索内容
+            case_sensitive: 是否区分大小写
+            is_regex: 是否按正则解释
+            whole_word: 是否整词匹配
 
         返回:
             匹配数量
+
+        修复（两处真实缺陷）：
+          1. 原先查 `document.provider` 快照 —— 刚输入的文字高亮不出来；
+          2. 原先**硬编码 `is_regex=True`** —— 而搜索栏传进来的是用户原始
+             输入，于是搜 `a.b` 得到正则语义、搜 `(` 直接抛 `re.error`。
+             现在正则与否由调用方决定，默认按**字面量**处理。
         """
         try:
             self.clear_highlights()
@@ -1916,16 +2045,17 @@ class EditorProxy(QObject):
             if not pattern:
                 return 0
 
-            # P0-1 修复：SearchEngine 无 search_all 方法，
-            # 改用 search() 返回 SearchResult。
-            options = SearchOptions(pattern=pattern, is_regex=True)
-            engine = SearchEngine(self.document.provider, options)
-            result = engine.search()
+            options = SearchOptions(
+                pattern=pattern,
+                is_regex=is_regex,
+                case_sensitive=case_sensitive,
+                whole_word=whole_word,
+            )
+            # 走编辑器缓冲区（provider 是保存时的快照，会漏掉未保存内容）
+            matches = self._buffer_find_all(options)
 
-            if result.error or result.is_empty:
+            if not matches:
                 return 0
-
-            matches = [(m.start, m.end) for m in result.matches]
 
             # 分批绘制（避免大量匹配卡顿）
             if len(matches) > 1000:
@@ -1971,40 +2101,242 @@ class EditorProxy(QObject):
         except Exception:
             pass
 
-    def search_next(self, pattern: str, forward: bool = True) -> bool:
-        """搜索下一个匹配"""
-        try:
-            # P0-2 修复：SearchEngine.search() 不接受参数，
-            # 且返回 SearchResult 而非 (start, end) tuple。
-            options = SearchOptions(pattern=pattern)
-            engine = SearchEngine(self.document.provider, options)
-            result = engine.search()
+    # --------------------------------------------------------
+    # 缓冲区 → provider 实时同步（消除"双内容源"）
+    # --------------------------------------------------------
+    def _schedule_provider_sync(self):
+        """编辑后把缓冲区同步到 provider（消除"双内容源"）
 
-            if result.error or result.is_empty:
+        分两档，兼顾一致性与打字流畅度：
+
+        * **小文件（< 256KB）立即同步**：重编码一次全文在这个量级上是
+          微秒级开销，立即同步能让 provider 在任何时刻都与屏幕一致 ——
+          查找/替换/另存为/插件读到的不会是过期内容。
+        * **中大文件走防抖定时器**：连续击键只触发一次，避免每次按键都
+          重编码整篇文本拖慢输入。
+        * **超大文件（> 8MB）不同步**：这类文件的实时同步会明显卡顿；
+          保存时仍会显式同步（`save_file`），因此不会丢数据。
+
+        为什么不做成"只在保存时同步"：那正是原来的缺陷 —— 打字期间存在
+        两份内容源，导致查找查不到、全部替换丢编辑（审计用例已复现）。
+        """
+        try:
+            if self._restoring or self._undoing:
+                return
+            provider = getattr(self.document, 'provider', None)
+            if provider is None or not getattr(provider, 'is_open', False):
+                return
+            size = getattr(provider, 'size', 0) or 0
+            if size > self._provider_sync_max_bytes:
+                return
+            if size <= self._provider_sync_immediate_bytes:
+                self._sync_provider_now()
+            else:
+                self._provider_sync_timer.start()
+        except Exception as e:
+            logger.debug("同步 provider 失败: %s", e)
+
+    def _sync_provider_now(self):
+        """把当前缓冲区内容写入 provider
+
+        这就是"单一内容源"的关键一步：让 provider 反映**屏幕上的内容**，
+        而不是上次保存时的快照。
+        """
+        try:
+            if self._restoring or self._undoing:
+                return
+            provider = getattr(self.document, 'provider', None)
+            if provider is None or not getattr(provider, 'is_open', False):
+                return
+            text = self.sc.text()
+            # 内容未变则跳过（避免无谓的重编码）
+            try:
+                if provider.read_text() == text:
+                    return
+            except Exception:
+                pass
+            self._sync_content_to_provider(text)
+        except Exception as e:
+            logger.debug("同步 provider 失败: %s", e)
+
+    def _buffer_find_all(self, options) -> list:
+        """在**编辑器缓冲区**里查找全部匹配（返回 [(start, end), ...]）
+
+        为什么必须查缓冲区（真实缺陷，审计用例已复现）：
+            `search_next` / `highlight_all` / 搜索栏原先都查
+            `document.provider`，而 provider 只在**保存时**才与编辑器同步
+            （`_sync_content_to_provider`）。于是用户刚输入的文字查不到 ——
+            实测插入 "needle" 后 `search_next("needle")` 返回 False，
+            而屏幕上明明有。更糟的是"全部替换"会在 provider 快照上替换、
+            再用快照覆盖编辑器，**未保存的编辑被静默丢弃**。
+
+            Scintilla 的 target 搜索天然作用于缓冲区，因此这里以
+            `sc.text()` 为唯一内容源做匹配，坐标即缓冲区字节偏移，
+            可直接用于选中/替换。
+
+        用 Python `re` 而非 Scintilla 内建搜索：需要支持正则、整词、
+        大小写等选项，且要一次拿到全部匹配（便于 next/prev 与替换）。
+        """
+        try:
+            text_bytes = self.sc.text().encode("utf-8")
+        except Exception:
+            return []
+
+        pattern = options.build_pattern() if hasattr(options, "build_pattern") \
+            else (options.pattern or "")
+        if not pattern:
+            return []
+
+        flags = 0
+        if hasattr(options, "to_regex_flags"):
+            flags = options.to_regex_flags()
+        elif not getattr(options, "case_sensitive", False):
+            flags = re.IGNORECASE
+
+        # 关键（易错点）：我们要在**字节**上匹配（Scintilla 的坐标是字节
+        # 偏移），而 `re` **不允许**用 str 模式去匹配 bytes 对象 ——
+        # 会抛 `TypeError: cannot use a string pattern on a bytes-like
+        # object`。因此模式也必须编译成字节模式（re.ASCII 保证
+        # `\b`、`\w` 等按 ASCII 语义解释，与字节偏移一致）。
+        try:
+            rx = re.compile(pattern.encode("utf-8"), flags | re.ASCII)
+        except re.error as e:
+            # 正则非法 → 退化为字面量搜索（用户多半只是想搜这串字符）
+            try:
+                rx = re.compile(
+                    re.escape(options.pattern).encode("utf-8"),
+                    flags | re.ASCII,
+                )
+            except re.error:
+                logger.debug("搜索正则无效: %s", e)
+                return []
+
+        spans = []
+        limit = getattr(options, "max_results", 1000000) or 1000000
+        try:
+            for m in rx.finditer(text_bytes):
+                if m.end() == m.start():
+                    continue          # 跳过零宽匹配，避免死循环
+                spans.append((m.start(), m.end()))
+                if len(spans) >= limit:
+                    break
+        except Exception as e:
+            logger.debug("缓冲区匹配失败: %s", e)
+        return spans
+
+    def search_in_buffer(self, pattern: str, forward: bool = True,
+                         case_sensitive: bool = False,
+                         is_regex: bool = False,
+                         whole_word: bool = False) -> bool:
+        """在编辑器缓冲区中查找并选中下一个/上一个匹配
+
+        返回是否命中。这是"编辑器内查找"的正确实现（见
+        `_buffer_find_all` 的说明）。
+        """
+        try:
+            options = SearchOptions(
+                pattern=pattern,
+                is_regex=is_regex,
+                case_sensitive=case_sensitive,
+                whole_word=whole_word,
+            )
+            spans = self._buffer_find_all(options)
+            if not spans:
                 return False
 
             pos = self.get_current_pos()
-            match = None
-
+            # 从光标处向后/向前找；超出则循环回另一端
             if forward:
-                for m in result.matches:
-                    if m.start > pos:
-                        match = m
-                        break
+                span = next((s for s in spans if s[0] > pos), None)
+                if span is None:
+                    span = spans[0]
             else:
-                for m in reversed(result.matches):
-                    if m.end <= pos:
-                        match = m
-                        break
+                span = next((s for s in reversed(spans) if s[1] <= pos), None)
+                if span is None:
+                    span = spans[-1]
 
-            # 循环到另一端
-            if match is None:
-                match = (result.matches[0] if forward
-                         else result.matches[-1])
-
-            self.set_selection(match.start, match.end)
+            self.set_selection(span[0], span[1])
             return True
+        except Exception as e:
+            logger.error("[EditorProxy] 缓冲区查找失败: %s", e)
+            return False
 
+    def replace_all_in_buffer(self, pattern: str, replacement: str,
+                              case_sensitive: bool = False,
+                              is_regex: bool = False,
+                              whole_word: bool = False) -> int:
+        """在编辑器缓冲区里"全部替换"（返回替换次数）
+
+        修复（审计用例 `test_replace_all_reverts_editor_to_provider_snapshot`）：
+            原先的"全部替换"在 provider 快照上替换，再用
+            `sc.setText(provider.read_text())` 覆盖编辑器 ——
+            provider 不含未保存的编辑，于是这些编辑被**静默丢弃**。
+
+            现在直接在缓冲区上替换（从后往前，避免偏移失效），
+            未保存的编辑因此得以保留。
+        """
+        try:
+            options = SearchOptions(
+                pattern=pattern,
+                is_regex=is_regex,
+                case_sensitive=case_sensitive,
+                whole_word=whole_word,
+            )
+            spans = self._buffer_find_all(options)
+            if not spans:
+                return 0
+
+            # 从后往前替换，前面的偏移不受影响
+            count = 0
+            for start, end in reversed(spans):
+                try:
+                    old = bytes(self.sc.text().encode("utf-8")[start:end])
+                except Exception:
+                    old = b""
+                if is_regex:
+                    try:
+                        rx = re.compile(
+                            options.build_pattern(),
+                            options.to_regex_flags(),
+                        )
+                        # 用字节切片重算，保证正则替换语义正确
+                        seg = bytes(self.sc.text().encode("utf-8")[start:end])
+                        new = rx.sub(
+                            replacement, seg.decode("utf-8", "replace")
+                        ).encode("utf-8")
+                    except Exception:
+                        new = replacement.encode("utf-8")
+                else:
+                    new = replacement.encode("utf-8")
+                try:
+                    self._buffer_replace_range(start, end, new)
+                    count += 1
+                except Exception as e:
+                    logger.debug("替换区间失败: %s", e)
+            if count:
+                self._modified = True
+                self.modified_changed.emit(True)
+            return count
+        except Exception as e:
+            logger.error("[EditorProxy] 缓冲区替换失败: %s", e)
+            return 0
+
+    def _buffer_replace_range(self, start: int, end: int, data: bytes):
+        """用 Scintilla target 机制替换缓冲区的一段字节"""
+        sc = self.sc
+        sc.SendScintilla(QsciScintilla.SCI_SETTARGETSTART, start)
+        sc.SendScintilla(QsciScintilla.SCI_SETTARGETEND, end)
+        sc.SendScintilla(
+            QsciScintilla.SCI_REPLACETARGETRE, len(data), data
+        )
+
+    def search_next(self, pattern: str, forward: bool = True) -> bool:
+        """搜索下一个匹配（走编辑器缓冲区）
+
+        修复：原实现查 `document.provider` 快照，刚输入的文字查不到。
+        """
+        try:
+            return self.search_in_buffer(pattern, forward=forward)
         except Exception as e:
             print(f"[EditorProxy] 搜索失败: {e}")
             return False
