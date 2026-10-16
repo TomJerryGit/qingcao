@@ -6,6 +6,104 @@
 
 ## [Unreleased]
 
+### 工程治理（P0-11）：技术债门禁从"可豁免基线"改为"必须递减"
+
+**改造前的问题**：只有 `KNOWN_DEAD_MODULES`（一个 frozenset 基线）+ "不得新增"断言。
+它能防**新增**，却对**存量零压力** —— 基线一旦写死，孤立模块可以永远躺在那里。
+测试源码里甚至写着「把死模块计数从 17 降到 3 属于指标好看，不是工程收益」，
+等于用基线把指标洗白了。
+
+**改造后（三件套）**：
+
+1. `DEBT_LEDGER` —— 每条债务必须有 `owner` / 动作（`wire` 接线 或 `delete` 删除）
+   / `due` 期限 / `note` 原因。键集合与基线**强制一一对应**
+   （`test_ledger_matches_baseline`），消灭"有基线无台账"的幽灵条目；
+2. `DEBT_CEILING_HISTORY` —— 只增不减的**棘轮**历史。当前孤立模块数
+   **不得超过历史最低值**（`test_dead_module_count_is_decreasing`）。
+   想把上限调高，必须在历史里追加一条并写明原因 ——
+   让"放宽门槛"成为**显式的、要评审的动作**，而不是悄悄改个数字；
+3. `test_debt_volume_report` —— 把债务体量（模块数 + 总行数 + 逐条处置计划）
+   打进 CI 输出，避免"债务只存在于某个人的记忆里"。
+
+**棘轮自检（负向测试）**：人为把上限压到 5 后重跑，
+`test_dead_module_count_is_decreasing` **确实失败**并报
+「孤立模块数**回升**了：当前 12 个 > 棘轮上限 5 个」—— 证明门禁不是摆设。
+
+**当前基线**：孤立模块 **17 → 12**（本轮接线 5 个：
+`core/formatter.py`、`core/exporter.py`、`ui/lsp_panel.py`、
+`ui/problems_panel.py`、`ui/undo_history_panel.py`），共 2,094 行。
+
+### 入口重排（P1-7）：把差异化能力提升为一级可见
+
+**新菜单「⭐ 特色功能」**（位于「编辑」与「视图」之间）：
+
+* 🤖 AI 助手（ai_assistant）→ 子菜单列出该插件**真实注册**的 12 个命令
+  （解释代码 / 修复 Bug / 性能优化 / 重构 / Code Review / 生成 Docstring /
+  生成单元测试 / 代码摘要 / 添加注释 / 快速解释 / 缓存统计 / 清空缓存）；
+* 🔀 Git（git_deep）→ 子菜单列出 Git 状态等命令；
+* ▶ 运行当前文件（复用工具菜单的 F5 动作）、⚙ 切换断点；
+* 🧠 LSP 状态 / 安装向导、📊 问题（LSP 诊断）。
+
+**与命令面板同源**：直接从 `act_mgr.actions` 里按 `plugin.<插件>.<命令>`
+前缀取（`PluginAPI.register_command` 的注册键），因此不会出现
+"菜单里有、命令面板里没有"的偏差。实测菜单 13 项 == 面板 13 项。
+
+**诚实占位**：插件尚未加载时显示**禁用**的「（该插件未注册命令，或未启用）」
+并提示去「工具 → 插件管理」，而不是放一个点了没反应的菜单项。
+
+### 修复（P1-7 过程中实测发现的三个新缺陷）
+
+1. **★ 首次运行时 13 个插件命令全部注册失败（隐蔽且 100% 复现）**
+
+   `app/actions.py::ActionManager` 定义了 `__len__`（返回已注册动作数），
+   因此**空的 ActionManager 是 falsy**。而插件正是在**激活时**注册命令 ——
+   那一刻 `act_mgr` 里几乎还是空的，于是原来的
+
+       if hasattr(self.win, 'act_mgr') and self.win.act_mgr:
+
+   直接短路，命令一个都没注册。后果：
+
+   * 命令面板的「插件」分类**永远是空的**；
+   * 「⭐ 特色功能」只能显示"未注册命令"。
+
+   第二次启动（动作已被上一次填过）反而正常 —— 这类"只在首次运行出现"
+   的缺陷靠人工点测极难发现。改为 `mgr is not None` 判定。
+   已加 `tests/test_plugin_command_registration.py` 锁住根因与场景。
+
+2. **`QMenuBar.insertMenu()` 返回的是 QAction，不是 QMenu**
+
+   原实现把返回值赋给 `self.feature_menu`，随后 `addSeparator()` 抛
+   `AttributeError: 'QAction' object has no attribute 'addSeparator'`，
+   **整个 MainWindow 构造失败**（实测崩溃）。改为先建 QMenu 再 insert。
+
+3. **`_add_action(slot=None)` 会 `connect(None)` 抛 TypeError**
+
+   一个禁用占位项就能让整个主窗口构造失败
+   （`TypeError: argument 1 has unexpected type 'NoneType'`）。
+   现在 slot 为 None 时产出**禁用**动作。
+
+**同族风险一并修掉**：
+
+* **F5 被绑成两个动作**：特色功能菜单里新建了带 F5 的 QAction，
+  导致 `tests/test_shortcuts.py` 两条断言失败、Qt 报 ambiguous shortcut
+  → F5 彻底失效。改为**复用**工具菜单里已存在的那个 QAction
+  （同一动作可出现在多个菜单）。
+* **按文本查找动作不能用 `menuBar().findChildren(QAction)`**：
+  菜单里 QAction 的 parent 是**主窗口**而非 QMenuBar，
+  该调用**一个都找不到**（静默返回 None，于是又新建一个动作）。
+  改为遍历 QMenu 树，并**优先返回带快捷键的那个**（同名动作可能有两个）。
+
+### 新增（验证脚本）
+
+* `tools/verify_feature_menu.py` —— P1-7 聚合入口验证（13 项，全部通过）：
+  覆盖菜单位置、未加载时的诚实占位、加载后自动刷新、
+  与命令面板同源、点击链路有真实接收者、F5 唯一且复用同一对象。
+
+* `tests/test_plugin_command_registration.py` —— 6 项回归测试，
+  锁住"空 ActionManager 为假"这一根因、"空 manager 上注册命令必须成功"、
+  以及 `insertMenu` / `slot=None` 两个 Qt 陷阱。
+
+
 ### 新增（两大核心功能：列编辑器 · 对比合并）
 
 #### 📊 列编辑器（对标 Notepad++ Edit → Column Editor…）

@@ -1423,8 +1423,22 @@ class PluginAPI(QObject):
                 return
             action = QAction(description or name, self.win)
             action.triggered.connect(callback)
-            if hasattr(self.win, 'act_mgr') and self.win.act_mgr:
-                self.win.act_mgr.register(
+            # ⚠️ 必须是 `is not None` 判定，**不能**用真值判定！
+            #
+            # 实测缺陷：`ActionManager` 定义了 `__len__`（返回动作数），
+            # 因此**空的 ActionManager 是 falsy**。而插件正是在**激活时**
+            # 注册命令 —— 那一刻 `act_mgr` 里几乎还是空的（只有极少数
+            # 早期动作），于是原来的
+            #     `if hasattr(...) and self.win.act_mgr:`
+            # 会直接短路，**命令一个都不会注册**：
+            #   * 命令面板的「插件」分类永远是空的（它按
+            #     `name.startswith("plugin.")` 从 `act_mgr.actions` 取）；
+            #   * 「⭐ 特色功能」聚合入口只能显示"未注册命令"。
+            # 缓过来之后再启动（actions 已被前一次运行填过）反而正常，
+            # 所以这是**首次运行 100% 复现**的隐蔽缺陷。
+            mgr = getattr(self.win, 'act_mgr', None)
+            if mgr is not None:
+                mgr.register(
                     f"plugin.{self.plugin_name}.{name}",
                     action,
                     None,

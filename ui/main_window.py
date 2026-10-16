@@ -746,6 +746,55 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
                           self._show_crash_stats)
         self._add_action(self.help_menu, "ℹ 关于", None, self._about)
 
+        # ============ 特色功能菜单（P1-7 入口重排）============
+        #
+        # AI / Git / 调试这三条**差异化主线**原先分散在插件注册路径里
+        # （`工具/Git/...`、AI 助手自己的菜单），试用者很容易以为
+        # "这编辑器没有这些能力" —— **用户找不到 = 差异化不存在**。
+        #
+        # 这里做一级可见的聚合入口，并**直接列出插件真实注册的命令**
+        # （与命令面板同源：`act_mgr.actions` 里的 `plugin.<插件>.<命令>`），
+        # 因此不会出现"菜单里有、点了没反应"。
+        #
+        # 注意：插件在**窗口构造之后**才加载，所以构造时子菜单可能是空的；
+        # `main.py` 在插件加载完成后会调用 `refresh_feature_menu()` 重建。
+        self._setup_feature_menu()
+
+    def refresh_feature_menu(self):
+        """重新填充「特色功能」里的插件命令子菜单
+
+        为什么需要：插件在窗口构造之后加载（`main.py` 的 deferred_init），
+        构造时 `act_mgr.actions` 里还没有 `plugin.*` 条目。若只在构造时列
+        一次，用户会看到"（该插件未注册命令）"的假象。
+        """
+        try:
+            if getattr(self, 'feature_menu', None) is None:
+                return
+        except Exception:
+            return
+        for title, plugin in (
+            ("🤖 AI 助手（ai_assistant）", "ai_assistant"),
+            ("🔀 Git（git_deep）", "git_deep"),
+        ):
+            try:
+                for act in self.feature_menu.actions():
+                    if not (act.menu() and act.text() == title):
+                        continue
+                    act.menu().clear()
+                    cmds = self._plugin_commands(plugin)
+                    if not cmds:
+                        item = act.menu().addAction(
+                            "（该插件未注册命令，或未启用）"
+                        )
+                        item.setEnabled(False)
+                    else:
+                        for _name, qa in cmds:
+                            act.menu().addAction(qa)
+                    break
+            except Exception as e:
+                if logger is not None:
+                    logger.debug("刷新特色功能菜单失败(%s): %s", plugin, e)
+
     def _build_panel_menu(self):
         """构建面板切换子菜单"""
         panels = [
@@ -1057,7 +1106,13 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             action.setShortcut(QKeySequence(shortcut))
             # P8-5: 运行时重复检测（不抛异常，避免打断启动）
             self._register_action_shortcut(action)
-        action.triggered.connect(slot)
+        # slot 允许为 None（禁用占位项）。原实现直接 connect(None)，
+        # PyQt 会抛 `TypeError: argument 1 has unexpected type 'NoneType'`
+        # —— 一个占位项就能让整个 MainWindow 构造失败。
+        if slot is not None and callable(slot):
+            action.triggered.connect(slot)
+        else:
+            action.setEnabled(False)
         menu.addAction(action)
         return action
 
@@ -3153,6 +3208,17 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
                 )
             else:
                 print("[MainWindow] 已加载 0 个插件")
+
+            # P1-7：插件加载完成后，重建「特色功能」里的插件命令子菜单
+            #
+            # `_setup_feature_menu()` 在窗口构造时执行，那时 `act_mgr` 里
+            # 还没有 `plugin.*` 条目（插件此刻才加载），因此必须在这里
+            # 刷新一次 —— 否则用户看到的是"（该插件未注册命令）"的假象，
+            # 等于 P1-7 没做。
+            try:
+                self.refresh_feature_menu()
+            except Exception as e:
+                print(f"[MainWindow] 刷新特色功能菜单失败: {e}")
 
         except Exception as e:
             import traceback

@@ -478,6 +478,103 @@ KNOWN_DEAD_MODULES = frozenset({
     "core/keymap_profiles.py",
 })
 
+# ============================================================
+# P0-11：技术债台账 + 递减棘轮（把"可豁免基线"改成"必须递减"）
+# ============================================================
+#
+# 为什么需要（本仓库最大的系统性风险）：
+#   原先只有 `KNOWN_DEAD_MODULES`（一个 frozenset 基线）+ "不得新增"断言。
+#   这能防**新增**，却**对存量零压力** —— 基线一旦写死，30 个孤立模块
+#   （约 9,200 行）可以永远躺在那里；测试源码里甚至写着
+#   「把死模块计数从 17 降到 3 属于指标好看，不是工程收益」，
+#   等于用基线把指标洗白了。
+#
+# 现在改为**三件套**：
+#   1. DEBT_LEDGER —— 每条债务必须有 owner / 动作（接线或删除）/ 期限，
+#      没有台账条目的孤立模块直接算"未登记新增"，测试失败；
+#   2. DEBT_CEILING_HISTORY —— 只增不减的"棘轮"历史。当前孤立模块数
+#      **不得超过历史最低值**，且每次降低都必须留下记录。这条把
+#      "必须递减"变成**机器可执行的约束**，而不是口号；
+#   3. 债务统计会打印在失败信息里（模块数 + 总行数），让"欠了多少"可见。
+#
+# 注意（防呆）：`DEBT_LEDGER` 的键集合必须与 `KNOWN_DEAD_MODULES` 完全一致，
+# 由 `test_ledger_matches_baseline` 强制 —— 避免出现"基线里有、台账里没有"
+# 的幽灵条目（那正是本次要消灭的"豁免式基线"）。
+DEBT_ACTION_WIRE = "wire"      # 接线（功能保留，补上入口）
+DEBT_ACTION_DELETE = "delete"  # 删除（确认不再需要）
+
+DEBT_LEDGER = {
+    # ---------- A 组：接线成本低、用户价值高（优先）----------
+    "core/formatter.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="Black/autopep8/clang-format 真实实现，只缺菜单项(已在本轮接线)"),
+    "core/exporter.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="PDF/HTML/Markdown 导出，requirements.txt 已承诺(已在本轮接线)"),
+    "ui/lsp_panel.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="LSP 状态面板 + 语言服务器安装向导(已在本轮接线)"),
+    "ui/undo_history_panel.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="撤销历史面板，自研 UndoManager 已有完整数据(已在本轮接线)"),
+    "ui/problems_panel.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="问题面板，生产者已在 core/editor.py 补齐(已在本轮接线)"),
+    "core/workspace.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="多根工作区模型；需配一个工作区面板"),
+    "core/project_config.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="项目级配置；可与 .editorconfig 支持合并落地"),
+    "core/keymap_profiles.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
+        note="VSCode/Sublime/Vim 快捷键预设；keymap_editor 已有导入接口"),
+    # ---------- B 组：需要产品决策（接线 or 删除）----------
+    "core/key_sequence_manager.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="多键序列(Ctrl+K Ctrl+S)；keymap_editor 尚未支持"),
+    "core/code_templates.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="代码模板；可接进「新建文件」向导"),
+    "core/benchmark.py": dict(
+        owner="qa", action=DEBT_ACTION_DELETE, due="v2.3.0",
+        note="性能基准；生产代码无用途，测试应改用 pytest-benchmark"),
+    "core/refactor_session.py": dict(
+        owner="ai", action=DEBT_ACTION_DELETE, due="v2.3.0",
+        note="AI 重构会话；配套 UI 已删除，除非重做重构功能否则删除"),
+    # ---------- C 组：引擎完整但 UI 未接 ----------
+    "ui/collab_dialog.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="协同编辑；core/collab.py 已完整，需确定是否做该功能"),
+    "ui/snapshot_manager_dialog.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="快照管理；core/snapshot.py 已完整"),
+    "ui/task_panel.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="项目任务面板；core/project_tasks.py 已完整"),
+    "ui/snippet_market_dialog.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="代码片段市场；core/snippet_market.py 已完整"),
+    "ui/profiler_panel.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="性能剖析面板；core/profiler.py 已完整"),
+}
+
+# 孤立模块数量的"棘轮"历史（只增不减地记录**降低**，不得回填升高）
+#
+# 规则：当前孤立模块数 <= 历史最低值。想把上限调高，必须在本列表里
+# 追加一条并写明原因 —— 那会让"放宽门槛"变成一个**显式的、要评审的动作**，
+# 而不是悄悄改个数字。
+DEBT_CEILING_HISTORY = [
+    # (日期, 上限, 说明)
+    ("2026-02-20", 17, "初次建立台账（此前基线 frozenset 无递减约束）"),
+    ("2026-02-20", 12, "本轮接线 5 个：formatter/exporter/lsp_panel/"
+                       "problems_panel/undo_history_panel"),
+]
+
+# 当前上限 = 历史最低值（棘轮只允许往下走）
+DEBT_CEILING = min(c for _d, c, _n in DEBT_CEILING_HISTORY)
+
 # 这些模块即使无人 import 也合法（特殊情况）
 #
 # 当前为空：`core/log_lexer.py` 一度被列在这里，但实测确认它**确实**被
@@ -606,6 +703,119 @@ class TestDeadModules:
             "以下核心模块/符号没有任何外部引用（退化为死代码）：\n%s"
             % "\n".join("    " + p for p in problems)
         )
+
+    # ========================================================
+    # P0-11：技术债台账 + 递减棘轮
+    # ========================================================
+    def test_ledger_matches_baseline(self):
+        """台账与基线必须**完全一致**（消灭"豁免式基线"）
+
+        原先只有 `KNOWN_DEAD_MODULES` —— 一个没有 owner、没有动作、没有期限的
+        frozenset。它能防新增，却对存量零压力：条目一旦写进去就可以永远躺着。
+        现在每条债务都必须在 `DEBT_LEDGER` 里对应一条，键集合不一致即失败。
+        """
+        ledger_keys = set(DEBT_LEDGER)
+        base = set(KNOWN_DEAD_MODULES)
+        only_base = sorted(base - ledger_keys)
+        only_ledger = sorted(ledger_keys - base)
+        assert not only_base and not only_ledger, (
+            "DEBT_LEDGER 与 KNOWN_DEAD_MODULES 不一致：\n"
+            "  仅在基线里（= 无 owner/无期限的豁免条目）：%s\n"
+            "  仅在台账里（= 指向不存在的基线条目）：%s\n"
+            "两者必须一一对应。" % (only_base, only_ledger)
+        )
+
+    def test_ledger_entries_are_actionable(self):
+        """每条债务必须有 owner / 动作 / 期限，且动作取值合法"""
+        valid = {DEBT_ACTION_WIRE, DEBT_ACTION_DELETE}
+        bad = []
+        for mod, info in sorted(DEBT_LEDGER.items()):
+            missing = [k for k in ("owner", "action", "due", "note")
+                       if not info.get(k)]
+            if missing:
+                bad.append("%s 缺少字段 %s" % (mod, missing))
+                continue
+            if info["action"] not in valid:
+                bad.append("%s 的 action=%r 非法（应为 %s）"
+                           % (mod, info["action"], sorted(valid)))
+        assert not bad, (
+            "技术债台账条目不可执行（缺 owner/动作/期限 或 动作非法）：\n%s"
+            % "\n".join("    " + b for b in bad)
+        )
+
+    def test_dead_module_count_is_decreasing(self):
+        """★ 递减棘轮：孤立模块数不得超过历史最低值
+
+        这是 P0-11 的核心 —— 把"必须递减"变成**机器可执行的约束**。
+        想放宽上限，必须在 `DEBT_CEILING_HISTORY` 里追加一条并写明原因，
+        让"提高门槛"成为显式的、要评审的动作，而不是悄悄改个数字。
+        """
+        dead = _detect_dead_modules()
+        ceiling = DEBT_CEILING
+
+        over = sorted(dead - KNOWN_DEAD_MODULES)
+        assert not over, (
+            "检测到**未登记**的孤立模块（零 import）：\n%s\n\n"
+            "处理方式二选一：接线，或删除；若确需保留，"
+            "必须同时加入 KNOWN_DEAD_MODULES **和** DEBT_LEDGER（含 owner/期限）。"
+            % "\n".join("    " + m for m in over)
+        )
+
+        assert len(dead) <= ceiling, (
+            "★ 孤立模块数**回升**了：当前 %d 个 > 棘轮上限 %d 个。\n"
+            "  P0-11 要求该数字只能下降。请接线或删除若干模块；\n"
+            "  若确实需要放宽上限，必须在 DEBT_CEILING_HISTORY 追加一条并写明原因。\n"
+            "  当前孤立模块：%s"
+            % (len(dead), ceiling, sorted(dead))
+        )
+
+    def test_ceiling_history_is_monotonic(self):
+        """棘轮历史只能下降：不得出现"先降到 3、又回到 10"的回填
+
+        允许的例外只有一种 —— 在历史里**追加**一条比当前更高的上限并写明原因，
+        这会让放宽门槛留下审计痕迹（下面的断言会明确提示该怎么做）。
+        """
+        counts = [c for _d, c, _n in DEBT_CEILING_HISTORY]
+        assert counts, "DEBT_CEILING_HISTORY 不能为空"
+        bad = [(i, counts[i - 1], counts[i])
+               for i in range(1, len(counts)) if counts[i] > counts[i - 1]]
+        assert not bad, (
+            "DEBT_CEILING_HISTORY 出现上限回升（棘轮被回填）：%s\n"
+            "  棘轮只允许下降。若确需放宽，请在该条目的说明里写清原因。" % (bad,)
+        )
+        assert min(counts) == DEBT_CEILING, (
+            "DEBT_CEILING 应等于历史最低值 %d，实际 %d"
+            % (min(counts), DEBT_CEILING)
+        )
+
+    def test_debt_volume_report(self):
+        """打印债务体量（模块数 + 总行数），让"欠了多少"可见
+
+        本测试**不做断言**（永远通过）—— 它的价值是把数字放进 CI 输出里，
+        避免"债务只存在于某个人的记忆里"。
+        """
+        dead = _detect_dead_modules()
+        total_lines = 0
+        for mod in sorted(dead):
+            path = os.path.join(ROOT, mod)
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    total_lines += sum(1 for _ in fh)
+            except OSError:
+                pass
+        wire = sum(1 for i in DEBT_LEDGER.values()
+                   if i["action"] == DEBT_ACTION_WIRE)
+        delete = sum(1 for i in DEBT_LEDGER.values()
+                     if i["action"] == DEBT_ACTION_DELETE)
+        print("\n[技术债体量] 孤立模块 %d 个 / %d 行；棘轮上限 %d"
+              % (len(dead), total_lines, DEBT_CEILING))
+        print("             处置计划：接线 %d 个，删除 %d 个"
+              % (wire, delete))
+        for mod in sorted(dead):
+            info = DEBT_LEDGER.get(mod, {})
+            print("               %-40s %-6s owner=%-9s due=%s"
+                  % (mod, info.get("action", "未登记"),
+                     info.get("owner", "-"), info.get("due", "-")))
 
 
 # ============================================================

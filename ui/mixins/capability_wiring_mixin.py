@@ -408,11 +408,16 @@ class CapabilityWiringMixin:
             提升为一级可见 —— 只做**导航**，不重复实现功能。
         """
         try:
-            self.feature_menu = self.menuBar().insertMenu(
-                getattr(self, '_view_menu_action', None)
-                or self.view_menu.menuAction(),
-                self._make_menu("⭐ 特色功能"),
-            )
+            menu = self._make_menu("⭐ 特色功能")
+            anchor = getattr(self, '_view_menu_action', None) or \
+                self.view_menu.menuAction()
+            # ⚠️ 实测坑：`QMenuBar.insertMenu()` 返回的是 **QAction**
+            #   （即菜单的 menuAction），不是 QMenu。原实现把返回值直接
+            #   赋给 `self.feature_menu`，后续 `addSeparator()` 就抛
+            #   `AttributeError: 'QAction' object has no attribute
+            #   'addSeparator'`，整个 MainWindow 构造失败。
+            self.menuBar().insertMenu(anchor, menu)
+            self.feature_menu = menu
         except Exception:
             try:
                 self.feature_menu = self.menuBar().addMenu("⭐ 特色功能")
@@ -421,22 +426,152 @@ class CapabilityWiringMixin:
                     logger.debug("创建特色功能菜单失败: %s", e)
                 return
 
-        # AI：调用插件已注册的命令（不重复实现）
-        self._add_action(self.feature_menu, "🤖 AI 助手", None,
-                         lambda: self._invoke_plugin_command("ai_assistant"))
-        self._add_action(self.feature_menu, "💬 AI 行内补全", None,
-                         self._toggle_ai_inline)
+        # AI：直接列出 AI 助手插件**真实注册**的命令（命令面板里同源）
+        self._add_plugin_commands_submenu(
+            "🤖 AI 助手（ai_assistant）", "ai_assistant", "ai"
+        )
         self.feature_menu.addSeparator()
-        self._add_action(self.feature_menu, "🔀 Git 状态/差异", None,
-                         lambda: self._invoke_plugin_command("git_deep"))
+        self._add_plugin_commands_submenu(
+            "🔀 Git（git_deep）", "git_deep", "git"
+        )
         self.feature_menu.addSeparator()
-        self._add_action(self.feature_menu, "🐞 启动调试 (F7)", "F7",
-                         self._debug_run)
-        self._add_action(self.feature_menu, "⚙ 编辑器内设置 (F9 断点)",
-                         None, self._debug_breakpoint)
+        # 调试：**复用工具菜单里已存在的 F5 动作**，绝不新建。
+        #
+        # ⚠️ 实测教训：先前这里用 `_add_action(..., "▶ 运行当前文件", "F5", ...)`
+        #   新建了一个 QAction，于是全仓出现**两个 F5** ——
+        #   `tests/test_shortcuts.py::test_f5_is_run_current_file` 与
+        #   `test_no_duplicate_non_empty_shortcuts` 立刻失败，Qt 也会判定
+        #   ambiguous shortcut 导致 F5 彻底失效。
+        #   正确做法是把已有 QAction 加进本菜单（同一动作可在多菜单出现）。
+        run_action = self._find_action_with_text("▶ 运行当前文件")
+        if run_action is not None:
+            self.feature_menu.addAction(run_action)
+        else:
+            self._add_action(self.feature_menu, "▶ 运行当前文件", None,
+                             self._debug_run)
+        self._add_action(self.feature_menu, "⚙ 在当前行切换断点", None,
+                         self._debug_breakpoint)
         self.feature_menu.addSeparator()
-        self._add_action(self.feature_menu, "🧠 LSP 智能（子菜单见工具）",
-                         None, self._show_panel_lsp)
+        self._add_action(self.feature_menu, "🧠 LSP 状态 / 安装向导", None,
+                         self._show_panel_lsp)
+        self._add_action(self.feature_menu, "📊 问题（LSP 诊断）", None,
+                         lambda: self._show_panel('problems'))
+
+    def _find_action_with_text(self, text: str):
+        """在整个菜单栏里按文本找已存在的 QAction（用于跨菜单复用同一动作）
+
+        **优先返回带快捷键的那个**：实测菜单栏里可能存在**同名**动作
+        （一个是真正的命令、带快捷键；另一个是无快捷键的展示项）。
+        随便取第一个可能取到无快捷键的那个，导致复用失败。
+
+        实现要点（实测坑）：不能用 `menuBar().findChildren(QAction)` ——
+        菜单里的 QAction 的 parent 是**主窗口**，而不是 QMenuBar，
+        因此 `findChildren` 一个都找不到（会静默返回 None，
+        于是又新建一个动作，F5 就变成两个）。必须**遍历 QMenu 树**。
+
+        为什么要复用：同一动作出现在多个菜单是正常的（VSCode 也如此），
+        但**不能新建第二个带相同快捷键的 QAction** —— 那会让 Qt 报
+        ambiguous shortcut，按键直接失效（实测 F5 就是这样失效的）。
+        """
+        try:
+            from PyQt5.QtWidgets import QMenu
+            found = []
+            menus = list(self.findChildren(QMenu))
+            # 递归展开子菜单（QMenu 的菜单项本身也是 QAction/QMenu）
+            seen = set()
+            stack = list(menus) + [self.menuBar()]
+            while stack:
+                menu = stack.pop()
+                if id(menu) in seen:
+                    continue
+                seen.add(id(menu))
+                try:
+                    actions = menu.actions()
+                except Exception:
+                    continue
+                for act in actions:
+                    if act.text() == text:
+                        found.append(act)
+                    sub = act.menu()
+                    if sub is not None:
+                        stack.append(sub)
+            for act in found:
+                if not act.shortcut().isEmpty():
+                    return act          # 带快捷键的优先
+            return found[0] if found else None
+        except Exception as e:
+            if logger:
+                logger.debug("按文本查找动作失败(%s): %s", text, e)
+        return None
+
+    def _plugin_commands(self, plugin_name: str):
+        """取出某插件**已注册**的命令（键形如 `plugin.<插件>.<命令>`）
+
+        真实链路（已核实 `app/plugins.py:1426-1433`）：
+            `PluginAPI.register_command()` 会创建 QAction 并以
+            `plugin.{plugin_name}.{name}` 注册到 `win.act_mgr`
+            （`ActionManager.register`）。命令面板 `_load_plugin_commands()`
+            正是按 `name.startswith("plugin.")` 从同一个 `act_mgr.actions`
+            里取的 —— 因此本菜单与命令面板**同源**，不会出现
+            "菜单里有、命令面板里没有"的偏差。
+
+        返回: [(完整命令名, QAction), ...]，按名称排序
+        """
+        out = []
+        try:
+            mgr = getattr(self, 'act_mgr', None)
+            actions = getattr(mgr, 'actions', None) if mgr else None
+            if not actions:
+                return out
+            prefix = "plugin.%s." % plugin_name
+            for key, action in actions.items():
+                if isinstance(key, str) and key.startswith(prefix):
+                    out.append((key, action))
+        except Exception as e:
+            if logger:
+                logger.debug("枚举插件命令失败: %s", e)
+        return sorted(out, key=lambda kv: kv[0])
+
+    def _add_plugin_commands_submenu(self, title: str, plugin_name: str,
+                                     icon_key: str = ""):
+        """把某插件注册的命令加成一个子菜单
+
+        **找不到命令时如实说明**，而不是放一个点了没反应的菜单项 ——
+        这正是 P1-7 想解决的问题（用户找不到 ≠ 没有；但也不能假装有）。
+        """
+        try:
+            sub = self.feature_menu.addMenu(title)
+        except Exception:
+            return
+        cmds = self._plugin_commands(plugin_name)
+        if not cmds:
+            # 注意：不能用 `_add_action(..., slot=None)` —— 它内部会执行
+            # `action.triggered.connect(None)`，PyQt 直接抛
+            # `TypeError: argument 1 has unexpected type 'NoneType'`。
+            # 这里手工建一个**禁用**的占位项，明确告诉用户为什么是空的。
+            try:
+                from PyQt5.QtWidgets import QAction as _QAction
+                act = _QAction("（该插件未注册命令，或未启用）", self)
+                act.setEnabled(False)
+                act.setToolTip(
+                    "请到「工具 → 插件管理」确认 %s 已启用" % plugin_name
+                )
+                sub.addAction(act)
+            except Exception as e:
+                if logger:
+                    logger.debug("添加占位菜单项失败: %s", e)
+            return
+        for name, action in cmds:
+            short = name.rsplit(".", 1)[-1]
+            label = action.text() or short
+            sc = ""
+            try:
+                sc = action.shortcut().toString() if action.shortcut() else ""
+            except Exception:
+                sc = ""
+            # 直接复用插件原来的 QAction（trigger 即执行其 callback），
+            # 不新建包装 —— 避免出现"两个动作、两条冲突快捷键"。
+            self._add_action(sub, label, sc or None, action.trigger)
 
     def _make_menu(self, title):
         """创建一个 QMenu（抽出来便于异常处理）"""
@@ -444,34 +579,24 @@ class CapabilityWiringMixin:
         return QMenu(title, self)
 
     def _invoke_plugin_command(self, plugin_name: str):
-        """触发某个插件注册的命令/面板（找不到时给出明确提示）"""
+        """触发某插件注册的**第一个**命令（找不到时给出明确提示）
+
+        保留此方法供聚合入口使用；实现改为走 `_plugin_commands()`
+        （此前用的 `act_mgr.list_plugin_commands()` **不存在**，
+        导致这条聚合入口一点就报"未找到"）。
+        """
         try:
-            # 优先：插件注册的命令（命令面板里同源）
-            mgr = getattr(self, 'plugin_manager', None) or \
-                getattr(self, 'plugins', None)
-            cmds = []
-            if self.act_mgr is not None and hasattr(
-                    self.act_mgr, 'list_plugin_commands'):
-                cmds = self.act_mgr.list_plugin_commands(plugin_name)
+            cmds = self._plugin_commands(plugin_name)
             if cmds:
-                first = cmds[0]
-                slot = getattr(first, 'slot', None) or \
-                    getattr(first, 'callback', None)
-                if callable(slot):
-                    slot()
-                    return
-            # 退化：显示该插件的面板（若已挂载）
-            for attr in ('ai_panel', 'git_panel', 'debug_panel'):
-                w = getattr(self, attr, None)
-                if w is not None:
-                    w.setVisible(True)
-                    return
+                cmds[0][1].trigger()
+                return True
             self.status_bar.showMessage(
-                f"未找到插件「{plugin_name}」的入口："
-                f"请确认该插件已启用（工具 → 插件管理）", 8000
+                f"插件「{plugin_name}」未注册命令或未启用："
+                f"请到「工具 → 插件管理」确认", 8000
             )
         except Exception as e:
             print(f"[MainWindow] 调用插件命令失败: {e}")
+        return False
 
     def _toggle_ai_inline(self):
         """开关 AI 行内补全（`ui/ai_inline_completer.py`）"""
