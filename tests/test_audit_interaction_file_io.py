@@ -42,7 +42,6 @@ def _make_editor(qapp, path):
 # ============================================================
 class TestEolVsSave:
 
-    @pytest.mark.audit_expected_fail
     def test_eol_switch_is_written_to_disk(self, qapp, tmp_path):
         """ui/mixins/status_bar_mixin.py:191-205 -> Document.set_eol
         (core/document.py:620-623) 只设置 meta.eol + mark_modified()；
@@ -67,7 +66,6 @@ class TestEolVsSave:
             f" 实际字节={data!r}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_eol_roundtrip_after_reopen(self, qapp, tmp_path):
         """再打开应保持新行尾。"""
         p = tmp_path / "eol2.txt"
@@ -98,7 +96,6 @@ class TestEolVsSave:
 # ============================================================
 class TestEncodingVsEditor:
 
-    @pytest.mark.audit_expected_fail
     def test_encoding_switch_refreshes_editor_text(self, qapp, tmp_path):
         """ui/mixins/status_bar_mixin.py:177-188 -> Document.change_encoding
         (core/document.py:593-615) 重载了 provider，但没有任何代码
@@ -135,7 +132,6 @@ class TestEncodingVsEditor:
             f"切换编码后编辑器应为正确文本，实际 {sc.text()!r}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_encoding_switch_then_save_does_not_corrupt(self, qapp, tmp_path):
         """切换编码后保存，磁盘字节必须等于正确文本按新编码的结果。"""
         p = tmp_path / "enc2.txt"
@@ -170,7 +166,6 @@ class TestEncodingVsEditor:
 # ============================================================
 class TestSaveAsVsLsp:
 
-    @pytest.mark.audit_expected_fail
     def test_save_as_updates_lsp_uri(self, qapp, tmp_path):
         """ui/mixins/file_ops_mixin.py:230 走 Document.save(path)，
         它更新了 document.filepath（core/document.py:403-407），
@@ -199,7 +194,6 @@ class TestSaveAsVsLsp:
             "request_completion 用新路径服务器不认识 -> 补全失效。"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_lsp_did_save_uses_stale_uri_after_save_as(
             self, qapp, tmp_path):
         """另存为后 _notify_lsp_saved 仍用旧 URI
@@ -245,7 +239,6 @@ class TestSaveAsVsLsp:
 # ============================================================
 class TestDiagnosticsUriIsolation:
 
-    @pytest.mark.audit_expected_fail
     def test_diagnostics_for_foreign_uri_are_ignored(self, qapp, tmp_path):
         """core/editor.py:1951 的 _on_lsp_diagnostics(uri, diagnostics)
         完全没有比较 uri 与 self._lsp_uri，任何来源的诊断都会被画到

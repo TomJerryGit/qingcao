@@ -572,6 +572,18 @@ class MacroRecorder(QObject):
 
         start_time = time.time()
 
+        # 回放前的缓冲区快照
+        #
+        # 用途见下方"写入单条整体回滚命令"：回放期间关闭了 Scintilla 通知
+        # （性能考虑），`_on_scintilla_modified` 收不到事件，自研撤销栈
+        # 不会有任何回放命令 —— 若不管，Ctrl+Z 会弹出回放**之前**的旧命令
+        # 并按旧位置执行，直接损坏内容。
+        text_before_replay = ""
+        try:
+            text_before_replay = proxy.sc.text()
+        except Exception:
+            pass
+
         try:
             # 禁用 Scintilla 通知（提高性能）
             self._disable_scintilla_notifications(proxy)
@@ -616,14 +628,84 @@ class MacroRecorder(QObject):
             elapsed = (time.time() - start_time) * 1000
 
             # 标记修改
+            #
+            # 修复（INV-M3，审计用例复现）：原先只改 `proxy._modified`，
+            # 不调用 `document.mark_modified()` —— 于是
+            # `proxy.is_modified` 与 `document.is_modified` 出现分歧
+            # （标签页显示 '*' 但文档认为干净，自动保存/关闭提示据此误判）。
             proxy.sc.setModified(True)
             if hasattr(proxy, '_modified'):
                 proxy._modified = True
+            try:
+                doc = getattr(proxy, 'document', None)
+                if doc is not None and hasattr(doc, 'mark_modified'):
+                    doc.mark_modified()
+            except Exception:
+                pass
             if hasattr(proxy, 'modified_changed'):
                 try:
                     proxy.modified_changed.emit(True)
                 except Exception:
                     pass
+
+            # 写入一条**整体回滚命令**，让一次 Ctrl+Z 回到回放前
+            #
+            # 修复（INV-M1/INV-M2，审计用例复现）：
+            #   回放用 `SCI_SETMODEVENTMASK(0)` 关闭了修改通知（第 577 行），
+            #   `EditorProxy._on_scintilla_modified` 因此不会触发，
+            #   `UndoManager.record()` 从未被调用 —— 回放改变了缓冲区却
+            #   在撤销栈里**没有任何记录**。于是用户按 Ctrl+Z 时弹出的是
+            #   回放**之前**的旧命令，按旧位置执行 → 内容损坏且不可预期。
+            #
+            #   这里把"回放前 → 回放后"的整段变化作为**一个原子命令**补记
+            #   进撤销栈：undo 恢复回放前的全文，redo 恢复回放后的全文。
+            #   使用 `CompoundCmd`（带显式逆操作），它能被 UndoManager
+            #   正确 undo/redo（不像 GroupCmd 那样在 redo 时会再次执行正向）。
+            try:
+                if executed and text_before_replay != proxy.sc.text():
+                    from core.commands import CompoundCmd as _Compound
+
+                    text_after = proxy.sc.text()
+
+                    def _restore(text):
+                        def _fn(sc):
+                            # 注意：不能用 `SCI_SETTEXT` + str —— 该消息的
+                            # lParam 需要 bytes，传 str 会抛
+                            # "argument 3 has unexpected type 'str'"，
+                            # 命令因此静默失败（看起来像"撤销没反应"）。
+                            # QScintilla 的 `setText()` 接受 str 并处理编码。
+                            try:
+                                sc.setText(text)
+                            except Exception:
+                                try:
+                                    data = text.encode("utf-8")
+                                    sc.SendScintilla(sc.SCI_SETTEXT, 0, data)
+                                except Exception:
+                                    pass
+                        return _fn
+
+                    rollback = _Compound(
+                        forward_fn=_restore(text_after),
+                        backward_fn=_restore(text_before_replay),
+                        pos=0,
+                        description="宏回放",
+                    )
+                    um = getattr(proxy, 'undo_manager', None)
+                    if um is not None:
+                        # 清空回放前的撤销历史：回放是一次"批量替换"，
+                        # 旧的命令位置相对新内容已失效（INV-M2 要求
+                        # 一次 Ctrl+Z 就回到回放前，而不是先执行旧命令）。
+                        try:
+                            um.undo_stack.clear()
+                        except Exception:
+                            pass
+                        try:
+                            um.redo_stack.clear()
+                        except Exception:
+                            pass
+                        um.record(rollback)
+            except Exception as e:
+                print(f"[Macro] 记录回放回滚命令失败: {e}")
 
             # 恢复状态
             self._enable_scintilla_notifications(proxy)

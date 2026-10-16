@@ -778,23 +778,24 @@ class PluginAPI(QObject):
     # ========================================================
     # 事件订阅
     # ========================================================
-    def subscribe(self, event_name: str, callback: Callable):
-        """
-        订阅事件总线事件。
+    @staticmethod
+    def _event_signal_map() -> dict:
+        """事件名 → 事件总线信号 的**唯一**映射表
 
-        参数:
-            event_name: 事件名称，如 "file_opened", "cursor_moved"
-            callback: 回调函数，接收事件对象
+        修复（审计用例 test_unsubscribe_supports_every_subscribable_event）：
+            `subscribe()` 与 `unsubscribe()` 各自维护了一份字面量映射，
+            而 `unsubscribe` 的那份**只有 6 项**（subscribe 有 15 项）：
+            缺少 file_modified、tab_changed、tab_added、tab_removed、
+            project_opened、project_closed、macro_started、macro_stopped、
+            theme_changed。
 
-        支持的事件:
-            file_opened, file_saved, file_closed, file_modified,
-            editor_changed, cursor_moved, selection_changed,
-            tab_changed, tab_added, tab_removed,
-            project_opened, project_closed,
-            macro_started, macro_stopped,
-            theme_changed
+            于是这些事件的 `unsubscribe()` **静默失败** —— 插件的回调
+            永远留在信号上。插件被禁用/重载后仍会被调用，访已释放的对象
+            会崩溃，或造成重复响应。这是"订阅得上、退订不掉"的经典泄漏。
+
+            现在两份共用一个映射表，从结构上杜绝不一致。
         """
-        signal_map = {
+        return {
             'file_opened': bus.file_opened,
             'file_saved': bus.file_saved,
             'file_closed': bus.file_closed,
@@ -812,6 +813,24 @@ class PluginAPI(QObject):
             'theme_changed': bus.theme_changed,
         }
 
+    def subscribe(self, event_name: str, callback: Callable):
+        """
+        订阅事件总线事件。
+
+        参数:
+            event_name: 事件名称，如 "file_opened", "cursor_moved"
+            callback: 回调函数，接收事件对象
+
+        支持的事件:
+            file_opened, file_saved, file_closed, file_modified,
+            editor_changed, cursor_moved, selection_changed,
+            tab_changed, tab_added, tab_removed,
+            project_opened, project_closed,
+            macro_started, macro_stopped,
+            theme_changed
+        """
+        signal_map = self._event_signal_map()
+
         signal = signal_map.get(event_name)
         if signal is None:
             self.show_status(f"未知事件: {event_name}", 3000, "warning")
@@ -824,25 +843,38 @@ class PluginAPI(QObject):
             self.show_status(f"订阅事件失败: {e}", 3000, "error")
 
     def unsubscribe(self, event_name: str, callback: Callable):
-        """取消订阅事件"""
-        signal_map = {
-            'file_opened': bus.file_opened,
-            'file_saved': bus.file_saved,
-            'file_closed': bus.file_closed,
-            'cursor_moved': bus.cursor_moved,
-            'selection_changed': bus.selection_changed,
-            'editor_changed': bus.editor_changed,
-        }
+        """取消订阅事件（映射与 `subscribe` 完全相同）
+
+        ⚠️ 关键实现细节（实测踩坑）：
+            PyQt 的 **bound signal 每次属性访问都会返回新的包装对象**：
+
+                bus.file_opened is bus.file_opened   ->  False
+                bus.file_opened == bus.file_opened   ->  True
+
+            因此用 `is` 比较信号对象永远不成立 —— 这正是原实现
+            `if not (s is signal and c is callback)` **静默失败**、
+            退订后连接依然挂着的原因之一（另一个原因是映射表缺键）。
+
+            现在用 `==` 比较（按底层信号身份），并同时逐个尝试
+            `disconnect()`。
+        """
+        signal_map = self._event_signal_map()
         signal = signal_map.get(event_name)
-        if signal:
-            try:
-                signal.disconnect(callback)
-                self._event_connections = [
-                    (s, c) for s, c in self._event_connections
-                    if not (s is signal and c is callback)
-                ]
-            except (TypeError, RuntimeError):
-                pass
+        if signal is None:
+            self.show_status(f"未知事件: {event_name}", 3000, "warning")
+            return
+
+        try:
+            signal.disconnect(callback)
+        except (TypeError, RuntimeError):
+            # 未连接 / 已断开 —— 不是错误
+            pass
+
+        # 无论 disconnect 是否抛错都清理登记表（用 == 而非 is）
+        self._event_connections = [
+            (s, c) for s, c in self._event_connections
+            if not (c == callback and (s == signal or s is signal))
+        ]
 
     def emit_event(self, event: BaseEvent):
         """发射事件到事件总线"""
@@ -1537,14 +1569,63 @@ class PluginAPI(QObject):
             try:
                 if action.parent():
                     action.parent().removeAction(action)
+                action.setParent(None)
                 action.deleteLater()
             except Exception:
                 pass
         self._registered_actions.clear()
 
         # 清理子菜单
+        #
+        # 修复（审计用例 test_menu_item_survives_one_hot_reload）：
+        #   原先只调 `menu.deleteLater()` —— **延迟删除**，子菜单仍挂在
+        #   父菜单上。热重载时 `add_menu` 的"复用已存在子菜单"分支按文本
+        #   找到的正是这个**待销毁的旧子菜单**，新动作被加进即将被销毁的
+        #   容器；处理 DeferredDelete 后整项**凭空消失**（实测 0，期望 1）。
+        #
+        #   正确做法：先找到"承载该子菜单的那个 QAction"并从父菜单摘除，
+        #   再 deleteLater。
+        #
+        #    ⚠️ 实测教训：`menu.menuAction().parent()` 返回的是**子菜单自己**
+        #    （不是父菜单），所以不能直接用它 removeAction；
+        #    必须遍历候选父菜单的 actions，找 `act.menu() is menu` 的那一个。
         for menu in self._registered_menus:
             try:
+                holder = None
+                holder_parent = None
+
+                def _scan(parent_menu):
+                    if parent_menu is None:
+                        return None
+                    try:
+                        for act in parent_menu.actions():
+                            if act.menu() is menu:
+                                return act
+                    except Exception:
+                        pass
+                    return None
+
+                # 候选父：菜单自身的 parent()（通常是 QMenu）
+                p = menu.parent()
+                if p is not None and hasattr(p, 'actions'):
+                    holder = _scan(p)
+                    holder_parent = p
+                # 再兜底扫描菜单栏
+                if holder is None and self.win is not None:
+                    try:
+                        for act in self.win.menuBar().actions():
+                            if act.menu():
+                                h = _scan(act.menu())
+                                if h is not None:
+                                    holder, holder_parent = h, act.menu()
+                                    break
+                    except Exception:
+                        pass
+
+                menu.clear()
+                if holder is not None and holder_parent is not None:
+                    holder_parent.removeAction(holder)
+                menu.setParent(None)
                 menu.deleteLater()
             except Exception:
                 pass
@@ -1555,6 +1636,7 @@ class PluginAPI(QObject):
             try:
                 if self.win is not None:
                     self.win.removeDockWidget(dock)
+                dock.setParent(None)
                 dock.deleteLater()
             except Exception:
                 pass
@@ -1565,6 +1647,7 @@ class PluginAPI(QObject):
             try:
                 if self.win is not None:
                     self.win.removeAction(action)
+                action.setParent(None)
                 action.deleteLater()
             except Exception:
                 pass

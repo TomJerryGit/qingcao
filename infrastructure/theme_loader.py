@@ -27,6 +27,7 @@
 import datetime
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -706,6 +707,25 @@ def adapt_qss_colors(qss: str, theme) -> str:
 
     返回:
         替换后的 QSS
+
+    修复（INV-T1，审计用例复现的"颜色互相覆盖"）：
+        原实现是**顺序 `str.replace()` 链**：
+
+            for old, new in replacements:
+                qss = qss.replace(old, new)
+
+        这会产生**级联覆盖**：前一条写入的 `new` 若恰好等于后面某条的
+        `old`，就会被再替换一次。真实例子（浅色主题 light_clean）：
+
+            '#d4d4d4' -> c.foreground  == '#333333'
+            '#333333' -> c.panel_bg    == '#f5f5f5'   ← 又命中刚写入的值
+
+        于是表示"正文前景"的 `#d4d4d4` 最终变成**面板背景色** ——
+        文字与背景同色，界面看起来"少了一块"。同理 `#cccccc`
+        （应映射 tab_fg）被二次替换成 line_number_fg。
+
+        正确做法是**单次扫描**：对原串一次性匹配所有旧色，各自只替换一次，
+        替换结果不再参与匹配。这样映射表即"最终语义"。
     """
     if not qss or theme is None:
         return qss
@@ -772,11 +792,30 @@ def adapt_qss_colors(qss: str, theme) -> str:
         ('#ff9800', c.warning),
     ]
 
+    # 构建 "旧色 → 新色" 映射（6 位与 3 位分开，避免 '#888' 命中
+    # '#888888' 的前 4 个字符）
+    six = {}
+    three = {}
     for old, new in replacements:
-        if old and new and old != new:
-            qss = qss.replace(old, new)
+        if not old or not new or old == new:
+            continue
+        old_l = old.lower()
+        if len(old_l) == 7:
+            six.setdefault(old_l, new)
+        elif len(old_l) == 4:
+            three.setdefault(old_l, new)
 
-    return qss
+    def _sub(match):
+        token = match.group(0)
+        new = six.get(token.lower()) or three.get(token.lower())
+        return new if new else token
+
+    # 单次扫描：替换结果不再参与匹配（根治级联覆盖）
+    try:
+        pattern = re.compile(r'#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}\b')
+        return pattern.sub(_sub, qss)
+    except Exception:
+        return qss
 
 
 def notify_widgets(root, theme):
@@ -1026,7 +1065,15 @@ class ThemeLoader(QObject):
             editor.setCaretForegroundColor(QColor(colors.caret))
 
             # 当前行高亮
-            editor.setCaretLineVisible(True)
+            #
+            # 修复（INV-T2，审计用例复现）：
+            #   原先无条件 `setCaretLineVisible(True)` —— 切换主题会把
+            #   "高亮当前行"**强制打开**，静默覆盖用户的
+            #   `show_current_line=False`（首选项里明确关掉的设置）。
+            #
+            #   主题只负责**颜色**，不应改变"是否显示"这类用户行为设置。
+            #   因此这里只设置背景色；可见性由 `ui/editor_view.py` 依据
+            #   首选项决定（已存在该逻辑）。
             editor.setCaretLineBackgroundColor(QColor(colors.current_line))
 
             # 选区颜色

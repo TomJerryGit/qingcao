@@ -48,7 +48,6 @@ class TestHotReloadMenus:
                         ])
         return 0
 
-    @pytest.mark.audit_expected_fail
     def test_menu_item_survives_one_hot_reload(self, qapp):
         """卸载 -> 重新激活（等价于一次热重载）后，
         插件菜单项必须仍然存在且不重复。
@@ -84,7 +83,6 @@ class TestHotReloadMenus:
             f"  实测数量={count}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_toolbar_action_survives_one_hot_reload(self, qapp):
         """工具栏按钮同理：QAction 的 parent 是主窗口而不是 QToolBar，
         cleanup 里的 action.parent().removeAction(action) 无法把按钮
@@ -117,7 +115,6 @@ class TestHotReloadMenus:
             f"热重载后工具栏按钮数量={count_buttons()}（期望 1）"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_shortcut_action_survives_one_hot_reload(self, qapp):
         from PyQt5.QtCore import QEvent
 
@@ -147,7 +144,6 @@ class TestHotReloadMenus:
 # ============================================================
 class TestPluginEventSubscription:
 
-    @pytest.mark.audit_expected_fail
     def test_unsubscribe_supports_every_subscribable_event(self, qapp):
         """app/plugins.py:817-836 的 unsubscribe 只覆盖 6 个事件，
         而 subscribe（772-815）支持 15 个。对 tab_changed /
@@ -185,7 +181,6 @@ class TestPluginEventSubscription:
             "macro_*、file_modified、project_* 等键。"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_cleanup_releases_event_connections(self, qapp):
         """cleanup() 必须能解除全部订阅（这条应当通过，
         用于证明缺陷只在 unsubscribe 而不在 cleanup）。"""

@@ -30,7 +30,6 @@ import pytest
 class TestUndoRedoStackInvalidation:
     """UndoManager.record() 的合并分支必须让 redo 栈失效（INV-1）"""
 
-    @pytest.mark.audit_expected_fail
     def test_pending_group_merge_keeps_stale_redo(self, qapp):
         """begin_group 的合并分支返回 True，绕过了 _do_record 里的
         redo_stack.clear()，导致 redo 栈残留过期命令。
@@ -65,7 +64,6 @@ class TestUndoRedoStackInvalidation:
             f"redo_stack={[c.describe() for c in mgr.redo_stack]}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_group_cmd_merge_keeps_stale_redo(self, qapp):
         """GroupCmd.can_merge 对任何 GroupCmd 都返回 True（无时间窗），
         因此"多光标/列模式编辑"批次之间必然合并，而且合并路径
@@ -99,7 +97,6 @@ class TestUndoRedoStackInvalidation:
             f"redo_stack={[c.describe() for c in mgr.redo_stack]}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_editor_merge_after_undo_produces_unreachable_state(
             self, qapp, monkeypatch):
         """EditorProxy 级别复现（真实 QScintilla + SCN_MODIFIED 记录）。
@@ -154,7 +151,6 @@ class TestUndoRedoStackInvalidation:
                 f"INV-2 违反：redo 产生了历史中不可达的状态 {new_state!r}"
             )
 
-    @pytest.mark.audit_expected_fail
     def test_undo_stack_matches_text_after_mixed_operations(self, qapp):
         """撤销栈 × 实际内容一致性：逐条 undo 后文本必须等于期望。
 
@@ -195,7 +191,6 @@ class TestUndoRedoStackInvalidation:
 class TestVimUndo:
     """VimMode 的 u / Ctrl+R 必须走自研 UndoManager"""
 
-    @pytest.mark.audit_expected_fail
     def test_vim_u_uses_disabled_builtin_undo_stack(self, qapp):
         """VimMode 调用的是 QScintilla 内置 undo，而 EditorProxy
         在 _connect_signals 里执行了 SCI_SETUNDOCOLLECTION(0)，
@@ -250,7 +245,6 @@ class TestVimUndo:
             f"自研撤销栈深度={len(proxy.undo_manager.undo_stack)}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_vim_ctrl_r_uses_disabled_builtin_redo(self, qapp):
         """Ctrl+R（Normal 模式）同理走内置 redo。"""
         from PyQt5.Qsci import QsciScintilla

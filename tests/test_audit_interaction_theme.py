@@ -39,7 +39,6 @@ class TestAdaptQssColorsChaining:
         panel_bg="#f5f5f5"，于是文字色变成了面板背景色。
     """
 
-    @pytest.mark.audit_expected_fail
     def test_light_theme_foreground_not_clobbered_by_panel_bg(self, qapp):
         from infrastructure.theme_loader import BuiltinThemes, adapt_qss_colors
 
@@ -58,7 +57,6 @@ class TestAdaptQssColorsChaining:
             f" 实际输出 {out!r}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_light_theme_tab_fg_not_clobbered_by_line_number_fg(self, qapp):
         from infrastructure.theme_loader import BuiltinThemes, adapt_qss_colors
 
@@ -72,7 +70,6 @@ class TestAdaptQssColorsChaining:
             f"{theme.colors.line_number_fg}。实际输出 {out!r}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_foreground_mapping_is_final_for_all_builtin_themes(self, qapp):
         """对 4 套内置主题逐一验证 #d4d4d4 的最终归宿。
 
@@ -104,7 +101,6 @@ class TestAdaptQssColorsChaining:
 # ============================================================
 class TestThemeApplyVsPreferences:
 
-    @pytest.mark.audit_expected_fail
     def test_apply_theme_does_not_force_caret_line_visible(self, qapp):
         """ThemeLoader.apply 里 `editor.setCaretLineVisible(True)`
         （infrastructure/theme_loader.py:927）无视
@@ -120,12 +116,17 @@ class TestThemeApplyVsPreferences:
         loader = ThemeLoader()
         loader.apply(sc, BuiltinThemes.light_clean())
 
-        assert not sc.caretLineVisible(), (
+        # QScintilla 的 Python 绑定**没有** `caretLineVisible()` 取值方法
+        # （只有 setCaretLineVisible），因此用底层 SCI 消息读取真实状态：
+        # SCI_GETCARETLINEVISIBLE == 2095
+        visible = sc.SendScintilla(
+            getattr(sc, 'SCI_GETCARETLINEVISIBLE', 2095)
+        )
+        assert not visible, (
             "INV-T2 违反：切换主题把'高亮当前行'强制打开了，"
             "用户的 show_current_line=False 被静默覆盖。"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_theme_switch_keeps_editor_editable(self, qapp, tmp_path):
         """主题切换后再编辑仍应正常（编辑/撤销链路不被打断）。"""
         from PyQt5.Qsci import QsciScintilla
@@ -135,7 +136,8 @@ class TestThemeApplyVsPreferences:
         from infrastructure.theme_loader import BuiltinThemes, ThemeLoader
 
         p = tmp_path / "t.py"
-        p.write_text("a = 1\n", encoding="utf-8")
+        with open(p, "w", encoding="utf-8", newline="") as f:
+            f.write("a = 1\n")
 
         sc = QsciScintilla()
         sc.setUtf8(True)
@@ -145,12 +147,15 @@ class TestThemeApplyVsPreferences:
         loader = ThemeLoader()
         for theme in BuiltinThemes.all_themes():
             loader.apply(sc, theme)
-            assert sc.text() == "a = 1\n", (
+            # 比较时归一化行尾：QScintilla 会把 `sc.text()` 报告为 CRLF
+            # （编辑器的行尾表示），这与"内容是否被改变"无关 ——
+            # 直接比较字面量会误判（属测试的平台差异）。
+            assert sc.text().replace("\r\n", "\n") == "a = 1\n", (
                 f"应用主题 {theme.name} 后编辑器内容被改变"
             )
 
         sc.SendScintilla(sc.SCI_INSERTTEXT, 0, b"# x\n")
-        assert sc.text().startswith("# x\n")
+        assert sc.text().replace("\r\n", "\n").startswith("# x\n")
         assert len(proxy.undo_manager.undo_stack) >= 1, (
             "切换 4 套主题后编辑不再被撤销栈记录"
         )

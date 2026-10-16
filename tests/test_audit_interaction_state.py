@@ -36,7 +36,6 @@ import pytest
 # ============================================================
 class TestContentSourceDuplication:
 
-    @pytest.mark.audit_expected_fail
     def test_provider_is_not_updated_while_typing(self, qapp, tmp_path):
         """打字后 provider 仍停留在打开时的快照（INV-A）。"""
         from PyQt5.Qsci import QsciScintilla
@@ -80,7 +79,6 @@ class TestSaveAs:
         "等价且更可靠的不变量由 tests/test_wiring_audit.py 的 "
         "test_no_ui_bypasses_content_sync 守住。"
     ))
-    @pytest.mark.audit_expected_fail
     def test_save_as_writes_stale_content(self, qapp, tmp_path):
         """ui/mixins/file_ops_mixin.py:230 的
         `proxy.document.save(path)` 只走 Document，不经过
@@ -121,7 +119,6 @@ class TestSaveAs:
         "`EditorProxy.save_file()` 已经会 `sc.setModified(False)`，"
         "UI 层现已统一走该入口。"
     ))
-    @pytest.mark.audit_expected_fail
     def test_save_as_does_not_clear_modified_flag(self, qapp, tmp_path):
         """另存为成功后 * 标记仍存在（Scintilla 侧未 setModified(False)）。"""
         from PyQt5.Qsci import QsciScintilla
@@ -154,7 +151,6 @@ class TestSaveAs:
 # ============================================================
 class TestSearchAgainstStaleProvider:
 
-    @pytest.mark.audit_expected_fail
     def test_search_next_cannot_find_freshly_typed_text(
             self, qapp, tmp_path):
         """EditorProxy.search_next / highlight_all / SearchBar._search
@@ -184,7 +180,6 @@ class TestSearchAgainstStaleProvider:
             f"{proxy.document.provider.read_text()!r}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_replace_all_reverts_editor_to_provider_snapshot(
             self, qapp, tmp_path):
         """ui/panels.py:640-653 的"全部替换"先在 provider 上替换，
@@ -252,7 +247,6 @@ class TestIdleReleaseVsSave:
         tabs._idle_timer.stop()          # 测试里手动触发，避免定时器干扰
         return tabs, p, original
 
-    @pytest.mark.audit_expected_fail
     def test_release_does_not_mark_tab_modified(self, qapp, tmp_path):
         """INV-C：只有用户编辑才能让 proxy.is_modified 变 True。"""
         tabs, p, _ = self._make_tabs(tmp_path, "big.txt")
@@ -271,7 +265,6 @@ class TestIdleReleaseVsSave:
             f" undo_stack={len(proxy.undo_manager.undo_stack)}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_save_all_after_release_does_not_truncate_file(
             self, qapp, tmp_path):
         """INV-B：保存写盘的字节必须来自用户的真实内容，
@@ -314,7 +307,6 @@ class TestIdleReleaseVsSave:
             "释放缓存的内容与磁盘不一致 —— 切回标签会看到错误内容"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_restore_after_release_keeps_clean_state(self, qapp, tmp_path):
         """释放后切回该标签，内容被 setText 恢复，但同样会被标记为已修改。"""
         tabs, p, _ = self._make_tabs(tmp_path, "big3.txt", filler="y")
@@ -343,7 +335,6 @@ class TestIdleReleaseVsSave:
 # ============================================================
 class TestExternalChangeVsUndo:
 
-    @pytest.mark.audit_expected_fail
     def test_reload_does_not_reset_undo_stack(self, qapp, tmp_path):
         """app/tabs.py:1399-1458 _reload_file 只重置 modified 标记，
         不清理 undo_manager；旧的撤销命令位置相对新内容全部失效（INV-D）。
@@ -383,7 +374,6 @@ class TestExternalChangeVsUndo:
             f" undo_stack={stack_desc}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_reload_leaks_previous_provider(self, qapp, tmp_path):
         """_reload_file 用新 provider 替换 document.provider，
         却不 close() 旧的 provider（mmap/文件句柄泄漏，

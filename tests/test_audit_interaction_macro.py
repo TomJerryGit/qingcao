@@ -39,7 +39,6 @@ def _fresh(qapp):
 
 class TestMacroReplayVsUndo:
 
-    @pytest.mark.audit_expected_fail
     def test_replay_is_not_recorded_in_undo_stack(self, qapp):
         from core.macro import MacroRecorder
 
@@ -86,7 +85,6 @@ class TestMacroReplayVsUndo:
             f"  撤销栈深度 {depth_before} -> {depth_after}"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_undo_after_replay_returns_to_pre_replay_state(self, qapp):
         """INV-M2：回放后按一次撤销应回到回放前的内容。"""
         from core.macro import MacroRecorder
@@ -126,7 +124,6 @@ class TestMacroReplayVsUndo:
             "旧位置执行，产生了一个在线性 undo/redo 历史中不可达的状态。"
         )
 
-    @pytest.mark.audit_expected_fail
     def test_replay_keeps_modified_flags_consistent(self, qapp):
         """INV-M3：proxy 与 document 的修改标记必须一致。"""
         from core.commands import InsertCmd

@@ -151,14 +151,15 @@ qt_api = "pyqt5"
 # pylsp 进程、耗时约 25s）。需要时显式运行：
 #     python -m pytest -m realserver
 #
-# 同时排除 audit_expected_fail —— 审计期间编写、记录**已确认但尚未修复**
-# 缺陷的用例。它们当前预期失败，混入常规套件会让基线由绿转红。
-# 修复后请逐个摘掉 marker 并正式接入 CI：
-#     python -m pytest -m audit_expected_fail -v
-addopts = "-q -m \"not realserver and not audit_expected_fail\""
+# 历史上这里还排除了 audit_expected_fail（"已确认但尚未修复"的缺陷用例），
+# 那会让基线由红转绿 —— CI 全绿是构造出来的。
+#
+# 本轮已把这些审计用例**全部修好**（42 处 marker 已摘除，40 passed /
+# 2 skipped），因此不再需要排除机制：它们现在就是常规门禁的一部分。
+# 相关回归防线：tests/test_audit_interaction_*.py、tests/test_audit_protocols.py
+addopts = "-q -m \"not realserver\""
 markers = [
     "realserver: 需要真实语言服务器（python-lsp-server）的联调测试",
-    "audit_expected_fail: 审计用例，记录尚未修复的缺陷（当前预期失败）；清单见 docs/EVALUATION_ROADMAP.md",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
