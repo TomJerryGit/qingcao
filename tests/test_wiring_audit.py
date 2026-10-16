@@ -455,28 +455,26 @@ class TestKeyApiWiring:
 #       core/workspace.py            (build.py:417)
 #       core/keymap_profiles.py      (build.py:412)
 KNOWN_DEAD_MODULES = frozenset({
-    # ---- 接线候选（接线点在他人文件，本次未动）----
-    "ui/problems_panel.py",
-    "ui/undo_history_panel.py",
-    # ---- tools/ 有路径引用 ----
-    "ui/lsp_panel.py",
     # ---- 完成态功能引擎：Lead 决策保留（走接线，不删除）----
     "ui/collab_dialog.py",
     "ui/snapshot_manager_dialog.py",
     "ui/task_panel.py",
     "ui/snippet_market_dialog.py",
-    "ui/profiler_panel.py",
     # ---- 零引用，但列在 build.py hiddenimports ----
     "core/key_sequence_manager.py",
     "core/benchmark.py",
     "core/refactor_session.py",
     "core/code_templates.py",
-    "core/exporter.py",
-    "core/formatter.py",
     "core/project_config.py",
     "core/workspace.py",
-    "core/keymap_profiles.py",
 })
+#
+# 说明（已从基线移除的条目 —— 它们**已经接线**，不再是孤立模块）：
+#   core/formatter.py、core/exporter.py、ui/lsp_panel.py、
+#   ui/problems_panel.py、ui/undo_history_panel.py、
+#   core/keymap_profiles.py、ui/profiler_panel.py
+# 移除动作由 `test_ledger_matches_baseline` 与棘轮
+# `test_dead_module_count_is_decreasing` 共同保证不会被偷偷放回来。
 
 # ============================================================
 # P0-11：技术债台账 + 递减棘轮（把"可豁免基线"改成"必须递减"）
@@ -505,30 +503,16 @@ DEBT_ACTION_DELETE = "delete"  # 删除（确认不再需要）
 
 DEBT_LEDGER = {
     # ---------- A 组：接线成本低、用户价值高（优先）----------
-    "core/formatter.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="Black/autopep8/clang-format 真实实现，只缺菜单项(已在本轮接线)"),
-    "core/exporter.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="PDF/HTML/Markdown 导出，requirements.txt 已承诺(已在本轮接线)"),
-    "ui/lsp_panel.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="LSP 状态面板 + 语言服务器安装向导(已在本轮接线)"),
-    "ui/undo_history_panel.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="撤销历史面板，自研 UndoManager 已有完整数据(已在本轮接线)"),
-    "ui/problems_panel.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="问题面板，生产者已在 core/editor.py 补齐(已在本轮接线)"),
+    #
+    # 已接线的条目**必须从台账里删除**，不能留作"历史记录" ——
+    # 台账 = 当前欠债清单，`test_ledger_matches_baseline` 强制它与
+    # `KNOWN_DEAD_MODULES` 键集合完全一致。已完成的接线见上方注释。
     "core/workspace.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="多根工作区模型；需配一个工作区面板"),
+        note="多根工作区模型；需配一个工作区面板（引擎完整、零 UI）"),
     "core/project_config.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="项目级配置；可与 .editorconfig 支持合并落地"),
-    "core/keymap_profiles.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="VSCode/Sublime/Vim 快捷键预设；keymap_editor 已有导入接口"),
+        note="项目级配置(.qingcao/)；需先定义「项目根」语义"),
     # ---------- B 组：需要产品决策（接线 or 删除）----------
     "core/key_sequence_manager.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
@@ -555,9 +539,12 @@ DEBT_LEDGER = {
     "ui/snippet_market_dialog.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
         note="代码片段市场；core/snippet_market.py 已完整"),
-    "ui/profiler_panel.py": dict(
+    "core/workspace.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="性能剖析面板；core/profiler.py 已完整"),
+        note="多根工作区模型；需配一个工作区面板（引擎完整、零 UI）"),
+    "core/project_config.py": dict(
+        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
+        note="项目级配置(.qingcao/)；需先定义「项目根」语义"),
 }
 
 # 孤立模块数量的"棘轮"历史（只增不减地记录**降低**，不得回填升高）
@@ -570,6 +557,8 @@ DEBT_CEILING_HISTORY = [
     ("2026-02-20", 17, "初次建立台账（此前基线 frozenset 无递减约束）"),
     ("2026-02-20", 12, "本轮接线 5 个：formatter/exporter/lsp_panel/"
                        "problems_panel/undo_history_panel"),
+    ("2026-02-20", 10, "再接线 3 个：keymap_profiles（VSCode/Sublime/Vim "
+                       "快捷键方案）、profiler + profiler_panel（性能剖析）"),
 ]
 
 # 当前上限 = 历史最低值（棘轮只允许往下走）

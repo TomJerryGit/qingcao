@@ -72,6 +72,67 @@ from PyQt5.QtWidgets import (
 
 from app.actions import ActionManager
 from app.event_bus import StatusMessageEvent, bus
+from core.keymap_profiles import (
+    apply_scheme,
+    get_scheme_names,
+    validate_scheme,
+)
+
+
+# ============================================================
+# 快捷键方案（core/keymap_profiles）的持久化
+# ============================================================
+# 为什么放在这个模块而不是 core：
+#   `core/keymap_profiles.py` 是**纯逻辑**（不依赖 PyQt/QSettings），
+#   便于被测试与脚本直接使用；持久化属于 UI 层职责。
+#
+# QSettings 用 ("QingCao", "Editor")，与全仓其它设置同源
+# （见 config_manager / preferences / plugins 的既有用法）。
+KEYMAP_SCHEME_SETTINGS_KEY = "keymap/scheme"
+
+
+def _scheme_settings():
+    """取方案设置对象（独立函数便于测试替换）"""
+    return QSettings("QingCao", "Editor")
+
+
+def load_saved_scheme() -> str:
+    """读取用户上次选择的快捷键方案 key（默认 "default"）"""
+    try:
+        val = _scheme_settings().value(KEYMAP_SCHEME_SETTINGS_KEY, "default")
+        key = str(val or "default")
+        # 方案可能被改名/删除，回退到 default 以免启动时报错
+        valid = {k for k, _ in get_scheme_names()}
+        return key if key in valid else "default"
+    except Exception:
+        return "default"
+
+
+def save_scheme(key: str) -> bool:
+    """记住用户选择的方案 key"""
+    try:
+        _scheme_settings().setValue(KEYMAP_SCHEME_SETTINGS_KEY, str(key))
+        return True
+    except Exception:
+        return False
+
+
+def apply_saved_scheme(action_manager) -> bool:
+    """启动时应用用户已保存的快捷键方案
+
+    返回:
+        True 表示确实应用了一个**非默认**方案；False 表示无需应用
+        （未保存过 / 保存的是 default / 应用失败）
+
+    为什么需要"启动时应用"：方案只存在 QSettings 里而不在启动时生效的话，
+    用户重启后快捷键会**悄悄回到默认**，功能形同虚设。
+    """
+    key = load_saved_scheme()
+    if key == "default":
+        return False
+    if action_manager is None:
+        return False
+    return bool(apply_scheme(action_manager, key))
 
 
 # ============================================================
@@ -835,7 +896,90 @@ class KeymapEditor(QDialog):
         self.modified_only_cb.toggled.connect(self._on_modified_filter)
         layout.addWidget(self.modified_only_cb)
 
+        # ---- 快捷键方案预设（core/keymap_profiles）----
+        #
+        # 此前 `core/keymap_profiles.py`（102 行）**零引用** ——
+        # VSCode/Sublime/Vim 方案预设写好了却没有任何入口，
+        # 用户只能在表格里逐个手改快捷键。
+        layout.addWidget(QLabel("方案:"))
+        self.scheme_combo = QComboBox()
+        for key, label in get_scheme_names():
+            self.scheme_combo.addItem(label, key)
+        # 回显用户上次选的方案
+        saved = load_saved_scheme()
+        idx = self.scheme_combo.findData(saved)
+        if idx >= 0:
+            self.scheme_combo.setCurrentIndex(idx)
+        self.scheme_combo.setToolTip(
+            "一键套用 VSCode / Sublime / Vim 风格的快捷键布局。\n"
+            "应用前会先校验方案本身是否存在重复快捷键或拼错的命令名。"
+        )
+        layout.addWidget(self.scheme_combo)
+
+        self.apply_scheme_btn = QPushButton("套用")
+        self.apply_scheme_btn.setToolTip(
+            "把当前选中的方案应用到全部快捷键，并记住该选择"
+            "（下次启动自动生效）"
+        )
+        self.apply_scheme_btn.clicked.connect(self._on_apply_scheme)
+        layout.addWidget(self.apply_scheme_btn)
+
         return bar
+
+    def _on_apply_scheme(self):
+        """套用选中的快捷键方案（core/keymap_profiles）
+
+        失败时**必须可见**：`apply_scheme` 会拒绝含重复快捷键的方案
+        （历史上 vscode 方案就有这个缺陷），这里把原因原样告诉用户，
+        而不是静默什么都不做。
+        """
+        key = self.scheme_combo.currentData()
+        if not key:
+            return
+
+        ok, problems = validate_scheme(key, action_manager=self.act_mgr)
+        if not ok:
+            QMessageBox.warning(
+                self, "无法套用该方案",
+                "该快捷键方案存在问题，已**拒绝套用**（你的现有快捷键未被改动）：\n\n"
+                + "\n".join("  · " + p for p in problems)
+            )
+            return
+
+        label = self.scheme_combo.currentText()
+        if key == "default":
+            # 默认方案 = 恢复 ActionManager 的默认值
+            try:
+                self.act_mgr.reset_to_defaults()
+            except Exception as e:
+                QMessageBox.warning(self, "套用失败", str(e))
+                return
+        else:
+            if not apply_scheme(self.act_mgr, key):
+                QMessageBox.warning(
+                    self, "套用失败",
+                    "方案 %s 应用失败，请查看输出日志。" % label
+                )
+                return
+
+        # 记住选择，下次启动自动生效
+        save_scheme(key)
+
+        # 刷新表格（重新从 ActionManager 读实际快捷键）
+        try:
+            self._load_entries()
+        except Exception:
+            try:
+                self.table.load_entries(self._entries)
+            except Exception:
+                pass
+        try:
+            self._detect_conflicts()
+            self._update_status()
+        except Exception:
+            pass
+
+        bus.emit_status("已套用「%s」快捷键方案" % label, 3000, "success")
 
     def _build_bottom_bar(self) -> QWidget:
         """构建底部按钮栏"""

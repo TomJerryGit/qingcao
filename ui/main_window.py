@@ -39,6 +39,7 @@
   保留旧名作为别名，向后兼容
 """
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -104,6 +105,52 @@ SESSION_AUTOSAVE_INTERVAL = 120000
 
 # 内存警告阈值（MB）
 MEMORY_WARN_THRESHOLD = 800
+
+# ============================================================
+# 菜单项文本 → ActionManager 动作名
+# ============================================================
+# ★ 为什么需要这张表（本轮实测发现的重要缺陷）：
+#   `MainWindow._add_action()` 原先**从不把动作注册进 `ActionManager`**
+#   （全仓 `act_mgr.register(` 调用数为 0，插件除外）。于是
+#   `ActionManager.actions` 是空的：
+#     * 「⌨ 快捷键编辑器」列出**空表**；
+#     * `core/keymap_profiles.py` 里 VSCode/Sublime/Vim 方案的 overrides
+#       全部指向不存在的名字 → `set_shortcut()` 返回 False 被静默忽略
+#       → **方案套用后毫无效果**；
+#     * `reset_to_defaults()` 因 `defaults` 为空，会把快捷键**清空**。
+#
+#   本表里的名字是 `core/keymap_profiles.py` 的 overrides **直接引用**的，
+#   必须逐字一致。改这里的 key（左侧菜单文本）时，请同步确认方案文件与
+#   `tools/verify_keymap_profiles.py` 仍然通过。
+#
+#   不在表里的带快捷键项由 `_canonical_action_name()` 自动生成
+#   `misc.<hash>` 名字 —— 目的是让快捷键编辑器列出**真实全量**动作，
+#   而不是只有这十几个。
+ACTION_NAME_BY_TEXT = {
+    # ---- 文件 ----
+    "📄 新建(&N)": "file.new",
+    "📂 打开(&O)": "file.open",
+    "💾 保存(&S)": "file.save",
+    "💾 另存为(&A)": "file.save_as",
+    # ---- 编辑 ----
+    "↩ 撤销(&U)": "edit.undo",
+    "↪ 重做(&R)": "edit.redo",
+    "🔍 查找(&F)": "edit.find",
+    "📍 跳转到行": "edit.goto_line",
+    "💬 注释切换": "edit.toggle_comment",
+    "📋 复制整行": "edit.duplicate_line",
+    "⬆ 上移行": "edit.move_line_up",
+    "⬇ 下移行": "edit.move_line_down",
+    "🔷 选中下一个相同项": "edit.select_next",
+    # ---- 视图 ----
+    "列模式": "view.column_mode",
+    # ---- 工具 ----
+    "⌨ 命令面板": "tools.command_palette",
+    "📂 文件切换": "tools.quick_open",
+    "⚙ 首选项...": "tools.preferences",
+    "🧩 插件市场": "tools.plugin_store",
+    "🔌 插件管理": "tools.plugin_manage",
+}
 
 # 主 API 的全部权限（P2-1）
 _MAIN_API_FALLBACK_PERMISSIONS = [
@@ -596,6 +643,19 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
         self.column_mode_action.toggled.connect(self._toggle_column_mode)
         self.view_menu.addAction(self.column_mode_action)
         self._register_action_shortcut(self.column_mode_action)
+        # 手工创建的 QAction 也要注册进 ActionManager，否则快捷键编辑器里
+        # 看不到"列模式"，且 `view.column_mode` 方案的 overrides 会失效
+        # （`set_shortcut()` 对不存在的名字静默返回 False）。
+        if self.act_mgr is not None:
+            try:
+                self.act_mgr.register(
+                    "view.column_mode",
+                    self.column_mode_action,
+                    default_shortcut="Alt+C",
+                    description="列模式",
+                )
+            except Exception as e:
+                print(f"[MainWindow] 注册列模式动作失败: {e}")
         self.view_menu.addSeparator()
         self._add_action(self.view_menu, "🖥 无干扰模式", "F11",
                           self.toggle_distraction_free)
@@ -695,6 +755,20 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "📊 性能监控", None,
                           self._show_perf_monitor)
+        # 性能剖析：`core/profiler.py` + `ui/profiler_panel.py` 此前零引用。
+        # **不绑快捷键**（全仓快捷键已很拥挤，且 tests/test_shortcuts.py
+        # 会扫描重复绑定）。
+        _profiler_action = self._add_action(
+            self.tools_menu, "⏱ 性能剖析…", None, self._show_profiler)
+        try:
+            _profiler_action.setToolTip(
+                "用 cProfile 统计 **Python 帧** 的耗时。\n"
+                "注意：Qt 事件循环与 Scintilla 的绘制/排版耗时不在报告里 ——\n"
+                "适合排查插件回调 / 搜索 / 解析慢；\n"
+                "要看整体流畅度请用上面的「📊 性能监控」。"
+            )
+        except Exception:
+            pass
         # C: Vim 模式菜单开关
         self.vim_mode_action = QAction("Vim 模式", self)
         self.vim_mode_action.setCheckable(True)
@@ -1088,7 +1162,7 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             self._show_error("打开首选项失败", str(e))
 
     def _add_action(self, menu: QMenu, text: str, shortcut: Optional[str],
-                     slot) -> QAction:
+                     slot, action_name: Optional[str] = None) -> QAction:
         """
         添加菜单项。
 
@@ -1096,10 +1170,32 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             menu: 目标菜单
             text: 显示文本
             shortcut: 快捷键字符串（可选）
-            slot: 槽函数
+            slot: 槽函数（None 时该项为禁用的占位）
+            action_name: 注册进 `ActionManager` 的名字（不给则按映射表/自动生成）
 
         返回:
             创建的 QAction
+
+        ★ 为什么这里要注册动作（本轮实测发现的重要缺陷）：
+
+            原先 `_add_action()` **只创建 QAction 挂到菜单上**，
+            从不调用 `self.act_mgr.register()` —— 全仓对
+            `act_mgr.register(` 的调用处数为 **0**（插件除外）。
+
+            后果是 `ActionManager.actions` 里**一个核心动作都没有**：
+
+            * 「⌨ 快捷键编辑器」列出的是一张**空表**
+              （它遍历 `self.act_mgr.actions`）；
+            * `core/keymap_profiles.py` 里 VSCode/Sublime/Vim 方案的
+              overrides 全部指向不存在的动作名 → `set_shortcut()`
+              返回 False 被静默忽略 → **方案套用后毫无效果**；
+            * `reset_to_defaults()` 因 `defaults` 为空，会把所有动作的
+              快捷键**清成空**（见 app/actions.py:353-358）——
+              也就是"套用 VSCode 方案"会先把你的快捷键全抹掉。
+
+            这里在创建动作时**顺带注册**并传入 `defaults`
+            （= 当前 shortcut），使 `reset_to_defaults()` 真正"恢复默认"
+            而不是"全部清空"。
         """
         action = QAction(text, self)
         if shortcut:
@@ -1113,8 +1209,49 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             action.triggered.connect(slot)
         else:
             action.setEnabled(False)
+
+        # 注册进 ActionManager（快捷键编辑器 / 快捷键方案 / 命令面板都靠它）
+        if action_name is None:
+            action_name = self._canonical_action_name(text, shortcut)
+        if action_name and self.act_mgr is not None:
+            try:
+                self.act_mgr.register(
+                    action_name,
+                    action,
+                    default_shortcut=shortcut or None,
+                    description=text,
+                )
+            except Exception as e:
+                print(f"[MainWindow] 注册动作 {action_name} 失败: {e}")
         menu.addAction(action)
         return action
+
+    def _canonical_action_name(self, text: str,
+                              shortcut: Optional[str]) -> Optional[str]:
+        """给一个菜单项决定它在 `ActionManager` 里的名字
+
+        两级策略：
+
+        1. **映射表优先**：`ACTION_NAME_BY_TEXT` 里的名字是
+           `core/keymap_profiles.py` 的方案 overrides 直接引用的
+           （如 `file.save` / `edit.find`）—— 必须逐字一致，
+           否则 `set_shortcut()` 会静默返回 False，方案失效。
+        2. **兜底自动生成**：其余带快捷键的项用一个由文本+快捷键导出的
+           稳定 slug（`misc.<hash>`）。这样快捷键编辑器能列出**真实全量**
+           动作，而不是只有 15 个；同时 `defaults` 被填上，
+           `reset_to_defaults()` 不会把它们的快捷键清空。
+
+        没有快捷键又不在映射表里的项返回 None（不注册）——
+        它们进快捷键编辑器没有意义。
+        """
+        if text in ACTION_NAME_BY_TEXT:
+            return ACTION_NAME_BY_TEXT[text]
+        if not shortcut:
+            return None
+        digest = hashlib.md5(
+            ("%s|%s" % (text, shortcut)).encode("utf-8")
+        ).hexdigest()[:10]
+        return "misc.%s" % digest
 
     def _register_action_shortcut(self, action: QAction):
         """P8-5: 记录 QAction 的快捷键并检测重复绑定。
@@ -3219,6 +3356,23 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
                 self.refresh_feature_menu()
             except Exception as e:
                 print(f"[MainWindow] 刷新特色功能菜单失败: {e}")
+
+            # 快捷键方案：应用用户上次选择的方案
+            #
+            # 为什么必须放在启动路径上：方案只写进 QSettings 而不在启动时
+            # 重新应用的话，用户重启后快捷键会**悄悄回到默认** ——
+            # 这个功能就等于没做（用户的抱怨会是"我设了但没用"）。
+            #
+            # 时序：必须在所有动作注册完之后（动作在 `_build_menus` 里注册，
+            # 早于这里），否则 `set_shortcut()` 找不到目标动作而静默失败。
+            try:
+                from ui.keymap_editor import apply_saved_scheme
+                if apply_saved_scheme(self.act_mgr):
+                    from ui.keymap_editor import load_saved_scheme
+                    print(f"[MainWindow] 已应用快捷键方案: "
+                          f"{load_saved_scheme()}")
+            except Exception as e:
+                print(f"[MainWindow] 应用快捷键方案失败: {e}")
 
         except Exception as e:
             import traceback

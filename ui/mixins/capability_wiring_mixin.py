@@ -396,6 +396,49 @@ class CapabilityWiringMixin:
                 pass
 
     # ========================================================
+    # 性能剖析（core/profiler.py + ui/profiler_panel.py）
+    # ========================================================
+    def _show_profiler(self):
+        """打开性能剖析对话框（`ui/profiler_panel.py`）
+
+        ## 这两个模块此前是零引用的
+        `core/profiler.py`（67 行，cProfile 封装）与
+        `ui/profiler_panel.py`（166 行，完整对话框）此前**零引用**，
+        用户完全看不到 —— 而"某个插件让编辑器变慢"正是最常见的困扰。
+
+        ## ★ 使用局限（必须如实告知，否则用户会误读报告）
+        `cProfile` 只统计 **Python 帧**。Qt 的 C++ 事件循环、Scintilla 的
+        绘制/排版耗时**都不会出现在报告里**。因此本工具适合排查：
+
+        * 插件的 Python 回调慢（如 AI 请求解析、日志格式化）；
+        * 搜索/正则匹配慢（`core/search.py`）；
+        * 大文件解析/语法分析慢。
+
+        **不适合**用来测"编辑器滚动卡不卡""窗口重绘慢不慢" ——
+        那类问题请看「工具 → 📊 性能监控」（`ui/perf_monitor.py`），
+        它读的是进程级 CPU/内存与 Scintilla 的行数/字节数。
+        """
+        try:
+            from ui.profiler_panel import ProfilerDialog
+            dlg = ProfilerDialog(self)
+            try:
+                dlg.setToolTip(
+                    "cProfile 只统计 Python 帧：Qt 事件循环与 Scintilla 的\n"
+                    "绘制/排版耗时不在报告里。\n"
+                    "适合排查插件回调 / 搜索 / 解析慢；\n"
+                    "要看整体流畅度请用「工具 → 📊 性能监控」。"
+                )
+            except Exception:
+                pass
+            dlg.exec_()
+        except Exception as e:
+            print(f"[MainWindow] 性能剖析失败: {e}")
+            try:
+                self.status_bar.showMessage(f"性能剖析失败: {e}", 6000)
+            except Exception:
+                pass
+
+    # ========================================================
     # P1-7：差异化能力入口提升（用户找不到 = 差异化不存在）
     # ========================================================
     def _setup_feature_menu(self):

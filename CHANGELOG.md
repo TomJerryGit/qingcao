@@ -6,6 +6,83 @@
 
 ## [Unreleased]
 
+### 技术债继续递减：孤立模块 12 → 10（另发现一个更严重的根因）
+
+本轮又接线 3 个零引用模块，并顺带**挖出一个让两个功能同时失效的根因**。
+
+#### ★ 根因：`MainWindow` 从不把动作注册进 `ActionManager`
+
+实测：全仓对 `act_mgr.register(` 的调用处数为 **0**（插件除外）。
+`ActionManager.actions` 因此**一个核心动作都没有**，连带后果：
+
+* **「⌨ 快捷键编辑器」是一张空表** —— 它遍历 `self.act_mgr.actions`，
+  而那里什么都没有（用户打开只看到空白）；
+* **`core/keymap_profiles.py` 的 4 个方案全部无效** —— overrides 引用的
+  `file.save` / `edit.find` / `edit.duplicate_line` … 全部"不存在"，
+  `set_shortcut()` **返回 False 且不抛异常**（静默忽略），
+  用户以为切了 VSCode 方案、实际一个快捷键都没变；
+* `reset_to_defaults()` 因 `defaults` 为空，会对动作执行
+  `setShortcut(QKeySequence())` —— 即**把快捷键清空**
+  （`app/actions.py:353-358`）。也就是说"套用方案"会先把用户
+  原有快捷键全抹掉，再套上一堆不存在的覆盖。
+
+修复：`_add_action()` 现在顺带 `act_mgr.register(name, action,
+default_shortcut=shortcut)`。名字策略两级：
+`ACTION_NAME_BY_TEXT` 映射表给出方案直接引用的 canonical 名
+（必须逐字一致），其余带快捷键的项自动生成 `misc.<hash>`。
+实测注册动作数 **0 → 55**，快捷键编辑器不再是空表。
+
+#### 交付 1：快捷键方案预设可用（`core/keymap_profiles.py`，102 行）
+
+* `ui/keymap_editor.py` 顶部新增「方案」下拉 + 「套用」按钮；
+* 方案经 `QSettings("QingCao","Editor")` 持久化，
+  `main.py` 启动路径（`_load_plugins()` 收尾）调用 `apply_saved_scheme()`
+  自动恢复 —— 否则用户重启后快捷键会**悄悄回到默认**；
+* 新增 `validate_scheme(name, action_manager=None) -> (ok, problems)`。
+
+**同时修掉 2 个真实缺陷**：
+
+1. **vscode 方案自相矛盾**：`edit.duplicate_line` 与 `view.column_mode`
+   都写成 `Shift+Alt+Down`。应用后全仓出现重复快捷键 →
+   Qt 报 `ambiguous shortcut overload` → **两个动作都失效**。
+   改为 `Ctrl+Shift+Alt+Down`（VSCode 的备用列选绑定）。
+   `apply_scheme()` 现在**先校验再动手**，发现重复就拒绝并保持原状 ——
+   原实现是"先 `reset_to_defaults()` 再逐条失败"，会把用户快捷键
+   清掉一半、留下半坏状态且毫无提示。
+2. **方案引用不存在的动作名**：`edit.replace` 在本项目没有对应
+   QAction（替换是全局搜索面板内部的输入框，不是 QAction）。
+   原来这条会被静默忽略。现按事实移除并在注释说明。
+
+#### 交付 2：性能剖析（`core/profiler.py` 67 行 + `ui/profiler_panel.py` 166 行）
+
+「工具 → ⏱ 性能剖析…」（紧邻「📊 性能监控」，**不绑快捷键**）。
+
+**如实标注局限**（菜单 tooltip + 方法 docstring）：
+`cProfile` 只统计 **Python 帧**，Qt 的 C++ 事件循环与 Scintilla 的
+绘制/排版耗时**不在报告里**。因此它适合排查*插件的 Python 回调慢 /
+搜索正则慢 / 大文件解析慢*，**不适合**测"编辑器滚动卡不卡"——
+后者看「📊 性能监控」。不写清楚用户一定会误读报告。
+
+#### 新增验证
+
+* `tools/verify_keymap_profiles.py` —— **39 项全通过**：
+  逐方案校验、重复方案被拒且不留半坏状态、真实 ActionManager 上
+  overrides 真的落到 QAction、套用后全仓无重复快捷键、
+  default 恢复默认而非清空、QSettings 往返、编辑器下拉可用。
+* `tools/verify_profiler.py` —— **34 项全通过**：
+  状态机边界（重复 start / 未 start 就 stop / 无报告不写文件）、
+  pstats 列名与自有函数出现在报告里、GUI 按钮与状态流转、
+  菜单项位置/文本/无快捷键/tooltip。
+
+#### 债务棘轮
+
+`DEBT_LEDGER` 与 `KNOWN_DEAD_MODULES` 同步收缩（已接线条目**必须从
+台账删除**，由 `test_ledger_matches_baseline` 强制），
+`DEBT_CEILING_HISTORY` 新增一条：
+
+    17 → 12 → **10**
+
+
 ### 工程治理（P0-11）：技术债门禁从"可豁免基线"改为"必须递减"
 
 **改造前的问题**：只有 `KNOWN_DEAD_MODULES`（一个 frozenset 基线）+ "不得新增"断言。
