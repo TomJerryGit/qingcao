@@ -175,12 +175,66 @@ class StatusBarMixin:
 
 
     def _on_encoding_changed(self, encoding: str):
-        """状态栏切换编码"""
+        """状态栏切换编码
+
+        修复（实测过的**静默数据损坏**）：
+            状态栏这一项的语义是"**改解释**"（用另一种编码重新读同一份
+            字节），而不是"转码"。原实现直接 `change_encoding(encoding)`，
+            于是：
+
+                UTF-8 文件「中文内容测试」→ 切 GBK 看一眼（显示乱码）
+                → 顺手 Ctrl+S → **磁盘被改写**，原字节永久丢失
+                  （读回变成 '�?文内容测�?'）
+
+            不保存则无损，所以危险恰恰藏在"看一眼 + 保存"这个自然动作里。
+
+        修复策略（fail-closed）：
+            先判断新编码能否**无损解码**现有字节：
+              * 能   → 正常切换（常见情形，无打扰）；
+              * 不能 → 弹确认框，明确告知"保存会改写文件"，
+                       用户取消则**不切换**。
+        """
         try:
             proxy = self.tabs.current_proxy()
-            if proxy and proxy.document:
-                proxy.document.change_encoding(encoding)
-                self._update_status_for_editor()
+            if not (proxy and proxy.document):
+                return
+            doc = proxy.document
+
+            lossy = False
+            try:
+                lossy = doc.would_lose_text(encoding)
+            except Exception:
+                lossy = False
+
+            if lossy:
+                reply = QMessageBox.warning(
+                    self,
+                    "切换编码会改变文件内容",
+                    "用「%s」重新解释当前文件会产生乱码"
+                    "（这份内容原本不是用该编码保存的）。\n\n"
+                    "· 只是看看：选「是」后**不要保存**，"
+                    "关闭文件即可恢复；\n"
+                    "· 要让文件真正变成该编码：请用「另存为」"
+                    "并指定编码，避免原地损坏。\n\n"
+                    "是否仍然切换？" % encoding,
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
+                if reply != QMessageBox.Yes:
+                    self._update_status_for_editor()
+                    self.status_bar.showMessage(
+                        f"已取消切换编码（会损坏内容）: {encoding}", 4000
+                    )
+                    return
+
+            doc.change_encoding(encoding)
+            self._update_status_for_editor()
+            if lossy:
+                self.status_bar.showMessage(
+                    f"编码已改为按 {encoding} 解释（⚠ 保存会改写文件）",
+                    8000,
+                )
+            else:
                 self.status_bar.showMessage(
                     f"编码已切换: {encoding}", 2000
                 )

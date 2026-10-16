@@ -619,15 +619,88 @@ class Document(QObject):
             self.encoding_changed.emit(old, new_encoding)
         return new_encoding
 
-    def change_encoding(self, encoding: str, reload: bool = True) -> bool:
+    def would_lose_text(self, encoding: str) -> bool:
+        """用 `encoding` 重新解释现有字节是否会**丢失文本**
+
+        判据：新编码能否无损解码全部字节。不能则说明"换解释"会把原文变成
+        替换字符（U+FFFD）或问号 —— 此时若用户保存，原字节就被永久改写。
+
+        ⚠️ 关键例外（否则会拦掉"修正误判编码"这一正常需求）：
+            若**当前**显示已经含替换字符 U+FFFD，说明文件在现有编码下本来
+            就是乱码（编码判定错了）。此时切换到能正确解码的编码是**修正**，
+            不是损坏 —— 因此返回 False（不阻断）。
+
+        用途见 `change_encoding` 的说明（实测过的静默损坏场景）。
         """
-        切换编码并重新加载。
+        if not self.provider:
+            return False
+        try:
+            raw = self.provider.read_all()
+        except Exception:
+            return False
+        if not raw:
+            return False
+
+        # 当前显示是否已经不可靠（乱码或空）？是则本次切换属于"修正"，
+        # 不应被当作"丢失文本"而阻断。
+        try:
+            current = raw.decode(
+                self.meta.encoding or "utf-8", errors="replace"
+            )
+            if not current or "\ufffd" in current:
+                return False
+        except Exception:
+            pass
+
+        try:
+            raw.decode(encoding, errors="strict")
+            return False                      # 能无损解码 → 不丢文本
+        except (UnicodeDecodeError, LookupError):
+            return True
+        except Exception:
+            return False
+
+    def change_encoding(self, encoding: str, reload: bool = True,
+                        mode: str = "reinterpret",
+                        require_lossless: bool = False) -> bool:
+        """切换编码。
 
         参数:
             encoding: 目标编码
             reload: 是否重新读取文件内容
+            mode:
+                ``"reinterpret"``（默认）—— 用新编码**重新解释**同一份磁盘
+                字节。文本语义会改变（这正是用户"换一种解释看看"的意图），
+                但**不转码**。
+                ``"convert"`` —— 把当前文本**按新编码写回**（真正的转码，
+                文本语义不变、磁盘字节改变）。
+            require_lossless:
+                仅对 ``reinterpret`` 有意义。为 True 时，若新编码无法无损
+                解码现有字节，则**拒绝切换**并返回 False —— 供 UI 在
+                "用户只是看一眼"的路径上做防护。
+
+        缺陷背景（已实测复现的**静默数据损坏**）：
+            UTF-8 文件「中文内容测试」→ 用户切到 GBK 只看一眼（界面显示
+            「涓�鏂囧唴瀹规祴璇�」）→ 顺手按 Ctrl+S → **磁盘被改写**：
+
+                原: b'\\xe4\\xb8\\xad\\xe6\\x96\\x87...'  (中文内容测试)
+                新: b'\\xe4\\xb8?\\xe6\\x96\\x87...'        → 读回 '�?文内容测�?'
+
+            原字节永久丢失。不保存则无损（关闭重开正常），所以危险恰恰在于
+            "看一眼 + 保存"这个极其自然的操作序列。
+
+            根因是**把两种语义混成了一个动作**（Notepad++ 明确区分
+            "Character sets 改解释" 与 "Convert to ... 转码"）。本方法现在
+            通过 `mode` 显式区分，并由 `require_lossless` 提供失败关闭
+            （fail-closed）语义。
         """
         old = self.meta.encoding
+
+        # 只对"重新解释"做无损校验：转换是用户明确要求的转码，允许有损
+        if mode == "reinterpret" and require_lossless and self.provider:
+            if self.would_lose_text(encoding):
+                return False
+
         self.meta.encoding = encoding
 
         if self.provider:
