@@ -516,14 +516,24 @@ class GlobalSearchPanel(QDockWidget):
         search_finished(SearchResult): 搜索完成
         match_activated(str, int, int, int, int): 匹配激活（路径, start, end, 行, 列）
         file_activated(str, int): 文件激活（路径, 行）
-        replace_requested(str, str, dict): 请求替换（模式, 替换文本, 结果）
+        replace_requested(str, str, dict, object): 请求替换
+            （模式, 替换文本, 结果, SearchOptions）
+
+    注意（P0-3）:
+        `replace_requested` 的第 4 个参数是 **SearchOptions 对象**。
+        缺陷背景：原先只传 (模式, 替换文本, 结果)，接收方
+        `MainWindow._on_global_replace` 只能重建
+        `SearchOptions(pattern=...)`（即全默认值）—— 面板上的
+        "正则 / 大小写 / 全词 / 转义 / 多行"勾选被**静默丢弃**，
+        正则搜索之后按字面量替换。把选项对象随信号带过去，
+        才能保证"搜索看到什么，替换就替什么"。
     """
 
     search_started = pyqtSignal(str)
     search_finished = pyqtSignal(object)
     match_activated = pyqtSignal(str, int, int, int, int)
     file_activated = pyqtSignal(str, int)
-    replace_requested = pyqtSignal(str, str, dict)
+    replace_requested = pyqtSignal(str, str, dict, object)
 
     def __init__(self, main_window, parent=None):
         """
@@ -541,6 +551,8 @@ class GlobalSearchPanel(QDockWidget):
         # 当前搜索
         self.current_result: Optional[SearchResult] = None
         self._searching: bool = False
+        # P0-3: 产生 current_result 的那次搜索所用的选项（替换时复用）
+        self.current_options: Optional[SearchOptions] = None
 
         # 搜索历史
         self._pattern_history: List[str] = []
@@ -888,6 +900,33 @@ class GlobalSearchPanel(QDockWidget):
     # ========================================================
     # 搜索
     # ========================================================
+    def build_options(self) -> SearchOptions:
+        """按面板当前勾选构造 SearchOptions（P0-3：选项的**唯一构造点**）
+
+        缺陷背景（P0-3，实测确认）:
+            本面板原先在 `_start_search()` 里就地拼一份带
+            is_regex/case_sensitive/whole_word/escape_pattern/multi_line
+            的选项，而"全部替换"只发 (pattern, 替换文本, 结果) 三个值；
+            接收方只能重建 `SearchOptions(pattern=...)`，其余全是默认值。
+            ——即"面板勾了正则，替换却按字面量"。
+
+        现在搜索与替换共用本方法（替换端还把结果随信号带走），
+        从结构上杜绝"同一个概念在两处各自定义"。
+
+        说明：这里仍然用 dataclass 的默认性能参数（threads/hyperscan/
+        timeout），与修复前 `_start_search` 的行为完全一致；
+        不顺手改成 `from_preferences()`，避免把 P0-3 的修复
+        和其他行为的变更混在一起。
+        """
+        return SearchOptions(
+            pattern=self.pattern_edit.text(),
+            is_regex=self.regex_cb.isChecked(),
+            case_sensitive=self.case_cb.isChecked(),
+            whole_word=self.whole_word_cb.isChecked(),
+            escape_pattern=self.escape_cb.isChecked(),
+            multi_line=self.multiline_cb.isChecked(),
+        )
+
     def _start_search(self):
         """开始搜索"""
         if self._searching:
@@ -900,15 +939,12 @@ class GlobalSearchPanel(QDockWidget):
         # 添加搜索历史
         self._add_pattern_history(pattern)
 
-        # 构建搜索选项
-        options = SearchOptions(
-            pattern=pattern,
-            is_regex=self.regex_cb.isChecked(),
-            case_sensitive=self.case_cb.isChecked(),
-            whole_word=self.whole_word_cb.isChecked(),
-            escape_pattern=self.escape_cb.isChecked(),
-            multi_line=self.multiline_cb.isChecked(),
-        )
+        # 构建搜索选项（P0-3：唯一构造点）
+        options = self.build_options()
+        # 记下"产生当前结果的那次搜索"用的选项：
+        # 用户完全可能在搜索之后才改勾选，替换时必须复用**这次**的选项，
+        # 否则会按新选项去替换旧结果（匹配集根本不是同一批）。
+        self.current_options = options
 
         # 获取搜索目录
         search_dir = self._get_search_directory()
@@ -1081,6 +1117,21 @@ class GlobalSearchPanel(QDockWidget):
     # ========================================================
     # 替换
     # ========================================================
+    def _options_for_replace(self) -> SearchOptions:
+        """替换所用的选项（P0-3）
+
+        优先复用"产生当前结果的那次搜索"的选项（`current_options`）：
+            结果树里的匹配是按那次选项找出来的，替换必须与之同一套语义。
+            若用户在搜索后又改了勾选，用新选项替换旧结果会替换错内容
+            （例如"正则 → 字面量"切换后，匹配集完全不是同一批）。
+        兜底：没有搜索结果选项时（例如外部直接调用），
+            才按面板当前勾选重新构造。
+        """
+        last = self.current_options
+        if last is not None and last.pattern == self.pattern_edit.text():
+            return last
+        return self.build_options()
+
     def _replace_all(self):
         """全部替换"""
         if not self.current_result or self.current_result.is_empty:
@@ -1096,7 +1147,13 @@ class GlobalSearchPanel(QDockWidget):
         count = self.current_result.count
         file_count = self.current_result.get_file_count()
 
+        # P0-3: 把"按什么模式替换"写进确认框 ——
+        # 修复前这里不显示模式，用户无从发现"我勾了正则却被按字面量替换"。
+        replace_options = self._options_for_replace()
+        mode_desc = replace_options.describe()
+
         msg = (f"将在 {file_count} 个文件中替换 {count} 处匹配。\n\n"
+               f"搜索模式: {mode_desc}\n"
                f"替换为: {replace_text}\n\n"
                f"此操作无法撤销，是否继续？")
 
@@ -1113,10 +1170,15 @@ class GlobalSearchPanel(QDockWidget):
         self._add_replace_history(replace_text)
 
         # 请求替换（由主窗口或编辑器执行）
+        #
+        # P0-3: 第 4 个参数是本次替换必须遵守的 SearchOptions。
+        # 只要它随信号过去，接收方就不需要（也不允许）自己重建默认选项。
+        options = replace_options
         self.replace_requested.emit(
-            self.pattern_edit.text(),
+            options.pattern or self.pattern_edit.text(),
             replace_text,
             self.current_result.file_results,
+            options,
         )
 
         self._show_message(f"已请求替换 {count} 处", "info")
@@ -1204,6 +1266,8 @@ class GlobalSearchPanel(QDockWidget):
         """清空结果"""
         self.result_tree.clear_results()
         self.current_result = None
+        # P0-3: 结果没了，产出它的选项也一并失效
+        self.current_options = None
         self.result_label.setText("")
         self.replace_all_btn.setEnabled(False)
         self.export_btn.setEnabled(False)

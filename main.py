@@ -30,6 +30,49 @@
   import PyQt5 而再次失败。
 - setQuitOnLastWindowClosed: 从 False 改为 True（P0）。
   原值与 closeEvent 中未显式 quit() 的组合导致应用"关不掉"。
+- deferred_init: 新增草稿恢复调用（P0-2）。生产者
+  `core/document.py::_save_draft` 每 60 秒写 backup/drafts/*.draft，
+  但读取端 `SessionManager.check_and_recover_drafts()` 原先**零调用点**
+  —— 只写不读，崩溃后未保存正文 100% 丢失。现已接线（见
+  `_render_recovered_drafts` / `_notify_draft_recovery`）。
+
+待接线契约（P0-10：requirements.txt 承诺的"文件 → 导出 → PDF"）
+--------------------------------------------------------------
+`requirements.txt` 第 69-72 行声明"用于『文件 → 导出 → PDF』
+（core.exporter）"，但 `core/exporter.py` 目前**全仓零引用**
+（只在 `build.py` 的 hiddenimports 名单里出现），菜单里也没有"导出"项。
+`core/exporter.py` 归 task-10，下面是**已确认可用**的调用契约，
+接线时按此实现即可（`ui/main_window.py` 的菜单结构不在本次修复范围内）：
+
+    from core.exporter import Exporter
+
+    # 1) 取当前编辑器正文与元信息
+    proxy = self.tabs.current_proxy()              # EditorProxy
+    text  = proxy.sc.text()                        # 真实字符文本（str）
+    doc   = proxy.document                         # core.document.Document
+    path  = getattr(doc, 'filepath', '') or ''
+    title = os.path.basename(path) or "未命名"
+    language = getattr(doc, 'language', '') or "text"
+
+    # 2) HTML（同步，返回 str；由调用方写文件）
+    html = Exporter.to_html(text, title=title, language=language)
+    #    写: open(out_path, 'w', encoding='utf-8').write(html)
+
+    # 3) Markdown（同步，返回 str）
+    md = Exporter.to_markdown(text, title=title, language=language)
+
+    # 4) PDF（同步，返回 (ok: bool, message: str)；缺 reportlab 时
+    #    ok=False 且 message 为 "需要安装 reportlab: pip install reportlab"）
+    ok, msg = Exporter.to_pdf(text, out_path, title=title)
+    if not ok:
+        QMessageBox.warning(self, "PDF 导出失败", msg)
+
+    # 5) 整个会话报告（配合 tabs.get_all_tabs_info()；注意其中的
+    #    char_count 已在 P0-8 中改为**真实字符数**）
+    report = Exporter.session_to_markdown(self.tabs.get_all_tabs_info())
+
+建议的菜单接入点（不改现有菜单结构，新增一个"文件 → 导出"子菜单）:
+    文件(&F) → 导出 → HTML... / Markdown... / PDF...
 """
 
 import atexit
@@ -576,6 +619,119 @@ def check_crash_recovery():
         pass
 
     return None
+
+
+# ============================================================
+# 草稿恢复（P0-2：补齐"只写不读"的读取端）
+# ============================================================
+def _render_recovered_drafts(window) -> int:
+    """把"草稿恢复"新建标签里的正文真正显示出来（P0-2）
+
+    跨模块缺口（已核实，这是本函数存在的唯一理由）:
+        `SessionManager.check_and_recover_drafts()` 用
+        `EditorWidget(provider=MemoryProvider(草稿正文))` 建标签，但
+        `EditorWidget.__init__` **不会**把 provider 的正文灌进 QScintilla
+        —— 只有 `proxy.open_file()` / `proxy.set_text()` 才会。
+        结果是：恢复出来的标签页是**空白**的，用户以为"没恢复成功"，
+        而草稿还留在磁盘上（下次启动再弹一次）。
+        `app/session.py` 不在本次修复的写入范围内，因此在**调用侧**补一步。
+
+    安全约束：只处理标题带 "[未保存]"（check_and_recover_drafts 的固定
+    后缀）且"编辑器缓冲区为空、provider 有正文"的标签，不碰其它标签。
+    """
+    tabs = getattr(window, 'tabs', None)
+    if tabs is None:
+        return 0
+
+    fixed = 0
+    try:
+        count = tabs.count()
+    except Exception:
+        return 0
+
+    for i in range(count):
+        try:
+            widget = tabs.widget(i)
+            if widget is None:
+                continue
+            try:
+                title = tabs.tabText(i) or ""
+            except Exception:
+                title = ""
+            if "[未保存]" not in title:
+                continue
+
+            proxy = getattr(widget, 'proxy', None)
+            if proxy is None:
+                continue
+            sc = getattr(proxy, 'sc', None)
+            if sc is None or sc.text():
+                continue
+
+            provider = getattr(
+                getattr(proxy, 'document', None), 'provider', None
+            )
+            if provider is None or not getattr(provider, 'is_open', False):
+                continue
+            text = provider.read_text()
+            if not text:
+                continue
+
+            # set_text 同时把 proxy 标记为已修改（modified_changed 发射），
+            # 使恢复出来的内容重新纳入自动备份，不会二次丢失。
+            proxy.set_text(text)
+            fixed += 1
+        except Exception as e:
+            print(f"[草稿恢复] 渲染标签失败: {e}")
+
+    return fixed
+
+
+def _notify_draft_recovery(window, drafts, restored: int):
+    """草稿恢复后的可见提示（P0-2）
+
+    缺陷背景（已核实）:
+        `check_and_recover_drafts()` 原先**零调用点**——读取端存在但从不
+        执行，用户只能自己去 backup/drafts 里翻文件。
+        补上调用后，还必须把两种"看起来像没恢复"的情况说清楚：
+          * 原文件已删除 / 本来未命名（草稿里的 Original 为空或不存在）：
+            这类内容没有可回写的磁盘路径，恢复出来是"[未保存]"缓冲区，
+            必须提示用户用「文件 → 另存为」保存；
+          * 恢复的标签**不带 '*' 脏标记**（`app/session.py` 里
+            `proxy.is_modified = True` 是对只读 property 赋值，会抛异常并
+            被它自己的 try/except 吞掉）——所以要明确告诉用户"内容在这里、
+            需要手动保存"。
+    """
+    try:
+        from PyQt5.QtWidgets import QMessageBox
+    except Exception:
+        return
+
+    try:
+        orphans = []
+        for d in drafts or []:
+            original = (d or {}).get('original') or ""
+            if not original:
+                orphans.append("(未命名)")
+            elif not os.path.exists(original):
+                orphans.append(original)
+
+        lines = [
+            f"已恢复 {restored} 项未保存内容，均以「[未保存]」标签打开。",
+            "确认内容后请使用「文件 → 另存为」写入磁盘。",
+        ]
+        if orphans:
+            preview = "\n".join("  · %s" % p for p in orphans[:8])
+            more = "" if len(orphans) <= 8 else \
+                "\n  … 另有 %d 项" % (len(orphans) - 8)
+            lines.append("")
+            lines.append("以下内容没有可回写的原文件"
+                         "（未命名或原文件已不存在）：")
+            lines.append(preview + more)
+
+        QMessageBox.information(window, "草稿恢复", "\n".join(lines))
+    except Exception as e:
+        print(f"[草稿恢复] 提示失败: {e}")
 
 
 # ============================================================
@@ -1146,6 +1302,49 @@ def main():
                             )
             except Exception as e:
                 logger.error(f"自动备份恢复失败: {e}")
+
+            # ---- 草稿恢复（P0-2 修复）----
+            #
+            # 缺陷背景（真实缺陷，已核实）:
+            #   生产者 `core/document.py::_save_draft` 每 60 秒把"未保存
+            #   正文"写进 backup/drafts/*.draft（进程被杀也不会丢），
+            #   但读取端 `SessionManager.check_and_recover_drafts()`
+            #   **全仓零调用点** —— 只写不读，等价于没有备份。
+            #   这里补上调用（parent=window 以弹出可见的确认框），
+            #   并对"未命名 / 原文件已删除"的情况给出明确提示。
+            try:
+                sess = getattr(window, 'session', None)
+                if sess is not None and hasattr(
+                        sess, 'check_and_recover_drafts'):
+                    drafts = []
+                    try:
+                        drafts = sess.find_recoverable_drafts()
+                    except Exception as e:
+                        logger.error(f"读取草稿失败: {e}")
+                        drafts = []
+
+                    if drafts:
+                        logger.info(f"检测到 {len(drafts)} 项未保存草稿")
+                        restored = sess.check_and_recover_drafts(
+                            parent=window, drafts=drafts
+                        )
+                        if restored > 0:
+                            # 补渲染：session 侧只把正文放进 provider，
+                            # 不会显示出来（见 _render_recovered_drafts）
+                            rendered = _render_recovered_drafts(window)
+                            logger.info(
+                                f"已恢复 {restored} 项未保存草稿"
+                                f"（补渲染 {rendered} 项）"
+                            )
+                            _notify_draft_recovery(window, drafts, restored)
+                            try:
+                                window.status_bar.showMessage(
+                                    f"已恢复 {restored} 项未保存内容", 6000
+                                )
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.error(f"草稿恢复失败: {e}")
 
             # ---- 检查更新 ----
             try:

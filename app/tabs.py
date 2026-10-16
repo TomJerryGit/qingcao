@@ -1954,7 +1954,10 @@ class TabManager(QTabWidget):
             'modified': False,
             'readonly': False,
             'line_count': 0,
+            # P0-8：char_count 是**真实字符数**（Python str 长度），
+            # byte_count 才是 Scintilla 的字节口径。
             'char_count': 0,
+            'byte_count': 0,
             'cursor_line': 0,
             'cursor_col': 0,
         }
@@ -1973,9 +1976,21 @@ class TabManager(QTabWidget):
             info['line_count'] = widget.SendScintilla(
                 widget.SCI_GETLINECOUNT
             )
-            info['char_count'] = widget.SendScintilla(
+
+            # P0-8 修复：`SCI_GETLENGTH` 返回的是**字节数**，不是字符数。
+            #   纯 ASCII 下两者相等，所以这个错标长期没被发现；含中文时
+            #   （UTF-8 每字 3 字节）"字符数"会被高估约 3 倍。
+            #   现在两个口径都给：byte_count 保留 Scintilla 原生值（零解码
+            #   成本），char_count 用 QScintilla 解码后的 `text()` 长度。
+            info['byte_count'] = widget.SendScintilla(
                 widget.SCI_GETLENGTH
             )
+            try:
+                info['char_count'] = len(widget.text())
+            except Exception:
+                # 解码失败（极端情况）：退回字节数，好过没有值
+                info['char_count'] = info['byte_count']
+
             line, col = widget.getCursorPosition()
             info['cursor_line'] = line + 1
             info['cursor_col'] = col + 1
@@ -2014,7 +2029,7 @@ class TabManager(QTabWidget):
             )
             lines.append(
                 f"      {filepath} ({info['line_count']} 行, "
-                f"{info['char_count']} 字符)"
+                f"{info['char_count']} 字符 / {info['byte_count']} 字节)"
             )
 
         return "\n".join(lines)

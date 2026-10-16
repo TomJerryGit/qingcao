@@ -764,9 +764,11 @@ class EditorProxy(QObject):
                 # 不在这里手动补 —— 这样无论从哪个入口保存都一致。
 
                 # P0-2: 通知语言服务器已保存
-                self._notify_lsp_saved(filepath)
-
-                # P0-2: 通知语言服务器已保存
+                #
+                # 修复（P0-7，实测确认）：这里原本**连着写了两遍**同一行
+                # `self._notify_lsp_saved(filepath)`（连注释一起复制），
+                # 于是每次 Ctrl+S 都会向语言服务器发**两次 didSave**。
+                # 服务器可能因此重复触发保存钩子/重复诊断。
                 self._notify_lsp_saved(filepath)
 
                 # 删除草稿

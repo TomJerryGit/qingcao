@@ -165,6 +165,44 @@ class PerfMonitor(QDockWidget):
             }
         """)
 
+    @staticmethod
+    def _count_chars(sc):
+        """返回 (真实字符数, 字节数)
+
+        缺陷背景（P0-8，已核实）:
+            Scintilla 的 `length()` / `SCI_GETLENGTH` 返回的是文档的
+            **UTF-8 字节数**，本面板却把它标成"总字符"。纯 ASCII 下两者
+            相等，含中文时每个汉字 3 字节 → 数字差 3 倍。
+            `sc.text()` 是 QScintilla 解码后的 str，`len()` 才是真实字符数。
+
+        性能: `text()` 需要整篇解码；本面板每 2 秒刷新一次，大文件上
+            重复解码代价明显。因此把结果按"字节长度"缓存在控件上：
+            内容没变（字节长度相同）就直接复用，不做第二次解码。
+        """
+        nbytes = int(sc.length())
+
+        cached = getattr(sc, '_qc_char_count_cache', None)
+        if (isinstance(cached, tuple) and len(cached) == 2
+                and cached[0] == nbytes):
+            return int(cached[1]), nbytes
+
+        chars = len(sc.text())
+        try:
+            # 私有缓存挂在控件上：控件销毁即回收，不会造成额外内存驻留
+            sc._qc_char_count_cache = (nbytes, chars)
+        except Exception:
+            pass
+        return chars, nbytes
+
+    @staticmethod
+    def _format_count(total: int) -> str:
+        """把字符数格式化为可读文本（与修复前的显示习惯保持一致）"""
+        if total > 1000000:
+            return "%.1f M" % (total / 1000000)
+        if total > 1000:
+            return "%.1f K" % (total / 1000)
+        return str(total)
+
     def _refresh(self):
         """刷新显示"""
         try:
@@ -187,21 +225,28 @@ class PerfMonitor(QDockWidget):
                 tabs = self.main_window.tabs
                 self.tab_label.setText(str(tabs.count()))
 
-                # 总字符
+                # 总字符 / 总字节
+                #
+                # P0-8 修复：`sc.length()`（= SCI_GETLENGTH）返回的是
+                # **字节数**，不是字符数 —— 纯 ASCII 下两者相同，所以这个
+                # 错标一直没被发现；含中文时（UTF-8 每字 3 字节）
+                # "总字符"会被高估约 3 倍。现在显示真实字符数，
+                # 字节数放进 tooltip（两个口径都保留，便于判断内存压力）。
                 total_chars = 0
+                total_bytes = 0
                 for i in range(tabs.count()):
                     w = tabs.widget(i)
                     if hasattr(w, 'proxy') and w.proxy and w.proxy.sc:
                         try:
-                            total_chars += w.proxy.sc.length()
+                            chars, nbytes = self._count_chars(w.proxy.sc)
+                            total_chars += chars
+                            total_bytes += nbytes
                         except Exception:
                             pass
-                if total_chars > 1000000:
-                    self.chars_label.setText("%.1f M" % (total_chars / 1000000))
-                elif total_chars > 1000:
-                    self.chars_label.setText("%.1f K" % (total_chars / 1000))
-                else:
-                    self.chars_label.setText(str(total_chars))
+                self.chars_label.setText(self._format_count(total_chars))
+                self.chars_label.setToolTip(
+                    "字符 %d / 字节 %d" % (total_chars, total_bytes)
+                )
 
                 # 撤销栈
                 proxy = tabs.current_proxy()

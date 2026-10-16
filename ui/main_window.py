@@ -126,12 +126,14 @@ _MAIN_API_FALLBACK_PERMISSIONS = [
 # ============================================================
 # 主窗口
 # ============================================================
+from ui.mixins.capability_wiring_mixin import CapabilityWiringMixin
 from ui.mixins.edit_ops_mixin import EditOpsMixin
 from ui.mixins.file_ops_mixin import FileOpsMixin
 from ui.mixins.status_bar_mixin import StatusBarMixin
 
 
-class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
+class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
+                 StatusBarMixin, QMainWindow):
     """
     青草编辑器主窗口。
 
@@ -195,7 +197,27 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         # 宏录制
         try:
             from core.macro import MacroManager, MacroRecorder
-            self.macro = MacroRecorder()
+            # P0-1 修复（实测：录制后命令数为 0）：
+            #   原实现是 `MacroRecorder()` —— 没有 undo_manager。
+            #   `core/macro.py` 的 `_register_hook()` 在
+            #   `not self.undo_manager` 时直接 return，`record_hook`
+            #   永不设置，于是录制器什么都收不到，录到 0 条。
+            #
+            #   这里不能简单地在构造时传一个固定引用：proxy 与其
+            #   `UndoManager` 是**每个标签一个**（见 core/editor.py），
+            #   而此刻 `self.tabs` 还没创建（`_build_central` 在后面）。
+            #   因此传入"解析当前标签 undo_manager"的回调，
+            #   由 MacroRecorder 在 start()/stop() 时动态绑定。
+            self.macro = MacroRecorder(
+                undo_manager_provider=self._current_undo_manager,
+                parent=self,
+            )
+            # P0-1: 录制/回放的失败必须可见（原先只会 print 到控制台，
+            # 打包成 GUI 程序后用户完全看不到）
+            try:
+                self.macro.error_occurred.connect(self._on_macro_error)
+            except Exception:
+                pass
             self.macro_manager = MacroManager()
         except Exception as e:
             print(f"[MainWindow] Macro 加载失败: {e}")
@@ -536,6 +558,29 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self._add_action(self.edit_menu, "🔠 转为大写", None, self._to_upper)
         self._add_action(self.edit_menu, "🔡 转为小写", None, self._to_lower)
 
+        # ---- 列编辑器（P0 核心功能）----
+        #
+        # 此前 `ui/column_editor_dialog.py` 的能力只能从编辑器右键菜单进入，
+        # 而 Notepad++ 用户习惯在「编辑」菜单里找它（Edit → Column Editor…）。
+        self.edit_menu.addSeparator()
+        self._add_action(self.edit_menu, "📊 列编辑器…", "Alt+Shift+I",
+                          self._column_editor)
+
+        # ---- 书签（引擎早已实现、会话也已持久化，但此前无菜单无快捷键）----
+        #
+        # `core/editor.py` 的 next/prev/clear 三个方法此前**零入口**，
+        # 用户设了书签却跳不过去。这里补全导航入口（Toggle 已在
+        # 编辑器右键菜单，快捷键 Ctrl+F2 保持与主流编辑器一致）。
+        self.bookmark_menu = self.edit_menu.addMenu("🔖 书签")
+        self._add_action(self.bookmark_menu, "切换书签", "Ctrl+F2",
+                          self._toggle_bookmark)
+        self._add_action(self.bookmark_menu, "下一个书签", "F2",
+                          self._bookmark_next)
+        self._add_action(self.bookmark_menu, "上一个书签", "Shift+F2",
+                          self._bookmark_prev)
+        self._add_action(self.bookmark_menu, "清除所有书签", None,
+                          self._bookmark_clear)
+
         # ============ 视图菜单 ============
         self.view_menu = menubar.addMenu("视图(&V)")
 
@@ -626,6 +671,21 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self._add_action(self.tools_menu, "▶ 回放宏", "Ctrl+Shift+M",
                           self._play_macro)
         self.tools_menu.addSeparator()
+
+        # ---- 对比合并（P0 核心功能）----
+        #
+        # 算法引擎 `core/file_merge.py` 早已可用（本轮还修了"末尾追加被
+        # 静默丢弃"与"末尾换行丢失"），但 UI 对话框此前被删除、零入口。
+        # 注意：**不绑快捷键** —— `Ctrl+Alt+D` 已被"插入日期时间"占用
+        # （且有 tests/test_shortcuts.py 的重复扫描保护）。
+        self._add_action(self.tools_menu, "🔀 对比文件…", None,
+                          self._show_file_diff)
+
+        # ---- 格式化 / 导出 / 崩溃统计（接线零引用的孤立能力）----
+        self._setup_format_menu()
+        self._setup_export_menu()
+
+        self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "🧩 插件市场", None,
                           self._show_plugin_store)
         self._add_action(self.tools_menu, "🔌 插件管理", None,
@@ -679,6 +739,11 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         self._add_action(self.help_menu, "🐙 GitHub", None,
                           self._show_github)
         self.help_menu.addSeparator()
+        # 崩溃统计：`core/crash_stats.py` 早就有 get_top_exceptions /
+        # get_recent_count / should_notify / cleanup_old，但**零引用** ——
+        # 用户完全看不到"这个版本是不是经常崩"。
+        self._add_action(self.help_menu, "📉 崩溃统计", None,
+                          self._show_crash_stats)
         self._add_action(self.help_menu, "ℹ 关于", None, self._about)
 
     def _build_panel_menu(self):
@@ -695,6 +760,10 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             # 问题面板：显示 LSP 诊断（生产者在 core/editor.py 的
             # _publish_problems 里写入 ProblemManager）
             ("问题", "panel.problems", self._toggle_problems_panel),
+            # 本轮接线：LSP 状态/安装向导 + 撤销历史（此前零实例化）
+            ("LSP 状态", "panel.lsp", self._toggle_lsp_panel),
+            ("撤销历史", "panel.undo_history",
+             self._toggle_undo_history_panel),
         ]
 
         for name, action_name, slot in panels:
@@ -1585,6 +1654,10 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         'dir_tree', 'minimap', 'gsearch',
         'console', 'plugins_panel', 'perf_monitor', 'search_bar',
         'problems',
+        # 本轮接线：两个此前零实例化的孤立面板
+        # （`ui/lsp_panel.py` 含语言服务器安装向导；
+        #   `ui/undo_history_panel.py` 展示自研撤销栈）
+        'lsp', 'undo_history',
     )
 
     # 启动时构造的面板（**保留**延迟构造，但恢复"开箱即有"的界面）
@@ -1735,6 +1808,9 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             )
             # P2-C5: 连接 replace_requested
             # 原实现只连 match_activated，"全部替换"按钮点了没反应。
+            # P0-3: 信号现携带第 4 个参数（SearchOptions）——
+            # 面板勾选的"正则/大小写/全词/转义/多行"必须传到替换端，
+            # 否则正则搜索会按字面量替换（详见 _on_global_replace）。
             self.gsearch.replace_requested.connect(
                 self._on_global_replace
             )
@@ -2141,6 +2217,36 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         except Exception as e:
             print(f"[MainWindow] 符号面板失败: {e}")
 
+    def _current_undo_manager(self):
+        """当前标签 proxy 的 UndoManager（P0-1 的绑定来源）
+
+        为什么是"回调"而不是保存一个引用:
+            每个标签页都有自己的 `EditorProxy` 与 `UndoManager`
+            （`core/editor.py` 的 `EditorProxy.__init__`），用户随时可能
+            切换标签。若在构造 `MacroRecorder` 时固定绑定一个 manager，
+            录制中切换标签就会记到错误的对象上（或什么都记不到）。
+            `MacroRecorder` 在 start()/stop() 时会调用本方法重新解析。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+        except Exception:
+            return None
+        if proxy is None:
+            return None
+        return getattr(proxy, 'undo_manager', None)
+
+    def _on_macro_error(self, message: str):
+        """宏录制/回放错误 → 状态栏（P0-1）
+
+        缺陷背景：`MacroRecorder.error_occurred` 原先**没有任何接收者**，
+        录不到命令时只有 `print()`（GUI 打包后不可见）—— 用户看到的是
+        "录制中"却录不到东西的静默失败。
+        """
+        try:
+            self.status_bar.showMessage(f"宏: {message}", 5000)
+        except Exception:
+            pass
+
     def _toggle_macro(self):
         """切换宏录制"""
         if not self.macro:
@@ -2155,14 +2261,36 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                 is_recording = bool(self.macro.is_recording())
 
             if is_recording:
-                self.macro.stop()
+                macro = self.macro.stop()
                 self.rec_label.hide()
-                self.status_bar.showMessage("宏录制已停止", 2000)
+                # P0-1: 明确回报录到几条 —— "录制中"却不显示数量时，
+                # 用户无法察觉"录到 0 条"这种静默失败。
+                count = 0
+                try:
+                    count = len(getattr(macro, 'commands', []) or [])
+                except Exception:
+                    count = 0
+                self.status_bar.showMessage(
+                    f"宏录制已停止（{count} 条命令）", 3000
+                )
             else:
+                # P0-1: 开始录制前先绑定当前标签的 undo_manager
+                # （标签可能自上次录制后已切换；start() 内部也会再解析一次）
+                if hasattr(self.macro, 'bind_current_undo_manager'):
+                    self.macro.bind_current_undo_manager()
                 self.macro.start()
                 self.rec_label.setText("● REC")
                 self.rec_label.show()
-                self.status_bar.showMessage("宏录制已开始", 2000)
+                # 没绑上 = 必然录到 0 条：立刻可见地告诉用户，
+                # 而不是等他录完、回放时才提示"没有可回放的宏"。
+                if (hasattr(self.macro, 'has_hook')
+                        and not self.macro.has_hook):
+                    self.status_bar.showMessage(
+                        "宏录制已开始，但当前没有可录制的编辑器"
+                        "（请先打开或新建标签）", 5000
+                    )
+                else:
+                    self.status_bar.showMessage("宏录制已开始", 2000)
         except Exception as e:
             print(f"[MainWindow] 宏录制失败: {e}")
 
@@ -2518,6 +2646,18 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
             # P6: LSP 总开关打开时，为新标签补上 LSP（幂等）
             self._sync_lsp_for_current_tab()
 
+            # P0-1: 录制中切换标签 → 录制钩子必须跟着切到新标签的
+            # undo_manager（proxy 是每标签一个）。否则用户在录制过程中
+            # 切了标签，之后的编辑一条也录不到，而 UI 仍显示"● REC"。
+            try:
+                macro = getattr(self, 'macro', None)
+                if (macro is not None
+                        and getattr(macro, 'recording', False)
+                        and hasattr(macro, 'bind_current_undo_manager')):
+                    macro.bind_current_undo_manager()
+            except Exception as e:
+                print(f"[MainWindow] 切换标签后重绑宏录制失败: {e}")
+
         except Exception as e:
             print(f"[MainWindow] 标签切换失败: {e}")
 
@@ -2618,21 +2758,66 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
         except Exception as e:
             print(f"[MainWindow] 搜索跳转失败: {e}")
 
+    def _current_search_options(self, pattern: str):
+        """取"当前搜索选项"：优先全局搜索面板的勾选（P0-3）
+
+        缺陷背景（P0-3，实测确认）:
+            `_on_global_replace` 原先自己 new 了一份
+            `SearchOptions(pattern=pattern)` —— 即
+            `is_regex=False / case_sensitive=False / whole_word=False`
+            的**默认值**，完全无视面板上的勾选。后果是"正则搜索 + 全部替换"
+            按字面量替换：例如用 `\\d+` 搜到 12 个匹配，替换阶段却去找
+            字面量 `\\d+`，一处也匹配不上（静默 0 处替换）。
+
+        修复策略：面板的 `build_options()` 是选项的**唯一构造点**，
+        并把选项对象随 `replace_requested` 信号一起传进来（见
+        `ui/global_search_panel.py`）。本方法只是"面板不可用"时的兜底，
+        行为与修复前一致，不会更差。
+        """
+        gsearch = getattr(self, 'gsearch', None)
+        if gsearch is not None and hasattr(gsearch, 'build_options'):
+            try:
+                options = gsearch.build_options()
+                if options is not None:
+                    if pattern and not options.pattern:
+                        options.pattern = pattern
+                    return options
+            except Exception as e:
+                print(f"[MainWindow] 读取搜索选项失败: {e}")
+
+        from core.search import SearchOptions
+        return SearchOptions.from_preferences(pattern=pattern)
+
     def _on_global_replace(self, pattern: str, replace_text: str,
-                            file_results: dict):
+                            file_results: dict, options=None):
         """P2-C5: 全局搜索 → 全部替换。
 
         参数:
             pattern: 搜索模式
             replace_text: 替换文本
             file_results: {filepath: [SearchMatch, ...]}
+            options: 搜索选项（P0-3；由面板随信号传入）
+
+        缺陷背景（P0-3，已实测）:
+            本方法原先用 `SearchOptions(pattern=pattern)` 重建选项 ——
+            面板上勾选的"正则 / 大小写 / 全词 / 转义 / 多行"被**静默丢弃**。
+            更隐蔽的是：这里对每个文件**重新搜索**一遍来确定匹配位置，
+            用默认选项重搜，得到的匹配集与用户看到的搜索结果根本不是同一批
+            （正则表达式在字面量模式下往往匹配到 0 处），替换位置随之错乱。
+
+            修复后：搜索与替换共用同一个 `SearchOptions` 对象
+            （`GlobalSearchPanel.build_options()` 构造、
+            `replace_requested` 信号携带），语义上保证"所见即所替"。
         """
         if not pattern or not file_results:
             return
 
+        if options is None:
+            options = self._current_search_options(pattern)
+
         try:
             from core.content_provider import LocalFileProvider
-            from core.search import ReplaceEngine, SearchEngine, SearchOptions
+            from core.search import ReplaceEngine, SearchEngine
 
             total = 0
             abs_paths = set()
@@ -2643,7 +2828,8 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                     provider = LocalFileProvider()
                     provider.open(filepath)
                     try:
-                        options = SearchOptions(pattern=pattern)
+                        # P0-3: 复用同一套选项（正则/大小写/全词/转义/多行），
+                        # 而不是 SearchOptions 的默认值
                         engine = SearchEngine(provider, options)
                         result = engine.search()
                         if result.is_empty:
@@ -2653,7 +2839,7 @@ class MainWindow(FileOpsMixin, EditOpsMixin, StatusBarMixin, QMainWindow):
                         n = replace_engine.replace_all(
                             result, replace_text,
                             is_regex=options.is_regex,
-                            pattern=pattern,
+                            pattern=options.pattern,
                         )
                         provider.save(filepath)
                         total += n

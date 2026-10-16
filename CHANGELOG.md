@@ -6,6 +6,126 @@
 
 ## [Unreleased]
 
+### 新增（两大核心功能：列编辑器 · 对比合并）
+
+#### 📊 列编辑器（对标 Notepad++ Edit → Column Editor…）
+
+`ui/column_editor_dialog.py`（新建，1400+ 行）+ 编辑器右键菜单 +
+「编辑 → 📊 列编辑器…」（`Alt+Shift+I`）。
+
+* **插入文本**：在矩形选区 / 多光标 / 选区覆盖的每一行、指定列位置插入同一段文本；
+* **插入数字**：起始值 / 步长（含负步长）/ 进制（Dec/Hex/Oct/Bin）/
+  **前导零填充**（按最大宽度）/ **前导空格对齐** / 最小位数 / 进制前缀；
+* **一次编辑 = 一条撤销命令**（关键）：编辑前把矩形/多光标收成单一流式选区，
+  编辑期间 `UndoManager.disable()`，结束后用一条 `ColumnInsertCmd` 入栈 ——
+  按一次 Ctrl+Z 即完整回退，不会"只退一行"；
+* **刻意不用 `GroupCmd`**：它的 `can_merge` 对任何 GroupCmd 都返回 True 且无时间窗，
+  连续两次列编辑会被静默合并（一次 Ctrl+Z 回退两次编辑）；
+* 位置按 **UTF-8 字节**（与 `_lsp_pos_to_scintilla` 同约定），中文/emoji 不错位；
+* 命令注册进 `CommandFactory`，**宏回放**可识别该类型。
+
+#### 🔀 对比合并（diff / merge）
+
+`ui/file_merge_dialog.py`（新建，1900+ 行）复用 `core/file_merge.py` 的算法
+（**未重写算法**），入口「工具 → 🔀 对比文件…」。
+
+* **并排双栏 diff**：行级对齐 + 三色高亮（新增/删除/修改）、只显示差异/显示全部、
+  同步滚动、字符级高亮开关、底部「新增 N / 删除 M / 修改 K」、纯文本报告导出；
+* **三方合并**：`ThreeWayMergeDialog` 展示 `<<<<<<< LOCAL / ======= / >>>>>>> REMOTE`
+  冲突标记，提供 保留本地 / 采用远程 / 手动编辑，含"下一个冲突"导航；
+* **大文件三级保护**：≥5MB 不做行级对齐也不渲染正文；`from_files`/`pick_files`
+  对超大文件**连读取都跳过**（只 `os.stat`）；差异行 >2000 自动关闭字符级高亮。
+
+**算法修复（实测复现）**：原 `compute_diff` 在 `replace` 块里按**下标配对**并在
+第一对不相似时 `break`，导致两类错误 —— ①该对之后的真实"修改"行被算成
+1 删 + 1 增；②两侧行数不等时后续配对整体错位。改为**打分式最优配对**
+（DP 最大权匹配），实测修复"修改/新增/删除计数"与"对齐序列/左右行号"等断言。
+
+### 新增（P0 接线：把已实现但零引用的能力交付出去）
+
+| 能力 | 此前状态 | 现在入口 |
+|---|---|---|
+| **本地格式化**（Black/autopep8/clang-format） | `core/formatter.py` **零引用** | 工具 → 🪄 格式化文档 |
+| **LSP 面板 + 安装向导** | `ui/lsp_panel.py`（548 行）零实例化 | 视图 → 面板 → LSP 状态 |
+| **撤销历史面板** | `ui/undo_history_panel.py`（229 行）零实例化 | 视图 → 面板 → 撤销历史 |
+| **崩溃统计** | `core/crash_stats.py`（240 行）零引用 | 帮助 → 📉 崩溃统计 |
+| **导出 PDF/HTML/Markdown** | `core/exporter.py` 零引用，而 `requirements.txt` 已承诺 | 文件 → 📤 导出 |
+| **书签导航** | `next/prev/clear` 引擎已实现且会话已持久化，**无菜单无快捷键** | 编辑 → 🔖 书签（Ctrl+F2 / F2 / Shift+F2） |
+
+* **格式化写回是一次原子撤销**：实测 `proxy.set_text()` 会触发**多条**撤销命令，
+  按一次 Ctrl+Z 只回退一半（实测把内容清空，比不格式化更糟）。改用 `CompoundCmd`
+  包成单条命令，undo/redo 均正确。
+* **面板属性名必须等于 `_LAZY_PANELS` 里的名字**（`_ensure_panel` 用
+  `getattr(self, name)`）：`lsp` / `undo_history`，否则懒加载判定为失败。
+
+### 修复（三个已实测确认的缺陷）
+
+1. **宏录制录到 0 条**
+   `ui/main_window.py` 构造 `MacroRecorder()` 时**未传 `undo_manager`** →
+   `_register_hook()` 在 `not self.undo_manager` 时直接 return →
+   `record_hook` 永不设置 → 实测录制后 `commands == 0`，回放必提示"没有可回放的宏"。
+   修复：新增 `undo_manager_provider` 回调，`start()` 时动态解析**当前标签**的
+   `undo_manager`（proxy 是每标签一个，不能只绑一次），`stop()` 精确解绑当初挂钩的
+   那个；录制中切标签会自动重绑；错误经 `error_occurred` **可见**（此前零接收者）。
+
+2. **草稿只写不读 —— 且修复后发现读取端本身也是坏的**
+   `app/session.py::check_and_recover_drafts()` 此前**零调用点**；
+   接线到 `main.py` 后又实测发现 `find_recoverable_drafts()` 调的是
+   `DocumentModel.list_drafts()`，而该方法**定义在 `Document` 上**
+   （`DocumentModel` 没有）→ `AttributeError` 被自身 `except` 吞掉并 `return []`
+   → **草稿恢复恒为空**，等于没接。现已修正为 `Document.list_drafts()`，
+   并用真实 SessionManager + 真实标签页实测恢复出草稿正文。
+   另补 `_render_recovered_drafts()`：恢复出的标签此前是**空白**的
+   （`EditorWidget(provider=MemoryProvider(...))` 不会把正文灌进 QScintilla）。
+
+3. **全局替换静默丢选项**
+   `_on_global_replace` 用 `SearchOptions(pattern=pattern)` 重建选项，无视面板勾选 →
+   正则搜索后"全部替换"按字面量、忽略大小写替换，且**重新搜索得到的匹配集与用户
+   看到的结果不是同一批**，替换位置随之错乱。修复：`replace_requested` 信号携带
+   `SearchOptions`，搜索与替换共用同一对象（`build_options()` 成为唯一构造点）。
+
+### 修复（编码语义混合 → 静默数据损坏）
+
+**实测复现**：UTF-8 文件「中文内容测试」→ 用户切到 GBK"看一眼"（界面显示乱码）
+→ 顺手 Ctrl+S → **磁盘被改写**，原字节永久丢失（读回变成乱码）。
+
+不保存则无损 —— 危险恰恰藏在"看一眼 + 保存"这个最自然的动作里。根因是
+`change_encoding` 把 Notepad++ 明确区分的两种语义（"改解释" vs "转码"）混成一个动作。
+
+修复：
+* `Document.change_encoding(mode=..., require_lossless=...)` 显式区分两种语义；
+* 新增 `Document.would_lose_text()`：判断新编码能否无损解码现有字节，含**例外**
+  —— 若当前显示已是乱码/为空（说明编码本就判错），本次切换属于**修正**、不拦截；
+* 状态栏切换走 **fail-closed**：有损时弹确认框并明确告知"保存会改写文件"，
+  取消则不切换。实测四种场景全部正确。
+
+### 修复（其他实测确认的问题）
+
+* **双重 `didSave`**：`core/editor.py` 里 `_notify_lsp_saved(filepath)`
+  **连着写了两遍**（连注释一起复制），每次 Ctrl+S 向语言服务器发两次 didSave。
+* **字符统计口径**：`app/tabs.py`、`ui/perf_monitor.py` 把 Scintilla 的**字节数**
+  当"字符数"（中文差约 3 倍）。现区分 `char_count` 与 `byte_count`。
+* **列编辑后修改标记**：除 `document.mark_modified()` 外还需置 QScintilla 侧标记，
+  否则标签页不显示 `*`、关窗不提示保存。实测坑：`QScintilla.setModified(True)`
+  在本项目配置下**不生效**（`EditorProxy` 执行过 `SCI_SETUNDOCOLLECTION, 0`），
+  需同时用 `SCI_SETMODIFY`。
+* **十六进制前缀大小写**：`_radix_prefix` 把 `uppercase` 也作用到前缀字母 x 上，
+  生成 `0X01`；标准写法是 `0x01`（数字才受大小写影响）。
+* **测试脚本输出编码**：`tools/verify_column_editor.py` 打印含 emoji 的 QAction
+  文本（`📊`）时，在 Windows 中文环境（stdout 默认 GBK）抛 `UnicodeEncodeError`
+  导致整个验证在最后一步崩掉。已强制 UTF-8。
+
+### 新增（分析工具，可复现）
+
+* `tools/audit_reachability.py` —— 可达性普查：**123 个生产模块中 80 可达、
+  30 真孤立（约 9,200 行完整实现零引用）**；
+* `tools/verify_user_journeys.py` —— 端到端功能旅程实跑（**16/16 通过**）；
+* `tools/verify_diff_semantics.py` —— diff 引擎真实代码场景验证（**30/30 通过**）；
+* `tools/verify_file_merge.py` / `tools/verify_column_editor.py` /
+  `tools/verify_p0_defects.py` —— 特性独立验证（82 / 78 / 17 项，全部通过）；
+* `docs/cross_analysis_v2.1.0.md` —— 全量交叉分析报告。
+
+
 ### 新增
 
 - **Ollama 本地模型管理（完整）**

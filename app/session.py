@@ -1017,8 +1017,14 @@ class SessionManager(QObject):
               'mtime': 时间戳}, ...]，按时间倒序
         """
         try:
-            from core.document import DocumentModel
-            drafts = DocumentModel.list_drafts()
+            # ⚠️ 修复（Lead 实测的真实缺陷）：`list_drafts()` 定义在
+            #   **`Document`** 上，`DocumentModel` **没有**这个方法。
+            #   原代码调 `DocumentModel.list_drafts()` 必然抛
+            #   `AttributeError`，又被这里的 `except` 吞掉并 `return []`
+            #   —— 于是**草稿恢复恒为空**：即便 `main.py` 已经接线调用本方法，
+            #   用户的未保存内容仍然捞不回来（等于没接）。
+            from core.document import Document
+            drafts = Document.list_drafts()
         except Exception as e:
             print(f"[Session] 读取草稿失败: {e}")
             return []

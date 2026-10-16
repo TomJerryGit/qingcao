@@ -1715,6 +1715,15 @@ class EditorWidget(QsciScintilla):
 
             menu.addSeparator()
 
+        # 列编辑器（核心功能）
+        #
+        # 与 Edit 菜单「列编辑器…」(Alt+Shift+I) 走**同一个** API
+        # （ui/column_editor_dialog.show_column_editor）：
+        # 在矩形选区（SC_SEL_RECTANGLE）/ 多光标 / 当前选区的多行上
+        # 逐行插入文本或递增数字，整次编辑只产生一条撤销命令。
+        col_act = menu.addAction("📊 列编辑器…")
+        col_act.triggered.connect(self.open_column_editor)
+
         # 行操作
         line_ops = menu.addMenu("📝 行操作")
         line_ops.addAction("上移行", proxy.move_line_up)
@@ -1883,6 +1892,29 @@ class EditorWidget(QsciScintilla):
     def get_line_count(self) -> int:
         """获取行数"""
         return self.SendScintilla(QsciScintilla.SCI_GETLINECOUNT)
+
+    # ========================================================
+    # 列编辑器（核心功能）
+    # ========================================================
+    def open_column_editor(self):
+        """打开列编辑器对话框。
+
+        对标 Notepad++ 的 Edit → Column Editor…：在矩形选区
+        （``SC_SEL_RECTANGLE``）/ 多光标 / 当前选区的多行上，逐行插入
+        同一段文本或递增数字序列，整次编辑只产生**一条**撤销命令。
+
+        实现集中在 ``ui/column_editor_dialog.py``（本文件只做入口，
+        与 Edit 菜单、右键菜单调用同一个 ``show_column_editor``）：
+
+        返回:
+            ``ColumnEditResult``（用户取消时返回 None）
+        """
+        try:
+            from ui.column_editor_dialog import show_column_editor
+            return show_column_editor(self, self)
+        except Exception as e:
+            print(f"[EditorWidget] 列编辑器失败: {e}")
+            return None
 
     def get_char_count(self) -> int:
         """获取字符数"""

@@ -278,15 +278,39 @@ class MacroRecorder(QObject):
     macro_saved = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, undo_manager=None, parent: Optional[QObject] = None):
+    def __init__(self, undo_manager=None, parent: Optional[QObject] = None,
+                 undo_manager_provider: Optional[Callable[[], Any]] = None):
         """
         参数:
             undo_manager: 撤销管理器（用于注册命令记录回调）
             parent: 父 QObject
+            undo_manager_provider: 无参回调，返回**当前**的撤销管理器
+
+        关于 `undo_manager_provider`（P0-1 修复的核心）:
+            缺陷背景（实测确认：录制后命令数为 0）:
+                `ui/main_window.py` 构造的是 `MacroRecorder()`，
+                没有传 `undo_manager`；而 `_register_hook()` 在
+                `not self.undo_manager` 时**直接 return**，
+                于是 `record_hook` 永不设置 —— 录制器挂在半空中，
+                录到 0 条，回放必然提示"没有可回放的宏"。
+
+                更关键的是：proxy 与其 `UndoManager` 是**每个标签一个**
+                （`core/editor.py` 的 `EditorProxy.__init__` 里
+                `self.undo_manager = UndoManager()`），标签随时可切换。
+                所以正确的做法不是"构造时传一个固定引用"，而是在
+                **开始录制的瞬间**解析出当前标签的 undo_manager
+                （见 `bind_current_undo_manager()`）。
         """
         super().__init__(parent)
 
         self.undo_manager = undo_manager
+        # 当前撤销管理器的解析回调（可为 None：退回 self.undo_manager）
+        self._undo_manager_provider = undo_manager_provider
+        # 已经挂上钩子的管理器。
+        # 与 self.undo_manager 可能不同：录制中用户切了标签时，
+        # stop() 必须解绑**当初挂钩的那个**，否则会在错误的对象上
+        # 覆盖 record_hook（把别人的回调改掉 / 留下悬挂闭包）。
+        self._hooked_manager: Optional[Any] = None
 
         # 状态
         self._state: MacroState = MacroState.IDLE
@@ -325,6 +349,16 @@ class MacroRecorder(QObject):
     def command_count(self) -> int:
         """当前录制的命令数量"""
         return self._command_count
+
+    @property
+    def has_hook(self) -> bool:
+        """是否已把录制钩子挂到某个 UndoManager 上（P0-1）
+
+        用途：调用方（如 `MainWindow._toggle_macro`）据此给出**可见**提示
+        ——"开始了但没绑上编辑器"应当立刻告诉用户，
+        而不是等他录完才发现是个空宏。
+        """
+        return self._hooked_manager is not None
 
     @property
     def duration(self) -> float:
@@ -370,7 +404,15 @@ class MacroRecorder(QObject):
         self._state = MacroState.RECORDING
 
         # 注册命令记录回调
-        self._register_hook()
+        #
+        # P0-1 修复：不再直接 `_register_hook()`（它只看构造时传入的
+        # undo_manager，而 main_window 构造时并没有传）——改为在开始录制的
+        # 这一刻解析"当前标签"的 undo_manager 并挂钩。
+        if not self.bind_current_undo_manager():
+            # 录不到命令时必须**可见**（信号由 MainWindow 转成状态栏提示）
+            self.error_occurred.emit(
+                "没有可录制的编辑器（当前标签无 undo_manager）"
+            )
 
         # 发射信号
         self.recording_started.emit()
@@ -447,13 +489,62 @@ class MacroRecorder(QObject):
     # --------------------------------------------------------
     # 命令记录回调
     # --------------------------------------------------------
+    def set_undo_manager_provider(self, provider: Optional[Callable[[], Any]]):
+        """设置"当前撤销管理器"的解析回调（P0-1）
+
+        供运行期替换绑定来源（例如主窗口在标签系统就绪后才注册）。
+        """
+        self._undo_manager_provider = provider
+
+    def _resolve_undo_manager(self):
+        """解析当前应当绑定的 UndoManager
+
+        优先走 `undo_manager_provider`（每标签动态解析），
+        回调不可用/返回 None 时退回构造时传入的 `self.undo_manager`。
+        任何异常都吞掉并退回 —— 宏录制绝不能把主流程带崩。
+        """
+        provider = self._undo_manager_provider
+        if callable(provider):
+            try:
+                um = provider()
+            except Exception as e:
+                print(f"[Macro] 解析 undo_manager 失败: {e}")
+                um = None
+            if um is not None:
+                return um
+        return self.undo_manager
+
+    def bind_current_undo_manager(self) -> bool:
+        """把录制钩子挂到"当前"undo_manager 上，返回是否成功（P0-1）
+
+        为什么需要这个方法:
+            * 构造 `MacroRecorder()` 时主窗口还**没有**标签
+              （`self.tabs` 在 `_build_central` 里才创建），
+              所以只能在用的时候解析；
+            * proxy 是每标签一个，用户录制中可以切标签 ——
+              每次 `start()` 都重新解析并重新挂钩；
+            * 若解析出的管理器与已挂钩的是同一个，则复用（幂等），
+              避免重复包裹 `record_hook` 造成命令被记两次。
+        """
+        um = self._resolve_undo_manager()
+        if um is None:
+            return False
+        if um is self._hooked_manager:
+            return True
+        # 先解绑旧的（可能是别的标签的管理器）
+        self._unregister_hook()
+        self.undo_manager = um
+        self._register_hook()
+        return self._hooked_manager is um
+
     def _register_hook(self):
         """注册命令记录回调到 undo_manager"""
-        if not self.undo_manager:
+        target = self._hooked_manager or self.undo_manager
+        if not target:
             return
 
         # 保存原始回调（可能被其他模块使用）
-        self._original_hook = getattr(self.undo_manager, 'record_hook', None)
+        self._original_hook = getattr(target, 'record_hook', None)
 
         # 注册我们的回调
         def combined_hook(command):
@@ -467,15 +558,19 @@ class MacroRecorder(QObject):
             # 再记录到宏
             self._on_command_recorded(command)
 
-        self.undo_manager.record_hook = combined_hook
+        target.record_hook = combined_hook
+        self._hooked_manager = target
 
     def _unregister_hook(self):
-        """取消注册"""
-        if not self.undo_manager:
+        """取消注册（解绑**当初挂钩的那个**管理器，而非当前的）"""
+        target = self._hooked_manager or self.undo_manager
+        if not target:
             return
 
         # 恢复原始回调
-        self.undo_manager.record_hook = self._original_hook
+        target.record_hook = self._original_hook
+        self._hooked_manager = None
+        self._original_hook = None
 
     def _on_command_recorded(self, command: Command):
         """
@@ -714,7 +809,9 @@ class MacroRecorder(QObject):
             # 恢复录制（如果之前在录制）
             if was_recording:
                 self._recording = True
-                self._register_hook()
+                # P0-1: 回放前 _unregister_hook() 已把 _hooked_manager 清空，
+                # 这里重新解析"当前"管理器再挂钩（不能假设还是回放前那个）。
+                self.bind_current_undo_manager()
 
             # 发射信号
             try:
@@ -866,6 +963,9 @@ class MacroRecorder(QObject):
             'duration': round(self.duration, 2),
             'macro_name': self.current_macro.name,
             'macro_empty': self.current_macro.is_empty,
+            # P0-1: 是否真的挂上了撤销管理器（录不到命令时最先看这个）
+            'hooked': self._hooked_manager is not None,
+            'undo_manager': repr(self._hooked_manager or self.undo_manager),
         }
 
     # --------------------------------------------------------
