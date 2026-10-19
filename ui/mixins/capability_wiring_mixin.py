@@ -396,6 +396,78 @@ class CapabilityWiringMixin:
                 pass
 
     # ========================================================
+    # 代码模板（core/code_templates.py）
+    # ========================================================
+    def _new_from_template(self):
+        """从模板新建文件（`ui/template_picker_dialog.py`）
+
+        `core/code_templates.py`（240 行）提供了 8 个真实模板：
+        Python 类 / 函数 / 测试 / 主程序、JS 函数 / 类、`.gitignore`、`README`。
+        此前**零引用**，用户只能每次手敲 class 骨架。
+        """
+        try:
+            from ui.template_picker_dialog import show_template_picker
+
+            text, filename = show_template_picker(self)
+            if text is None:
+                return
+
+            # 直接建标签（**不要**调 `_new_file()` —— 那会再弹一次
+            # "选择文件类型"对话框，用户在模板对话框里已经选过了）
+            title = filename or "未命名"
+            editor = self.tabs.add_tab(title)
+            if editor is None:
+                self.status_bar.showMessage("新建标签失败", 4000)
+                return
+            proxy = getattr(editor, 'proxy', None)
+            if proxy is None:
+                self.status_bar.showMessage("新建标签失败（无编辑器）", 4000)
+                return
+            proxy.set_text(text)
+
+            # 切到编辑区
+            try:
+                if self.central_stack:
+                    self.central_stack.setCurrentIndex(0)
+            except Exception:
+                pass
+
+            self.status_bar.showMessage(
+                "已从模板生成「%s」，保存时请确认文件名" % title, 6000
+            )
+        except Exception as e:
+            print(f"[MainWindow] 从模板新建失败: {e}")
+            try:
+                self.status_bar.showMessage(f"从模板新建失败: {e}", 6000)
+            except Exception:
+                pass
+
+    # ========================================================
+    # 会话快照（core/snapshot.py + ui/snapshot_manager_dialog.py）
+    # ========================================================
+    def _show_snapshot_dialog(self):
+        """打开会话快照对话框
+
+        `core/snapshot.py`（191 行）+ `ui/snapshot_manager_dialog.py`（154 行）
+        此前**零引用**。功能：把"当前所有打开的文件 + 光标位置 + 窗口布局"
+        存成快照，随时一键恢复 —— 对应真实的"切任务再切回来"场景。
+
+        注意：恢复会**关闭当前所有标签**，因此对话框里已加"未保存修改保护"
+        （先统一提示保存/放弃/取消，避免逐个模态框导致半恢复状态）。
+        """
+        try:
+            from ui.snapshot_manager_dialog import SnapshotDialog
+
+            dlg = SnapshotDialog(self, self)
+            dlg.exec_()
+        except Exception as e:
+            print(f"[MainWindow] 会话快照失败: {e}")
+            try:
+                self.status_bar.showMessage(f"会话快照失败: {e}", 6000)
+            except Exception:
+                pass
+
+    # ========================================================
     # 性能剖析（core/profiler.py + ui/profiler_panel.py）
     # ========================================================
     def _show_profiler(self):

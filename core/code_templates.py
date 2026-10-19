@@ -227,13 +227,44 @@ def list_templates() -> List[str]:
     return list(TEMPLATES.keys())
 
 
-def format_template(name: str, **kwargs) -> str:
-    """格式化模板"""
-    template = TEMPLATES.get(name)
+def get_template_placeholders(template_name: str) -> List[str]:
+    """取某个模板需要填充的占位符列表（供 UI 生成输入框）"""
+    return list(TEMPLATES.get(template_name, {}).get("placeholders") or [])
+
+
+def format_template(template_name: str, **kwargs) -> str:
+    """格式化模板
+
+    ★ 修复（实测发现）：形参原名为 `name`，与模板占位符 `{name}` **冲突**
+
+        调用 `format_template("py_class", name="MyClass")` 会抛
+        `TypeError: format_template() got multiple values for argument 'name'`
+        —— 也就是说"给类名赋值"这个最基本的用法直接不可用。
+        现把形参改名为 `template_name`（位置调用保持兼容）。
+
+    ★ 同时修掉"占位符缺失时原样返回未格式化代码"的问题：
+
+        原实现 `except (KeyError...) return code` 会把 `{docstring}` 这类
+        占位符**原样**留在生成的文件里，用户拿到的是语法错误的一段代码。
+        现在缺失的占位符统一填空字符串，生成结果始终是合法文本。
+    """
+    template = TEMPLATES.get(template_name)
     if not template:
         return ""
     code = template.get("code", "")
+
+    # 缺失的占位符填空串（而不是让整段格式化失败、原样返回带 {xxx} 的代码）
+    fill = {ph: "" for ph in (template.get("placeholders") or [])}
+    fill.update({k: ("" if v is None else str(v)) for k, v in kwargs.items()})
     try:
-        return code.format(**kwargs)
-    except (KeyError, IndexError, ValueError):
+        return code.format_map(_SafeDict(fill))
+    except (IndexError, ValueError) as e:
+        print("[代码模板] 格式化 %s 失败: %s" % (template_name, e))
         return code
+
+
+class _SafeDict(dict):
+    """`format_map` 用的字典：缺失键返回空串而不是抛 KeyError"""
+
+    def __missing__(self, key):        # noqa: D105
+        return ""

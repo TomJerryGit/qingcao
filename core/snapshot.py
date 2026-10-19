@@ -6,7 +6,20 @@ import os
 from typing import Any, Dict, List, Optional
 
 
-SNAPSHOT_DIR = "data/snapshots"
+# 基于应用根目录的**绝对路径**（相对路径会随工作目录变化）
+#
+# ★ 修复（接线时发现）：原实现是 `SNAPSHOT_DIR = "data/snapshots"` ——
+#   相对路径，取决于进程工作目录。
+#   打包后的应用从快捷方式/其他目录启动时（实测 cwd=C:\），快照会被写到
+#   `C:\data\snapshots`；下次从别处启动又变成另一个目录 →
+#   **用户保存的快照"凭空消失"**。
+#   这与本仓库已修复的 `Document._draft_dir`、`CRASH_DIR` 是同一类缺陷，
+#   统一改为从 `app_root_dir()` 派生。
+try:
+    from infrastructure.plugin_loader import app_root_dir as _app_root
+    SNAPSHOT_DIR = os.path.join(_app_root(), "data", "snapshots")
+except Exception:  # pragma: no cover - 仅在基础设施不可用时
+    SNAPSHOT_DIR = "data/snapshots"
 
 
 class SnapshotManager:

@@ -533,10 +533,17 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
 
         self._add_action(self.file_menu, "📄 新建(&N)", "Ctrl+N",
                           self._new_file)
+        # 从模板新建：接线 core/code_templates.py（此前零引用）
+        self._add_action(self.file_menu, "🧩 从模板新建…", None,
+                          self._new_from_template)
         self._add_action(self.file_menu, "📂 打开(&O)", "Ctrl+O",
                           self._open_file)
         self._add_action(self.file_menu, "📁 打开文件夹", None,
                           self._open_folder)
+        self.file_menu.addSeparator()
+        # 会话快照：接线 core/snapshot.py + ui/snapshot_manager_dialog.py（此前零引用）
+        self._add_action(self.file_menu, "📸 会话快照…", None,
+                          self._show_snapshot_dialog)
         self.file_menu.addSeparator()
         self._add_action(self.file_menu, "💾 保存(&S)", "Ctrl+S",
                           self._save_file)
