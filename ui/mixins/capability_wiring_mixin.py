@@ -23,9 +23,66 @@
 
 import logging
 import os
+import weakref
+
+from PyQt5.QtCore import QObject
+from PyQt5.QtWidgets import QApplication
 
 
 logger = logging.getLogger(__name__)
+
+# 应用级按键过滤器（模块级单例，弱引用持有窗口）
+#
+# ★ 为什么不能把 MainWindow 直接 installEventFilter 到 QApplication
+#   （实测崩溃，务必看）：
+#
+#       `app.installEventFilter(self)` 之后，QApplication 持有 MainWindow 的
+#       C++ 指针。在主窗口**被销毁**（关窗/测试 teardown / GC）后，
+#       QApplication 仍会在下一次事件派发时调用该过滤器的 `eventFilter`，
+#       而此时 Python 对象已析构 → **访问违例（0xC0000005）**。
+#
+#       实测复现：`pytest tests/test_p1_features.py` 单跑必崩
+#       （6 个测试全通过后在 teardown 段错误）；把本模块的初始化临时注释掉
+#       则完整通过 —— 因果已确认。
+#
+#   改为：独立的 `_KeySequenceAppFilter`（弱引用窗口）+ 窗口侧只做
+#   `_handle_keyseq_event`，窗口没了过滤器安全返回 False。
+_KEYSEQ_APP_FILTER = None
+
+
+class _KeySequenceAppFilter(QObject):
+    """应用级按键过滤器：把按键转交当前窗口的多键序列管理器
+
+    用 weakref 持有窗口 —— 窗口销毁后 `owner_ref()` 返回 None，
+    过滤器直接放行，绝不会访问已析构对象。
+    """
+
+    def __init__(self, owner):
+        super().__init__()
+        self._owner_ref = weakref.ref(owner)
+
+    def set_owner(self, owner):
+        """切换归属窗口（多窗口/测试场景复用同一个过滤器）"""
+        self._owner_ref = weakref.ref(owner) if owner is not None else \
+            (lambda: None)
+
+    def eventFilter(self, obj, event):
+        """转交给归属窗口处理；任何异常都放行"""
+        try:
+            owner = self._owner_ref() if self._owner_ref else None
+            if owner is None:
+                return False
+            if getattr(owner, '_closing', False):
+                return False
+            handler = getattr(owner, '_handle_keyseq_event', None)
+            if handler is None:
+                return False
+            return bool(handler(obj, event))
+        except (RuntimeError, ReferenceError):
+            # 窗口的 C++ 对象已销毁 → 安静放行
+            return False
+        except Exception:
+            return False
 
 
 class CapabilityWiringMixin:
@@ -85,6 +142,238 @@ class CapabilityWiringMixin:
                     )
             except Exception:
                 pass
+
+    # ========================================================
+    # 快捷键序列（core/key_sequence_manager.py）
+    # ========================================================
+    # 注册的序列（VSCode 风格；**前缀键 Ctrl+K 全仓无单键绑定**，已 grep 确认）
+    KEY_SEQUENCES = (
+        # (按键序列, 处理器名, 说明)
+        (("Ctrl+K", "Ctrl+S"), "_save_all", "保存全部"),
+        (("Ctrl+K", "Ctrl+W"), "_close_all_tabs", "关闭所有标签"),
+        (("Ctrl+K", "Ctrl+C"), "_toggle_comment", "注释切换"),
+        (("Ctrl+K", "Ctrl+F"), "_format_document", "格式化文档"),
+        (("Ctrl+K", "Ctrl+T"), "_show_snapshot_dialog", "会话快照"),
+        (("Ctrl+K", "Ctrl+D"), "_show_file_diff", "对比文件"),
+    )
+
+    def _setup_key_sequences(self):
+        """接线 `core/key_sequence_manager.py`（VSCode 风格多键序列）
+
+        ## 此前状态
+        `core/key_sequence_manager.py`（190 行）实现了完整的
+        "前缀键等待 + 超时取消 + 序列触发"，但**零引用** ——
+        用户按 `Ctrl+K` 没有任何反应。
+
+        ## 为什么必须谨慎（前缀键会"吃掉"按键）
+        按下前缀键时序列管理器会返回 True（消费该键），随后才等待第二键。
+        如果它错误地消费了**普通编辑按键**，用户会觉得"键盘坏了"。
+        因此本实现有三道闸：
+
+          1. **只处理带 Ctrl/Alt 的键**（`_key_string_for_event` 里判断）——
+             纯字母/数字/退格不可能被吞；
+          2. **只在焦点位于编辑器时处理** —— 对话框/输入框里的按键不受影响；
+          3. **有模态窗口时不处理** —— 避免抢走确认框的按键。
+
+        另有 `key_sequence_conflicts()` 供测试与启动自检，
+        确保**前缀键本身没有单键绑定**（否则 Ctrl+K 会被两条路径同时响应）。
+        """
+        try:
+            from core.key_sequence_manager import KeySequenceManager
+
+            mgr = KeySequenceManager(self)
+            self.key_sequence_manager = mgr
+
+            # 状态栏提示（"Ctrl+K ... 等待第二个键"）
+            try:
+                mgr.status_changed.connect(self._on_key_sequence_status)
+            except Exception:
+                pass
+
+            registered = []
+            for keys, handler_name, desc in self.KEY_SEQUENCES:
+                handler = getattr(self, handler_name, None)
+                if not callable(handler):
+                    # 处理器缺失（该能力未接线）→ 跳过，不让整个初始化失败
+                    print(f"[KeySeq] 跳过 {keys}：缺少处理器 {handler_name}")
+                    continue
+                mgr.register(list(keys), handler, description=desc)
+                registered.append((keys, handler_name, desc))
+
+            self._key_sequences_registered = registered
+
+            # 装事件过滤器（应用级，但只处理编辑器焦点）
+            #
+            # ★ 必须用**独立过滤器对象** + weakref，不能把 self 装上去 ——
+            #   原因见模块顶部 `_KEYSEQ_APP_FILTER` 的说明（实测访问违例）。
+            global _KEYSEQ_APP_FILTER
+            app = QApplication.instance()
+            if app is not None:
+                if _KEYSEQ_APP_FILTER is None:
+                    _KEYSEQ_APP_FILTER = _KeySequenceAppFilter(self)
+                    app.installEventFilter(_KEYSEQ_APP_FILTER)
+                else:
+                    _KEYSEQ_APP_FILTER.set_owner(self)
+                self._keyseq_app_filter = _KEYSEQ_APP_FILTER
+
+            print("[KeySeq] 已启用 %d 条多键序列" % len(registered))
+        except Exception as e:
+            print(f"[MainWindow] 启用快捷键序列失败: {e}")
+            self.key_sequence_manager = None
+
+    def _teardown_key_sequences(self):
+        """关窗时卸载按键过滤器（避免 QApplication 持有失效窗口）"""
+        try:
+            global _KEYSEQ_APP_FILTER
+            filt = getattr(self, '_keyseq_app_filter', None)
+            if filt is not None and _KEYSEQ_APP_FILTER is filt:
+                try:
+                    app = QApplication.instance()
+                    if app is not None:
+                        app.removeEventFilter(filt)
+                except Exception:
+                    pass
+                _KEYSEQ_APP_FILTER = None
+            self._keyseq_app_filter = None
+            mgr = getattr(self, 'key_sequence_manager', None)
+            if mgr is not None:
+                try:
+                    mgr.cancel()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _on_key_sequence_status(self, text: str):
+        """把序列等待状态显示到状态栏"""
+        try:
+            if text:
+                self.status_bar.showMessage(text, 3000)
+        except Exception:
+            pass
+
+    def key_sequence_conflicts(self):
+        """检查多键序列是否与现有单键快捷键冲突
+
+        返回:
+            [(sequence, conflict_reason), ...]；空列表表示无冲突
+
+        规则：
+          * **前缀键**（如 `Ctrl+K`）自身不能有单键绑定 ——
+            否则按下它时既触发单键动作、又被序列管理器消费，行为不确定；
+          * 完整序列（多键）不会与 QAction 单键冲突（Qt 不支持多键序列）。
+        """
+        problems = []
+        try:
+            from PyQt5.QtWidgets import QAction
+            mgr = getattr(self, 'act_mgr', None)
+            actions = getattr(mgr, 'actions', {}) or {}
+
+            # 收集全窗口所有带快捷键的动作（含未注册到 ActionManager 的）
+            shortcut_owners = {}
+            for act in self.findChildren(QAction):
+                try:
+                    if act.shortcut().isEmpty():
+                        continue
+                    key = act.shortcut().toString()
+                except Exception:
+                    continue
+                shortcut_owners.setdefault(key, []).append(act.text())
+
+            for keys, handler_name, desc in self.KEY_SEQUENCES:
+                prefix = keys[0]
+                if prefix in shortcut_owners:
+                    problems.append((
+                        " ".join(keys),
+                        "前缀键 %s 已被动作占用: %s"
+                        % (prefix, shortcut_owners[prefix][:3])
+                    ))
+                # 处理器必须存在
+                if not callable(getattr(self, handler_name, None)):
+                    problems.append((
+                        " ".join(keys),
+                        "缺少处理器 %s" % handler_name
+                    ))
+            _ = actions
+        except Exception as e:
+            problems.append(("<检查失败>", str(e)))
+        return problems
+
+    def _key_string_for_event(self, obj, event) -> str:
+        """把 QKeyEvent 转成序列管理器的键名；不值得处理的键返回空串
+
+        三重过滤（见 `_setup_key_sequences` 的说明）：
+          1. 必须有 Ctrl 或 Alt（否则普通输入会被吞）；
+          2. 事件目标必须是编辑器（QsciScintilla）；
+          3. 不能有模态窗口。
+
+        ★ 缺陷修正（实测发现）：第一版用 `app.activeWindow().focusWidget()`
+        判断焦点，这在两种情况下会**完全失效**：
+
+          * headless/offscreen（没有"活动窗口"概念）→ `activeWindow()` 为 None；
+          * 窗口刚显示、或焦点在浮动面板时 → 取不到编辑器。
+
+        结果就是"多键序列根本不触发"。正确做法是用事件过滤器收到的
+        `obj` —— 那才是**真正接收该按键的控件**，再退回 `focusWidget()`。
+        """
+        try:
+            from PyQt5.QtCore import Qt
+
+            mods = event.modifiers()
+            if not (mods & Qt.ControlModifier or mods & Qt.AltModifier):
+                return ""
+
+            app = QApplication.instance()
+            if app is not None and app.activeModalWidget() is not None:
+                return ""
+
+            from PyQt5.Qsci import QsciScintilla
+
+            target = obj
+            if not isinstance(target, QsciScintilla):
+                # 事件目标不是编辑器时，再看当前焦点
+                focus = app.focusWidget() if app is not None else None
+                if not isinstance(focus, QsciScintilla):
+                    return ""
+                target = focus
+            _ = target
+
+            from core.key_sequence_manager import key_event_to_string
+            return key_event_to_string(event)
+        except Exception:
+            return ""
+
+    def _handle_keyseq_event(self, obj, event):
+        """处理按键事件：识别多键序列（其余事件一律放行）
+
+        注意：本方法**不叫** `eventFilter`、也**不**由 MainWindow 直接
+        安装到 QApplication（那样会因窗口销毁后 QApplication 仍持有指针
+        而访问违例）。实际安装的是 `_KeySequenceAppFilter`，它用 weakref
+        找到本窗口再调到这里。
+        """
+        try:
+            from PyQt5.QtCore import QEvent
+
+            if event.type() != QEvent.KeyPress:
+                return False
+
+            mgr = getattr(self, 'key_sequence_manager', None)
+            if mgr is None:
+                return False
+
+            key = self._key_string_for_event(obj, event)
+            if not key:
+                return False
+
+            if mgr.handle_key(key):
+                # 命中前缀或完整序列 → 消费该按键
+                event.accept()
+                return True
+            return False
+        except (RuntimeError, ReferenceError):
+            return False
+        except Exception:
+            return False
 
     # ========================================================
     # 面板：LSP 状态 / 撤销历史（对应孤立 UI 文件）

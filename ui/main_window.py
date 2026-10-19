@@ -841,6 +841,16 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
         # `main.py` 在插件加载完成后会调用 `refresh_feature_menu()` 重建。
         self._setup_feature_menu()
 
+        # ============ 多键快捷键序列（VSCode 风格）============
+        #
+        # 接线 `core/key_sequence_manager.py`（190 行，此前零引用）。
+        # 放最后：此时所有动作处理器都已就绪。
+        #
+        # 安全设计见 `_setup_key_sequences()` 的 docstring：
+        # 只处理"带 Ctrl/Alt + 焦点在编辑器 + 无模态窗口"的按键，
+        # 因此不会吞掉普通输入。
+        self._setup_key_sequences()
+
     def refresh_feature_menu(self):
         """重新填充「特色功能」里的插件命令子菜单
 
@@ -3442,6 +3452,17 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             return
 
         self._closing = True
+
+        # 卸载多键序列的应用级按键过滤器
+        #
+        # ★ 修复（实测访问违例 0xC0000005）：
+        #   QApplication 上的事件过滤器若在窗口销毁后仍挂着，
+        #   Qt 会在下一次事件派发时调用已析构对象 → 崩溃。
+        #   必须在 `_closing` 置位后**立即**卸载（此时过滤器已能安全跳过）。
+        try:
+            self._teardown_key_sequences()
+        except Exception as e:
+            logger.debug("卸载按键序列过滤器失败: %s", e)
 
         # 先停止文件监听并释放 provider 句柄
         #
