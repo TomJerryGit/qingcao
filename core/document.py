@@ -888,6 +888,23 @@ class Document(QObject):
 
         返回:
             行索引列表，索引 i 表示第 i 行在文本中的起始位置
+
+        ★ 修复（真实压测发现）：纯 CR（老式 Mac）换行文件被算成 **1 行**
+
+            原实现只认 `'\\n'`，于是 `"line1\\rline2\\rline3\\r"` 的行索引是
+            `[0]` —— `get_line_count()` 返回 1。文本本身没丢，但：
+
+            * 「跳转到行」失效（第 2 行不存在）；
+            * 行级 diff / 列编辑器 / 书签 / LSP 行列位置全部错位；
+            * 状态栏行号永远是 1。
+
+            修复逻辑（兼容 CRLF，且不产生重复断行）：
+
+                * `\\r\\n` 视为**一个**换行，行首取 `\\n` 之后（i+2）；
+                * 单独 `\\r`（后面不是 `\\n`）也视为换行，行首取 i+1；
+                * 单独 `\\n` 照旧。
+
+            只改索引、**不改文本内容**，所以保存仍保真。
         """
         if self._line_index is not None and not self._line_index_dirty:
             return self._line_index
@@ -899,9 +916,19 @@ class Document(QObject):
 
         text = self.provider.read_text()
         index = [0]
-        for i, char in enumerate(text):
-            if char == '\n':
+        n = len(text)
+        i = 0
+        while i < n:
+            ch = text[i]
+            if ch == '\n':
                 index.append(i + 1)
+            elif ch == '\r':
+                if i + 1 < n and text[i + 1] == '\n':
+                    index.append(i + 2)      # CRLF 只算一个换行
+                    i += 1
+                else:
+                    index.append(i + 1)      # 纯 CR
+            i += 1
 
         self._line_index = index
         self._line_index_dirty = False
@@ -930,13 +957,29 @@ class Document(QObject):
         return -1
 
     def get_line_text(self, line: int) -> str:
-        """获取指定行的文本"""
+        """获取指定行的文本（**不含行尾换行符**）
+
+        ★ 修复（真实压测发现）：CRLF 行返回了多余的 '\\r'
+
+            `get_line_end()` 对非末行返回 `index[line+1] - 1`。
+            对 CRLF 文件，`index[line+1]` 指向 `\\n` **之后**，
+            所以 `-1` 落在 `\\n` 上、切片 `[start:end]` 恰好排除 `\\n` ——
+            但 `\\r` 仍留在行内，于是返回 `'b\\r'` 而不是 `'b'`。
+
+            后果：列编辑器/搜索替换/书签等按"行文本"工作的逻辑
+            会把 `\\r` 当成正文的一部分（例如行尾匹配、列位置偏移）。
+
+            修复：仅当末尾确实是 `\\r` 时剥掉**一个**（不误删正文里的 `\\r`）。
+        """
         start = self.get_line_start(line)
         end = self.get_line_end(line)
         if start < 0 or end < 0:
             return ""
         text = self.get_text()
-        return text[start:end]
+        line_text = text[start:end]
+        if line_text.endswith("\r"):
+            line_text = line_text[:-1]
+        return line_text
 
     def get_position_line_col(self, position: int) -> Tuple[int, int]:
         """

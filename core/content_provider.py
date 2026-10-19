@@ -92,6 +92,33 @@ EOL_LF = '\n'
 EOL_CRLF = '\r\n'
 EOL_CR = '\r'
 
+# BOM 字符（U+FEFF）
+_BOM_CHAR = '\ufeff'
+
+# 需要"解码后手动剥 BOM"的编码
+#
+# 为什么需要（真实压测发现的缺陷）：
+#   `BOMS` 把 UTF-16/32 的 BOM 映射成**裸端序编码**（`utf-16-le` 等），
+#   这类编码**不剥离 BOM**，解出来第一个字符就是 U+FEFF。
+#   而 `utf-8-sig` 会自动剥离 —— 于是只有 UTF-16/32 会出现
+#   "文本模型里凭空多一个不可见字符"的不对称行为。
+#
+#   实测：32 字符的 UTF-16LE 文件被读成 33 字符，首字符 U+FEFF。
+#   `encode()` 用同一裸端序编码不会补 BOM，所以**字节仍保真**，
+#   但文本层面的搜索/替换/解析/diff 都会因此错位或报错。
+_BOM_STRIPPED_ENCODINGS = frozenset({
+    'utf-16', 'utf-16-le', 'utf-16-be',
+    'utf-32', 'utf-32-le', 'utf-32-be',
+})
+
+
+def _strip_leading_bom(text: str, encoding: str) -> str:
+    """剥掉解码结果**开头**的 BOM（仅首字符，不动正文里的 U+FEFF）"""
+    if text and text[0] == _BOM_CHAR:
+        if str(encoding or '').lower() in _BOM_STRIPPED_ENCODINGS:
+            return text[1:]
+    return text
+
 
 # ============================================================
 # 异常定义
@@ -505,11 +532,31 @@ class ContentProvider(ABC):
     # ========================================================
 
     def decode(self, data: bytes) -> str:
-        """解码字节串为文本"""
+        """解码字节串为文本
+
+        ★ 修复（真实压测发现）：UTF-16/UTF-32 文件的 BOM 被当成**正文**读入
+
+            `BOMS` 把 `b'\\xff\\xfe'` 映射到 `'utf-16-le'` 这类**裸端序编码**，
+            而这类编码**不会剥离 BOM** —— 解出来的第一个字符就是
+            `U+FEFF`（不可见的 BOM）。对比之下 `'utf-8-sig'` 会自动剥离，
+            所以只有 UTF-16/32 有这个不对称问题。
+
+            实测：一个 32 字符的 UTF-16LE 文件被读成 **33** 字符，
+            首字符 `U+FEFF`。文本内容看起来"没坏"，但：
+
+            * 搜索/替换/正则的第一个字符位置全部偏移；
+            * 若是 JSON/XML/源代码，多出的 BOM 字符会让解析器报错；
+            * 行级 diff 会把首行判为"已修改"。
+
+            这里在解码后剥掉**开头**的 BOM（仅首字符，不动正文里的
+            U+FEFF —— 正文里的同码位字符是合法的）。`encode()` 用同一
+            裸端序编码，不会再补 BOM，所以**保存后的字节仍与原文件一致**。
+        """
         try:
-            return data.decode(self._encoding, errors='replace')
+            text = data.decode(self._encoding, errors='replace')
         except (LookupError, UnicodeDecodeError):
-            return data.decode(ENCODING_UTF8, errors='replace')
+            text = data.decode(ENCODING_UTF8, errors='replace')
+        return _strip_leading_bom(text, self._encoding)
 
     def encode(self, text: str) -> bytes:
         """编码文本为字节串"""

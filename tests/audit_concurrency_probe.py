@@ -535,36 +535,71 @@ def test_G_widget_access_from_worker_thread(qapp, qtbot):
     edit.deleteLater()
 
 
-def test_G2_refactor_dialog_callback_from_worker(qapp, qtbot, monkeypatch):
-    """G2: 复现 RefactorSession 在子线程里回调对话框（真实调用链）"""
-    try:
-        from core.refactor_session import RefactorSession
-    except Exception as exc:
-        pytest.skip("refactor_session 不可用: %s" % exc)
+def test_G2_refactor_worker_callback_pattern_is_gone(qapp):
+    """G2（改造后）: 防回归 —— 不得再有"工作线程直接回调 UI"的代码
 
-    from PyQt5.QtWidgets import QLabel
+    ## 为什么改成静态检查
 
-    label = QLabel("init")
-    label.show()
-    seen = []
+    原 G2 用 `core/refactor_session.py::RefactorSession` 现场复现
+    "worker 线程里回调对话框、直接改 QWidget"的缺陷
+    （见 docs/audit_concurrency.md 的 F-4a）。
 
-    class FakeAI:
-        def _chat(self, messages, system=""):
-            return "```python\nprint(1)\n```\n说明"
+    但该模块与其配套的 `ui/refactor_dialog.py` 都**零调用点**，
+    已在技术债清理中删除。继续用已删除的类做实验没有意义，
+    于是改为**静态防回归检查** —— 把那条教训固化成机器可执行的约束：
 
-    session = RefactorSession(FakeAI(), "print(0)\n", "python")
+    禁止的形态（F-4a/F-4b）：
+        threading.Thread(target=..., args=(...)).start()   # 工作线程
+        ... 在 target 体内直接 `widget.setText(...)` / `QApplication.processEvents()`
 
-    def callback(iteration):
-        # 这段在【子线程】里执行 —— 对应 ui/refactor_dialog.py:266
-        seen.append(threading.current_thread().name)
-        label.setText("iter %d" % iteration.iteration)
-        QApplication.processEvents()
+    正确形态：`QObject` + `pyqtSignal`，worker 只 `emit`，槽在主线程执行
+    （`core/search.py::FileSearcher` 就是正确样板）。
 
-    session.send_request("改成 print(1)", callback=callback)
-    qtbot.waitUntil(lambda: bool(seen), timeout=5000)
-    _pump(qtbot, 200)
+    本测试扫描生产代码里 `threading.Thread(` 附近是否出现
+    `QApplication.processEvents()`（那是"在别的线程为 UI 派发事件"的铁证），
+    并确认被删的两个模块确实已不存在。
+    """
+    import io
+    import re
 
-    print("\n[G2] callback 执行线程名 = %r（主线程=%r）"
-          % (seen, threading.current_thread().name), flush=True)
-    print("[G2] Qt 告警 = %r" % (QT_MESSAGES[:20],), flush=True)
-    label.deleteLater()
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # 1) 被删模块必须真的不存在（防止有人误"恢复"）
+    for rel in ("core/refactor_session.py", "core/benchmark.py"):
+        assert not os.path.isfile(os.path.join(root, rel)), (
+            "%s 已被判定为无用代码并删除（见 CHANGELOG 与技术债台账）。"
+            "若确需恢复，请同时更新 tests/test_wiring_audit.py 的 "
+            "KNOWN_DEAD_MODULES/DEBT_LEDGER 与 build.py/QingCaoEditor.spec 的 "
+            "hiddenimports。" % rel
+        )
+
+    # 2) 生产代码里不得出现"工作线程中 processEvents"的形态
+    offenders = []
+    pat_thread = re.compile(r"threading\.Thread\(")
+    pat_events = re.compile(r"QApplication\.processEvents\(\)")
+    for sub in ("core", "ui", "app"):
+        base = os.path.join(root, sub)
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames
+                          if d not in ("__pycache__", ".git")]
+            for fn in filenames:
+                if not fn.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, fn)
+                try:
+                    src = io.open(path, encoding="utf-8",
+                                  errors="replace").read()
+                except OSError:
+                    continue
+                if not pat_thread.search(src):
+                    continue
+                if pat_events.search(src):
+                    offenders.append(os.path.relpath(path, root))
+
+    assert not offenders, (
+        "以下文件同时使用 threading.Thread 与 QApplication.processEvents()，"
+        "疑似在工作线程里为 UI 派发事件（F-4 形态，可能随机崩溃）：\n"
+        + "\n".join("    " + o for o in offenders)
+        + "\n正确做法：QObject + pyqtSignal，worker 只 emit，槽在主线程执行"
+          "（参考 core/search.py::FileSearcher）。"
+    )

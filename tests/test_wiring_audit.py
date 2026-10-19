@@ -444,10 +444,8 @@ class TestKeyApiWiring:
 #       附带事实（供将来接线时参考）：build.py:442-447 是
 #       `for m in project_modules: try: __import__(m) except ImportError: pass`
 #       —— 漏删 hiddenimports **不会**导致打包失败，只会被静默跳过。
-#   * 零引用但列在 build.py hiddenimports（build.py 不在写作用域）：
+#   * 零引用但列在 build.py hiddenimports：
 #       core/key_sequence_manager.py (build.py:411)
-#       core/benchmark.py            (build.py:407)
-#       core/refactor_session.py     (build.py:414)
 #       core/code_templates.py       (build.py:408)
 #       core/exporter.py             (build.py:409)
 #       core/formatter.py            (build.py:410)
@@ -462,8 +460,6 @@ KNOWN_DEAD_MODULES = frozenset({
     "ui/snippet_market_dialog.py",
     # ---- 零引用，但列在 build.py hiddenimports ----
     "core/key_sequence_manager.py",
-    "core/benchmark.py",
-    "core/refactor_session.py",
     "core/code_templates.py",
     "core/project_config.py",
     "core/workspace.py",
@@ -520,12 +516,6 @@ DEBT_LEDGER = {
     "core/code_templates.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
         note="代码模板；可接进「新建文件」向导"),
-    "core/benchmark.py": dict(
-        owner="qa", action=DEBT_ACTION_DELETE, due="v2.3.0",
-        note="性能基准；生产代码无用途，测试应改用 pytest-benchmark"),
-    "core/refactor_session.py": dict(
-        owner="ai", action=DEBT_ACTION_DELETE, due="v2.3.0",
-        note="AI 重构会话；配套 UI 已删除，除非重做重构功能否则删除"),
     # ---------- C 组：引擎完整但 UI 未接 ----------
     "ui/collab_dialog.py": dict(
         owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
@@ -559,6 +549,10 @@ DEBT_CEILING_HISTORY = [
                        "problems_panel/undo_history_panel"),
     ("2026-02-20", 10, "再接线 3 个：keymap_profiles（VSCode/Sublime/Vim "
                        "快捷键方案）、profiler + profiler_panel（性能剖析）"),
+    ("2026-02-20", 8, "删除 2 个确认无用的：benchmark（生产无用途，测试应改用 "
+                      "pytest-benchmark）、refactor_session（配套 UI 早已删除）。"
+                      "删除同时清理了 build.py 与 QingCaoEditor.spec 的 "
+                      "hiddenimports，避免打包时静默跳过不存在的模块。"),
 ]
 
 # 当前上限 = 历史最低值（棘轮只允许往下走）
