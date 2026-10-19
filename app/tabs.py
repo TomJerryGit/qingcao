@@ -727,6 +727,21 @@ class TabManager(QTabWidget):
         if filepath:
             self._remove_file_watcher(filepath)
 
+        # 先中止大文件延迟分块加载（必须在 deleteLater 之前）
+        #
+        # ★ 修复（真实 UI 压测复现的段错误 0xC0000005）：
+        #   大文件（>10MB）靠 `QTimer.singleShot(0, proxy._load_chunk_slice)`
+        #   续跑。若用户在加载完成前关掉**单个标签**，Qt 销毁 QScintilla
+        #   控件后，已排队的回调仍会执行 `self.sc.append(...)`
+        #   → 作用在已销毁的 C++ 对象上 → 段错误。
+        #   与 `dispose()` 里的处理同源，这里覆盖"只关一个标签"的路径。
+        try:
+            abort = getattr(proxy, 'abort_loading', None)
+            if callable(abort):
+                abort()
+        except Exception:
+            pass
+
         # 清理资源
         try:
             if hasattr(proxy, 'close'):
@@ -1382,6 +1397,29 @@ class TabManager(QTabWidget):
              会在 Windows 上阻止文件被外部程序修改，且随标签数累积。
         """
         self._shutting_down = True
+
+        # 第一步：中止所有标签的"大文件延迟分块加载"
+        #
+        # ★ 修复（真实 UI 压测复现的段错误 0xC0000005）：
+        #   大文件（>10MB）先同步加载一部分，其余靠
+        #   `QTimer.singleShot(0, proxy._load_chunk_slice)` 续跑。
+        #   若用户在加载完成前关标签/关窗口，Qt 会销毁 QScintilla 控件，
+        #   但**已排队的定时器回调仍会执行** → `self.sc.append(...)`
+        #   作用在已销毁的 C++ 对象上 → 进程段错误，无 Python 异常可捕获
+        #   （用户看到"关窗口时闪退"）。
+        #
+        #   必须放在 dispose 的**最前面**（早于释放 provider 句柄），
+        #   否则回调可能在两者之间被事件循环调度到。
+        try:
+            for i in range(self.count()):
+                w = self.widget(i)
+                proxy = getattr(w, 'proxy', None) if w else None
+                abort = getattr(proxy, 'abort_loading', None)
+                if callable(abort):
+                    abort()
+        except Exception as e:
+            logger.debug("中止延迟加载失败: %s", e)
+
         try:
             for path, watcher in list(self._file_watchers.items()):
                 try:
