@@ -176,11 +176,12 @@ _MAIN_API_FALLBACK_PERMISSIONS = [
 from ui.mixins.capability_wiring_mixin import CapabilityWiringMixin
 from ui.mixins.edit_ops_mixin import EditOpsMixin
 from ui.mixins.file_ops_mixin import FileOpsMixin
+from ui.mixins.project_mixin import ProjectMixin
 from ui.mixins.status_bar_mixin import StatusBarMixin
 
 
-class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
-                 StatusBarMixin, QMainWindow):
+class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
+                 EditOpsMixin, StatusBarMixin, QMainWindow):
     """
     青草编辑器主窗口。
 
@@ -290,6 +291,11 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
 
         # 构建 UI
         self._build_central()
+
+        # 项目状态（工作区/项目根）必须在 _build_menus 之前就绪：
+        # `_setup_project_menu()` 会读 workspace 构建「最近项目」子菜单。
+        self._init_project_state()
+
         self._build_menus()
         self._build_toolbar()
         self._build_docks()
@@ -851,6 +857,16 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
         # 因此不会吞掉普通输入。
         self._setup_key_sequences()
 
+        # ============ 项目菜单（项目根 / 项目配置 / 工作区 / 任务）============
+        #
+        # 接线三个此前零引用的模块：core/workspace.py、
+        # core/project_config.py、ui/task_panel.py + core/project_tasks.py。
+        # 它们共享同一个「项目根」语义，因此必须一起接（详见
+        # ui/mixins/project_mixin.py 的模块说明）。
+        #
+        # 放最后：需要 `self.file_menu` 已存在（作为插入锚点）。
+        self._setup_project_menu()
+
     def refresh_feature_menu(self):
         """重新填充「特色功能」里的插件命令子菜单
 
@@ -904,6 +920,8 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
             ("LSP 状态", "panel.lsp", self._toggle_lsp_panel),
             ("撤销历史", "panel.undo_history",
              self._toggle_undo_history_panel),
+            # 项目任务面板（该项目根下的 .qingcao/tasks.json）
+            ("任务", "panel.task", self._toggle_task_panel),
         ]
 
         for name, action_name, slot in panels:
@@ -1867,6 +1885,9 @@ class MainWindow(CapabilityWiringMixin, FileOpsMixin, EditOpsMixin,
         # （`ui/lsp_panel.py` 含语言服务器安装向导；
         #   `ui/undo_history_panel.py` 展示自研撤销栈）
         'lsp', 'undo_history',
+        # 项目任务面板（`ui/task_panel.py` + `core/project_tasks.py`
+        # 此前零实例化；由 project_mixin 绑定当前项目根）
+        'task',
     )
 
     # 启动时构造的面板（**保留**延迟构造，但恢复"开箱即有"的界面）

@@ -6,6 +6,131 @@
 
 ## [Unreleased]
 
+### 技术债 8 → 2：接线 6 个孤立模块（批次 A / B / C）+ 剩余 2 个转产品决策
+
+此前调查结论：剩下的 8 个孤立模块**都是可运行的完整代码，不是空壳**
+（逐个实例化 + 核心 API 实跑验证）。本轮按风险从低到高接线了 6 个，
+并把剩下 2 个（协作 / 片段市场）**从"待接线"转为"待产品立项"** ——
+因为它们卡的是产品成立条件，不是工程量。
+
+#### 批次 A：会话快照 + 代码模板（8 → 6）
+
+**会话快照** —— 「文件 → 📸 会话快照…」
+把当前所有打开的文件 + 光标位置 + 窗口布局存成快照，一键恢复。
+
+接线时修的 2 个真实缺陷：
+1. **`SNAPSHOT_DIR` 是相对路径** `data/snapshots`：打包后从快捷方式启动
+   （cwd=`C:\`）会写到 `C:\data\snapshots`，换目录启动又变成另一个位置
+   → 用户保存的快照"凭空消失"。改为从 `app_root_dir()` 派生绝对路径
+   （与 `Document._draft_dir` / `crash_stats.CRASH_DIR` 同一模式）。
+2. **恢复会关闭所有标签但无未保存保护**：`restore_snapshot()` 逐个
+   `close_tab()`，每个已修改标签都会弹一次模态确认框；用户中途点"取消"
+   会留下"前面已关、后面还在"的半恢复状态。现在先统一提示
+   保存全部 / 放弃 / 取消，保存失败则中止恢复。
+
+**代码模板** —— 「文件 → 🧩 从模板新建…」
+新增 `ui/template_picker_dialog.py`：模板下拉 + 按模板**动态生成**占位符
+输入框 + 实时预览 + 建议文件名；生成的标签标记为未保存新文档。
+
+接线时修的 2 个真实缺陷：
+1. **`format_template` 参数冲突**：形参名 `name` 与模板占位符 `{name}` 冲突，
+   `format_template("py_class", name="MyClass")` 直接抛
+   `TypeError: got multiple values for argument 'name'` ——
+   "给类名赋值"这个最基本用法不可用。形参改名 `template_name`（位置调用兼容）。
+2. **占位符缺失时原样返回坏代码**：`except KeyError: return code` 会把
+   `{docstring}` 原样留在生成的 `.py` 里（语法错误）。现在缺失项填空串。
+
+#### 批次 C：多键快捷键序列（6 → 5）
+
+接线 `core/key_sequence_manager.py`（190 行，此前零引用）。
+6 条 VSCode 风格序列（前缀键 `Ctrl+K` 全仓无单键绑定，已 grep 确认）：
+`Ctrl+K Ctrl+S/W/C/F/T/D` → 保存全部 / 关闭全部 / 注释 / 格式化 /
+会话快照 / 对比文件。
+
+**安全设计（三道闸，缺一不可）**：只处理带 Ctrl/Alt 的键、只在事件目标
+是编辑器时处理、有模态窗口时不处理 —— 绝不吞普通输入。
+
+接线时修的 2 个真实缺陷：
+1. **★ 事件过滤器导致进程崩溃（0xC0000005）**：第一版
+   `app.installEventFilter(self)` 把 MainWindow 当过滤器，QApplication
+   持有其 C++ 指针；窗口销毁后 Qt 仍在事件派发时调用它 → **访问违例**。
+   实测：`pytest tests/test_p1_features.py` 单跑必崩（6 个测试全通过后
+   在 teardown 段错误）；临时注释掉初始化则完整通过 —— 因果已确认。
+   修复：改用独立 `_KeySequenceAppFilter`（模块级单例 + **weakref**），
+   窗口没了就安全返回 False；`closeEvent` 里在 `_closing` 置位后立即卸载。
+2. **焦点判断错误导致序列完全不触发**：第一版用
+   `app.activeWindow().focusWidget()` —— headless 或焦点在浮动面板时
+   取不到编辑器，序列根本不触发。改用事件过滤器收到的 `obj`。
+
+#### 批次 B：项目概念（5 → 2）—— 三个模块共享同一个「项目根」
+
+接线 `core/workspace.py`(116) + `core/project_config.py`(133) +
+`ui/task_panel.py`(189) + `core/project_tasks.py`(131)，新增
+`ui/mixins/project_mixin.py` 统一定义「项目根」。
+
+**为什么必须一起做**：三者共享「项目根」这一个概念 ——
+没项目根，项目配置不知道读哪个目录、任务不知道在哪跑、工作区只是一堆路径。
+分开接必然各造一套定义。
+
+**产品定义（最小可用）**：
+* 「项目 → 📁 打开项目…」选目录 → 该目录即项目根；
+* 项目根记进 `Workspace` 并持久化到 `data/workspace.json`，
+  「🕘 最近项目」可一键切回；
+* `.qingcao/settings.json` 覆盖编辑设置（tab 宽度 / 缩进方式 / 换行符）；
+* `.qingcao/tasks.json` 定义任务，「任务」面板双击运行、看输出。
+
+接线时修的 1 个真实缺陷：
+* **任务文件路径两套约定不一致**：`project_config` 约定配置在
+  `.qingcao/` 目录下（`tasks.json`），而 `ProjectTaskManager` 只读根目录的
+  `.qingcao-tasks.json` —— 用户按项目配置约定写任务时**列表为空且无提示**。
+  现两者都支持（新版优先）。
+
+**诚实标注**：项目设置只让 4 个键真正生效
+（`tab_width` / `use_spaces` / `eol` / `encoding`）；
+`font_size` / `word_wrap` 等只保存在文件里、当前版本不应用 ——
+因为改字号/换行要动主题与编辑器构造参数，属另一个改动面。
+设置对话框里已明确写出这一点，避免"看起来能配实际没用"。
+
+#### 批次 D：剩余 2 个转产品决策（2 个 / 453 行）
+
+新增 `docs/product_decision_pending.md`，把事实与选项写清楚：
+
+| 模块 | 卡在哪 |
+|---|---|
+| `ui/collab_dialog.py` + `core/collab.py` | **裸 TCP 监听 `0.0.0.0:52000`，无加密、无认证、无 NAT 穿透**。当前形态相当于"在局域网开放一个无密码共享编辑端口"。缺安全模型与可达性，且本会话无网络环境**无法双端联调** |
+| `ui/snippet_market_dialog.py` + `core/snippet_market.py` | 市场 API 指向 `api.github.com/repos/qingcao-editor/snippets/contents` —— **实测返回 HTTP 404，仓库不存在**。没有内容源，接上 UI 也只会是空列表 |
+
+建议：协作若要做得先加密码 + 明确"仅局域网、无加密"，否则移除 UI；
+片段市场建议改为**本地片段库导入**（零运维、零信任风险，
+且 `core/snippets.py` 的片段功能本身可用）。
+
+#### 验证
+
+新增 3 个验证脚本，全部通过：
+
+* `tools/verify_snapshot_templates.py` —— **39 项**：
+  模板参数冲突回归、缺参无残留、动态占位符、快照 save/list/load/restore
+  往返（真实 TabManager，含光标位置恢复）、未保存检测、菜单接线。
+* `tools/verify_key_sequences.py` —— **26 项**，重点是**负向**验证：
+  普通字母/数字/退格/回车都不被消费、非序列 Ctrl 组合放行、
+  焦点在 QLineEdit 时不拦截、有模态窗口时不拦截、超时后不误触发。
+* `tools/verify_project.py` —— **34 项**：
+  菜单位置、打开项目、设置生效到编辑器（tab 宽度真的变了）、
+  Workspace 持久化、任务面板加载两种任务文件、
+  **真实执行任务并捕获到 `HELLO_FROM_TASK` 输出**、关闭项目清理。
+
+全量套件：**779 项，0 失败，0 错误，2 skipped**（junit xml 核对）
+
+#### 债务棘轮
+
+```
+17 → 12 → 10 → 8 → 6 → 5 → 2
+```
+
+剩余 2 个在台账里标为 `owner=product`、`due=待产品立项` ——
+棘轮上限已是 2，任何新增孤立模块都会让 CI 直接失败。
+
+
 ### 新增：UI 层真实压力测试，修掉 2 个真实性能/稳定性缺陷
 
 新增 `tools/stress_ui.py`（可独立跑，`--quick` 缩小规模）。上一轮

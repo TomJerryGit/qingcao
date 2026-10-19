@@ -453,22 +453,28 @@ class TestKeyApiWiring:
 #       core/workspace.py            (build.py:417)
 #       core/keymap_profiles.py      (build.py:412)
 KNOWN_DEAD_MODULES = frozenset({
-    # ---- 完成态功能引擎：Lead 决策保留（走接线，不删除）----
+    # ---- 仅剩 2 个，且都**需要产品成立条件**才能接线 ----
+    #
+    # `ui/collab_dialog.py` + `core/collab.py`：
+    #   实时协作（P2P）。协议与 UI 都完整，但缺 NAT 穿透、权限、冲突解决、
+    #   安全模型，且无法在无网络环境验证 —— 属"高风险新功能"，
+    #   不是接线问题。详见 docs/product_decision_pending.md。
     "ui/collab_dialog.py",
-    "ui/snapshot_manager_dialog.py",
-    "ui/task_panel.py",
+    # `ui/snippet_market_dialog.py` + `core/snippet_market.py`：
+    #   代码片段市场。对话框完整，但后端是**网络客户端** ——
+    #   没有市场服务端就没有内容可下载。属"需先有产品服务"，
+    #   不是接线问题。详见 docs/product_decision_pending.md。
     "ui/snippet_market_dialog.py",
-    # ---- 零引用，但列在 build.py hiddenimports ----
-    "core/key_sequence_manager.py",
-    "core/code_templates.py",
-    "core/project_config.py",
-    "core/workspace.py",
 })
 #
 # 说明（已从基线移除的条目 —— 它们**已经接线**，不再是孤立模块）：
-#   core/formatter.py、core/exporter.py、ui/lsp_panel.py、
-#   ui/problems_panel.py、ui/undo_history_panel.py、
-#   core/keymap_profiles.py、ui/profiler_panel.py
+#   第一轮：core/formatter.py、core/exporter.py、ui/lsp_panel.py、
+#           ui/problems_panel.py、ui/undo_history_panel.py、
+#           core/keymap_profiles.py、ui/profiler_panel.py
+#   第二轮（批次 A）：core/code_templates.py、ui/snapshot_manager_dialog.py
+#   第三轮（批次 C）：core/key_sequence_manager.py
+#   第四轮（批次 B）：core/workspace.py、core/project_config.py、
+#                     ui/task_panel.py
 # 移除动作由 `test_ledger_matches_baseline` 与棘轮
 # `test_dead_module_count_is_decreasing` 共同保证不会被偷偷放回来。
 
@@ -498,43 +504,21 @@ DEBT_ACTION_WIRE = "wire"      # 接线（功能保留，补上入口）
 DEBT_ACTION_DELETE = "delete"  # 删除（确认不再需要）
 
 DEBT_LEDGER = {
-    # ---------- A 组：接线成本低、用户价值高（优先）----------
+    # ---------- 仅剩 2 个：需要"产品成立条件"才能接线 ----------
     #
     # 已接线的条目**必须从台账里删除**，不能留作"历史记录" ——
     # 台账 = 当前欠债清单，`test_ledger_matches_baseline` 强制它与
     # `KNOWN_DEAD_MODULES` 键集合完全一致。已完成的接线见上方注释。
-    "core/workspace.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="多根工作区模型；需配一个工作区面板（引擎完整、零 UI）"),
-    "core/project_config.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.2.0",
-        note="项目级配置(.qingcao/)；需先定义「项目根」语义"),
-    # ---------- B 组：需要产品决策（接线 or 删除）----------
-    "core/key_sequence_manager.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="多键序列(Ctrl+K Ctrl+S)；keymap_editor 尚未支持"),
-    "core/code_templates.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="代码模板；可接进「新建文件」向导"),
-    # ---------- C 组：引擎完整但 UI 未接 ----------
     "ui/collab_dialog.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="协同编辑；core/collab.py 已完整，需确定是否做该功能"),
-    "ui/snapshot_manager_dialog.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="快照管理；core/snapshot.py 已完整"),
-    "ui/task_panel.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="项目任务面板；core/project_tasks.py 已完整"),
+        owner="product", action=DEBT_ACTION_WIRE, due="待产品立项",
+        note="实时协作(P2P)。协议+UI 完整，但缺 NAT 穿透/权限/冲突解决/"
+             "安全模型，且无法在无网络环境验证。属高风险新功能，"
+             "不是接线问题 —— 需先决定是否做该功能。"),
     "ui/snippet_market_dialog.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="代码片段市场；core/snippet_market.py 已完整"),
-    "core/workspace.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="多根工作区模型；需配一个工作区面板（引擎完整、零 UI）"),
-    "core/project_config.py": dict(
-        owner="platform", action=DEBT_ACTION_WIRE, due="v2.3.0",
-        note="项目级配置(.qingcao/)；需先定义「项目根」语义"),
+        owner="product", action=DEBT_ACTION_WIRE, due="待产品立项",
+        note="代码片段市场。对话框完整，但后端 SnippetMarketClient 是"
+             "**网络客户端** —— 没有市场服务端就没有内容可下载。"
+             "属需先有产品服务，不是接线问题。"),
 }
 
 # 孤立模块数量的"棘轮"历史（只增不减地记录**降低**，不得回填升高）
@@ -553,7 +537,17 @@ DEBT_CEILING_HISTORY = [
                       "pytest-benchmark）、refactor_session（配套 UI 早已删除）。"
                       "删除同时清理了 build.py 与 QingCaoEditor.spec 的 "
                       "hiddenimports，避免打包时静默跳过不存在的模块。"),
+    ("2026-02-20", 6, "批次 A 接线 2 个：code_templates（从模板新建 + 修 "
+                      "format_template 参数冲突/占位符残留）、"
+                      "snapshot_manager_dialog（会话快照 + 修相对路径/未保存保护）"),
+    ("2026-02-20", 5, "批次 C 接线 1 个：key_sequence_manager（多键序列，"
+                      "修事件过滤器导致崩溃 + 焦点判断失效两个缺陷）"),
+    ("2026-02-20", 2, "批次 B 接线 3 个：workspace + project_config + "
+                      "task_panel（统一「项目根」语义）。"
+                      "剩余 2 个需产品立项，已转入 docs/product_decision_pending.md"),
 ]
+
+# 当前上限 = 历史最低值（棘轮只允许往下走）
 
 # 当前上限 = 历史最低值（棘轮只允许往下走）
 DEBT_CEILING = min(c for _d, c, _n in DEBT_CEILING_HISTORY)

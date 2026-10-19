@@ -100,11 +100,25 @@ class ProjectTaskManager:
         self.tasks = []
 
     def load_tasks(self):
-        """加载项目任务文件"""
-        task_file = os.path.join(
-            self.project_root, '.qingcao-tasks.json'
-        )
-        if not os.path.exists(task_file):
+        """加载项目任务文件
+
+        ★ 两个位置都支持（接线时发现的不一致）：
+
+            `core/project_config.py` 约定项目配置在 `.qingcao/` 目录下
+            （`settings.json` / `tasks.json`），而本模块原先只读
+            根目录的 `.qingcao-tasks.json`。用户按项目配置的约定
+            把任务写进 `.qingcao/tasks.json` 时**任务列表为空**，
+            且没有任何提示。
+
+            现在优先读 `.qingcao/tasks.json`（新约定），
+            回退到 `.qingcao-tasks.json`（旧约定），两者都兼容。
+        """
+        candidates = [
+            os.path.join(self.project_root, '.qingcao', 'tasks.json'),
+            os.path.join(self.project_root, '.qingcao-tasks.json'),
+        ]
+        task_file = next((p for p in candidates if os.path.exists(p)), None)
+        if task_file is None:
             return
 
         try:
