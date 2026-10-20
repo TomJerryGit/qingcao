@@ -124,8 +124,11 @@ def main(argv=None):
     # 说明：插件/主题自带的版本号（1.0.0 等）是合法的，不能
     # 一律报错。这里只检查"曾经是应用版本号"的历史字面量，
     # 它们出现即说明有人又把应用版本硬编码进了代码。
+    # 历史上发布过的版本号：出现即说明有人又把版本硬编码回来了。
+    # 发布 2.2.0 时补充：2.1.0 曾是 build.py / main.py 的“兜底字面量”，
+    # 导致 version.py 导入失败时静默产出过期版本（现已改为读 VERSION 文件）。
     stale_versions = {
-        '2.0.0', '1.9.9', '1.9.0', '1.8.0', '1.0.0-app',
+        '2.1.0', '2.0.0', '1.9.9', '1.9.0', '1.8.0', '1.0.0-app',
     } - {version}
 
     # 插件 API 版本（2.0.0）是独立契约，允许出现在固定常量中
@@ -161,6 +164,10 @@ def main(argv=None):
 
         for i, line in enumerate(lines, 1):
             if selftest_at is not None and i - 1 >= selftest_at:
+                continue
+            # 跳过注释行：文档里引用历史版本号（如“原兜底是 2.1.0”）
+            # 是合法说明，不应被当成硬编码
+            if line.lstrip().startswith('#'):
                 continue
             for m in literal.finditer(line):
                 found = m.group(1)

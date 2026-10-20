@@ -18,6 +18,14 @@ on:
 permissions:
   contents: write
 
+# 编码：GitHub 的 windows-latest 是英文 Windows（控制台/管道默认 cp1252），
+# 而 build.py 会打印中文标题。Python 在管道下用 locale 编码写 stdout，
+# 会抛 UnicodeEncodeError 导致构建直接失败（v2.2.0 首次发布即踩到）。
+# build.py 内部已做 reconfigure 兜底，这里再设环境变量双保险。
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
+
 jobs:
   build-windows:
     runs-on: windows-latest

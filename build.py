@@ -53,6 +53,38 @@ import sys
 from typing import List, Optional, Tuple
 
 
+def _force_utf8_stdio():
+    """强制 stdout/stderr 使用 UTF-8（容忍无法编码的字符）
+
+    ★ 真实 CI 缺陷（v2.2.0 首次 Actions 发布直接失败）：
+
+        GitHub Actions 的 `windows-latest` 是**英文 Windows**，控制台/管道
+        的默认编码是 cp1252（用户英文系统同理）。本脚本大量 `print()`
+        中文（`print_header("青草编辑器 - 打包")` 就是第一句），在管道下
+        Python 用 locale 编码写 stdout，于是启动即崩：
+
+            UnicodeEncodeError: 'charmap' codec can't encode characters
+            in position 0-4: character maps to <undefined>
+
+        本地中文系统（cp936）能编码中文，所以**在开发机上永远复现不了**。
+
+    修复策略（三道，互补）：
+        1. 本函数：`reconfigure(encoding='utf-8', errors='replace')` ——
+           即使环境没设任何变量也不会崩；
+        2. CI workflow 设置 `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`；
+        3. `errors='replace'` 兜底：极端环境下最多显示 `?`，绝不中断构建。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            # Python < 3.7 或流不支持 reconfigure 时忽略（不能因此失败）
+            pass
+
+
+_force_utf8_stdio()
+
+
 # ============================================================
 # 常量
 # ============================================================

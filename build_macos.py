@@ -13,7 +13,18 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 try:
     from version import __version__ as VERSION
 except ImportError:  # pragma: no cover
-    VERSION = "2.1.0"
+    # 发布准备时修复：原为硬编码 "2.1.0"（version.py 导入失败时静默
+    # 产出过期版本）。改为读 VERSION 文件；两者都不可用则明确报错。
+    import os as _os
+    _vf = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                        "VERSION")
+    try:
+        with open(_vf, encoding="utf-8") as _f:
+            VERSION = _f.read().strip()
+    except OSError:
+        VERSION = ""
+    if not VERSION:
+        raise SystemExit("无法确定版本号：version.py 与 VERSION 均不可用")
 APP_NAME = "QingCaoEditor.app"
 
 

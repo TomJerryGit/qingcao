@@ -19,7 +19,20 @@ def generate_version_iss() -> bool:
         try:
             from version import __version__
         except ImportError:  # pragma: no cover
-            __version__ = "2.1.0"
+            # 发布准备时修复：原为硬编码 "2.1.0"（version.py 导入失败时
+            # 会生成过期版本的安装器）。改为读 VERSION 文件兜底。
+            import os as _os
+            _vf = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                "VERSION")
+            try:
+                with open(_vf, encoding="utf-8") as _f:
+                    __version__ = _f.read().strip()
+            except OSError:
+                __version__ = ""
+            if not __version__:
+                raise SystemExit(
+                    "无法确定版本号：version.py 与 VERSION 均不可用"
+                )
 
         content = (
             '; 此文件由 build_installer.py 自动生成，请勿手动编辑\n'

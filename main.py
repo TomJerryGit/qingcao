@@ -84,15 +84,59 @@ import time
 import traceback
 
 
+def _force_utf8_stdio():
+    """强制 stdout/stderr 使用 UTF-8（容忍无法编码的字符）
+
+    ★ 与 build.py 同源的缺陷：
+
+        英文 Windows 的控制台/管道默认编码是 cp1252，而本程序会输出中文
+        （`--version`、日志、错误提示）。此时 Python 用 locale 编码写
+        stdout 会直接崩：
+
+            UnicodeEncodeError: 'charmap' codec can't encode ...
+
+        实测：`QingCaoEditor.exe --version` 在 `PYTHONIOENCODING=cp1252`
+        且输出被管道捕获时**退出码 1 且无版本输出** —— 英文系统用户
+        或者脚本里调用都会踩到。中文系统（cp936）能编码中文，
+        所以开发机上不会暴露。
+
+    `errors='replace'` 保证极端环境下最多显示 `?`，绝不因为打印而中断。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
+_force_utf8_stdio()
+
+
 # ============================================================
 # 版本信息
 # ============================================================
 # C4 修复：版本号统一从 version.py 读取
+#
+# 发布准备时修复：原兜底是**硬编码 "2.1.0"** —— 一旦 version.py 导入失败
+# （打包环境路径异常等），程序会报告一个过期版本号，且 check_version
+# 不检查兜底字面量。现改为读 VERSION 文件；两者都不可用则明确报错，
+# 绝不再显示猜测的版本号。
 try:
     from version import __version__
 except ImportError:
-    # P1-1: 与 version.py 同步（唯一来源）
-    __version__ = "2.1.0"
+    _version_file = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "VERSION"
+    )
+    try:
+        with open(_version_file, encoding='utf-8') as _f:
+            __version__ = _f.read().strip()
+    except OSError:
+        __version__ = ""
+    if not __version__:
+        raise SystemExit(
+            "[main] 无法确定版本号：version.py 导入失败，且读取 %s 失败"
+            % _version_file
+        )
 
 __author__ = "hedongwei"
 __email__ = "1265338136@qq.com"

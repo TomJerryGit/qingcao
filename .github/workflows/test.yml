@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # 英文 Windows runner 默认 cp1252；测试输出/日志含中文会崩溃
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
