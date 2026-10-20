@@ -1,9 +1,22 @@
 name: Release
 
+# 触发：推送 v* 标签（例如 v2.2.0）
+#
+# 修复记录（发布准备时发现的两个**发版阻断**问题）：
+#   1. `actions/upload-artifact@v3` / `download-artifact@v3` 已于
+#      2025-01-30 被 GitHub 官方**停用** —— 使用 v3 的 workflow 会在
+#      启动时直接判定失败（"uses a deprecated version"），
+#      因此打 tag 后**不会产出任何发布包**。现升级到 v4。
+#   2. 缺少 `permissions: contents: write`：`softprops/action-gh-release`
+#      需要写权限才能创建 Release；仓库默认 token 为只读时会 403 失败。
+#      现显式声明。
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -12,23 +25,36 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
       - name: Build
         run: python build.py
 
+      - name: Verify version metadata
+        shell: pwsh
+        run: |
+          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
+          Write-Host "VERSION=$ver"
+          $exe = "dist/QingCaoEditor/QingCaoEditor.exe"
+          if (-not (Test-Path $exe)) { throw "构建产物缺失: $exe" }
+          $fv = (Get-Item $exe).VersionInfo.FileVersion
+          Write-Host "FileVersion=$fv"
+          if ($fv -ne $ver) { throw "exe 版本 ($fv) 与 VERSION ($ver) 不一致" }
+
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: QingCaoEditor-windows
           path: dist/QingCaoEditor/
+          retention-days: 7
 
   release:
     needs: [build-windows]
@@ -37,19 +63,29 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
+        with:
+          name: QingCaoEditor-windows
+          path: QingCaoEditor-windows
 
       - name: Create ZIP
         run: |
+          set -e
           cd QingCaoEditor-windows
-          zip -r ../QingCaoEditor-${{ github.ref_name }}-windows.zip .
+          zip -r "../QingCaoEditor-${{ github.ref_name }}-windows.zip" .
+          cd ..
+          sha256sum "QingCaoEditor-${{ github.ref_name }}-windows.zip" \
+            > "QingCaoEditor-${{ github.ref_name }}-windows.zip.sha256.txt"
+          ls -lh QingCaoEditor-*.zip*
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            QingCaoEditor-*.zip
+            QingCaoEditor-${{ github.ref_name }}-windows.zip
+            QingCaoEditor-${{ github.ref_name }}-windows.zip.sha256.txt
           draft: false
           prerelease: false
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
