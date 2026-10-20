@@ -209,6 +209,31 @@ class SearchResultTree(QTreeWidget):
             }
         """)
 
+    def refresh_theme(self, theme):
+        """主题变更时刷新样式
+
+        ★ 真实桌面验证发现的缺陷：
+            `SearchResultTree` 在 `_apply_style()` 里**写死深色**，
+            但它没有 `refresh_theme` 方法，而主题刷新走的是
+            `ThemeLoader.notify_widgets()` → 只调用**拥有
+            `refresh_theme` 的控件**。于是：编辑器与其它面板都跟着
+            主题变成浅色时，**"文件 / 匹配内容"这块结果树仍然是黑的**，
+            像一块缺角。
+
+            修复：与其它面板一致的实现 —— 首次保存原始 QSS，
+            之后用 `adapt_qss_colors()` 按主题换算。
+        """
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            if not getattr(self, '_original_qss', ''):
+                self._original_qss = self.styleSheet()
+            if self._original_qss:
+                self.setStyleSheet(
+                    adapt_qss_colors(self._original_qss, theme)
+                )
+        except Exception as e:
+            print(f"[SearchResultTree] refresh_theme 失败: {e}")
+
     # --------------------------------------------------------
     # 添加结果
     # --------------------------------------------------------

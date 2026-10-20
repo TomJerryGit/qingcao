@@ -1084,3 +1084,71 @@ class CapabilityWiringMixin:
                 self.lsp.raise_()
         except Exception as e:
             print(f"[MainWindow] 打开 LSP 面板失败: {e}")
+
+    # ========================================================
+    # 启动主题（修复"面板永远深色"）
+    # ========================================================
+    def apply_startup_theme(self):
+        """启动时把**已保存的主题**应用到所有面板
+
+        ## 真实桌面验证发现的缺陷
+
+        打包版在真实桌面截图里，编辑器是浅色护眼主题，而所有停靠面板
+        （目录树、全局搜索、性能监控……）却是**纯黑/深色**——
+        左侧目录树甚至只是"一块黑矩形"，看起来像面板坏了。
+
+        根因：
+          * `main.load_theme()` 启动时只对 `QApplication` 设了 QSS；
+          * 各面板在构造函数的 `_apply_style()` 里写死深色 QSS，
+            **会覆盖 app 级 QSS**；
+          * 真正能把面板 QSS 按主题换算的函数是
+            `ThemeLoader.notify_widgets()`（它调用各面板的
+            `refresh_theme()` → `adapt_qss_colors()`），
+            但此前**只在用户手动切换主题时**调用，启动时从不调用。
+
+        修复：主窗口构造完成后调用本方法 —— 读 `theme_name` 设置，
+        应用 QSS 并 `notify_widgets(self, theme)`，让面板与编辑器一致。
+        """
+        try:
+            from PyQt5.QtCore import QSettings
+            from PyQt5.QtWidgets import QApplication
+
+            from infrastructure.theme_loader import ThemeLoader
+
+            settings = QSettings("QingCao", "Editor")
+            name = settings.value("theme_name", "", type=str)
+            loader = ThemeLoader()
+            theme = None
+            if name:
+                try:
+                    theme = loader.load_by_name(name)
+                except Exception as e:
+                    print(f"[Theme] 启动加载主题失败 {name}: {e}")
+            if theme is None:
+                # 没有保存过主题 → 用内置暗夜（与 main.load_theme 的回退一致）
+                try:
+                    from infrastructure.theme_loader import BuiltinThemes
+                    theme = BuiltinThemes.dark_night()
+                except Exception:
+                    theme = None
+            if theme is None:
+                return None
+
+            app = QApplication.instance()
+            if app is not None:
+                try:
+                    loader.apply_qss(app, theme)
+                except Exception as e:
+                    print(f"[Theme] 启动 apply_qss 失败: {e}")
+
+            # 关键：通知所有面板按主题换算 QSS
+            try:
+                loader.notify_widgets(self, theme)
+            except Exception as e:
+                print(f"[Theme] 启动 notify_widgets 失败: {e}")
+
+            self._startup_theme = theme
+            return theme
+        except Exception as e:
+            print(f"[MainWindow] 启动主题应用失败: {e}")
+            return None

@@ -77,6 +77,8 @@ ENCODING_SHIFT_JIS = 'shift_jis'
 ENCODING_EUC_KR = 'euc-kr'
 ENCODING_LATIN1 = 'latin-1'
 ENCODING_ASCII = 'ascii'
+ENCODING_UTF16_LE = 'utf-16-le'
+ENCODING_UTF16_BE = 'utf-16-be'
 
 # BOM 标记
 BOMS = {
@@ -110,6 +112,18 @@ _BOM_STRIPPED_ENCODINGS = frozenset({
     'utf-16', 'utf-16-le', 'utf-16-be',
     'utf-32', 'utf-32-le', 'utf-32-be',
 })
+
+# 裸端序编码 → 它应该带上的 BOM
+#
+# 用途见 `encode()` 的说明：这类编码的 `str.encode()` 不补 BOM，
+# 保存时必须手动补回，否则"编辑过的 UTF-16 文件"会丢 BOM。
+# `utf-16`/`utf-32`（不带端序后缀）的编码器**自己会加 BOM**，故不在此表。
+_BARE_ENDIAN_BOM = {
+    'utf-16-le': b'\xff\xfe',
+    'utf-16-be': b'\xfe\xff',
+    'utf-32-le': b'\xff\xfe\x00\x00',
+    'utf-32-be': b'\x00\x00\xfe\xff',
+}
 
 
 def _strip_leading_bom(text: str, encoding: str) -> str:
@@ -559,11 +573,44 @@ class ContentProvider(ABC):
         return _strip_leading_bom(text, self._encoding)
 
     def encode(self, text: str) -> bytes:
-        """编码文本为字节串"""
+        """编码文本为字节串（**保留原文件的 BOM**）
+
+        ★ 真实缺陷（混合场景压测实测发现）：
+
+            UTF-16 LE/BE 文件打开 → 编辑 → 保存后，**BOM 丢了**：
+
+                原: b'\\xff\\xfe' + '中文\\n'.encode('utf-16-le')
+                新: 'Z中文\\n'.encode('utf-16-le')      ← 无 BOM
+
+            原因：`BOMS` 把 BOM 映射到**裸端序编码**（`utf-16-le` /
+            `utf-32-be` 等）以便逐字节保真，而这类编码的 `str.encode()`
+            **不会补 BOM**。于是"没改动直接保存"时字节不变（保存被跳过），
+            一旦编辑过就丢了 BOM。
+
+            后果不只是少三个字节：很多工具（记事本/Excel/某些编译器）
+            靠 BOM 判断 UTF-16 的端序与"这是 Unicode 文本"，
+            丢 BOM 后可能被当成 ANSI 或二进制。
+
+        修复：若原文件带 BOM（`_has_bom`）且编码是裸端序，
+        编码后把对应 BOM 补回开头。`utf-8-sig` / `utf-16` 这类
+        自带 BOM 的编码不受影响（避免双 BOM）。
+        """
         try:
-            return text.encode(self._encoding, errors='replace')
+            data = text.encode(self._encoding, errors='replace')
         except (LookupError, UnicodeEncodeError):
             return text.encode(ENCODING_UTF8, errors='replace')
+
+        if not getattr(self, '_has_bom', False):
+            return data
+
+        encoding = (self._encoding or '').lower()
+        bom = _BARE_ENDIAN_BOM.get(encoding)
+        if not bom:
+            # 这些编码的 encoder 自己会加 BOM，不能再补
+            return data
+        if data.startswith(bom):
+            return data
+        return bom + data
 
     def get_dirty_blocks(self) -> Dict[int, bytes]:
         """获取所有脏块"""
@@ -1322,6 +1369,48 @@ class LocalFileProvider(ContentProvider):
             return data
         return self.encode(converted)
 
+    def _replace_with_retry(self, tmp_path: str, target: str,
+                            attempts: int = 10, base_delay: float = 0.02):
+        """用重试的方式把临时文件替换为目标文件（Windows 必需）
+
+        ★ 真实缺陷（混合场景压测实测发现）：
+
+            连续"打开 → 编辑 → 保存"时，`os.replace(tmp, target)` 会**间歇性**
+            抛 `PermissionError: [WinError 5] 拒绝访问`，保存直接失败。
+            实测频率不低（6 轮里 1~4 轮失败），且**与文件监视器、
+            自动保存无关**（两者都关掉后仍复现）—— 属于 Windows 上
+            临时性共享冲突（杀毒软件/索引服务/搜索索引会在文件刚写入时
+            短暂持有句柄）。
+
+            失败时数据没丢（脏块保留、`save_file()` 返回 False），
+            但用户按 Ctrl+S 会**静默失败**，这是不可接受的。
+
+            修复：短退避重试（10 次 × 递增 20ms，总计约 1.1 秒）。
+            这是 Windows 上处理"临时性共享冲突"的标准做法 ——
+            不掩盖权限问题（持续失败仍会抛出并返回 False），
+            只吸收毫秒级的瞬态占用。
+        """
+        last_error = None
+        for i in range(max(1, attempts)):
+            try:
+                os.replace(tmp_path, target)
+                if i:
+                    print("[LocalFileProvider] 保存重试第 %d 次成功" % i)
+                return True
+            except PermissionError as e:
+                last_error = e
+                time.sleep(base_delay * (i + 1))
+            except OSError as e:
+                # Windows 上"共享冲突"有时表现为 WinError 32
+                if getattr(e, "winerror", None) == 32:
+                    last_error = e
+                    time.sleep(base_delay * (i + 1))
+                else:
+                    raise
+        if last_error is not None:
+            raise last_error
+        return False
+
     def _save_as_full(self, target: str) -> bool:
         """另存为完整文件（原子写入）"""
         import tempfile
@@ -1365,11 +1454,8 @@ class LocalFileProvider(ContentProvider):
                     f.flush()
                     os.fsync(f.fileno())
 
-                # 原子重命名
-                if sys.platform == 'win32' and os.path.exists(target):
-                    os.replace(tmp_path, target)
-                else:
-                    os.rename(tmp_path, target)
+                # 原子重命名（带瞬态占用重试，见 `_replace_with_retry`）
+                self._replace_with_retry(tmp_path, target)
 
             except Exception:
                 try:
@@ -1897,14 +1983,82 @@ def is_binary_file(filepath: str, sample_size: int = 1024) -> bool:
     """
     检测文件是否为二进制。
 
-    通过检查是否存在 NUL 字节判断。
+    ★ 修复（混合场景压测实测发现）：原实现是"样本里有 NUL 字节 → 二进制"，
+    于是**所有 UTF-16 / UTF-32 文本都被判成二进制**：
+    ASCII 字符在 UTF-16 里就是 `61 00 62 00 ...`，换行 `0A 00` 也是 NUL 满布。
+
+    实测后果（`app/tabs.py` 的打开路径会用它做拦截）：
+
+        打开一个正常的 UTF-16 文本 → 弹「文件可能包含二进制内容，确定要打开吗？」
+        → 用户选「否」→ **文件打不开**。
+
+    现在改为 `is_binary_sample()` 的多级判断：
+      1. 有文本 BOM → 一定是文本；
+      2. 能按 UTF-8 严格解码 → 文本；
+      3. 能按 UTF-16 LE/BE 解码且可打印比例高 → 文本；
+      4. 否则看 NUL 比例（>5% 判二进制）。
     """
     try:
         with open(filepath, 'rb') as f:
             sample = f.read(sample_size)
-        return b'\x00' in sample
+        return is_binary_sample(sample)
     except Exception:
         return False
+
+
+def is_binary_sample(sample: bytes, sample_limit: int = 1024) -> bool:
+    """根据内容样本判断是否二进制（`is_binary_file` 的实现，便于单测）"""
+    if not sample:
+        return False
+    sample = sample[:sample_limit]
+
+    # 1) 文本 BOM → 明确是文本（UTF-16/32 的 NUL 是正常现象）
+    for bom in BOMS:
+        if sample.startswith(bom):
+            return False
+
+    # 2) 严格 UTF-8 可解码 → 文本（注意样本可能截断多字节字符，
+    #    因此末尾最多回退 3 字节再试）
+    for trim in range(0, 4):
+        chunk = sample[:len(sample) - trim] if trim else sample
+        try:
+            chunk.decode(ENCODING_UTF8, errors='strict')
+            return False
+        except UnicodeDecodeError:
+            continue
+
+    # 3) 无 BOM 的 UTF-16：NUL 集中在同一奇偶位，且能解码出可打印文本
+    if _looks_like_utf16(sample):
+        return False
+
+    # 4) 否则看 NUL 比例（二进制里 NUL 通常很多）
+    nul = sample.count(b'\x00')
+    return bool(nul) and (nul / len(sample)) > 0.05
+
+
+def _looks_like_utf16(sample: bytes) -> bool:
+    """判断样本是否像（无 BOM 的）UTF-16 文本"""
+    if len(sample) < 4:
+        return False
+    even_nul = sum(1 for i in range(0, len(sample), 2) if sample[i] == 0)
+    odd_nul = sum(1 for i in range(1, len(sample), 2) if sample[i] == 0)
+    half = max(1, len(sample) // 2)
+    ratio = max(even_nul, odd_nul) / half
+    if ratio < 0.3:
+        return False
+    # NUL 集中在一侧 → 尝试用对应端序解码，并要求可打印比例够高
+    enc = ENCODING_UTF16_BE if even_nul > odd_nul else ENCODING_UTF16_LE
+    if len(sample) % 2:
+        sample = sample[:-1]
+    try:
+        text = sample.decode(enc, errors='strict')
+    except (UnicodeDecodeError, LookupError):
+        return False
+    if not text:
+        return False
+    printable = sum(1 for ch in text
+                    if ch.isprintable() or ch in '\r\n\t')
+    return printable / len(text) > 0.9
 
 
 def get_file_hash(filepath: str, algorithm: str = 'sha256',

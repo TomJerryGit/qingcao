@@ -488,6 +488,18 @@ class DirectoryTree(QWidget):
         self.status_label.setFixedHeight(20)
         layout.addWidget(self.status_label)
 
+        # 空状态占位
+        #
+        # ★ 真实桌面验证发现：未打开文件夹时，目录树只是一个**纯黑空矩形**
+        #   （深色 QSS 背景 + 零节点）—— 用户看不出这是"还没打开文件夹"，
+        #   更像是面板坏了。这里放一条禁用项作为引导。
+        self._empty_hint = QTreeWidgetItem(self.tree)
+        self._empty_hint.setText(0, "（未打开文件夹）")
+        self._empty_hint.setDisabled(True)
+        self._empty_hint.setToolTip(
+            0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」"
+        )
+
         # 应用样式
         self._apply_style()
 
@@ -588,6 +600,7 @@ class DirectoryTree(QWidget):
 
         # 清空树
         self.tree.clear()
+        self._empty_hint = None
 
         # 创建根节点
         root_name = os.path.basename(path) or path
@@ -620,6 +633,16 @@ class DirectoryTree(QWidget):
         self.model.set_root("")
         self._clear_watcher()
         self.status_label.setText("")
+        # 恢复空状态占位（否则面板又会变成纯黑空矩形）
+        try:
+            self._empty_hint = QTreeWidgetItem(self.tree)
+            self._empty_hint.setText(0, "（未打开文件夹）")
+            self._empty_hint.setDisabled(True)
+            self._empty_hint.setToolTip(
+                0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」"
+            )
+        except Exception:
+            pass
 
     def get_root(self) -> str:
         """获取根目录"""

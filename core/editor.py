@@ -240,6 +240,38 @@ def _normalize_bytes(data) -> bytes:
     return str(data).encode('utf-8', errors='replace')
 
 
+# 行尾符号（顺序重要：先匹配 \r\n）
+_EOL_SPLIT_RE = re.compile(r'(\r\n|\r|\n)')
+
+
+def _trim_trailing_ws_keep_eol(text: str) -> str:
+    """裁掉每行**行尾空白**，但原样保留每行的行尾符号
+
+    为什么不用 `splitlines()` + `'\\n'.join(...)`（原实现的写法）：
+        那会把 CRLF / CR / LF 统一成 LF —— 用户只是改一个字保存，
+        整个文件的行尾风格却被悄悄改写：
+            `b'a\\r\\n' + b'b\\n' + b'c\\r'`  →  `b'a\\nb\\nc\\n'`
+        git diff 会显示全文件改动，CRLF 项目整体被污染。
+
+    本函数按行尾符号切分（保留分隔符），只对"行内容"做 `rstrip(' \\t\\f\\v')`，
+    这样：
+        * 空白清理照旧生效；
+        * 每行的行尾符号（`\\r\\n` / `\\r` / `\\n`）保持原样；
+        * 混合换行文件保存后仍是混合换行（与 Notepad++ 行为一致）。
+    """
+    if not text:
+        return text
+    parts = _EOL_SPLIT_RE.split(text)
+    out = []
+    for part in parts:
+        if part in ('\r\n', '\r', '\n'):
+            out.append(part)
+        else:
+            # 只裁空格/制表符等"行尾空白"，绝不碰 \r / \n
+            out.append(part.rstrip(' \t\f\v'))
+    return ''.join(out)
+
+
 # ============================================================
 # 编辑器代理
 # ============================================================
@@ -845,12 +877,29 @@ class EditorProxy(QObject):
                 final_newline = bool(prefs.get("insert_final_newline", True))
 
             if trim_ws:
-                lines = [l.rstrip() for l in text.splitlines()]
-                text = '\n'.join(lines)
+                # ★ 修复（混合场景压测实测发现）：
+                #   原实现 `[l.rstrip() for l in text.splitlines()]` +
+                #   `'\n'.join(...)` 会**把每一行的行尾符统一改成 LF**：
+                #     * `splitlines()` 把 CRLF / CR / LF 全部切开；
+                #     * `'\n'.join()` 又全部用 LF 拼回。
+                #   于是"打开一个混合换行（或 CRLF）文件、改一个字、保存"
+                #   之后，**整个文件的行尾风格被悄悄改写**（实测
+                #   `b'a\r\nb\nc\rd\r\n'` → `b'a\nb\nc\nd\n'`）。
+                #   文本内容没错，但这是用户没要求的格式变更：
+                #   git diff 会显示全文件改动，CRLF 项目会被整体污染。
+                #
+                #   现在只裁剪**行尾空白**，原样保留每行的行尾符号。
+                text = _trim_trailing_ws_keep_eol(text)
 
             if final_newline:
-                if text and not text.endswith('\n'):
-                    text += '\n'
+                if text and not text.endswith(('\n', '\r')):
+                    # 用文件当前的行尾风格补最后一个换行，避免造出混合换行
+                    try:
+                        eol = (self.document.provider._eol
+                               if self.document.provider else '\n') or '\n'
+                    except Exception:
+                        eol = '\n'
+                    text += eol
 
             # 设置回编辑器（保持一致性）
             if text != self.sc.text():

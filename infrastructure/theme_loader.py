@@ -1474,8 +1474,23 @@ class ThemeLoader(QObject):
                 color: {c.statusbar_fg};
                 font-weight: bold;
             }}
+            /* ★ 真实桌面验证发现的缺陷：状态栏标签"白字白底"完全不可见
+               
+               本 QSS 顶部有全局规则 `QWidget {{ background-color:
+               {c.window_bg}; }}`（浅色主题下是纯白）。状态栏里的
+               行/列、编码、行尾符等**都是 QLabel**，会继承那条全局背景，
+               于是变成「白色方块 + 白色文字」——
+               实测在 1000x700 窗口里，状态栏底部只见一排白块，
+               用户根本看不到"编码 / 行尾符"等关键信息
+               （而这些正是切换编码/换行后最需要确认的反馈）。
+
+               修复：标签背景显式透明，让状态栏底色透出来。 */
             QStatusBar QLabel {{
                 color: {c.statusbar_fg};
+                background: transparent;
+            }}
+            QStatusBar::item {{
+                border: none;
             }}
 
             /* ============ 标签栏 ============ */

@@ -63,7 +63,11 @@ from app.event_bus import (
     TabRemovedEvent,
     bus,
 )
-from core.content_provider import LocalFileProvider, MemoryProvider
+from core.content_provider import (
+    LocalFileProvider,
+    MemoryProvider,
+    is_binary_sample,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -454,10 +458,22 @@ class TabManager(QTabWidget):
                 return None
 
             # 检查是否二进制文件
+            #
+            # ★ 修复（混合场景压测实测发现）：
+            #   原实现是 `if b'\x00' in chunk` → 判定二进制并弹
+            #   「文件可能包含二进制内容，确定要打开吗？」。
+            #   但 **UTF-16/UTF-32 文本必然含 NUL 字节**
+            #   （ASCII 字符在 UTF-16 里是 `61 00`，换行是 `0A 00`）。
+            #   实测：一个正常的 UTF-16 文本被拦下来询问，
+            #   用户选「否」后**根本无法打开**。
+            #
+            #   现在改用 `is_binary_sample()`：有文本 BOM / 可严格 UTF-8 解码 /
+            #   像无 BOM 的 UTF-16（NUL 集中在单侧且可打印比例高）都判为文本；
+            #   只有 NUL 比例 > 5% 这类才判二进制。
             try:
                 with open(filepath, 'rb') as f:
                     chunk = f.read(1024)
-                if b'\x00' in chunk and not filepath.lower().endswith(
+                if is_binary_sample(chunk) and not filepath.lower().endswith(
                     ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico',
                      '.pdf', '.zip', '.tar', '.gz', '.exe', '.dll',
                      '.so', '.dylib')

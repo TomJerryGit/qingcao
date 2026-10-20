@@ -1142,6 +1142,19 @@ def main():
     # --------------------------------------------------------
     # 13. 处理启动参数中的文件
     # --------------------------------------------------------
+    # 13a. 把已保存主题应用到**面板**（修复"面板永远深色"）
+    #
+    # 顺序很重要：必须在打开文件之前 —— 打开文件会创建编辑器标签，
+    # 而主题里包含 Scintilla 的字体/配色应用。
+    try:
+        if hasattr(window, 'apply_startup_theme'):
+            _theme = window.apply_startup_theme()
+            if _theme is not None:
+                logger.info("启动主题已应用到面板: %s", getattr(
+                    _theme, 'name', ''))
+    except Exception as _e:
+        logger.warning("启动主题应用到面板失败: %s", _e)
+
     if args['files']:
         for filepath in args['files']:
             abs_path = os.path.abspath(filepath)
@@ -1224,6 +1237,46 @@ def main():
     # 17. 显示主窗口
     # --------------------------------------------------------
     window.show()
+
+    # 诊断钩子（仅在 QINGCAO_STARTUP_DIAG=1 时写文件；不影响正常运行）
+    #
+    # 用途：排查"打包版状态栏/面板样式与源码版不一致"这类**只在打包产物中
+    # 出现**的问题时，需要从被冻结的进程里拿到真实 UI 状态。
+    # 用环境变量门控，避免日常运行产生多余文件。
+    if os.environ.get("QINGCAO_STARTUP_DIAG") == "1":
+        try:
+            from PyQt5.QtWidgets import QDockWidget as _QDW
+            app.processEvents()
+            sb = window.statusBar()
+            lines = [
+                "frozen=%r" % getattr(sys, "frozen", False),
+                "window_size=%s" % (window.size(),),
+                "statusBar_exists=%r" % (sb is not None),
+                "statusBar_visible=%r" % (sb.isVisible() if sb else None),
+                "statusBar_height=%r" % (sb.height() if sb else None),
+                "statusBar_geometry=%s" % (sb.geometry() if sb else None),
+                "theme_name=%r" % (
+                    __import__("PyQt5.QtCore", fromlist=["QSettings"])
+                    .QSettings(ORG_NAME, "Editor")
+                    .value("theme_name", "", type=str)
+                ),
+                "startup_theme=%r" % getattr(
+                    getattr(window, "_startup_theme", None), "name", None),
+                "central_size=%s" % (window.centralWidget().size(),),
+            ]
+            for dock in window.findChildren(_QDW):
+                lines.append(
+                    "dock=%r visible=%r area=%r"
+                    % (dock.objectName(), dock.isVisible(),
+                       int(window.dockWidgetArea(dock)))
+                )
+            diag_path = os.path.join(os.path.dirname(
+                os.path.abspath(__file__)), "startup_diag.txt")
+            with open(diag_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            logger.info("启动诊断已写入: %s", diag_path)
+        except Exception as _e:
+            logger.warning("启动诊断失败: %s", _e)
 
     # 再次确保可见（某些 Qt 版本可能隐藏）
     if not window.isVisible():
