@@ -78,12 +78,32 @@ jobs:
             > "QingCaoEditor-${{ github.ref_name }}-windows.zip.sha256.txt"
           ls -lh QingCaoEditor-*.zip*
 
+      # 发布说明：优先用仓库里的 docs/release_notes_<tag>.md
+      # （例如 docs/release_notes_v2.2.0.md）；不存在时回退到
+      # GitHub 自动生成的 Release Notes。
+      #
+      # 为什么用 step output 而不是直接写死 body_path：
+      #   `body_path` 指向不存在的文件会让整个发布 job 失败。
+      #   这里先判断文件是否存在，再把结果传给下一步。
+      - name: Detect release notes
+        id: notes
+        run: |
+          f="docs/release_notes_${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then
+            echo "path=$f" >> "$GITHUB_OUTPUT"
+            echo "使用发布说明文件: $f"
+          else
+            echo "未找到 $f，将使用自动生成的 Release Notes"
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             QingCaoEditor-${{ github.ref_name }}-windows.zip
             QingCaoEditor-${{ github.ref_name }}-windows.zip.sha256.txt
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
