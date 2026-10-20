@@ -67,10 +67,26 @@ ICON_DST = os.path.join(ROOT, 'resources', 'icons', 'qingcao.ico')
 APP_NAME = 'QingCaoEditor'
 APP_DISPLAY_NAME = '青草编辑器'
 # P1-1: 版本号唯一来源 version.py（避免多处硬编码导致版本漂移）
+#
+# 发布准备时修复：原 except 分支**硬编码** "2.1.0" 作为兜底 ——
+# 一旦 version.py 导入失败（例如打包环境路径异常），构建会静默产出
+# 一个版本号错误的产物，而且 `tools/check_version` 不会发现
+# （它只检查生产代码，不检查兜底字面量）。现改为从 VERSION 文件兜底，
+# 两者都不可用则**直接报错**，绝不带着猜测的版本号发版。
 try:
     from version import __version__ as APP_VERSION
 except ImportError:  # pragma: no cover
-    APP_VERSION = "2.1.0"
+    _version_file = os.path.join(ROOT, 'VERSION')
+    try:
+        with open(_version_file, encoding='utf-8') as _f:
+            APP_VERSION = _f.read().strip()
+    except OSError as _e:
+        raise SystemExit(
+            "[build] 无法确定版本号：version.py 导入失败，且读取 %s 失败（%s）"
+            % (_version_file, _e)
+        )
+    if not APP_VERSION:
+        raise SystemExit("[build] VERSION 文件为空，无法确定版本号")
 APP_AUTHOR = 'hedongwei'
 APP_EMAIL = '1265338136@qq.com'
 APP_DESCRIPTION = 'Lightweight text editor with LSP and plugin system'

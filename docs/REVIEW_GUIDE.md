@@ -153,7 +153,7 @@ qtbot.waitUntil(lambda: client.is_initialized, timeout=8000)
 | 启动耗时 | `MainWindow()` 冷启动 | 2.46 s → 1.36 s ✅ |
 | GUI 实际渲染 | offscreen + 手动注册系统字体后截图 | 见下节 ✅ |
 | **打包链路** | `python build.py` 全量执行 | **成功，`main()` 返回 0**；377 文件 / 137.0 MB ✅ |
-| **打包产物可运行** | `QingCaoEditor.exe --version` | **v2.1.0**，退出码 0 ✅ |
+| **打包产物可运行** | `QingCaoEditor.exe --version` | **v2.2.0**，退出码 0 ✅（发布时复验） |
 | 安装器图标资源 | `build.generate_icon()` | 产出 `qingcao.ico` ✅ |
 
 ### 未验证（需你的环境）
