@@ -406,7 +406,7 @@ def collect_hidden_imports() -> List[str]:
         'core.undo', 'core.ai_client', 'core.ai_cache',
         'core.ollama_client',
         'core.code_metrics', 'core.code_smell', 'core.code_templates',
-        'core.collab', 'core.crash_reporter', 'core.exporter',
+        'core.crash_reporter', 'core.exporter',
         'core.file_merge', 'core.formatter', 'core.git_client',
         'core.i18n', 'core.key_sequence_manager',
         'core.keymap_profiles', 'core.local_completer',

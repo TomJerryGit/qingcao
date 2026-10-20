@@ -453,18 +453,24 @@ class TestKeyApiWiring:
 #       core/workspace.py            (build.py:417)
 #       core/keymap_profiles.py      (build.py:412)
 KNOWN_DEAD_MODULES = frozenset({
-    # ---- 仅剩 2 个，且都**需要产品成立条件**才能接线 ----
+    # ---- 已清零：仓库里不再有"完整实现但零引用"的模块 ----
     #
-    # `ui/collab_dialog.py` + `core/collab.py`：
-    #   实时协作（P2P）。协议与 UI 都完整，但缺 NAT 穿透、权限、冲突解决、
-    #   安全模型，且无法在无网络环境验证 —— 属"高风险新功能"，
-    #   不是接线问题。详见 docs/product_decision_pending.md。
-    "ui/collab_dialog.py",
-    # `ui/snippet_market_dialog.py` + `core/snippet_market.py`：
-    #   代码片段市场。对话框完整，但后端是**网络客户端** ——
-    #   没有市场服务端就没有内容可下载。属"需先有产品服务"，
-    #   不是接线问题。详见 docs/product_decision_pending.md。
-    "ui/snippet_market_dialog.py",
+    # 最后两个的去向（2026-02 决策并执行）：
+    #
+    # `ui/collab_dialog.py` + `core/collab.py`  → **删除**
+    #   实时协作（P2P）实现是裸 TCP 监听 `0.0.0.0:52000`，
+    #   无加密、无认证、无 NAT 穿透 —— 等于"在局域网开放一个无密码
+    #   共享编辑端口"。要在不引入安全风险的前提下接线，需要加密、
+    #   认证、可达性方案与真实的双端联调环境，都不是当前阶段能做的。
+    #   保留一半（只删 UI 留协议层）会留下"看得见代码但用不了"的债，
+    #   因此整体删除。见 CHANGELOG 与 docs/product_decision_pending.md。
+    #
+    # `ui/snippet_market_dialog.py` + `core/snippet_market.py` → **改造后接线**
+    #   原"网络片段市场"指向 `api.github.com/repos/qingcao-editor/snippets`
+    #   —— 实测 HTTP 404，仓库不存在。改为**本地片段包库**
+    #   （默认 `<应用根>/data/snippet_packs`，可自选目录），
+    #   入口「工具 → 📚 代码片段库…」。零运维、零信任风险，
+    #   核心价值（复用别人写好的片段）不变。
 })
 #
 # 说明（已从基线移除的条目 —— 它们**已经接线**，不再是孤立模块）：
@@ -475,6 +481,8 @@ KNOWN_DEAD_MODULES = frozenset({
 #   第三轮（批次 C）：core/key_sequence_manager.py
 #   第四轮（批次 B）：core/workspace.py、core/project_config.py、
 #                     ui/task_panel.py
+#   第五轮（批次 D）：ui/snippet_market_dialog.py（改造为本地库后接线）、
+#                     ui/collab_dialog.py（删除，见上）
 # 移除动作由 `test_ledger_matches_baseline` 与棘轮
 # `test_dead_module_count_is_decreasing` 共同保证不会被偷偷放回来。
 
@@ -504,21 +512,17 @@ DEBT_ACTION_WIRE = "wire"      # 接线（功能保留，补上入口）
 DEBT_ACTION_DELETE = "delete"  # 删除（确认不再需要）
 
 DEBT_LEDGER = {
-    # ---------- 仅剩 2 个：需要"产品成立条件"才能接线 ----------
+    # ---------- 空：债务清零 ----------
     #
-    # 已接线的条目**必须从台账里删除**，不能留作"历史记录" ——
+    # 已处置的条目**必须从台账里删除**，不能留作"历史记录" ——
     # 台账 = 当前欠债清单，`test_ledger_matches_baseline` 强制它与
-    # `KNOWN_DEAD_MODULES` 键集合完全一致。已完成的接线见上方注释。
-    "ui/collab_dialog.py": dict(
-        owner="product", action=DEBT_ACTION_WIRE, due="待产品立项",
-        note="实时协作(P2P)。协议+UI 完整，但缺 NAT 穿透/权限/冲突解决/"
-             "安全模型，且无法在无网络环境验证。属高风险新功能，"
-             "不是接线问题 —— 需先决定是否做该功能。"),
-    "ui/snippet_market_dialog.py": dict(
-        owner="product", action=DEBT_ACTION_WIRE, due="待产品立项",
-        note="代码片段市场。对话框完整，但后端 SnippetMarketClient 是"
-             "**网络客户端** —— 没有市场服务端就没有内容可下载。"
-             "属需先有产品服务，不是接线问题。"),
+    # `KNOWN_DEAD_MODULES` 键集合完全一致。
+    #
+    # 最后两项的处置（2026-02）：
+    #   * `ui/collab_dialog.py` + `core/collab.py` → 删除
+    #     （裸 TCP 无认证/无加密，接线即引入安全风险）
+    #   * `ui/snippet_market_dialog.py` + `core/snippet_market.py` → 改造后接线
+    #     （网络市场 404 → 本地片段包库，入口「工具 → 📚 代码片段库…」）
 }
 
 # 孤立模块数量的"棘轮"历史（只增不减地记录**降低**，不得回填升高）
@@ -545,6 +549,11 @@ DEBT_CEILING_HISTORY = [
     ("2026-02-20", 2, "批次 B 接线 3 个：workspace + project_config + "
                       "task_panel（统一「项目根」语义）。"
                       "剩余 2 个需产品立项，已转入 docs/product_decision_pending.md"),
+    ("2026-02-20", 0, "批次 D 清零：snippet_market 改造为**本地片段包库**后接线"
+                      "（网络市场 API 实测 404；改本地后零运维零信任风险），"
+                      "collab 整体删除（裸 TCP 无认证/无加密，接线即引入"
+                      "安全风险）。至此仓库不再有"
+                      "「完整实现但零引用」的模块。"),
 ]
 
 # 当前上限 = 历史最低值（棘轮只允许往下走）
@@ -1004,7 +1013,20 @@ class TestEndToEndSmoke:
                 pass
 
     def test_default_panels_visible(self, qapp):
-        """回归防线：默认面板必须可见（此前"界面全空"缺陷）"""
+        """回归防线：默认面板必须可见（此前"界面全空"缺陷）
+
+        ⚠️ 稳定性修复（实测 flaky）：原实现 `win.show()` 后只调一次
+        `processEvents()` 就断言可见性。offscreen 平台下 dock 的映射
+        （map）依赖事件循环处理 Qt 的布局/显示事件，**单次 processEvents
+        在机器负载高时可能处理不完** → 可见集合为 [] → 假失败
+        （实测：单跑/部分组合通过，整文件跑偶尔失败）。
+
+        改为**轮询等待**：最多 2 秒，每 20ms 泵一次事件循环，
+        一旦目录树可见即通过。这既消除 flaky，又保留真实回归防线
+        （若面板真的不显示，2 秒后仍未可见 → 失败）。
+        """
+        import time
+
         _ensure_fonts()
         from PyQt5.QtWidgets import QDockWidget
 
@@ -1013,9 +1035,15 @@ class TestEndToEndSmoke:
         win = MainWindow()
         win.show()
         try:
-            qapp.processEvents()
-            visible = {d.objectName() for d in win.findChildren(QDockWidget)
-                       if d.isVisible()}
+            deadline = time.time() + 2.0
+            visible = set()
+            while time.time() < deadline:
+                qapp.processEvents()
+                visible = {d.objectName() for d in win.findChildren(QDockWidget)
+                           if d.isVisible()}
+                if "DirectoryTreeDock" in visible:
+                    break
+                time.sleep(0.02)
             assert "DirectoryTreeDock" in visible, (
                 "项目目录树默认不可见，可见面板=%s" % sorted(visible)
             )

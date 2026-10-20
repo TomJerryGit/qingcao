@@ -782,6 +782,13 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             )
         except Exception:
             pass
+        # 代码片段库（本地片段包导入）
+        #
+        # 原 `ui/snippet_market_dialog.py` 是"网络片段市场"，指向一个
+        # **实测返回 404 的 GitHub 仓库**；已改造为本地片段包库
+        # （见 core/snippet_market.py 的模块说明）。
+        self._add_action(self.tools_menu, "📚 代码片段库…", None,
+                         self._show_snippet_library)
         # C: Vim 模式菜单开关
         self.vim_mode_action = QAction("Vim 模式", self)
         self.vim_mode_action.setCheckable(True)

@@ -757,6 +757,35 @@ class CapabilityWiringMixin:
                 pass
 
     # ========================================================
+    # 代码片段库（ui/snippet_market_dialog.py + core/snippet_market.py）
+    # ========================================================
+    def _show_snippet_library(self):
+        """打开代码片段库（本地片段包）
+
+        ## 从"网络市场"改为"本地库"的原因
+
+        原实现是网络市场客户端，`MARKET_API` 指向
+        `https://api.github.com/repos/qingcao-editor/snippets/contents`
+        —— **实测该地址返回 HTTP 404，仓库不存在**。
+        接上 UI 也只会显示 4 条硬编码示例，"市场"是假的。
+
+        现改为扫描本地片段包目录（默认 `<应用根>/data/snippet_packs`，
+        可自选目录）：零运维、零信任风险（不执行第三方下载内容），
+        核心价值（复用别人写好的片段）不变。
+        """
+        try:
+            from ui.snippet_market_dialog import SnippetMarketDialog
+
+            dlg = SnippetMarketDialog(self)
+            dlg.exec_()
+        except Exception as e:
+            print(f"[MainWindow] 代码片段库失败: {e}")
+            try:
+                self.status_bar.showMessage(f"代码片段库失败: {e}", 6000)
+            except Exception:
+                pass
+
+    # ========================================================
     # 性能剖析（core/profiler.py + ui/profiler_panel.py）
     # ========================================================
     def _show_profiler(self):

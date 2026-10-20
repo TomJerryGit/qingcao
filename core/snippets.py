@@ -5,6 +5,24 @@ import os
 from typing import Any, Dict, List, Optional
 
 
+def _default_snippets_path() -> str:
+    """用户片段文件的**绝对**路径
+
+    ★ 修复（接入片段库时发现）：原默认是相对路径 `"snippets.json"`，
+    取决于进程工作目录 —— 打包后从快捷方式启动会写到 `C:\\snippets.json`，
+    换个目录启动又读不到 → 用户导入的片段"消失"。
+    与 `Document._draft_dir` / `crash_stats.CRASH_DIR` / `snapshot.SNAPSHOT_DIR`
+    是同一类缺陷，统一改为从应用根目录派生。
+    """
+    try:
+        from infrastructure.plugin_loader import app_root_dir
+        base = os.path.join(app_root_dir(), "data")
+        os.makedirs(base, exist_ok=True)
+        return os.path.join(base, "snippets.json")
+    except Exception:
+        return os.path.join("data", "snippets.json")
+
+
 class Snippet:
     """代码片段"""
 
@@ -39,8 +57,8 @@ class Snippet:
 class SnippetManager:
     """片段管理器"""
 
-    def __init__(self, filepath="snippets.json"):
-        self.filepath = filepath
+    def __init__(self, filepath=None):
+        self.filepath = filepath or _default_snippets_path()
         self.snippets: Dict[str, Snippet] = {}
         self._load_builtin()
         self._load_user()
