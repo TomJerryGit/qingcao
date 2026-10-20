@@ -147,12 +147,20 @@ JS 函数/类、`.gitignore`、`README`），按模板**动态生成占位符输
 
 ## 包校验
 
-发布包：`QingCaoEditor_v2.2.0_windows_x64.zip`
+发布包（GitHub Release 附件）：
+
+* `QingCaoEditor-v2.2.0-windows.zip` —— 由 GitHub Actions 在
+  `windows-latest` 上从本 tag 构建
+* `QingCaoEditor-v2.2.0-windows.zip.sha256.txt` —— 对应 SHA256
 
 ```powershell
-# 校验完整性（SHA256 值见发布页/同目录 .sha256.txt）
-Get-FileHash .\QingCaoEditor_v2.2.0_windows_x64.zip -Algorithm SHA256
+# 校验完整性
+Get-FileHash .\QingCaoEditor-v2.2.0-windows.zip -Algorithm SHA256
+# 与同目录 .sha256.txt 中的值比对
 ```
+
+> 本地也可自行构建：`python build.py`，产物在 `dist/QingCaoEditor/`；
+> 或 `python release.py build`。
 
 解压后直接运行 `QingCaoEditor.exe`（免安装）。
 命令行验证版本：`QingCaoEditor.exe --version`
