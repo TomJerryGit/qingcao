@@ -221,24 +221,35 @@ class TestSoundWiring:
 # ============================================================
 class TestLazyPanels:
     def test_only_default_panels_built_at_startup(self, qapp):
-        """启动时只构造 _DEFAULT_PANELS，其余仍为延迟构造
+        """启动时只构造"当前屏幕适用"的默认面板，其余仍为延迟构造
 
         历史：曾要求"启动时构造 0 个面板"，但那会导致
           ① 界面开箱为空（用户观感"功能没了"）
           ② 会话保存采集到空 docks → 覆盖用户布局
         因此改为：构造一组常用默认面板，其余保持延迟。
+
+        ★ 高 DPI 验证后的变化：
+          默认面板改为**按逻辑分辨率自适应**（`_default_panels_for_screen`）。
+          逻辑可用区域不足 1280x720（例：1920x1080 开 150%/200% 缩放，
+          或小屏笔记本）时只开目录树，否则编辑器会被 4 个面板挤到
+          只剩 2~3 行。offscreen 平台屏幕是 800x600，因此这里得到的是
+          "仅目录树"——测试按实际决策结果断言，而不是写死 4 个名字。
         """
         import ui.main_window as mw
 
         win = mw.MainWindow()
         try:
-            assert win._panels_built == set(win._DEFAULT_PANELS), (
-                "启动时应恰好构造默认面板，实际: %s" % win._panels_built
+            expected = set(win._default_panels_for_screen())
+            assert win._panels_built == expected, (
+                "启动时应恰好构造默认面板，实际: %s 期望: %s"
+                % (win._panels_built, expected)
             )
+            assert expected, "默认面板不能为空（否则界面开箱全空）"
+            assert 'dir_tree' in expected, "目录树必须默认打开"
             # 未列入默认的仍不应被构造
             for name in ('outline', 'outline_enhanced',
                          'minimap', 'console', 'search_bar'):
-                if name in win._DEFAULT_PANELS:
+                if name in expected:
                     continue
                 assert name not in win._panels_built, (
                     "%s 不应在启动时构造" % name
@@ -247,23 +258,49 @@ class TestLazyPanels:
             win.close()
 
     def test_default_panels_visible(self, qapp):
-        """默认面板不仅要构造，还要**可见**（否则界面依旧空白）"""
+        """默认面板不仅要构造，还要**可见**（否则界面依旧空白）
+
+        与上一条同理：可见集合 = `_default_panels_for_screen()` 的映射。
+        offscreen 下是 800x600 → 只期望目录树可见；
+        在真实大屏上则会期望 4 个面板都可见。
+        """
         from PyQt5.QtWidgets import QDockWidget
 
         import ui.main_window as mw
 
+        NAME_OF_PANEL = {
+            'dir_tree': 'DirectoryTreeDock',
+            'gsearch': 'GlobalSearchPanel',
+            'plugins_panel': 'PluginsPanel',
+            'perf_monitor': 'PerfMonitor',
+        }
+
         win = mw.MainWindow()
         win.show()
         try:
-            qapp.processEvents()
+            # 等布局完成（offscreen 下 dock 映射需要事件循环）
+            import time
+            deadline = time.time() + 2.0
+            while time.time() < deadline:
+                qapp.processEvents()
+                if "DirectoryTreeDock" in {
+                    d.objectName() for d in win.findChildren(QDockWidget)
+                    if d.isVisible()
+                }:
+                    break
+                time.sleep(0.02)
             names = {d.objectName() for d in win.findChildren(QDockWidget)
                      if d.isVisible()}
             assert "DirectoryTreeDock" in names, (
                 "项目目录树应默认可见，实际可见: %s" % names
             )
-            assert "GlobalSearchPanel" in names
-            assert "PluginsPanel" in names
-            assert "PerfMonitor" in names
+            expected = {NAME_OF_PANEL[p]
+                        for p in win._default_panels_for_screen()
+                        if p in NAME_OF_PANEL}
+            assert expected <= names, (
+                "默认面板应全部可见：期望 %s，实际 %s"
+                % (expected, names)
+            )
         finally:
             win.close()
 

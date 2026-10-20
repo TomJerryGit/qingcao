@@ -741,25 +741,97 @@ class SessionManager(QObject):
 
         return restored_count
 
+    def _pick_screen_for_geometry(self, x: int, y: int, w: int, h: int):
+        """为保存的窗口几何挑选"最合适的屏幕"（多显示器感知）
+
+        ★ 真实缺陷（多显示器/高 DPI 验证发现）：
+
+            原实现只拿 `QApplication.primaryScreen()` 的可用区域来夹取
+            `x/y`，带来三个问题：
+
+            1. **窗口永远回主屏**：保存在第二块显示器（例如主屏右侧
+               x=2200）的窗口，下次启动会被强行拉回主屏 ——
+               多显示器用户每次启动都要重新拖窗口；
+            2. **尺寸从不夹取**：在大屏（2560x1440）上保存的窗口
+               换到小屏（1366x768）后仍是 2560x1440，
+               **底部和右侧大半个窗口在屏幕外**，保存按钮/状态栏都看不到；
+            3. **只夹左上角**：判断条件是 `x > right-100`，
+               窗口宽 1000 放在 `right-950` 时仍会越界。
+
+        现在的策略（顺序）：
+
+            1. 用**窗口中点**调 `screenAt()` 找屏幕 —— 中点比左上角更能
+               代表"用户把窗口放在了哪块屏"；
+            2. 中点不在任何屏幕（显示器被拔掉）时，找**最近的屏幕**，
+               但距离超过 2000px 视为完全无效，退回主屏；
+            3. 把 `w/h` 夹到该屏幕可用区域，再把 `x/y` 夹到
+               `[left, right-w]` / `[top, bottom-h]`，保证**完整可见**。
+        """
+        try:
+            from PyQt5.QtCore import QPoint
+            from PyQt5.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app is None:
+                return None
+            screens = list(app.screens())
+            if not screens:
+                return None
+            if len(screens) == 1:
+                return screens[0]
+
+            # 1) 中点所在屏幕
+            if hasattr(app, "screenAt"):
+                middle = QPoint(x + max(1, w // 2), y + max(1, h // 2))
+                scr = app.screenAt(middle)
+                if scr is not None:
+                    return scr
+                # 左上角也算一次（窗口很宽/很高时中点可能在屏外）
+                scr = app.screenAt(QPoint(x + 50, y + 50))
+                if scr is not None:
+                    return scr
+
+            # 2) 最近的屏幕（距离过远则视为无效）
+            best = None
+            best_dist = None
+            for scr in screens:
+                geo = scr.availableGeometry()
+                dx = max(geo.left() - x, 0, x - (geo.right() + 1))
+                dy = max(geo.top() - y, 0, y - (geo.bottom() + 1))
+                dist = dx * dx + dy * dy
+                if best_dist is None or dist < best_dist:
+                    best, best_dist = scr, dist
+            if best is not None and best_dist is not None \
+                    and best_dist <= 2000 * 2000:
+                return best
+
+            # 3) 退回主屏
+            return app.primaryScreen() or screens[0]
+        except Exception as e:
+            print(f"[Session] 选择屏幕失败: {e}")
+            return None
+
     def _restore_geometry(self, main_window: QMainWindow,
                           geometry: Dict[str, Any]):
-        """恢复窗口几何"""
-        try:
-            from PyQt5.QtCore import QRect
-            x = geometry.get('x', -1)
-            y = geometry.get('y', -1)
-            w = geometry.get('w', 1100)
-            h = geometry.get('h', 750)
+        """恢复窗口几何（多显示器 + 尺寸夹取）
 
-            # 确保在屏幕范围内
-            from PyQt5.QtWidgets import QApplication
-            screen = QApplication.primaryScreen()
-            if screen:
-                screen_geo = screen.availableGeometry()
-                if x < screen_geo.left() or x > screen_geo.right() - 100:
-                    x = screen_geo.left() + 50
-                if y < screen_geo.top() or y > screen_geo.bottom() - 100:
-                    y = screen_geo.top() + 50
+        修复记录见 `_pick_screen_for_geometry` 的 docstring。
+        """
+        try:
+            x = int(geometry.get('x', -1))
+            y = int(geometry.get('y', -1))
+            w = max(200, int(geometry.get('w', 1100)))
+            h = max(150, int(geometry.get('h', 750)))
+
+            screen = self._pick_screen_for_geometry(x, y, w, h)
+            if screen is not None:
+                avail = screen.availableGeometry()
+                # 尺寸先夹（大屏 → 小屏时窗口必须缩得下）
+                w = min(w, avail.width())
+                h = min(h, avail.height())
+                # 再把左上角夹进可用区域，保证整个窗口可见
+                x = min(max(x, avail.left()), avail.right() - w + 1)
+                y = min(max(y, avail.top()), avail.bottom() - h + 1)
 
             main_window.setGeometry(x, y, w, h)
 

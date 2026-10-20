@@ -1864,12 +1864,47 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         #
         # 注意：各构造器末尾保留了旧版的 `hide()`（面板默认不显示）。
         # 因此这里构造后需要**显式显示**，否则界面依旧是空的。
-        for name in self._DEFAULT_PANELS:
+        for name in self._default_panels_for_screen():
             try:
                 if self._ensure_panel(name):
                     self._show_panel(name)
             except Exception as e:
                 print(f"[MainWindow] 默认面板 {name} 构造失败: {e}")
+
+    def _default_panels_for_screen(self):
+        """按当前屏幕的**逻辑可用区域**决定"开箱面板"数量
+
+        ★ 高 DPI 验证发现（真实桌面 200% 截图）：
+
+            1920x1080 物理屏在 200% 缩放下只有 **960x540 逻辑像素**。
+            此时仍默认铺开 4 个面板（左目录树 + 底全局搜索 +
+            右插件 + 底性能监控），编辑器区域被挤到**只剩 3 行文本**，
+            全局搜索面板的单选项还被裁掉一半 —— 界面基本没法用。
+
+            这是"高 DPI ≈ 小屏"的普遍情况（1080p 笔记本开 150%~200%
+            很常见，4K 开 200% 也只有 1920x1080 逻辑）。
+
+        策略（简单、可预期）：
+          * 逻辑可用区域 >= 1280x720 → 保持原本的完整默认面板集；
+          * 否则 → **只开左侧目录树**，其余面板由用户按需从
+            「视图 → 面板」打开（各自记住可见性，会话恢复也会覆盖）。
+
+        注意：会话恢复（`_restore_session`）在此之后执行，会按用户上次
+        保存的布局重新显示面板 —— 因此本策略只影响"首次/无会话"的默认。
+        """
+        try:
+            from PyQt5.QtWidgets import QApplication
+            app = QApplication.instance()
+            scr = app.primaryScreen() if app is not None else None
+            if scr is not None:
+                geo = scr.availableGeometry()
+                if geo.width() < 1280 or geo.height() < 720:
+                    print("[MainWindow] 逻辑屏幕 %dx%d 偏小（高 DPI/小屏），"
+                          "仅默认打开目录树" % (geo.width(), geo.height()))
+                    return ('dir_tree',)
+        except Exception as e:
+            print(f"[MainWindow] 检测屏幕尺寸失败: {e}")
+        return self._DEFAULT_PANELS
 
     # ========================================================
     # 面板惰性构造（P1-3）
