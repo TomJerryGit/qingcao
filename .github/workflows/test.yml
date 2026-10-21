@@ -32,6 +32,17 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-qt coverage
 
+      # 插件 conformance 契约（扩展点 + 清单 + API 面）
+      # 只在 windows-latest 跑：需要真实 PyQt5 可用的 offscreen 环境，
+      # ubuntu 上还缺 xcb/libGL 等依赖，容易误报。
+      - name: Plugin conformance contracts
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.11'
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONIOENCODING: utf-8
+        run: |
+          python -m pytest tests/test_plugin_conformance.py -q
+
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen

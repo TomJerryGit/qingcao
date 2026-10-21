@@ -2078,12 +2078,20 @@ class PluginAPI(QObject):
             self.clear_diagnostics()
         except Exception:
             pass
+        # ★ 不要 deleteLater()：后台线程可能正持有桥并 emit，
+        #   析构 QObject 后从工作线程 emit → Qt 访问违例（实测段错误）。
+        #   正确做法：置 cancelled + 断开信号；桥对象交给 GC，
+        #   即使线程稍后 emit 也没有接收者，不会崩。
         for bridge in self._background_bridges:
             try:
                 bridge.cancelled = True
-                bridge.deleteLater()
             except Exception:
                 pass
+            for sig in ('done', 'failed'):
+                try:
+                    getattr(bridge, sig).disconnect()
+                except Exception:
+                    pass
         self._background_bridges.clear()
         self._background_threads.clear()
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """字数统计插件"""
 import re
+import time
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QDockWidget, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
@@ -140,6 +141,53 @@ class Plugin(PluginBase):
             self.show_panel,
             shortcut="Ctrl+Alt+W"
         )
+
+        # ---- v2.4 扩展点 ----
+        self.api.register_settings_schema([
+            {"key": "show_status", "label": "状态栏显示字数",
+             "type": "bool", "default": True},
+            {"key": "mode", "label": "统计口径", "type": "choice",
+             "default": "chars",
+             "choices": [("字符数", "chars"), ("单词数", "words")]},
+        ])
+        self._last_status_ts = 0.0
+        self._status_item = None
+        try:
+            if bool(self.api.get_config("show_status", True)):
+                self._status_item = self.api.add_status_item("字数: -")
+        except Exception:
+            self._status_item = None
+        try:
+            self.api.subscribe("editor_changed", self._on_editor_changed)
+        except Exception:
+            pass
+
+    def _on_editor_changed(self, *args):
+        """编辑器变化时刷新状态栏字数（0.5s 节流 + 大文件保护）"""
+        if self._status_item is None:
+            return
+        now = time.time()
+        if now - self._last_status_ts < 0.5:
+            return
+        self._last_status_ts = now
+        try:
+            editor = self.api.current_editor()
+            length = 0
+            try:
+                length = editor.sc.length()
+            except Exception:
+                pass
+            if length > 2 * 1024 * 1024:
+                self._status_item.setText("字数: 大文件")
+                return
+            text = self.api.get_current_text() or ""
+            if str(self.api.get_config("mode", "chars")) == "words":
+                n = len(re.findall(r"\w+", text))
+                self._status_item.setText("词数: %d" % n)
+            else:
+                self._status_item.setText("字数: %d" % len(text))
+        except Exception:
+            pass
 
     def on_deactivate(self):
         # D3: 显式销毁而非只 close

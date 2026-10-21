@@ -117,6 +117,22 @@
 - 新增 `tests/test_builtin_plugin_migrations.py`：加载真实插件模块验证
   诊断/设置/状态栏注册、行为与清理。
 
+### 插件系统（更多内置插件迁移 + CI 契约）
+
+- **wordcount**：状态栏常驻项显示字数/词数（0.5s 节流、>2MB 大文件
+  显示"大文件"保护），设置 schema（show_status、统计口径 chars/words）。
+- **ai_assistant**：设置 schema（status_refresh_seconds、enable_inline，
+  实际驱动状态刷新间隔与内联补全开关）；菜单状态检查改用宿主
+  `api.run_background`（不再自行 threading）。
+- 修复 `run_background` 清理顺序：卸载时**不再 deleteLater 桥对象**
+  （工作线程可能仍在 emit → Qt 访问违例段错误），改为置 cancelled +
+  断开信号。
+- **CI 契约**：`.github/workflows/test.yml` 增加
+  「Plugin conformance contracts」步骤（windows-latest + Py3.11）。
+- 新增 `tests/test_builtin_plugin_migrations.py`（wordcount 行为 +
+  ai_assistant 静态迁移校验；AI 自带 QThread 生命周期在 pytest 直接
+  activate/deactivate 会偶发段错误，故行为层由应用内加载覆盖）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

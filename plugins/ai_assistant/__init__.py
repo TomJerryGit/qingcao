@@ -2156,9 +2156,33 @@ class Plugin(PluginBase):
             self._ollama_status_bridge = None
             self.api.log("创建 Ollama 状态桥失败: %s" % e, "error")
 
+        # ---- v2.4 设置 schema（工具 → 插件设置）----
+        try:
+            self.api.register_settings_schema([
+                {"key": "status_refresh_seconds",
+                 "label": "Ollama 状态刷新间隔(秒)", "type": "int",
+                 "default": 60, "min": 15, "max": 600},
+                {"key": "enable_inline", "label": "启用内联补全",
+                 "type": "bool", "default": True},
+            ])
+        except Exception:
+            pass
+        try:
+            interval_s = int(self.api.get_config(
+                "status_refresh_seconds", 60))
+        except Exception:
+            interval_s = 60
+        try:
+            if not bool(self.api.get_config("enable_inline", True)):
+                comp = getattr(self, 'inline_completer', None)
+                if comp is not None:
+                    comp.set_enabled(False)
+        except Exception:
+            pass
+
         try:
             self._ollama_timer = QTimer(self.ollama_panel)
-            self._ollama_timer.setInterval(60_000)
+            self._ollama_timer.setInterval(max(15, interval_s) * 1000)
             self._ollama_timer.timeout.connect(self._refresh_ollama_status)
             self._ollama_timer.start()
         except Exception as e:
@@ -2191,12 +2215,30 @@ class Plugin(PluginBase):
             self.api.log("切换 Ollama 面板失败: %s" % e, "error")
 
     def _check_ollama_status(self):
-        """菜单触发的状态检查（在后台线程做，避免阻塞 UI）"""
+        """菜单触发的状态检查（改用宿主 v2.3 的 run_background）
+
+        插件自己 `threading.Thread` + 手工投递容易在窗口销毁后 emit 崩溃；
+        `api.run_background` 用 QObject 信号桥保证回调回主线程，
+        且随插件卸载自动取消。
+        """
         panel = getattr(self, 'ollama_panel', None)
         if panel is None:
             return
-        panel.test_connection()
-        self._refresh_ollama_status()
+        try:
+            panel.test_connection()
+        except Exception:
+            pass
+        try:
+            self.api.run_background(
+                panel.status_summary,
+                on_done=lambda summary: self.api.show_status(
+                    "🦙 %s" % summary, 3000, "info"),
+                on_error=lambda msg: self.api.log(
+                    "Ollama 状态检查失败: %s" % msg, "warning"),
+                name="ollama-status",
+            )
+        except Exception as e:
+            self.api.log("启动后台状态检查失败: %s" % e, "error")
 
     def _refresh_ollama_status(self):
         """刷新状态栏摘要（**后台线程**，绝不在 UI 线程做 HTTP）
