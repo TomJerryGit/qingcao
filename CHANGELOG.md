@@ -18,6 +18,15 @@
   改为后台线程 + 信号桥；Ollama 等本地 provider 不再初始化 keyring（省 0.37s）。
 - **新增「视图 → 大文件强制高亮」开关**：大文档（>20 万行或 >8MB）
   默认关闭语法高亮与缩略图渲染，用户可显式覆盖。
+- **启动主题去重**：真实启动里 `main.load_theme()` 已应用过同主题，
+  `apply_startup_theme()` 不再重复应用（实测 0.53~1.2s → **0.004s**）；
+  隐藏面板改为"挂起 + 首次显示时应用"（`_LazyThemeApplier`），
+  惰性构造面板与插件面板也统一套用当前主题（修复浅色主题下黑块）。
+- **应用级事件过滤器零成本放行**：非按键事件不再走 weakref/getattr 链
+  （实测主题 polish 期间 13,139 个事件白付 0.147s）。
+- **重量级插件延后加载**：manifest 新增 `defer_activation`（ai_assistant
+  导入占插件加载 0.535s/0.61s）；首轮插件就绪 2.18s → **1.07s**，
+  AI 插件后台 600ms 后加载（`PluginLoader.load_deferred`，带关闭护栏）。
 - **新增回归基准** `tools/bench_optimization.py`：覆盖启动/插件/事件/面板/
   输入/大文件/会话/主题，`--check` 超阈值退出码 1。
 

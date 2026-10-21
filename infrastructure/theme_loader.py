@@ -30,12 +30,13 @@ import os
 import re
 import sys
 import time
+import weakref
 from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5.Qsci import QsciScintilla
-from PyQt5.QtCore import QObject, QSettings, Qt, pyqtSignal
+from PyQt5.QtCore import QEvent, QObject, QSettings, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QPalette
 from PyQt5.QtWidgets import QApplication, QWidget
 
@@ -818,26 +819,104 @@ def adapt_qss_colors(qss: str, theme) -> str:
         return qss
 
 
-def notify_widgets(root, theme):
+def notify_widgets(root, theme, visible_only: bool = False):
     """
     遍历控件树，通知所有 refresh_theme 方法（v3.0）。
 
     参数:
         root: 根控件（通常是 QMainWindow）
         theme: Theme 对象
+        visible_only: 只立即刷新**可见**控件；隐藏控件的主题先挂起，
+            等它第一次显示时由 `_LazyThemeApplier` 应用。
+
+            ★ 为什么需要（性能实测）：启动时主窗口只显示 1~2 个面板，
+            其余几十个隐藏面板的 `refresh_theme()`（内部 setStyleSheet）
+            实测占 0.4~0.6s 的启动主题耗时。它们大多在用户实际打开前
+            根本不需要样式；挂起到 Show 事件再套，视觉上不可感知。
+
+            ★ 正确性：不能简单"跳过"隐藏控件 —— 那会复现真实桌面缺陷
+            （面板保持写死的深色 QSS = 一块黑矩形）。所以这里是"挂起 +
+            首次显示时应用"，而不是跳过。
     """
     if root is None or theme is None:
         return
+    pending = 0
     try:
         for widget in root.findChildren(QWidget):
             fn = getattr(widget, 'refresh_theme', None)
+            if not callable(fn):
+                continue
+            if visible_only and not widget.isVisible():
+                try:
+                    widget._pending_theme = theme
+                    pending += 1
+                except Exception:
+                    pass
+                continue
+            try:
+                fn(theme)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    if pending:
+        _ensure_lazy_theme_applier(QApplication.instance())
+
+
+# ============================================================
+# 隐藏控件的"首次显示时套主题"
+# ============================================================
+_LAZY_THEME_FILTER = None
+
+
+class _LazyThemeApplier(QObject):
+    """应用级事件过滤器：控件第一次显示时应用挂起的主题
+
+    为什么不用窗口直接装：与 `_KeySequenceAppFilter` 同源的教训 ——
+    QApplication 持有过滤器指针，窗口销毁后会访问违例。这里对象本身
+    **不持有任何窗口引用**，只读取控件上的 `_pending_theme` 属性，安全。
+    """
+
+    def eventFilter(self, obj, event):
+        try:
+            if event.type() != QEvent.Show:
+                return False
+            theme = getattr(obj, '_pending_theme', None)
+            if theme is None:
+                return False
+            try:
+                obj._pending_theme = None
+            except Exception:
+                pass
+            fn = getattr(obj, 'refresh_theme', None)
             if callable(fn):
                 try:
                     fn(theme)
                 except Exception:
                     pass
+            # 顺带 polish 一次，确保 QSS 生效
+            try:
+                obj.style().unpolish(obj)
+                obj.style().polish(obj)
+                obj.update()
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return False
+
+
+def _ensure_lazy_theme_applier(app):
+    """惰性主题过滤器（模块级单例），仅在首次需要时安装"""
+    global _LAZY_THEME_FILTER
+    if app is None or _LAZY_THEME_FILTER is not None:
+        return
+    try:
+        _LAZY_THEME_FILTER = _LazyThemeApplier()
+        app.installEventFilter(_LAZY_THEME_FILTER)
     except Exception:
-        pass
+        _LAZY_THEME_FILTER = None
 
 
 # ============================================================
@@ -1290,7 +1369,8 @@ class ThemeLoader(QObject):
         except Exception as e:
             print(f"[ThemeLoader] 应用 palette 失败: {e}")
 
-    def apply_qss(self, app, theme: Optional[Theme] = None):
+    def apply_qss(self, app, theme: Optional[Theme] = None,
+                  lazy: bool = False):
         """
         应用全局 QSS 到应用。
 
@@ -1316,6 +1396,16 @@ class ThemeLoader(QObject):
                 print("[ThemeLoader] 警告: 生成的 QSS 为空")
                 return
 
+            # 主题未变（启动链路里 main.load_theme 已应用过一次同主题）
+            # → 跳过全局 setStyleSheet：Qt 会因此对所有控件全量 repolish。
+            try:
+                if app.styleSheet() == qss:
+                    print(f"[ThemeLoader] apply_qss: theme={theme.name} "
+                          f"已是当前样式，跳过")
+                    return
+            except Exception:
+                pass
+
             print(f"[ThemeLoader] apply_qss: theme={theme.name} "
                   f"qss_len={len(qss)}")
 
@@ -1333,27 +1423,37 @@ class ThemeLoader(QObject):
             # B(调色板): 同时应用 QPalette
             self.apply_palette(app, theme)
 
-            # TF: 强制刷新所有 widget（unpolish/polish）
-            self._force_refresh(app)
+            # TF: 强制刷新 widget（unpolish/polish）；lazy 只刷可见的
+            self._force_refresh(app, lazy=lazy)
 
         except Exception as e:
             print(f"[ThemeLoader] 应用 QSS 失败: {e}")
             import traceback
             traceback.print_exc()
 
-    def _force_refresh(self, app):
-        """TF: 强制刷新所有 widget（unpolish/polish）
+    def _force_refresh(self, app, lazy: bool = False):
+        """TF: 强制刷新 widget（unpolish/polish）
 
         Qt 在 setStyleSheet 后不会自动重绘所有 widget，
         尤其是 QMenuBar / QToolBar / QDockWidget 标题栏。
         必须显式 unpolish + polish，或对每个 widget 调
         style().unpolish(w); style().polish(w)。
+
+        `lazy=True` 时跳过不可见控件（启动阶段隐藏面板占绝大多数，
+        实测 polish 一个隐藏面板与可见面板成本相同，但视觉上不可见）。
         """
         try:
             from PyQt5.QtWidgets import QMenuBar, QToolBar
 
             # 1. 刷新所有 widget
             for w in app.allWidgets():
+                if lazy:
+                    # 隐藏控件留给 _LazyThemeApplier（首次显示时处理）
+                    try:
+                        if not w.isVisible():
+                            continue
+                    except Exception:
+                        continue
                 try:
                     w.style().unpolish(w)
                     w.style().polish(w)
@@ -1363,6 +1463,12 @@ class ThemeLoader(QObject):
 
             # 2. 显式刷新顶层窗口的 menuBar / toolBar
             for top in app.topLevelWidgets():
+                if lazy:
+                    try:
+                        if not top.isVisible():
+                            continue
+                    except Exception:
+                        continue
                 try:
                     mb = top.menuBar() if hasattr(top, 'menuBar') else None
                     if mb is not None:

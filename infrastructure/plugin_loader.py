@@ -457,6 +457,9 @@ class LoadResult:
     disabled: int = 0                       # 禁用数
 
     specs: List[PluginSpec] = field(default_factory=list)
+    # 被延后加载的插件（manifest 声明 defer_activation，等启动完成后
+    # 再 import+activate，见 PluginLoader.load_deferred）
+    deferred: List[PluginSpec] = field(default_factory=list)
     errors: List[Tuple[str, str]] = field(default_factory=list)
     warnings: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -681,7 +684,8 @@ class PluginLoader(QObject):
     # ========================================================
     def load_all(self, plugin_dir: Optional[str] = None,
                  api_factory: Optional[Callable] = None,
-                 auto_activate: bool = True) -> LoadResult:
+                 auto_activate: bool = True,
+                 defer_names: Optional[set] = None) -> LoadResult:
         """
         加载所有插件。
 
@@ -736,6 +740,18 @@ class PluginLoader(QObject):
         # 按 load_order 和依赖排序
         sorted_specs = self._sort_by_dependencies(loadable)
 
+        # ---- 重量级插件延后加载 ----
+        # 实测（v2.2 性能）：10 个插件 load_all 共 0.61s，其中
+        # `import:ai_assistant` 独占 **0.535s**（模块导入），
+        # 而 10 个插件的 activate 合计只有 ~0.09s。
+        # 把这类插件从首轮移出，启动后 0.6s 再加载，窗口出现即响应。
+        deferred_specs: List[PluginSpec] = []
+        if defer_names:
+            deferred_specs = [s for s in sorted_specs
+                              if s.name in defer_names]
+            sorted_specs = [s for s in sorted_specs
+                            if s.name not in defer_names]
+
         # 加载每个插件
         for spec in sorted_specs:
             try:
@@ -779,6 +795,7 @@ class PluginLoader(QObject):
                         (spec.name, spec.error)
                     )
 
+        result.deferred = deferred_specs
         result.elapsed_ms = (time.time() - start_time) * 1000
 
         # 更新加载顺序
@@ -912,6 +929,52 @@ class PluginLoader(QObject):
     # ========================================================
     # 激活插件
     # ========================================================
+    def load_deferred(self, specs: List[PluginSpec]) -> int:
+        """加载并激活"被延后"的插件（启动完成后再执行）
+
+        `load_all(defer_names=...)` 把这些插件留在 DISCOVERED 状态，
+        由调用方在窗口显示后用 QTimer 调到这里。返回成功激活数。
+
+        设计约束：
+          * 只处理 DISCOVERED 状态，避免重复加载；
+          * 单个插件失败不影响其它插件（异常隔离，与 load_all 一致）；
+          * 结束时发 `load_finished`，让插件管理面板刷新。
+        """
+        if not specs:
+            return 0
+        started = time.time()
+        result = LoadResult(total=len(specs), specs=list(specs))
+        for spec in specs:
+            try:
+                if spec.state != PluginState.DISCOVERED:
+                    continue
+                if not self._load_plugin(spec):
+                    result.failed += 1
+                    result.errors.append(
+                        (spec.name, spec.error or "加载失败"))
+                    self.plugin_error.emit(
+                        spec.name, spec.error or "加载失败")
+                    continue
+                result.loaded += 1
+                if spec.meta.auto_load and self._activate_plugin(spec):
+                    result.activated += 1
+                else:
+                    result.failed += 1
+                    result.errors.append(
+                        (spec.name, spec.error or "激活失败"))
+            except Exception as e:
+                spec.state = PluginState.ERROR
+                spec.error = str(e)
+                result.failed += 1
+                result.errors.append((spec.name, str(e)))
+                self.plugin_error.emit(spec.name, str(e))
+                traceback.print_exc()
+        result.elapsed_ms = (time.time() - started) * 1000
+        self._update_load_order()
+        self.load_finished.emit(result)
+        print("[PluginLoader] 延后加载完成: %s" % result.get_summary())
+        return result.activated
+
     def _activate_plugin(self, spec: PluginSpec) -> bool:
         """
         激活插件。

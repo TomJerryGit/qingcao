@@ -2011,7 +2011,34 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             print(f"[MainWindow] 面板 {name} 构造失败: {e}")
             setattr(self, name, None)
             return False
-        return getattr(self, name, None) is not None
+        panel = getattr(self, name, None)
+        # 惰性构造的面板在构造函数里写死了深色 QSS；
+        # 启动主题已确定时必须立刻套用，否则首次打开会呈现"一块黑矩形"
+        # （真实桌面验证复现过的缺陷）。
+        self.apply_theme_to_widget(panel)
+        return panel is not None
+
+    def apply_theme_to_widget(self, widget):
+        """把一个控件（及其子控件）套用当前主题（若已确定）
+
+        主题是否已知取决于 `apply_startup_theme()` 是否已执行 ——
+        惰性面板/插件面板都可能在它之后创建，因此统一走这里。
+        """
+        theme = getattr(self, '_startup_theme', None)
+        if theme is None or widget is None:
+            return
+        for target in [widget]:
+            try:
+                children = widget.findChildren(QWidget)
+            except Exception:
+                children = []
+            for w in [target] + list(children):
+                fn = getattr(w, 'refresh_theme', None)
+                if callable(fn):
+                    try:
+                        fn(theme)
+                    except Exception:
+                        pass
 
     def _build_panel_outline(self):
         """构造基础版大纲面板"""
@@ -3376,8 +3403,11 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             result = None
             if self.plugin_manager is not None:
                 try:
+                    # defer_heavy=True：manifest 声明 defer_activation 的
+                    # 重量级插件（如 ai_assistant 导入要 0.53s）延后到窗口
+                    # 显示后再加载，避免"窗口刚出现就卡 0.6 秒"。
                     result = self.plugin_manager.load_all(
-                        auto_activate=True
+                        auto_activate=True, defer_heavy=True
                     )
                     loader = self.plugin_manager.loader
                 except Exception as e:

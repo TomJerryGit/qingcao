@@ -32,6 +32,7 @@
 """
 
 import datetime
+import io
 import json
 import os
 import shutil
@@ -596,7 +597,55 @@ class PluginManager(QObject):
     # ========================================================
     # 加载与卸载
     # ========================================================
-    def load_all(self, auto_activate: bool = True) -> Optional[Any]:
+    # manifest 里声明 `"defer_activation": true` 的插件延后加载的延时
+    DEFER_ACTIVATION_DELAY_MS = 600
+
+    def _deferred_plugin_names(self) -> set:
+        """扫描 plugin.json，收集声明 defer_activation 的插件名
+
+        读 manifest 而不是 `spec.meta`：PluginMeta 只保留已知字段，
+        未知字段会被解析器丢弃；这里直接读文件最可靠。
+        """
+        names = set()
+        try:
+            for entry in sorted(os.listdir(self.plugin_dir)):
+                path = os.path.join(self.plugin_dir, entry, "plugin.json")
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    with io.open(path, encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    continue
+                if data.get("defer_activation"):
+                    names.add(data.get("name") or entry)
+        except Exception as e:
+            print(f"[PluginManager] 读取延后加载配置失败: {e}")
+        return names
+
+    def _finish_deferred(self, specs) -> None:
+        """启动完成后加载延后插件"""
+        try:
+            if not specs or not self.loader:
+                return
+            # 安全：600ms 定时器可能在"用户已关闭窗口"之后才触发，
+            # 此时再加载插件会去碰已销毁的控件（Qt 访问违例）。
+            try:
+                win = self.main_window
+                if win is None or getattr(win, '_closing', False):
+                    return
+            except RuntimeError:
+                return
+            activated = self.loader.load_deferred(specs)
+            print(f"[PluginManager] 延后插件激活 {activated} 个")
+            self._apply_disabled_config()
+            self.plugins_changed.emit()
+        except Exception as e:
+            print(f"[PluginManager] 延后加载失败: {e}")
+            traceback.print_exc()
+
+    def load_all(self, auto_activate: bool = True,
+                 defer_heavy: bool = False) -> Optional[Any]:
         """
         加载所有插件。
 
@@ -615,10 +664,12 @@ class PluginManager(QObject):
             def api_factory(spec):
                 return self._create_api(spec)
 
+            defer_names = self._deferred_plugin_names() if defer_heavy                 else None
             result = self.loader.load_all(
                 plugin_dir=self.plugin_dir,
                 api_factory=api_factory,
                 auto_activate=False,  # 我们自己控制激活
+                defer_names=defer_names,
             )
 
             self.last_load_result = result
@@ -639,6 +690,16 @@ class PluginManager(QObject):
                 print(f"[PluginManager] 启动热重载监控失败: {e}")
 
             self.plugins_changed.emit()
+
+            # 延后插件：窗口显示后再 import+activate
+            deferred = getattr(result, 'deferred', None) or []
+            if deferred:
+                QTimer.singleShot(
+                    self.DEFER_ACTIVATION_DELAY_MS,
+                    lambda: self._finish_deferred(deferred),
+                )
+                print("[PluginManager] 延后加载 %d 个重量级插件（%d ms 后）"
+                      % (len(deferred), self.DEFER_ACTIVATION_DELAY_MS))
             return result
 
         except Exception as e:

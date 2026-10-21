@@ -741,6 +741,15 @@ class PluginAPI(QObject):
             dock.setWidget(widget)
             dock.setObjectName(f"plugin_panel_{self.plugin_name}_{title}")
 
+            # 插件面板默认写死深色 QSS；主窗口主题已确定时要立刻套用，
+            # 否则浅色主题下插件面板会是一块黑矩形。
+            try:
+                applier = getattr(self.win, 'apply_theme_to_widget', None)
+                if callable(applier):
+                    applier(widget)
+            except Exception:
+                pass
+
             area_map = {
                 "left": Qt.LeftDockWidgetArea,
                 "right": Qt.RightDockWidgetArea,

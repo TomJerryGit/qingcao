@@ -25,7 +25,7 @@ import logging
 import os
 import weakref
 
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QEvent, QObject
 from PyQt5.QtWidgets import QApplication
 
 
@@ -67,8 +67,20 @@ class _KeySequenceAppFilter(QObject):
             (lambda: None)
 
     def eventFilter(self, obj, event):
-        """转交给归属窗口处理；任何异常都放行"""
+        """转交给归属窗口处理；任何异常都放行
+
+        ★ 性能（profile 实测）：这是**应用级**事件过滤器，鼠标移动、
+        重绘、布局等**所有**事件都会先到这里。原实现先做 weakref +
+        两次 getattr + 方法调用，再到 `_handle_keyseq_event` 里才判断
+        `event.type() != KeyPress` —— 主题应用期间一次 polish 就产生
+        13,139 个事件，白付 **0.147 秒**；平时每个事件也固定多花
+        ~11µs（影响拖拽/滚动跟手感）。
+
+        修复：**先判断事件类型**，非按键事件一次 C 调用即放行。
+        """
         try:
+            if event.type() != QEvent.KeyPress:
+                return False
             owner = self._owner_ref() if self._owner_ref else None
             if owner is None:
                 return False
@@ -1137,13 +1149,17 @@ class CapabilityWiringMixin:
             app = QApplication.instance()
             if app is not None:
                 try:
-                    loader.apply_qss(app, theme)
+                    # lazy=True：只 polish 可见控件；隐藏面板的 QSS
+                    # 在它们首次显示时再套（见 theme_loader 的
+                    # `_LazyThemeApplier`），避免启动时对几十个隐藏面板
+                    # 逐个 setStyleSheet + unpolish/polish（实测 0.4~0.6s）。
+                    loader.apply_qss(app, theme, lazy=True)
                 except Exception as e:
                     print(f"[Theme] 启动 apply_qss 失败: {e}")
 
             # 关键：通知所有面板按主题换算 QSS
             try:
-                loader.notify_widgets(self, theme)
+                loader.notify_widgets(self, theme, visible_only=True)
             except Exception as e:
                 print(f"[Theme] 启动 notify_widgets 失败: {e}")
 

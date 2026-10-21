@@ -58,9 +58,11 @@ for _p in (r"C:\Windows\Fonts\consola.ttf", r"C:\Windows\Fonts\msyh.ttc"):
 
 # 阈值（秒）：实测值的约 2 倍，留出机器差异余量
 THRESHOLDS = {
-    "mainwindow": 1.2,
-    "startup_total": 2.5,   # 含延迟插件加载（用户实际等待）
-    "startup_theme": 1.0,   # 实测 0.53~0.77s 抖动较大
+    "mainwindow": 2.5,            # 已先应用 QSS，控件创建会解析样式
+    "startup_theme": 0.3,         # 同主题应被跳过（只处理可见面板）
+    "plugin_ready_after": 2.0,    # 首轮插件就绪（不含延后插件）
+    "plugins_fully_ready": 4.0,   # 含延后插件
+    "theme_reapply": 0.05,        # 重复应用必须近似 0
     "event_10k": 0.6,
     "panel_max": 0.3,
     "typing_2000": 0.9,
@@ -105,10 +107,33 @@ def main():
 
     from ui.main_window import MainWindow  # noqa: E402
 
-    section("1. 冷启动（到插件全部可用）")
-    win = measure("mainwindow", MainWindow)
+    section("1. 真实启动序列（QApplication → load_theme → MainWindow → 插件）")
+    # 复刻 main.py 的真实顺序。为什么要这样测：
+    #   * Qt 的全局 setStyleSheet 成本 ≈ 与控件数量成正比，
+    #     实测 ~130 控件时就要 0.85~1.2s —— 这是启动的硬成本地板；
+    #   * 关键是**不要应用两次**：main.load_theme() 已应用过同主题，
+    #     apply_startup_theme() 若再应用一次就是纯浪费。
+    #     第二段 `theme_reapply` 专门验证这次重复已被跳过。
+    try:
+        import main as _main
+        t0 = time.perf_counter()
+        _main.load_theme(app)
+        RESULTS["load_theme"] = round(time.perf_counter() - t0, 4)
+        print("  %-24s %8.3f s" % ("load_theme", RESULTS["load_theme"]))
+    except Exception as e:
+        print("  跳过 load_theme: %s" % e)
 
-    # 延迟插件加载是真正的启动尾段：泵事件直到 plugin_manager 就绪
+    t_start = time.perf_counter()
+    win = MainWindow()
+    RESULTS["mainwindow"] = round(time.perf_counter() - t_start, 4)
+    print("  %-24s %8.3f s" % ("mainwindow", RESULTS["mainwindow"]))
+
+    t_theme = time.perf_counter()
+    win.apply_startup_theme()
+    RESULTS["startup_theme"] = round(time.perf_counter() - t_theme, 4)
+    print("  %-24s %8.3f s" % ("startup_theme", RESULTS["startup_theme"]))
+
+    # 延迟插件加载是启动尾段：泵事件直到 plugin_manager 就绪
     t0 = time.perf_counter()
     deadline = t0 + 10.0
     while time.perf_counter() < deadline:
@@ -117,13 +142,35 @@ def main():
             break
         time.sleep(0.005)
     app.processEvents()
-    RESULTS["startup_total"] = round(time.perf_counter() - t0, 4)
-    print("  %-24s %8.3f s（含插件加载）" % ("startup_total",
-                                             RESULTS["startup_total"]))
+    RESULTS["plugin_ready_after"] = round(
+        time.perf_counter() - t_start, 4)
+    print("  %-24s %8.3f s（累计，含插件）"
+          % ("plugin_ready_after", RESULTS["plugin_ready_after"]))
     pm = getattr(win, "plugin_manager", None)
     print("  插件管理器: %r" % (pm,))
 
-    measure("startup_theme", win.apply_startup_theme)
+    # 延后插件（manifest 声明 defer_activation，如 ai_assistant 导入 0.53s）
+    # 会在首轮之后 600ms 再激活：首轮就绪 = 用户可交互，全就绪 = 后台完成。
+    def _active_count():
+        ld = getattr(pm, "loader", None)
+        specs = getattr(ld, "specs", {}) or {}
+        return sum(1 for s in specs.values()
+                   if "ACTIVATED" in str(getattr(s, "state", "")))
+
+    t0 = time.perf_counter()
+    deadline = t0 + 8
+    while time.perf_counter() < deadline:
+        app.processEvents()
+        if _active_count() >= 10:
+            break
+        time.sleep(0.01)
+    RESULTS["plugins_fully_ready"] = round(
+        time.perf_counter() - t_start, 4)
+    print("  %-24s %8.3f s（含延后插件，累计）"
+          % ("plugins_fully_ready", RESULTS["plugins_fully_ready"]))
+
+    # 验证"同主题重复应用"已被跳过（应接近 0）
+    measure("theme_reapply", win.apply_startup_theme)
 
     section("3. 事件分发")
     from app.event_bus import EventBus  # noqa: E402
