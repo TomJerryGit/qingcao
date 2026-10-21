@@ -26,6 +26,7 @@ import os
 import re
 import sys
 
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{2,30}$")
 VALID_PERMS = {"filesystem", "network", "process", "clipboard", "dialog",
