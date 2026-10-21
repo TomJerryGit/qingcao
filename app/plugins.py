@@ -229,6 +229,15 @@ class PluginAPI(QObject):
         self._background_bridges: List[Any] = []
         self._background_threads: List[Any] = []
 
+        # v2.4 扩展点：hover / 代码操作 / 右键菜单 / 状态栏 / 装饰 / 设置
+        self._registered_hover_providers: List[Any] = []
+        self._registered_context_actions: List[Any] = []
+        self._registered_code_action_providers: List[Any] = []
+        self._registered_status_items: List[Any] = []
+        self._registered_decorations: List[Any] = []
+        self._settings_schema: List[Any] = []
+        self._settings_action = None
+
         # 插件私有数据目录
         try:
             self._data_dir = os.path.join(
@@ -1722,6 +1731,226 @@ class PluginAPI(QObject):
         return thread
 
     # ========================================================
+    # v2.4 扩展点：hover / 代码操作 / 右键菜单 / 状态栏 / 装饰 / 设置
+    # ========================================================
+    def register_hover_provider(self, provider, language_ids=None):
+        """注册悬浮提示提供者
+
+        provider 签名：``provider(line, col, filepath=..., language=...) -> str``
+        返回文本作为工具提示（多个提供者用空行分隔）；主线程调用，应快速返回。
+
+        权限：editor_read
+        """
+        self._check_permission(PERMISSION_EDITOR_READ)
+        win = self._host_window()
+        registrar = getattr(win, 'register_plugin_hover_provider', None)
+        if not callable(registrar):
+            return False
+        ok = registrar(provider, language_ids=language_ids,
+                       plugin_name=self.plugin_name)
+        if ok:
+            self._registered_hover_providers.append((provider, language_ids))
+        return bool(ok)
+
+    def register_code_action_provider(self, provider, language_ids=None):
+        """注册代码操作提供者（"快速修复"类）
+
+        provider 签名：``provider(line, col, filepath=..., language=...) -> list``
+        每个元素：``{"title": "...", "kind": "quickfix", "callback": fn}``,
+        callback 在用户选择该项时执行。
+
+        权限：editor_write（代码操作通常会产生编辑）
+        """
+        self._check_permission(PERMISSION_EDITOR_WRITE)
+        win = self._host_window()
+        registrar = getattr(
+            win, 'register_plugin_code_action_provider', None)
+        if not callable(registrar):
+            return False
+        ok = registrar(provider, language_ids=language_ids,
+                       plugin_name=self.plugin_name)
+        if ok:
+            self._registered_code_action_providers.append(
+                (provider, language_ids))
+        return bool(ok)
+
+    def add_editor_context_menu(self, label, callback):
+        """向编辑器右键菜单添加一项
+
+        参数:
+            label: 显示文本
+            callback: 点击时执行（主线程）
+        权限：editor_read
+        """
+        self._check_permission(PERMISSION_EDITOR_READ)
+        win = self._host_window()
+        adder = getattr(win, 'add_plugin_editor_context_action', None)
+        if not callable(adder) or not callable(callback):
+            return False
+        ok = adder(label, callback, plugin_name=self.plugin_name)
+        if ok:
+            self._registered_context_actions.append((label, callback))
+        return bool(ok)
+
+    def add_status_item(self, widget_or_text, side="right"):
+        """在状态栏添加常驻项
+
+        参数:
+            widget_or_text: QWidget 或字符串（自动包装成 QLabel）
+            side: 目前统一放在右侧常驻区
+
+        返回:
+            实际加入的控件（插件可用它更新文本），失败返回 None
+
+        权限：dialog
+        """
+        self._check_permission(PERMISSION_DIALOG)
+        win = self._host_window()
+        widget = widget_or_text
+        try:
+            if isinstance(widget_or_text, str):
+                from PyQt5.QtWidgets import QLabel
+                widget = QLabel(widget_or_text)
+            adder = getattr(win, 'add_plugin_status_item', None)
+            if not callable(adder) or widget is None:
+                return None
+            added = adder(widget)
+            if added is not None:
+                self._registered_status_items.append(added)
+            return added
+        except Exception as e:
+            self.log(f"添加状态栏项失败: {e}", "error")
+            return None
+
+    def add_decoration(self, start_line, end_line, color="#FFCC00"):
+        """给当前编辑器行区间加装饰（背景色块，不修改文本）
+
+        返回是否成功。权限：editor_write
+        """
+        self._check_permission(PERMISSION_EDITOR_WRITE)
+        editor = self.current_editor()
+        if editor is None:
+            return False
+        target = getattr(editor, 'sc', editor)
+        fn = getattr(target, 'add_plugin_decoration', None)
+        if not callable(fn):
+            return False
+        ok = fn(start_line, end_line, color)
+        if ok:
+            self._registered_decorations.append((target, start_line, end_line))
+        return bool(ok)
+
+    def register_settings_schema(self, schema):
+        """注册插件设置项 → 自动生成设置对话框并挂到「工具」菜单
+
+        schema 为列表，每项：
+            {"key": "timeout", "label": "超时(秒)", "type": "int",
+             "default": 30, "min": 1, "max": 600}
+        支持 type: str / int / bool / choice / text；
+        choice 需提供 "choices": [(显示文本, 值), ...]。
+
+        值通过 ``get_config(key, default)`` / ``set_config(key, value)``
+        读写（已持久化到插件配置）。
+
+        权限：dialog
+        """
+        self._check_permission(PERMISSION_DIALOG)
+        if not isinstance(schema, (list, tuple)):
+            return False
+        norm = []
+        for item in schema:
+            if not isinstance(item, dict) or not item.get('key'):
+                continue
+            norm.append(dict(item))
+        self._settings_schema = norm
+        # 未设置过的项写入默认值，便于插件直接 get_config
+        for item in norm:
+            if 'default' in item:
+                try:
+                    if self.get_config(item['key'], None) is None:
+                        self.set_config(item['key'], item['default'])
+                except Exception:
+                    pass
+        try:
+            action = self.add_menu(
+                "工具/插件设置/%s…" % self.plugin_name,
+                self._open_settings_dialog)
+            self._settings_action = action
+        except Exception as e:
+            self.log(f"注册插件设置菜单失败: {e}", "warning")
+        return True
+
+    def _open_settings_dialog(self):
+        """根据 schema 生成设置对话框（主线程、模态）"""
+        try:
+            from PyQt5.QtWidgets import (
+                QCheckBox,
+                QComboBox,
+                QDialog,
+                QDialogButtonBox,
+                QFormLayout,
+                QLineEdit,
+                QPlainTextEdit,
+                QSpinBox,
+            )
+            win = self._host_window()
+            dlg = QDialog(win)
+            dlg.setWindowTitle("%s 设置" % self.plugin_name)
+            form = QFormLayout(dlg)
+            editors = {}
+            for item in self._settings_schema:
+                key = item['key']
+                kind = item.get('type', 'str')
+                default = item.get('default', '')
+                current = self.get_config(key, default)
+                if kind == 'bool':
+                    w = QCheckBox(item.get('label', key))
+                    w.setChecked(bool(current))
+                elif kind == 'int':
+                    w = QSpinBox()
+                    w.setRange(int(item.get('min', 0)),
+                               int(item.get('max', 1000000)))
+                    w.setValue(int(current or 0))
+                elif kind == 'choice':
+                    w = QComboBox()
+                    for text, value in item.get('choices', []):
+                        w.addItem(str(text), value)
+                    idx = w.findData(current)
+                    if idx >= 0:
+                        w.setCurrentIndex(idx)
+                elif kind == 'text':
+                    w = QPlainTextEdit()
+                    w.setPlainText(str(current or ''))
+                else:
+                    w = QLineEdit(str(current or ''))
+                editors[key] = (kind, w)
+                if kind != 'bool':
+                    form.addRow(item.get('label', key), w)
+            buttons = QDialogButtonBox(
+                QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttons.accepted.connect(dlg.accept)
+            buttons.rejected.connect(dlg.reject)
+            form.addRow(buttons)
+            if dlg.exec_() != QDialog.Accepted:
+                return
+            for key, (kind, w) in editors.items():
+                if kind == 'bool':
+                    value = w.isChecked()
+                elif kind == 'int':
+                    value = w.value()
+                elif kind == 'choice':
+                    value = w.currentData()
+                elif kind == 'text':
+                    value = w.toPlainText()
+                else:
+                    value = w.text()
+                self.set_config(key, value)
+            self.save_plugin_config()
+            self.show_status("插件设置已保存", 2000, "success")
+        except Exception as e:
+            self.log(f"打开插件设置失败: {e}", "error")
+
+    # ========================================================
     # LSP 注册
     # ========================================================
     def register_lsp(self, language_id: str,
@@ -1813,6 +2042,28 @@ class PluginAPI(QObject):
                 unregister(self.plugin_name)
         except Exception:
             pass
+        # 清理 v2.4 扩展点（hover / 右键菜单 / 代码操作 / 设置 / 状态栏）
+        try:
+            win = self._host_window()
+            extras = getattr(win, 'unregister_plugin_extras', None)
+            if callable(extras):
+                extras(self.plugin_name)
+        except Exception:
+            pass
+        for widget in self._registered_status_items:
+            try:
+                bar = widget.parentWidget()
+                if bar is not None and hasattr(bar, 'removeWidget'):
+                    bar.removeWidget(widget)
+                widget.deleteLater()
+            except Exception:
+                pass
+        self._registered_status_items.clear()
+        self._registered_hover_providers.clear()
+        self._registered_context_actions.clear()
+        self._registered_code_action_providers.clear()
+        self._registered_decorations.clear()
+        self._settings_schema = []
         self._registered_completion_providers.clear()
         try:
             self.clear_diagnostics()

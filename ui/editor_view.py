@@ -41,7 +41,16 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5 import Qsci
 from PyQt5.Qsci import QsciScintilla
-from PyQt5.QtCore import QMimeData, QPoint, QRectF, Qt, QTimer, QUrl, pyqtSignal
+from PyQt5.QtCore import (
+    QEvent,
+    QMimeData,
+    QPoint,
+    QRectF,
+    Qt,
+    QTimer,
+    QUrl,
+    pyqtSignal,
+)
 from PyQt5.QtGui import (
     QBrush,
     QColor,
@@ -55,7 +64,7 @@ from PyQt5.QtGui import (
     QPen,
     QWheelEvent,
 )
-from PyQt5.QtWidgets import QApplication, QMenu, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMenu, QMessageBox, QToolTip
 
 from app.preferences import Preferences
 from core.content_provider import MemoryProvider
@@ -74,6 +83,8 @@ INDICATOR_LSP_ERROR = 2
 INDICATOR_SNIPPET = 3
 INDICATOR_CURSOR_TRAIL = 5
 INDICATOR_SMART_HIGHLIGHT = 7
+# v2.4：插件装饰（背景色块，见 add_plugin_decoration）
+INDICATOR_PLUGIN = 8
 
 # 标记 ID
 MARKER_BOOKMARK = 0
@@ -1874,8 +1885,91 @@ class EditorWidget(QsciScintilla):
         select_all = menu.addAction("全选")
         select_all.triggered.connect(self.selectAll)
 
+        # v2.4：插件编辑器右键菜单贡献 + 代码操作入口
+        try:
+            win = self.window()
+            collector = getattr(win, 'collect_editor_context_actions', None)
+            if callable(collector):
+                entries = collector(self) or []
+                if entries or getattr(
+                        win, '_plugin_code_action_providers', None):
+                    menu.addSeparator()
+                for entry in entries:
+                    label = entry.get('label') or '插件操作'
+                    callback = entry.get('callback')
+                    act = menu.addAction(label)
+                    if callable(callback):
+                        act.triggered.connect(
+                            lambda _checked=False, f=callback: f())
+                if getattr(win, '_plugin_code_action_providers', None):
+                    ca = menu.addAction("💡 代码操作…")
+                    ca.triggered.connect(
+                        lambda: win.show_plugin_code_actions(self))
+        except Exception as e:
+            print(f"[EditorWidget] 插件右键菜单注入失败: {e}")
+
         # 显示菜单
         menu.exec_(event.globalPos())
+
+    # ========================================================
+    # 插件扩展点 v2.4：hover / 装饰
+    # ========================================================
+    def event(self, event):
+        """hover：把插件 hover 提供者的文本作为工具提示（v2.4）"""
+        try:
+            if event.type() == QEvent.ToolTip:
+                text = self._plugin_hover_text()
+                if text:
+                    QToolTip.showText(event.globalPos(), text, self)
+                    return True
+        except Exception:
+            pass
+        return super().event(event)
+
+    def _plugin_hover_text(self) -> str:
+        """收集插件 hover 文本（无提供者/异常时返回空串）"""
+        try:
+            win = self.window()
+            collector = getattr(win, 'collect_plugin_hover', None)
+            if not callable(collector):
+                return ""
+            from PyQt5.QtGui import QCursor
+            local = self.mapFromGlobal(QCursor.pos())
+            sci_pos = self.SendScintilla(
+                QsciScintilla.SCI_POSITIONFROMPOINT,
+                local.x(), local.y())
+            if sci_pos is None or sci_pos < 0:
+                return ""
+            line = self.SendScintilla(
+                QsciScintilla.SCI_LINEFROMPOSITION, sci_pos)
+            line_start = self.SendScintilla(
+                QsciScintilla.SCI_POSITIONFROMLINE, line)
+            col = max(0, sci_pos - line_start)
+            return collector(
+                self._completion_key(), line, col,
+                language=self._completion_language()) or ""
+        except Exception:
+            return ""
+
+    def add_plugin_decoration(self, start_line: int, end_line: int,
+                              color: str = "#FFCC00") -> bool:
+        """给行区间加插件装饰（背景色块，不修改文本）"""
+        try:
+            from PyQt5.QtGui import QColor
+            if not color:
+                return False
+            start_line = max(0, int(start_line))
+            end_line = max(start_line, int(end_line))
+            end_line = min(end_line, max(0, self.lines() - 1))
+            self.setIndicatorDrawUnder(True, INDICATOR_PLUGIN)
+            self.setIndicatorForegroundColor(
+                QColor(color), INDICATOR_PLUGIN)
+            self.fillIndicatorRange(
+                start_line, 0, end_line, 0x7FFFFFFF, INDICATOR_PLUGIN)
+            return True
+        except Exception as e:
+            print(f"[EditorWidget] 插件装饰失败: {e}")
+            return False
 
     def _trigger_find(self):
         """触发查找面板"""

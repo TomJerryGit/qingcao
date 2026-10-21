@@ -56,6 +56,21 @@
   补全合并/注销、诊断合并且不误删、后台回调线程正确、
   权限拒绝。
 
+### 插件系统（扩展点 API v2.4：第二批）
+
+- **hover 悬浮提示**：`api.register_hover_provider()` → 编辑器 ToolTip；
+- **代码操作**：`api.register_code_action_provider()` + 编辑器右键菜单
+  「代码操作…」入口（quickfix 类）；
+- **编辑器右键菜单**：`api.add_editor_context_menu()`；
+- **状态栏项**：`api.add_status_item()`（QLabel/QWidget 常驻右侧）；
+- **装饰/标记**：`api.add_decoration(start, end, color)`（Scintilla 指示器，
+  不修改文本）；
+- **设置界面 schema**：`api.register_settings_schema()` 自动生成
+  「工具 → 插件设置」对话框并持久化（str/int/bool/choice/text）。
+- 全部支持插件卸载自动清理；测试 `test_plugin_extension_points.py`
+  扩展到 **7 项**（hover 过滤/清理、右键菜单+代码操作+状态栏、
+  装饰+设置 schema）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

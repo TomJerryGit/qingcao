@@ -79,3 +79,75 @@ def analyze(self, api):
 
 注意：`app/plugins.py` 自定义了自己的 `PermissionError`（不是内置的），
 插件与测试请 `from app.plugins import PermissionError`。
+
+
+---
+
+# v2.4 第二批扩展点
+
+## 4. 悬浮提示 hover
+
+```python
+api.register_hover_provider(
+    lambda line, col, filepath="", language="": "该行说明…",
+    language_ids=["python"],
+)
+```
+
+编辑器 `QEvent.ToolTip` → `MainWindow.collect_plugin_hover()` → `QToolTip`。
+多提供者用空行分隔；权限 `editor_read`；卸载自动注销。
+
+## 5. 代码操作 code action
+
+```python
+api.register_code_action_provider(
+    lambda line, col, filepath="", language="": [{
+        "title": "替换为 f-string", "kind": "quickfix",
+        "callback": lambda: do_fix(),
+    }],
+    language_ids=["python"],
+)
+```
+
+入口：编辑器右键菜单「💡 代码操作…」→ `MainWindow.show_plugin_code_actions()`。
+权限 `editor_write`（操作通常产生编辑）。
+
+## 6. 编辑器右键菜单
+
+```python
+api.add_editor_context_menu("我的插件动作", self.run)
+```
+
+`EditorWidget.contextMenuEvent` 在标准项后追加插件项；
+权限 `editor_read`；卸载自动移除。
+
+## 7. 状态栏项
+
+```python
+label = api.add_status_item("索引: 就绪")   # 返回 QLabel，可直接 setText
+```
+
+宿主 `MainWindow.add_plugin_status_item()` → `statusBar().addPermanentWidget()`；
+权限 `dialog`；卸载自动移除。
+
+## 8. 装饰 / 标记
+
+```python
+api.add_decoration(10, 12, "#FFCC00")   # 行区间背景色（不修改文本）
+```
+
+实现为 Scintilla 指示器 `INDICATOR_PLUGIN=8`；权限 `editor_write`。
+
+## 9. 设置界面 schema
+
+```python
+api.register_settings_schema([
+    {"key": "timeout", "label": "超时(秒)", "type": "int",
+     "default": 30, "min": 1, "max": 600},
+    {"key": "mode", "label": "模式", "type": "choice",
+     "choices": [("严格", "strict"), ("宽松", "loose")]},
+])
+```
+
+自动在「工具 → 插件设置」生成对话框；值经 `get_config/set_config`
+持久化；未设置过的项写入默认值。权限 `dialog`。

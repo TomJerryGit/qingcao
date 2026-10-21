@@ -160,3 +160,85 @@ def test_extension_points_require_editor_read(qapp):
             api.clear_diagnostics()
     finally:
         win.close()
+
+
+def test_hover_provider_collected_and_filtered(qapp):
+    """hover：语言过滤 + 清理后不再返回"""
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        api = _api(win, name="hover_plugin")
+        assert api.register_hover_provider(
+            lambda line, col, filepath="", language="":
+                "行 %d 的提示" % line,
+            language_ids=["python"],
+        ) is True
+        assert "行 3" in win.collect_plugin_hover(
+            "x.py", 3, 0, language="python")
+        assert win.collect_plugin_hover(
+            "x.js", 3, 0, language="javascript") == ""
+        api.cleanup()
+        assert win.collect_plugin_hover(
+            "x.py", 3, 0, language="python") == ""
+    finally:
+        win.close()
+
+
+def test_context_menu_code_action_and_status_item(qapp):
+    """右键菜单项 / 代码操作 / 状态栏项 的注册与清理"""
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        api = _api(win, permissions=("editor_read", "editor_write", "dialog"),
+                   name="ui_plugin")
+        fired = {"ctx": 0, "code": 0}
+        assert api.add_editor_context_menu(
+            "插件动作", lambda: fired.__setitem__("ctx", 1)) is True
+        assert len(win.collect_editor_context_actions()) == 1
+
+        assert api.register_code_action_provider(
+            lambda line, col, filepath="", language="": [{
+                "title": "修复它", "kind": "quickfix",
+                "callback": lambda: fired.__setitem__("code", 1),
+            }], language_ids=["python"]) is True
+        actions = win.collect_code_actions(
+            "x.py", 1, 0, language="python")
+        assert len(actions) == 1 and actions[0]["title"] == "修复它"
+        actions[0]["callback"]()
+        assert fired["code"] == 1
+
+        item = api.add_status_item("插件状态")
+        assert item is not None
+        api.cleanup()
+        assert win.collect_editor_context_actions() == []
+        assert win.collect_code_actions("x.py", 1, 0, language="python") == []
+    finally:
+        win.close()
+
+
+def test_decoration_and_settings_schema(qapp, tmp_path):
+    """装饰应用 / 设置 schema 注册与默认值"""
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        api = _api(win, permissions=("editor_read", "editor_write", "dialog"),
+                   name="deco_plugin")
+        py_file = tmp_path / "d.py"
+        py_file.write_text("a = 1\nb = 2\n", encoding="utf-8")
+        win.tabs.open_file(str(py_file))
+        assert api.add_decoration(0, 1, "#FF0000") is True
+
+        assert api.register_settings_schema([
+            {"key": "timeout", "label": "超时", "type": "int",
+             "default": 30, "min": 1, "max": 600},
+            {"key": "enabled", "label": "启用", "type": "bool",
+             "default": True},
+        ]) is True
+        assert api.get_config("timeout", None) == 30
+        assert api.get_config("enabled", None) is True
+        api.cleanup()
+    finally:
+        win.close()
