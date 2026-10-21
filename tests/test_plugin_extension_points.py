@@ -61,7 +61,7 @@ def test_completion_provider_merged_and_unregistered(qapp, tmp_path):
         api.cleanup()
         assert "plugword" not in editor.local_completions("pl")
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_publish_diagnostics_merges_and_clears(qapp):
@@ -101,7 +101,7 @@ def test_publish_diagnostics_merges_and_clears(qapp):
         assert api.clear_diagnostics(fp) == 0
         manager.remove_file(fp)
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_run_background_callbacks_on_main_thread(qapp):
@@ -141,7 +141,7 @@ def test_run_background_callbacks_on_main_thread(qapp):
             time.sleep(0.005)
         assert "division" in err.get("msg", "").lower()
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_extension_points_require_editor_read(qapp):
@@ -159,7 +159,7 @@ def test_extension_points_require_editor_read(qapp):
         with pytest.raises(PluginPermissionError):
             api.clear_diagnostics()
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_hover_provider_collected_and_filtered(qapp):
@@ -182,7 +182,7 @@ def test_hover_provider_collected_and_filtered(qapp):
         assert win.collect_plugin_hover(
             "x.py", 3, 0, language="python") == ""
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_context_menu_code_action_and_status_item(qapp):
@@ -215,7 +215,7 @@ def test_context_menu_code_action_and_status_item(qapp):
         assert win.collect_editor_context_actions() == []
         assert win.collect_code_actions("x.py", 1, 0, language="python") == []
     finally:
-        win.close()
+        _close_without_session(win)
 
 
 def test_decoration_and_settings_schema(qapp, tmp_path):
@@ -241,4 +241,20 @@ def test_decoration_and_settings_schema(qapp, tmp_path):
         assert api.get_config("enabled", None) is True
         api.cleanup()
     finally:
-        win.close()
+        _close_without_session(win)
+
+
+def _close_without_session(win):
+    """关闭测试窗口但**不写会话文件**
+
+    实测污染：MainWindow.closeEvent 会保存会话；测试批量创建/关闭窗口会
+    把"无可见面板/无标签"的状态写进真实用户会话文件，导致后续测试
+    （如 test_p1_features::test_default_panels_visible）恢复出空面板布局。
+    """
+    try:
+        sess = getattr(win, "session", None)
+        if sess is not None and hasattr(sess, "save"):
+            sess.save = lambda *a, **k: None
+    except Exception:
+        pass
+    win.close()

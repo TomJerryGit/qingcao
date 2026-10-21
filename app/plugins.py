@@ -1852,9 +1852,9 @@ class PluginAPI(QObject):
         值通过 ``get_config(key, default)`` / ``set_config(key, value)``
         读写（已持久化到插件配置）。
 
-        权限：dialog
+        权限：无（这是插件**自有配置**的声明，宿主负责渲染对话框；
+        不触碰编辑器/文件/网络，因此不需要 dialog 等权限）。
         """
-        self._check_permission(PERMISSION_DIALOG)
         if not isinstance(schema, (list, tuple)):
             return False
         norm = []
@@ -1863,6 +1863,15 @@ class PluginAPI(QObject):
                 continue
             norm.append(dict(item))
         self._settings_schema = norm
+        # 登记到宿主（供设置面板/文档/测试查询）
+        try:
+            win = self._host_window()
+            registrar = getattr(
+                win, 'register_plugin_settings_schema', None)
+            if callable(registrar):
+                registrar(self.plugin_name, norm)
+        except Exception:
+            pass
         # 未设置过的项写入默认值，便于插件直接 get_config
         for item in norm:
             if 'default' in item:

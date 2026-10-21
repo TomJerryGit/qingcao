@@ -592,6 +592,12 @@ class CapabilityWiringMixin:
             print(f"[MainWindow] 代码操作菜单失败: {e}")
             return False
 
+    def register_plugin_settings_schema(self, plugin_name: str, schema):
+        """登记插件设置 schema（供设置面板/文档展示；对话框由插件 API 生成）"""
+        self._ensure_plugin_extension_registries()
+        self._plugin_settings_schemas[plugin_name or 'unknown'] = list(schema)
+        return True
+
     def unregister_plugin_extras(self, plugin_name: str):
         """注销某插件的全部 v2.4 扩展点（插件卸载时）"""
         self._ensure_plugin_extension_registries()

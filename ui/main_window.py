@@ -3356,6 +3356,15 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             - P2-1: self.api 由 _create_main_api 创建（全权限），
               不再取第一个插件的 API，避免权限受限。
         """
+        # 关闭守卫（测试/快速退出实测发现）：
+        # `__init__` 里 QTimer.singleShot(100, self._load_plugins) 是延迟加载；
+        # 窗口若在这 100ms 内被关闭，定时器仍会触发 —— 此时会去弹权限
+        # 确认框、创建插件面板，进而在后续测试的事件循环里造成模态阻塞，
+        # 甚至访问已销毁控件（实测全量测试偶发挂起/段错误）。
+        if getattr(self, '_closing', False):
+            print("[MainWindow] 窗口已关闭，跳过延迟插件加载")
+            return
+
         # P2-1: 先创建独立的全权限主 API
         try:
             self.api = self._create_main_api()

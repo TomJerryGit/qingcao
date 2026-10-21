@@ -71,6 +71,27 @@
   扩展到 **7 项**（hover 过滤/清理、右键菜单+代码操作+状态栏、
   装饰+设置 schema）。
 
+### 插件系统（真实插件迁移 + 测试稳定性）
+
+- **json_formatter 迁移到扩展点 API**（端到端验证）：hover 显示 JSON
+  键/值或语法错误、代码操作（按设置格式化/压缩/排序键）、编辑器右键菜单、
+  设置 schema（缩进/排序键，自动生成对话框）、诊断（JSON 语法错误发布到
+  「问题」面板，卸载清理）。
+- 修复 `register_settings_schema` 未登记宿主的问题
+  （新增 `MainWindow.register_plugin_settings_schema`）；
+  且不再要求 `dialog` 权限（插件自有配置声明，宿主渲染）。
+- **修复延迟插件加载竞态**：`__init__` 的
+  `QTimer.singleShot(100, _load_plugins)` 在窗口已关闭时仍会执行
+  → 弹权限框/创建面板（测试中造成模态阻塞与偶发崩溃）；
+  `_load_plugins` 入口增加 `_closing` 守卫。
+- **测试稳定性**：
+  * 真实子进程 LSP 握手用例标记 `@pytest.mark.isolated`，默认跳过，
+    `QC_RUN_ISOLATED=1` 显式运行（`tests/conftest.py`）；
+  * 修复测试会话污染：新测试关闭窗口时会写真实用户会话文件，
+    导致后续 `test_default_panels_visible` 恢复出空面板布局；
+    现统一 `_close_without_session()` 防止写会话。
+- 新增 `tests/test_json_formatter_plugin.py`（真实插件端到端）通过。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
