@@ -683,6 +683,21 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                           self._zoom_reset)
         self.view_menu.addSeparator()
 
+        # 大文件强制高亮（性能开关）
+        #
+        # 背景：为把 2MB/50 万行文件的打开从 2.1s 降到 ~0.5s，
+        # `ui/editor_view.py` 对大文档默认关闭语法高亮与缩略图渲染
+        # （见 LARGE_DOC_LINES 的实测注释）。此开关给需要彩色显示的用户
+        # 一个显式覆盖入口；切换后对当前标签重新应用词法器。
+        self.force_highlight_large_files_action = QAction(
+            "🎨 大文件强制高亮", self)
+        self.force_highlight_large_files_action.setCheckable(True)
+        self.force_highlight_large_files_action.setChecked(False)
+        self.force_highlight_large_files_action.toggled.connect(
+            self._toggle_force_highlight_large_files)
+        self.view_menu.addAction(self.force_highlight_large_files_action)
+        self._force_highlight_large_files = False
+
         # 面板切换子菜单
         self.panel_menu = self.view_menu.addMenu("📊 面板")
         self._build_panel_menu()
@@ -2393,6 +2408,41 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 proxy.sc.setFont(font)
         except Exception:
             pass
+
+    # ========================================================
+    # 大文件高亮开关（性能 vs 视觉的显式取舍）
+    # ========================================================
+    def _toggle_force_highlight_large_files(self, checked: bool):
+        """切换"大文件强制高亮"
+
+        默认关闭：大文档（>20 万行或 >8MB）跳过语法高亮与缩略图，
+        把 2MB/50 万行的打开时间从 2.1s 降到 ~0.5s。
+        开启后对当前标签立即重新应用词法器（用户自己承担耗时）。
+        """
+        self._force_highlight_large_files = bool(checked)
+        try:
+            proxy = self.tabs.current_proxy()
+        except Exception:
+            proxy = None
+        sc = getattr(proxy, 'sc', None) if proxy is not None else None
+        if sc is None:
+            return
+        try:
+            # 清掉去重标记，强制重新判定
+            sc._last_lexer_filepath = None
+            path = ''
+            try:
+                path = getattr(proxy.document, 'filepath', '') or ''
+            except Exception:
+                pass
+            sc.set_lexer_by_filename(path)
+            if self.minimap is not None:
+                self.minimap.set_editor(sc)
+            self.statusBar().showMessage(
+                "大文件强制高亮：%s" % ("已开启" if checked else "已关闭"),
+                3000)
+        except Exception as e:
+            print(f"[MainWindow] 切换大文件高亮失败: {e}")
 
     # ========================================================
     # 面板切换

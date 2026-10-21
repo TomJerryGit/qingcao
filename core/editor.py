@@ -757,7 +757,27 @@ class EditorProxy(QObject):
                 text = provider.read_text()
                 if getattr(self, '_load_aborted', False):
                     return
-                self.sc.setText(text)
+                # ★ 性能（cProfile 实测）：一次性 setText 会触发约
+                #   **50 万次** `SCN_MODIFIED`（10MB/58 万行场景），
+                #   每次回调虽然因 `_restoring=True` 立刻 return，
+                #   纯 Python 调用开销合计仍有 **0.4 秒**。
+                #   加载期间内容完全来自 provider，不需要撤销记录，
+                #   因此临时断开信号，加载后接回。
+                _disconnected = False
+                try:
+                    self.sc.SCN_MODIFIED.disconnect(self._on_scintilla_modified)
+                    _disconnected = True
+                except (TypeError, RuntimeError):
+                    pass
+                try:
+                    self.sc.setText(text)
+                finally:
+                    if _disconnected:
+                        try:
+                            self.sc.SCN_MODIFIED.connect(
+                                self._on_scintilla_modified)
+                        except (TypeError, RuntimeError):
+                            pass
                 self._load_cursor = total
                 self.load_progress.emit(total, total)
                 return

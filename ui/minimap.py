@@ -250,8 +250,23 @@ class Minimap(QsciScintilla):
         if editor:
             # 安全：直接复制文本，不共享文档指针
             # （SCI_SETDOCPOINTER 在 PyQt5+QScintilla 上会触发 Access Violation）
+            #
+            # ★ 大文档跳过（cProfile 实测）：
+            #   2MB / 50 万行文档，`editor.text()` 复制 + 本控件 setText
+            #   合计 **0.74 秒**，而缩略图对超大文件的信息价值远低于成本。
+            #   阈值与 ui/editor_view.py 的 LARGE_DOC_LINES 保持一致。
+            self._large_editor = False
             try:
-                self.setText(editor.text())
+                force = bool(getattr(editor.window(),
+                                     '_force_highlight_large_files', False))
+                too_big = (not force) and (
+                    editor.lines() > 200_000
+                    or editor.length() > 8 * 1024 * 1024)
+                if too_big:
+                    self._large_editor = True
+                    self.setText("")
+                else:
+                    self.setText(editor.text())
             except Exception as e:
                 print(f"[Minimap] 复制文本失败: {e}")
 
@@ -329,6 +344,9 @@ class Minimap(QsciScintilla):
 
     def _on_main_text_changed(self):
         """主编辑器文本变化"""
+        # 大文档不渲染缩略图（见 set_editor 中的阈值说明）
+        if getattr(self, '_large_editor', False):
+            return
         self._schedule_update()
 
     def _schedule_update(self):

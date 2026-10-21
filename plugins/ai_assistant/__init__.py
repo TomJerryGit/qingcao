@@ -51,7 +51,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QSettings, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtCore import QObject, QSettings, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication,
@@ -1985,6 +1985,28 @@ class OllamaPanel(QWidget):
 # ============================================================
 # 插件主类
 # ============================================================
+class _OllamaStatusBridge(QObject):
+    """把后台线程算出的 Ollama 状态摘要桥回主线程
+
+    ★ 实测缺陷（cProfile，v2.2 性能优化）：
+
+        `_refresh_ollama_status()` 原在 **UI 线程**同步调用
+        `panel.status_summary()`，而它内部会做两次 HTTP：
+
+            status_text()  → /api/version  超时 4s
+            list_models()  → /api/tags     超时 15s
+
+        实测启动后第一次刷新**阻塞 UI 4.1 秒**（本机 Ollama 在线也如此；
+        Ollama 未启动时按超时会更久），期间窗口完全无响应。
+
+        `PluginBase` 继承 `object` 而非 `QObject`，因此不能在插件类上
+        定义 `pyqtSignal` —— 用这个独立桥梁对象（QObject）从 daemon
+        线程安全地发回主线程。
+    """
+
+    ready = pyqtSignal(str)
+
+
 class Plugin(PluginBase):
     """
     AI 助手插件。
@@ -2008,6 +2030,10 @@ class Plugin(PluginBase):
         self._menus: List[Any] = []
         self._client = None
         self._active_dialogs: List[AIResultDialog] = []
+        # Ollama 状态刷新：后台线程 + 信号桥（避免 UI 线程做 HTTP）
+        self._ollama_status_thread = None
+        self._ollama_status_bridge = None
+        self._plugin_closing = False
 
     # --------------------------------------------------------
     # 生命周期
@@ -2117,6 +2143,19 @@ class Plugin(PluginBase):
         # 因此 `QTimer(self)` 会抛
         # "TypeError: argument 1 has unexpected type 'Plugin'"。
         # 定时器必须挂在面板（QWidget / QObject）上。
+        #
+        # ★ 状态刷新走**后台线程**（见 `_refresh_ollama_status`）：
+        #   `status_summary()` 内含两次 HTTP（4s + 15s 超时），
+        #   实测同步执行会阻塞 UI 4.1 秒。这里先建好信号桥。
+        self._plugin_closing = False
+        try:
+            self._ollama_status_bridge = _OllamaStatusBridge()
+            self._ollama_status_bridge.ready.connect(
+                self._on_ollama_status_ready)
+        except Exception as e:
+            self._ollama_status_bridge = None
+            self.api.log("创建 Ollama 状态桥失败: %s" % e, "error")
+
         try:
             self._ollama_timer = QTimer(self.ollama_panel)
             self._ollama_timer.setInterval(60_000)
@@ -2126,7 +2165,7 @@ class Plugin(PluginBase):
             self._ollama_timer = None
             self.api.log("创建 Ollama 状态定时器失败: %s" % e, "error")
 
-        # 启动后延迟做一次状态提示（不阻塞启动）
+        # 启动后延迟做一次状态提示（后台线程执行，不阻塞启动）
         try:
             QTimer.singleShot(3000, self._refresh_ollama_status)
         except Exception:
@@ -2160,12 +2199,49 @@ class Plugin(PluginBase):
         self._refresh_ollama_status()
 
     def _refresh_ollama_status(self):
-        """刷新状态栏摘要（用短超时，失败静默）"""
+        """刷新状态栏摘要（**后台线程**，绝不在 UI 线程做 HTTP）
+
+        缺陷与修复说明见 `_OllamaStatusBridge` / `_on_ollama_status_ready`。
+        """
         panel = getattr(self, 'ollama_panel', None)
-        if panel is None:
+        if panel is None or getattr(self, '_plugin_closing', False):
+            return
+
+        # 上一次刷新还没结束就跳过（Ollama 无响应时避免线程堆积）
+        th = getattr(self, '_ollama_status_thread', None)
+        if th is not None and th.is_alive():
+            return
+
+        bridge = getattr(self, '_ollama_status_bridge', None)
+        if bridge is None:
+            return
+
+        def _work():
+            try:
+                summary = panel.status_summary()
+            except Exception:
+                return
+            if getattr(self, '_plugin_closing', False):
+                return
+            try:
+                bridge.ready.emit(summary)
+            except RuntimeError:
+                # 桥对象已销毁（插件卸载中）
+                pass
+
+        try:
+            th = threading.Thread(target=_work, daemon=True,
+                                  name="ollama-status")
+            self._ollama_status_thread = th
+            th.start()
+        except Exception as e:
+            self.api.log("启动 Ollama 状态线程失败: %s" % e, "error")
+
+    def _on_ollama_status_ready(self, summary: str):
+        """后台线程算完，回到主线程更新状态栏"""
+        if getattr(self, '_plugin_closing', False):
             return
         try:
-            summary = panel.status_summary()
             self.api.show_status("🦙 %s" % summary, 3000, "info")
         except Exception:
             pass
@@ -2183,12 +2259,30 @@ class Plugin(PluginBase):
         self.inline_completer = None
 
         # 停止 Ollama 状态定时器 + 等待后台线程结束
+        #
+        # 先置 `_plugin_closing`：后台线程据此跳过 emit，
+        # 避免桥对象/窗口销毁后仍发信号（RuntimeError）。
+        self._plugin_closing = True
         try:
             if getattr(self, '_ollama_timer', None) is not None:
                 self._ollama_timer.stop()
                 self._ollama_timer = None
         except Exception:
             pass
+        try:
+            th = getattr(self, '_ollama_status_thread', None)
+            if th is not None and th.is_alive():
+                th.join(2.0)
+        except Exception:
+            pass
+        self._ollama_status_thread = None
+        try:
+            bridge = getattr(self, '_ollama_status_bridge', None)
+            if bridge is not None:
+                bridge.ready.disconnect()
+        except Exception:
+            pass
+        self._ollama_status_bridge = None
         try:
             panel = getattr(self, 'ollama_panel', None)
             if panel is not None:

@@ -6,7 +6,30 @@
 
 ## [Unreleased]
 
-（下一个版本 unreleased 变更记录在这里）
+### 性能（实测驱动，`tools/bench_optimization.py` 可复跑）
+
+- **大文件打开提速 10~30 倍**：10MB/58 万行 4.21s → **0.40s**；
+  2MB `.py`/50 万行 2.60s → **0.23s**。根因不是 QScintilla（`setText` 仅 0.22s），
+  而是 `_has_non_ascii_beyond` 用 Python 逐字节遍历（2080 万次生成器调用）。
+  改为 `bytes.isascii()`（C 实现）。
+- **会话保存 23 倍**：50 万行标签 `session.save()` 1.61s → **0.07s**。
+  书签改用 `SCI_MARKERNEXT` 跳转；折叠状态在超大文档跳过扫描。
+- **启动不再被网络阻塞**：AI 插件原在 UI 线程同步 HTTP 探测 Ollama（实测 4.1s），
+  改为后台线程 + 信号桥；Ollama 等本地 provider 不再初始化 keyring（省 0.37s）。
+- **新增「视图 → 大文件强制高亮」开关**：大文档（>20 万行或 >8MB）
+  默认关闭语法高亮与缩略图渲染，用户可显式覆盖。
+- **新增回归基准** `tools/bench_optimization.py`：覆盖启动/插件/事件/面板/
+  输入/大文件/会话/主题，`--check` 超阈值退出码 1。
+
+### 构建 / CI
+
+- 修复 GitHub Actions 发版工作流：`artifact@v3` 已于 2025-01-30 停用、
+  缺 `contents: write`、`action-gh-release@v1` 过时。
+- 修复英文 Windows（cp1252）下 `build.py` / `main.py` 中文输出
+  `UnicodeEncodeError` 导致构建失败（`PYTHONUTF8=1` + stdio reconfigure）。
+- 版本兜底漂移：`main.py` / `build_linux.py` / `build_macos.py` /
+  `build_installer.py` 中硬编码的 `"2.1.0"` 改为读 `VERSION`，
+  避免 version.py 导入失败时静默产出过期版本号。
 
 ## [2.2.0] - 2026-10-20
 

@@ -901,7 +901,7 @@ class LocalFileProvider(ContentProvider):
             if src is not None:
                 for off in range(0, self._size, chunk):
                     part = bytes(src[off:off + chunk])
-                    if any(b > 127 for b in part):
+                    if not part.isascii():        # C 实现，见下方说明
                         return part
                 return b''
             if self._file:
@@ -911,7 +911,7 @@ class LocalFileProvider(ContentProvider):
                     part = self._file.read(chunk)
                     if not part:
                         break
-                    if any(b > 127 for b in part):
+                    if not part.isascii():        # C 实现，见下方说明
                         return part
                 self._file.seek(pos)
         except Exception:
@@ -919,13 +919,25 @@ class LocalFileProvider(ContentProvider):
         return b''
 
     def _has_non_ascii_beyond(self, sample: bytes) -> bool:
-        """检查采样之后的文件内容里是否存在非 ASCII 字节"""
+        """检查采样之后的文件内容里是否存在非 ASCII 字节
+
+        ★ 性能缺陷（大文件打开 4~12s 的**真正根因**，cProfile 实测）：
+
+            原实现用 `any(b > 127 for b in part)` 判断。这是**纯 Python
+            逐字节生成器**：每字节一次生成器迭代 + 比较。对 10MB 文件，
+            `_ASCII_VERIFY_LIMIT` 是 32MB，因此会扫描整个文件
+            —— 实测 **2080 万次生成器调用、约 11 秒**，
+            而 QScintilla 真正的 `setText` 只要 **0.22 秒**。
+
+        修复：`bytes.isascii()` 是 CPython 的 **C 实现**（3.7+），
+        语义完全等价（所有字节 < 128），速度快 2~3 个数量级。
+        """
         try:
             if self._mmap:
                 start = len(sample)
                 end = min(self._size, start + self._ASCII_VERIFY_LIMIT)
                 part = bytes(self._mmap[start:end])
-                return any(b > 127 for b in part)
+                return not part.isascii()
             if self._file:
                 pos = self._file.tell()
                 self._file.seek(len(sample))
@@ -937,7 +949,7 @@ class LocalFileProvider(ContentProvider):
                     if not part:
                         break
                     remaining -= len(part)
-                    if any(b > 127 for b in part):
+                    if not part.isascii():        # C 实现，见下方说明
                         found = True
                         break
                 self._file.seek(pos)

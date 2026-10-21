@@ -366,23 +366,44 @@ class SessionManager(QObject):
 
         return data
 
+    # 折叠状态扫描上限：`SCI_GETFOLDEXPANDED` 只能逐行查询，
+    # 50 万行文档会做 50 万次 SendScintilla（实测 ~0.5s）。
+    # 超过上限时放弃折叠状态（退出后重新展开，不影响内容）。
+    MAX_FOLD_SCAN_LINES = 50_000
+
     def _get_bookmarks(self, editor) -> List[int]:
-        """获取编辑器中所有书签行号（从 0 开始）"""
+        """获取编辑器中所有书签行号（从 0 开始）
+
+        ★ 性能（cProfile 实测）：原实现逐行 `SCI_MARKERGET`，
+        50 万行文档要 50 万次 SendScintilla（~0.5s）。
+        改用 `SCI_MARKERNEXT` **直接跳到下一个带标记行**，
+        成本只与书签数成正比（通常 0~几十个）。
+        """
         bookmarks = []
         try:
-            line_count = editor.SendScintilla(editor.SCI_GETLINECOUNT)
-            for line in range(line_count):
-                if editor.SendScintilla(editor.SCI_MARKERGET, line) & (1 << 0):
-                    bookmarks.append(line)
+            mask = 1 << 0
+            line = editor.SendScintilla(editor.SCI_MARKERNEXT, 0, mask)
+            guard = 0
+            while line >= 0 and guard < 100_000:
+                bookmarks.append(line)
+                line = editor.SendScintilla(
+                    editor.SCI_MARKERNEXT, line + 1, mask)
+                guard += 1
         except Exception:
             pass
         return bookmarks
 
     def _get_folded_lines(self, editor) -> List[int]:
-        """获取已折叠的行号列表"""
+        """获取已折叠的行号列表
+
+        大文档超过 `MAX_FOLD_SCAN_LINES` 时返回空列表：
+        折叠状态可重建，不值得为它阻塞退出/自动保存。
+        """
         folded = []
         try:
             line_count = editor.SendScintilla(editor.SCI_GETLINECOUNT)
+            if line_count > self.MAX_FOLD_SCAN_LINES:
+                return folded
             for line in range(line_count):
                 expanded = editor.SendScintilla(
                     editor.SCI_GETFOLDEXPANDED, line

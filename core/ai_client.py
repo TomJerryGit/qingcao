@@ -709,8 +709,17 @@ def load_ai_client_from_settings():
         base_url = settings.value("base_url", "", type=str)
 
         # ---- API Key：优先从安全存储读取 ----
+        #
+        # ★ 性能修复（启动阻塞实测，cProfile）：
+        #   Ollama 本地服务**不需要 API Key**，但原实现无条件调用
+        #   `get_secure_storage()` → `SecureStorage._detect_backend()`；
+        #   后者会对 Windows 凭据管理器做一次 set/get/delete 往返，
+        #   实测 **0.37 秒**，且发生在 AI 插件激活路径（即启动路径）上。
+        #   现在 provider 为本地服务（ollama 等）时直接跳过安全存储。
         api_key = ""
-        if _SECURE_STORAGE_OK:
+        _provider = (provider or "").strip().lower()
+        _needs_secret = _provider not in ("ollama", "local", "lmstudio")
+        if _SECURE_STORAGE_OK and _needs_secret:
             # 触发一次迁移（幂等）
             try:
                 storage = get_secure_storage()
@@ -729,8 +738,8 @@ def load_ai_client_from_settings():
                 print("[AI] 警告：从明文 QSettings 读取 API Key（建议升级）")
                 api_key = legacy_key
 
-        # 检查配置完整性
-        if not api_key and provider != "ollama":
+        # 检查配置完整性（本地服务不需要 key）
+        if not api_key and _needs_secret:
             return None
 
         client = AIClientFactory.create(
