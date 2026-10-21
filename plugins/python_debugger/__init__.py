@@ -116,6 +116,22 @@ class Plugin(PluginBase):
     # 生命周期
     # --------------------------------------------------------
     def on_activate(self):
+        # v2.4 扩展点（防御式：测试桩 FakeApi 可能没有扩展点 API）
+        try:
+            register = getattr(self.api, "register_settings_schema", None)
+            if callable(register):
+                register([
+                    {"key": "confirm_kill", "label": "结束调试前确认",
+                     "type": "bool", "default": True},
+                    {"key": "max_stack_frames", "label": "调用栈最多帧数",
+                     "type": "int", "default": 50, "min": 5, "max": 500},
+                ])
+            add_item = getattr(self.api, "add_status_item", None)
+            if callable(add_item):
+                self._status = add_item("调试: 就绪")
+        except Exception:
+            pass
+
         self._session = None
         self._panel = None
         self._watched_proxies = set()

@@ -202,6 +202,16 @@ class Plugin(PluginBase):
             "工具/日志监视/打开面板",
             self.show_panel
         )
+        # v2.4 扩展点
+        self.on_activate_extension_points()
+
+    def on_activate_extension_points(self):
+        """v2.4 扩展点（由 on_activate 末尾调用）"""
+        self.api.register_settings_schema([
+            {"key": "max_lines", "label": "面板最多保留行数",
+             "type": "int", "default": 5000, "min": 100, "max": 200000},
+        ])
+        self._status = self.api.add_status_item("监视: 未启动")
 
     def on_deactivate(self):
         if self._panel:

@@ -10,6 +10,12 @@ class Plugin(PluginBase):
     AUTHOR = "your-name"
 
     def on_activate(self):
+        # v2.4 扩展点：设置 schema（无权限需求，仅插件自有配置）
+        self.api.register_settings_schema([
+            {"key": "hello_text", "label": "问候文本", "type": "str",
+             "default": "Hello from my_plugin"},
+        ])
+
         """插件激活时调用"""
         self.api.log("插件已激活: " + self.NAME)
 

@@ -133,6 +133,21 @@
   ai_assistant 静态迁移校验；AI 自带 QThread 生命周期在 pytest 直接
   activate/deactivate 会偶发段错误，故行为层由应用内加载覆盖）。
 
+### 插件系统（10/10 内置插件迁移完成 + AI 线程清理债）
+
+- 剩余 5 个内置插件迁移扩展点：
+  demo（设置 schema + 状态栏问候）、my_plugin（设置 schema）、
+  git_deep（设置 schema + 状态栏）、logtail（设置 schema + 监视状态栏）、
+  python_debugger（设置 schema + 状态栏）。conformance 新增
+  `test_all_builtin_plugins_migrated`（10 插件设置契约 + 7 插件状态栏契约）。
+- **修复 ai_assistant QThread 清理债**（pytest 段错误根因）：
+  对话框持有 AIWorker(QThread)（parent=dlg），worker 运行中销毁对话框会
+  让 QThread 析构 qFatal → 段错误。卸载时 cancel() → wait(3000) →
+  超时 terminate()+wait(1000)，线程停稳后才 close/销毁对话框；
+  新增状态栏常驻项显示 Ollama 状态。
+- python_debugger 扩展点调用改为防御式（FakeApi 测试桩缺少新 API 时
+  不影响菜单注册）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

@@ -2148,6 +2148,12 @@ class Plugin(PluginBase):
         #   `status_summary()` 内含两次 HTTP（4s + 15s 超时），
         #   实测同步执行会阻塞 UI 4.1 秒。这里先建好信号桥。
         self._plugin_closing = False
+        # v2.4 状态栏常驻项：Ollama 状态（由后台信号桥更新）
+        self._status_item = None
+        try:
+            self._status_item = self.api.add_status_item("🦙 Ollama: -")
+        except Exception:
+            self._status_item = None
         try:
             self._ollama_status_bridge = _OllamaStatusBridge()
             self._ollama_status_bridge.ready.connect(
@@ -2284,6 +2290,8 @@ class Plugin(PluginBase):
         if getattr(self, '_plugin_closing', False):
             return
         try:
+            if self._status_item is not None:
+                self._status_item.setText("🦙 %s" % summary)
             self.api.show_status("🦙 %s" % summary, 3000, "info")
         except Exception:
             pass
@@ -2344,7 +2352,29 @@ class Plugin(PluginBase):
         self._session_window = None
 
         # 关闭所有活动对话框
+        #
+        # ★ QThread 清理债（pytest 段错误根因）：
+        #   对话框持有 AIWorker(QThread)（parent=dlg）。若对话框在
+        #   worker 仍在运行时被销毁，QThread 析构会 qFatal →
+        #   实测段错误。这里先 cancel + wait，超时再 terminate，
+        #   确保线程停稳后才 close/销毁对话框。
         for dlg in list(self._active_dialogs):
+            worker = getattr(dlg, '_worker', None)
+            if worker is not None:
+                try:
+                    worker.cancel()
+                except Exception:
+                    pass
+                try:
+                    if not worker.wait(3000):
+                        worker.terminate()
+                        worker.wait(1000)
+                except Exception:
+                    pass
+                try:
+                    dlg._worker = None
+                except Exception:
+                    pass
             try:
                 dlg.close()
             except Exception:

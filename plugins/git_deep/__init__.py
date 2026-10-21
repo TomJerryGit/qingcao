@@ -34,6 +34,15 @@ class Plugin(PluginBase):
             "工具/Git/查看日志", self.show_log
         )
 
+        # v2.4 扩展点：设置 schema + 状态栏项
+        self.api.register_settings_schema([
+            {"key": "max_log_lines", "label": "日志最多行数", "type": "int",
+             "default": 200, "min": 10, "max": 5000},
+            {"key": "confirm_push", "label": "推送前确认", "type": "bool",
+             "default": True},
+        ])
+        self._status = self.api.add_status_item("Git: -")
+
         # 命令
         self.api.register_command(
             "git.status", self.show_status, "Git 状态"

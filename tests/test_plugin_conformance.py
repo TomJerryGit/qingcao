@@ -286,3 +286,42 @@ def test_api_surface_has_extension_points(qapp):
     ]
     missing = [name for name in expected if not hasattr(PluginAPI, name)]
     assert not missing, "PluginAPI 缺少扩展点: %s" % missing
+
+
+# ============================================================
+# 4. 扩展点迁移覆盖率（全部内置插件）
+# ============================================================
+# 说明：这是**源码级**契约。行为级契约由 test_plugin_extension_points /
+# json_formatter / builtin_plugin_migrations 覆盖；此处确保"新扩展点不会
+# 只落在文档里"，每个内置插件都必须真正调用迁移 API。
+_REQUIRED_SETTINGS_PLUGINS = [
+    "ai_assistant", "demo", "git_deep", "json_formatter", "logtail",
+    "markdown_preview", "my_plugin", "python_debugger", "todo_panel",
+    "wordcount",
+]
+_REQUIRED_STATUS_PLUGINS = [
+    "ai_assistant", "demo", "git_deep", "logtail",
+    "python_debugger", "todo_panel", "wordcount",
+]
+
+
+def test_all_builtin_plugins_migrated():
+    failures = []
+    for name in _REQUIRED_SETTINGS_PLUGINS:
+        path = os.path.join(PLUGIN_DIR, name, "__init__.py")
+        try:
+            src = open(path, encoding="utf-8").read()
+        except OSError:
+            failures.append("%s: 缺少入口文件" % name)
+            continue
+        if "register_settings_schema" not in src:
+            failures.append("%s: 未迁移设置 schema" % name)
+    for name in _REQUIRED_STATUS_PLUGINS:
+        path = os.path.join(PLUGIN_DIR, name, "__init__.py")
+        try:
+            src = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        if "add_status_item" not in src:
+            failures.append("%s: 未迁移状态栏项" % name)
+    assert not failures, "扩展点迁移缺失:\n" + "\n".join(failures)
