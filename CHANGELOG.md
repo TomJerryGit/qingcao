@@ -192,6 +192,14 @@
 - 新增 `tests/test_symbol_provider.py`（3 项：规范化收集、语言/扩展名
   过滤、大纲合并与卸载移除；capabilities 含 symbol_provider）。
 
+### 插件 SDK（P1：插件模板脚手架）
+
+- 新增 `tools/new_plugin.py`：一键生成半成品插件（manifest + PluginBase
+  子类 + 生命周期 + 所选扩展点示例），生成的清单默认满足 conformance
+  清单契约；支持权限/扩展点选择、参数校验、`--force`。
+- 新增 `docs/plugin_scaffold.md`、`tests/test_plugin_scaffold.py`（3 项）。
+- 对应 `docs/npp_plugin_benchmark_v2.3.md` P1-6（NPP pluginTemplate）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
