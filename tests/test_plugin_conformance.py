@@ -325,3 +325,29 @@ def test_all_builtin_plugins_migrated():
         if "add_status_item" not in src:
             failures.append("%s: 未迁移状态栏项" % name)
     assert not failures, "扩展点迁移缺失:\n" + "\n".join(failures)
+
+
+# ============================================================
+# 5. SDK 能力探测契约（借鉴 NPP 函数表思路）
+# ============================================================
+def test_api_capabilities_and_event_catalog(qapp):
+    """插件必须能探测宿主能力与可订阅事件（而不是盲试）"""
+    from app.plugins import PluginAPI
+
+    api = PluginAPI(None, permissions=["editor_read"],
+                    plugin_name="cap_probe")
+    caps = api.get_api_capabilities()
+    assert caps["api_version"], "缺少 api_version"
+    points = caps["extension_points"]
+    for name in ("completion", "diagnostics", "background", "hover",
+                 "code_action", "editor_context_menu", "status_item",
+                 "decoration", "settings_schema"):
+        assert points.get(name) is True, "能力清单缺少扩展点 %s" % name
+
+    events = api.list_events()
+    assert len(events) >= 15, "事件目录过少: %r" % (events,)
+    for name in ("file_opened", "file_saved", "tab_changed",
+                 "theme_changed", "macro_started"):
+        assert name in events, "事件目录缺少 %s" % name
+    assert caps["events"] == events
+    assert "editor_read" in caps["permissions"]

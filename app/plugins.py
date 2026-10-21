@@ -2200,6 +2200,66 @@ class PluginAPI(QObject):
         """获取 API 版本"""
         return API_VERSION
 
+    # ========================================================
+    # 能力探测（借鉴 Notepad++ 插件 API 的"函数表"思路）
+    # ========================================================
+    # NPP 的做法：插件 DLL 拿到 NppData 后，通过函数指针表判断宿主
+    # 提供哪些消息（NPPM_*），再决定注册哪些菜单/面板 —— 插件不会在
+    # 旧版宿主上调用不存在的接口而崩溃。
+    #
+    # 本软件用 Python API 版本代替函数表，但同样需要一个**可探测的
+    # 能力清单**：插件（尤其第三方插件）可以先查询宿主支持哪些扩展点、
+    # 哪些事件，再决定注册策略，而不是 try/except 盲试。
+    _CAPABILITY_EXTENSION_POINTS = (
+        "completion", "diagnostics", "background",
+        "hover", "code_action", "editor_context_menu",
+        "status_item", "decoration", "settings_schema",
+    )
+
+    def get_api_capabilities(self) -> Dict[str, Any]:
+        """返回宿主能力清单（供插件做能力探测）
+
+        返回结构::
+
+            {
+              "api_version": "2.0.0",
+              "app_version": "2.2.0",
+              "extension_points": {"completion": True, ...},
+              "events": ["file_opened", ...],
+              "permissions": ["editor_read", ...],
+            }
+
+        推荐用法（新插件在 on_activate 开头）::
+
+            caps = api.get_api_capabilities()
+            if caps["extension_points"].get("completion"):
+                api.register_completion_provider(self.suggest)
+        """
+        try:
+            events = self.list_events()
+        except Exception:
+            events = []
+        return {
+            "api_version": API_VERSION,
+            "app_version": self.get_app_version(),
+            "extension_points": {
+                name: True for name in self._CAPABILITY_EXTENSION_POINTS
+            },
+            "events": events,
+            "permissions": sorted(self.permissions),
+        }
+
+    def list_events(self) -> List[str]:
+        """列出所有可订阅事件名（等价于 NPP 的 NPPN_* 通知清单）
+
+        事件通过 ``api.subscribe(name, callback)`` 订阅，
+        通过 ``api.unsubscribe(name, callback)`` 退订。
+        """
+        try:
+            return sorted(self._event_signal_map().keys())
+        except Exception:
+            return []
+
     def get_plugin_name(self) -> str:
         """获取当前插件名称"""
         return self.plugin_name

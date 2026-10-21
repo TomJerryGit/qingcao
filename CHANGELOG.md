@@ -148,6 +148,18 @@
 - python_debugger 扩展点调用改为防御式（FakeApi 测试桩缺少新 API 时
   不影响菜单注册）。
 
+### 插件 SDK（Notepad++ 对比借鉴：能力探测 + 事件目录）
+
+- 新增 `api.get_api_capabilities()`：借鉴 NPP 插件"函数表"思路，插件可
+  在激活时探测宿主支持的扩展点/事件/权限，避免在旧宿主上盲试 API。
+- 新增 `api.list_events()`：可枚举 15 个可订阅事件（等价 NPP 的
+  `NPPN_*` 通知清单）。
+- conformance 增加 `test_api_capabilities_and_event_catalog`，锁定
+  能力清单与事件目录下限。
+- 新增 `docs/npp_plugin_benchmark_v2.3.md`：NPP 插件体系逐项对比、
+  8 条可借鉴项与 P0/P1/P2 排期（声明式语言定义/插件 symbol provider/
+  商店兼容性 + 全部更新/插件模板/事件生命周期保证/子进程沙箱）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
