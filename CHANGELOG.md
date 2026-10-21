@@ -200,6 +200,15 @@
 - 新增 `docs/plugin_scaffold.md`、`tests/test_plugin_scaffold.py`（3 项）。
 - 对应 `docs/npp_plugin_benchmark_v2.3.md` P1-6（NPP pluginTemplate）。
 
+### 插件 SDK（P1：事件生命周期保证）
+
+- 新增 `docs/event_lifecycle.md`：15 个事件的触发时机、主线程派发保证、
+  顺序保证（`file_saved` 在落盘后、`theme_changed` 在 QSS 后）、
+  订阅/退订规则与后台线程禁忌。
+- 新增 `tests/test_event_lifecycle.py`（3 项）：**文档与代码一致性**
+  （新增事件漏文档会失败）、全部事件可订阅/退订、未知事件被拒绝。
+- 对应 `docs/npp_plugin_benchmark_v2.3.md` P1-7。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
