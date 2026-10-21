@@ -92,6 +92,20 @@
     现统一 `_close_without_session()` 防止写会话。
 - 新增 `tests/test_json_formatter_plugin.py`（真实插件端到端）通过。
 
+### 测试基础设施：插件 conformance 骨架
+
+- 新增 `tests/test_plugin_conformance.py`（三层契约，自动扩展）：
+  1. **扩展点契约**：9 个 v2.3/v2.4 扩展点各自验证
+     `注册 → 生效 → 卸载清理`（新增 API 只需加一条 `@contract`）；
+  2. **插件清单契约**：扫描 `plugins/*/plugin.json`，验证必填字段、
+     权限必须在 `ALL_PERMISSIONS` 内、`api_version` 可解析、
+     入口模块存在 `Plugin` 类且实现 `on_activate/on_deactivate`
+     （用 AST 静态检查，**不 import 插件** —— 插件模块顶层有 QObject
+     副作用，导入会污染测试进程）；
+  3. **API 面自检**：防止扩展点被误删/改名。
+- 契约测试不写真实用户会话（`_close()` 屏蔽 session.save），
+  避免测试间污染。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
