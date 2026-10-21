@@ -68,7 +68,11 @@ class Plugin(PluginBase):
         )
 
         # ---- v2.3/v2.4 扩展点 ----
-        # 1) 诊断：把 Markdown 结构问题发布到「问题」面板
+        # 1) 符号：把 Markdown 标题贡献给「大纲」面板（NPP functionList 等价）
+        self.api.register_symbol_provider(
+            self._symbols, language_ids=["markdown", ".md", ".markdown"])
+
+        # 2) 诊断：把 Markdown 结构问题发布到「问题」面板
         self.api.add_menu(
             "工具/Markdown/检查并报告到问题面板", self.check_and_report)
         # 2) 设置 schema：「工具 → 插件设置」（无需 dialog 权限）
@@ -94,6 +98,32 @@ class Plugin(PluginBase):
             self._timer.stop()
         if self._panel:
             self._panel.close()
+
+    # --------------------------------------------------------
+    # v2.3 符号：Markdown 标题 → 大纲
+    # --------------------------------------------------------
+    def _symbols(self, text, filepath="", language=""):
+        """把 # / ## / ### 标题转成大纲符号"""
+        items = []
+        for idx, line in enumerate((text or "").splitlines()):
+            stripped = line.strip()
+            if not stripped.startswith("#"):
+                continue
+            level = len(stripped) - len(stripped.lstrip("#"))
+            if level == 0 or level > 6 or len(stripped) <= level:
+                continue
+            if stripped[level:level + 1] not in (" ", "\t"):
+                continue
+            title = stripped[level:].strip()
+            if not title:
+                continue
+            items.append({
+                "name": title,
+                "type": "namespace",
+                "line": idx,
+                "indent": level - 1,
+            })
+        return items
 
     # --------------------------------------------------------
     # v2.3 诊断：Markdown 结构检查

@@ -468,7 +468,8 @@ class CapabilityWiringMixin:
                 ('_plugin_context_actions', list),
                 ('_plugin_code_action_providers', list),
                 ('_plugin_status_items', list),
-                ('_plugin_settings_schemas', dict)):
+                ('_plugin_settings_schemas', dict),
+                ('_plugin_symbol_providers', list)):
             if not hasattr(self, attr):
                 setattr(self, attr, factory())
 
@@ -592,6 +593,70 @@ class CapabilityWiringMixin:
             print(f"[MainWindow] 代码操作菜单失败: {e}")
             return False
 
+    def register_plugin_symbol_provider(self, provider, language_ids=None,
+                                        plugin_name=""):
+        """登记插件符号提供者（大纲面板合并）"""
+        self._ensure_plugin_extension_registries()
+        self._plugin_symbol_providers.append({
+            'provider': provider,
+            'languages': [str(x).lower() for x in (language_ids or [])],
+            'plugin': plugin_name or 'unknown',
+        })
+        return True
+
+    def collect_plugin_symbols(self, text: str, filepath: str = "",
+                               language: str = "", limit: int = 5000):
+        """收集插件符号（规范化为 dict 列表，含 children）"""
+        self._ensure_plugin_extension_registries()
+        lang = (language or "").lower()
+        ext = os.path.splitext(filepath or "")[1].lower()
+
+        def _norm(items, depth=0):
+            out = []
+            if depth > 8 or not items:
+                return out
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get('name') or item.get('label')
+                if not name:
+                    continue
+                node = {
+                    'name': str(name),
+                    'type': str(item.get('type') or item.get('kind')
+                                or 'unknown'),
+                    'line': int(item.get('line') or 0),
+                    'col': int(item.get('col') or 0),
+                    'end_line': int(item.get('end_line') or 0),
+                    'indent': int(item.get('indent') or depth),
+                    'signature': str(item.get('signature') or ''),
+                }
+                children = _norm(item.get('children') or [], depth + 1)
+                if children:
+                    node['children'] = children
+                out.append(node)
+                if len(out) >= limit:
+                    break
+            return out
+
+        collected = []
+        for entry in getattr(self, '_plugin_symbol_providers', []):
+            try:
+                langs = entry.get('languages') or []
+                if langs and lang not in langs and ext not in langs:
+                    continue
+                fn = entry.get('provider')
+                if not callable(fn):
+                    continue
+                items = fn(text, filepath=filepath, language=lang) or []
+                collected.extend(_norm(items))
+                if len(collected) >= limit:
+                    break
+            except Exception as e:
+                print(f"[MainWindow] symbol provider 失败"
+                      f"({entry.get('plugin')}): {e}")
+        return collected[:limit]
+
     def register_plugin_settings_schema(self, plugin_name: str, schema):
         """登记插件设置 schema（供设置面板/文档展示；对话框由插件 API 生成）"""
         self._ensure_plugin_extension_registries()
@@ -603,7 +668,8 @@ class CapabilityWiringMixin:
         self._ensure_plugin_extension_registries()
         for attr in ('_plugin_hover_providers',
                      '_plugin_code_action_providers',
-                     '_plugin_context_actions'):
+                     '_plugin_context_actions',
+                     '_plugin_symbol_providers'):
             current = getattr(self, attr, [])
             setattr(self, attr, [
                 e for e in current if e.get('plugin') != plugin_name])

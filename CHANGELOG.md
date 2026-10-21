@@ -174,6 +174,24 @@
   `docs/language_packs.md`；新增 `tests/test_language_pack.py`（4 项：
   校验/发现注册/工厂命中/样式分类）。
 
+### 插件系统（P0-2：symbol provider 接入大纲面板）
+
+- 新增 `api.register_symbol_provider(provider, language_ids=None)`
+  （等价 Notepad++ 的 `functionList.xml`）：插件/语言包可为新语言贡献
+  符号，合并进「大纲」面板；权限 `editor_read`，卸载自动清理。
+- 大纲面板修复两个真实缺陷：
+  * 定时器可能在文件**加载中途**解析并缓存空符号，之后同文件不再
+    重解析 → 增加内容就绪兜底补解析；
+  * 插件 **symbol provider 数量变化**（晚激活/卸载）不会反映到大纲 →
+    现在 provider 数量变化即重解析。
+- `markdown_preview` 实际使用：把 Markdown 标题（`#`~`######`）贡献为
+  大纲符号。
+- conformance 新增 `symbol-provider` 契约与 markdown 迁移覆盖；
+  `docs/npp_plugin_benchmark_v2.3.md` 标记 P0-1/P0-2 完成；
+  `docs/plugin_api_v2.3.md` 追加 symbol provider 用法。
+- 新增 `tests/test_symbol_provider.py`（3 项：规范化收集、语言/扩展名
+  过滤、大纲合并与卸载移除；capabilities 含 symbol_provider）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

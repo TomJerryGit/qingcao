@@ -163,6 +163,18 @@ def _c_settings_schema(api, win, tmp_path):
     assert "conformance" in win._plugin_settings_schemas
 
 
+@contract("symbol-provider")
+def _c_symbol_provider(api, win, tmp_path):
+    api.register_symbol_provider(
+        lambda text, filepath="", language="":
+            [{"name": "conf_sym", "type": "function", "line": 0}],
+        language_ids=["tlang"])
+    items = win.collect_plugin_symbols("x", "a.tlang", "tlang")
+    assert [i["name"] for i in items] == ["conf_sym"]
+    api.cleanup()
+    assert win.collect_plugin_symbols("x", "a.tlang", "tlang") == []
+
+
 def test_extension_contracts(qapp, tmp_path):
     """所有扩展点契约：注册 → 生效 → 卸载清理"""
     from ui.main_window import MainWindow
@@ -324,6 +336,13 @@ def test_all_builtin_plugins_migrated():
             continue
         if "add_status_item" not in src:
             failures.append("%s: 未迁移状态栏项" % name)
+    md_entry = os.path.join(PLUGIN_DIR, "markdown_preview", "__init__.py")
+    try:
+        md_src = open(md_entry, encoding="utf-8").read()
+        if "register_symbol_provider" not in md_src:
+            failures.append("markdown_preview: 未迁移 symbol provider")
+    except OSError:
+        pass
     assert not failures, "扩展点迁移缺失:\n" + "\n".join(failures)
 
 

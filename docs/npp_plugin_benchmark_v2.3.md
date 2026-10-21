@@ -108,7 +108,16 @@
 8. 插件工具栏图标随 SVG 图标体系落地
 9. 本地化（若未来需要多语言）
 
-## 五、本轮已落地（代码）
+## 五、后续已落地（代码）
+
+* **P0-1 声明式语言包（UDL 等价物）**：`core/language_pack.py` +
+  `ui/generic_lexer.py`，JSON 定义语言，见 `docs/language_packs.md`。
+* **P0-2 插件 symbol provider**：`api.register_symbol_provider()` →
+  「大纲」面板合并（等价 NPP `functionList.xml`）；
+  `markdown_preview` 已实际用其提供标题大纲；
+  大纲在插件 provider 增减时自动重解析。
+
+## 六、最初落地记录（能力探测 + 事件目录）
 
 * `api.get_api_capabilities()`：能力探测（9 个扩展点 + 事件目录 + 权限）
 * `api.list_events()`：15 个可订阅事件可枚举

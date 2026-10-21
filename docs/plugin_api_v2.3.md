@@ -151,3 +151,25 @@ api.register_settings_schema([
 
 自动在「工具 → 插件设置」生成对话框；值经 `get_config/set_config`
 持久化；未设置过的项写入默认值。权限 `dialog`。
+
+
+---
+
+# v2.5 补充：符号提供者（大纲）
+
+```python
+api.register_symbol_provider(provider, language_ids=["mylang", ".mylang"])
+
+def provider(text, filepath="", language=""):
+    return [
+        {"name": "foo", "type": "function", "line": 10,
+         "signature": "(a, b)", "children": [
+             {"name": "bar", "type": "variable", "line": 11},
+         ]},
+    ]
+```
+
+符号会合并进「大纲」面板（与内置解析结果去重），等价 Notepad++ 的
+`functionList.xml`。行号从 0 开始；`type` 取 `SymbolType` 值
+（class/function/method/variable/namespace/...）。
+权限 `editor_read`；插件卸载后大纲自动移除其符号。

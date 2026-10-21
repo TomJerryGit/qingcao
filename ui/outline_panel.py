@@ -1406,9 +1406,15 @@ class OutlinePanel(QDockWidget):
             if filepath:
                 language = self._detect_language(filepath)
 
-            # 文件或语言变化 → 重新解析
+            # 文件/语言变化，或插件 symbol provider 数量变化 → 重新解析
+            # （后者修复两个真实场景：插件晚于文件加载才激活；插件卸载后
+            #   符号必须从大纲移除）。
+            provider_count = len(getattr(
+                self.main_window, '_plugin_symbol_providers', []) or [])
             if (filepath != self._current_filepath or
-                    language != self._current_language):
+                    language != self._current_language or
+                    provider_count != getattr(
+                        self, '_provider_count', -1)):
                 self._current_filepath = filepath
                 self._current_language = language
 
@@ -1445,11 +1451,78 @@ class OutlinePanel(QDockWidget):
                     text, language, filepath
                 )
 
+                self._merge_plugin_symbols(
+                    text, filepath, language)
+                self._provider_count = provider_count
+
+            # 兜底：大纲定时器可能在文件**加载中途**触发，把空符号缓存
+            # 在"同一 filepath"上；之后 filepath 未变就再也不会重解析。
+            # 内容已就绪但符号仍为空时补一次解析（含插件符号合并）。
+            if not self._current_symbols and self._current_filepath:
+                try:
+                    sc = getattr(proxy, 'sc', None)
+                    if sc is not None and sc.length() > 0:
+                        total = sc.SendScintilla(sc.SCI_GETLINECOUNT)
+                        n = min(50000, total)
+                        _text = "\n".join(sc.text(i) for i in range(n))
+                        self._current_symbols = self.parser.parse(
+                            _text, self._current_language,
+                            self._current_filepath)
+                        self._merge_plugin_symbols(
+                            _text, self._current_filepath,
+                            self._current_language)
+                except Exception:
+                    pass
+
             self._render()
 
         except Exception as e:
             print(f"[OutlinePanel] 更新失败: {e}")
             self.status_label.setText(f"错误: {e}")
+
+    def _merge_plugin_symbols(self, text, filepath, language):
+        """合并插件 symbol provider（v2.3，NPP functionList 等价）"""
+        try:
+            collector = getattr(
+                self.main_window, 'collect_plugin_symbols', None)
+            if not callable(collector):
+                return
+            items = collector(text, filepath or "", language)
+
+            def _to_nodes(raw, depth=0):
+                nodes = []
+                if depth > 8:
+                    return nodes
+                for it in raw or []:
+                    try:
+                        node = SymbolNode(
+                            name=str(it.get('name') or '?'),
+                            type=str(it.get('type') or 'unknown'),
+                            line=int(it.get('line') or 0),
+                            col=int(it.get('col') or 0),
+                            end_line=int(it.get('end_line') or 0),
+                            indent=int(it.get('indent') or depth),
+                            signature=str(it.get('signature') or ''),
+                        )
+                        for child in _to_nodes(
+                                it.get('children') or [], depth + 1):
+                            node.add_child(child)
+                        nodes.append(node)
+                    except Exception:
+                        continue
+                return nodes
+
+            extra = _to_nodes(items)
+            if not extra:
+                return
+            existing = {(n.name, n.line) for n in self._current_symbols}
+            merged = list(self._current_symbols)
+            for node in extra:
+                if (node.name, node.line) not in existing:
+                    merged.append(node)
+            self._current_symbols = merged
+        except Exception as e:
+            print(f"[OutlinePanel] 合并插件符号失败: {e}")
 
     def update_symbols(self, editor=None):
         """

@@ -235,6 +235,7 @@ class PluginAPI(QObject):
         self._registered_code_action_providers: List[Any] = []
         self._registered_status_items: List[Any] = []
         self._registered_decorations: List[Any] = []
+        self._registered_symbol_providers: List[Any] = []
         self._settings_schema: List[Any] = []
         self._settings_action = None
 
@@ -1959,6 +1960,34 @@ class PluginAPI(QObject):
         except Exception as e:
             self.log(f"打开插件设置失败: {e}", "error")
 
+    def register_symbol_provider(self, provider, language_ids=None):
+        """注册符号提供者 → 合并进「大纲」面板
+
+        等价 Notepad++ 的 `functionList.xml`（用户/插件贡献符号解析器）。
+
+        provider 签名：
+            ``provider(text, filepath=..., language=...) -> list``
+        返回符号列表，每项::
+
+            {"name": "foo", "type": "function", "line": 10, "col": 0,
+             "signature": "(a, b)", "children": [...]}
+
+        line/col 从 0 开始；type 取值见 `ui/outline_panel.SymbolType`
+        （class/function/method/variable/... 或自定义字符串）。
+
+        权限：editor_read
+        """
+        self._check_permission(PERMISSION_EDITOR_READ)
+        win = self._host_window()
+        registrar = getattr(win, 'register_plugin_symbol_provider', None)
+        if not callable(registrar) or not callable(provider):
+            return False
+        ok = registrar(provider, language_ids=language_ids,
+                       plugin_name=self.plugin_name)
+        if ok:
+            self._registered_symbol_providers.append((provider, language_ids))
+        return bool(ok)
+
     # ========================================================
     # LSP 注册
     # ========================================================
@@ -2072,6 +2101,7 @@ class PluginAPI(QObject):
         self._registered_context_actions.clear()
         self._registered_code_action_providers.clear()
         self._registered_decorations.clear()
+        self._registered_symbol_providers.clear()
         self._settings_schema = []
         self._registered_completion_providers.clear()
         try:
@@ -2213,7 +2243,7 @@ class PluginAPI(QObject):
     _CAPABILITY_EXTENSION_POINTS = (
         "completion", "diagnostics", "background",
         "hover", "code_action", "editor_context_menu",
-        "status_item", "decoration", "settings_schema",
+        "status_item", "decoration", "settings_schema", "symbol_provider",
     )
 
     def get_api_capabilities(self) -> Dict[str, Any]:
