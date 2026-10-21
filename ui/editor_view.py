@@ -857,7 +857,30 @@ class EditorWidget(QsciScintilla):
         except Exception as e:
             print(f"[EditorWidget] 本地补全计算失败: {e}")
             return []
-        return [word for word, _source in items]
+
+        words = [word for word, _source in items]
+
+        # v2.3：合并插件补全提供者（插件通过 api.register_completion_provider
+        # 注册；异常/缺失宿主时静默降级，不影响本地补全）。
+        try:
+            win = self.window()
+            collector = getattr(win, 'collect_plugin_completions', None)
+            if callable(collector):
+                extra = collector(
+                    prefix,
+                    language=self._completion_language(),
+                    filepath=self._completion_key(),
+                    limit=COMPLETION_MAX_ITEMS,
+                )
+                seen = set(words)
+                for word in extra:
+                    if word not in seen:
+                        words.append(word)
+                        seen.add(word)
+        except Exception as e:
+            print(f"[EditorWidget] 插件补全合并失败: {e}")
+
+        return words[:COMPLETION_MAX_ITEMS]
 
     def trigger_local_completion(self, force: bool = False) -> List[str]:
         """

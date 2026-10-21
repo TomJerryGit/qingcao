@@ -40,6 +40,22 @@
   `build_installer.py` 中硬编码的 `"2.1.0"` 改为读 `VERSION`，
   避免 version.py 导入失败时静默产出过期版本号。
 
+### 插件系统（计划第 2 周：扩展点 API v2.3）
+
+- **补全提供者** `api.register_completion_provider(provider, language_ids=None)`：
+  插件可参与编辑器补全，候选项合并进 `EditorWidget.local_completions()`
+  （按语言/扩展名过滤；异常隔离；卸载自动注销）。
+- **诊断发布** `api.publish_diagnostics(problems, filepath=None)` /
+  `api.clear_diagnostics()`：插件诊断进入「问题」面板；
+  **只替换本插件来源**，不误删 LSP/其它插件条目（实时校验语义）。
+- **后台任务** `api.run_background(func, on_done, on_error, name)`：
+  子线程执行、**回调回到主线程**（QObject 信号桥），
+  插件卸载自动取消，避免窗口销毁后 emit 崩溃。
+- 三个 API 均受权限门控（`editor_read`，缺失时抛 `PermissionError`）。
+- 新增测试 `tests/test_plugin_extension_points.py`（4 项）：
+  补全合并/注销、诊断合并且不误删、后台回调线程正确、
+  权限拒绝。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

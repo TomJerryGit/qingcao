@@ -388,6 +388,78 @@ class CapabilityWiringMixin:
             return False
 
     # ========================================================
+    # 插件扩展点宿主侧实现（v2.3）
+    # ========================================================
+    def register_plugin_completion_provider(self, provider, language_ids=None,
+                                            plugin_name=""):
+        """登记插件补全提供者（由 PluginAPI.register_completion_provider 调用）"""
+        try:
+            providers = getattr(self, '_plugin_completion_providers', None)
+            if providers is None:
+                providers = []
+                self._plugin_completion_providers = providers
+            providers.append({
+                'provider': provider,
+                'languages': [str(x).lower() for x in (language_ids or [])],
+                'plugin': plugin_name or 'unknown',
+            })
+            return True
+        except Exception as e:
+            print(f"[MainWindow] 注册插件补全提供者失败: {e}")
+            return False
+
+    def unregister_plugin_completion_provider(self, plugin_name: str):
+        """注销某插件的全部补全提供者（插件卸载时）"""
+        providers = getattr(self, '_plugin_completion_providers', None)
+        if not providers:
+            return
+        try:
+            self._plugin_completion_providers = [
+                p for p in providers if p.get('plugin') != plugin_name
+            ]
+        except Exception:
+            pass
+
+    def collect_plugin_completions(self, prefix: str, language: str = "",
+                                   filepath: str = "", limit: int = 50):
+        """收集所有插件补全候选（供编辑器调用）
+
+        语言匹配规则：
+            * 提供者 language_ids 为空 → 对所有语言生效；
+            * 否则语言键（如 "python"）或扩展名（如 ".py"）命中即可。
+        """
+        out = []
+        providers = getattr(self, '_plugin_completion_providers', None) or []
+        if not providers or not prefix:
+            return out
+        lang = (language or "").lower()
+        ext = os.path.splitext(filepath or "")[1].lower()
+        for entry in providers:
+            try:
+                langs = entry.get('languages') or []
+                if langs and lang not in langs and ext not in langs:
+                    continue
+                fn = entry.get('provider')
+                if not callable(fn):
+                    continue
+                items = fn(prefix, language=lang, filepath=filepath) or []
+                for item in items:
+                    if isinstance(item, dict):
+                        word = (item.get('insert_text')
+                                or item.get('label') or '')
+                    else:
+                        word = str(item)
+                    word = word.strip()
+                    if word and word not in out:
+                        out.append(word)
+                        if len(out) >= limit:
+                            return out
+            except Exception as e:
+                print(f"[MainWindow] 插件补全提供者异常"
+                      f"({entry.get('plugin')}): {e}")
+        return out
+
+    # ========================================================
     # 面板：LSP 状态 / 撤销历史（对应孤立 UI 文件）
     # ========================================================
     def _build_panel_lsp(self):

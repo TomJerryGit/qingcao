@@ -138,6 +138,23 @@ class PermissionError(Exception):
 # ============================================================
 # 插件 API
 # ============================================================
+class _BackgroundBridge(QObject):
+    """后台任务结果桥（v2.3 `run_background` 用）
+
+    每个后台任务配一个独立桥：`run_background` 可能在同一个 API
+    实例上并发多个任务，共享信号无法区分结果归属。
+    桥对象在**主线程**创建；工作线程只 emit，Qt 按队列把回调
+    投递回主线程执行 —— 这就是"后台执行、主线程回调"的实现方式。
+
+    `cancelled` 由插件卸载路径置位，回调据此跳过，避免在窗口
+    销毁后操作 Qt 对象。
+    """
+
+    done = pyqtSignal(object)
+    failed = pyqtSignal(str)
+    cancelled = False
+
+
 class PluginAPI(QObject):
     """
     暴露给插件的 API 接口。
@@ -205,6 +222,12 @@ class PluginAPI(QObject):
         self._registered_commands: Dict[str, Callable] = {}
         self._registered_lexers: Dict[str, Any] = {}
         self._registered_lsp: Dict[str, List[str]] = {}
+
+        # v2.3 扩展点：编辑器智能（补全 / 诊断 / 后台任务）
+        self._registered_completion_providers: List[Any] = []
+        self._published_diagnostics: Dict[str, List[Any]] = {}
+        self._background_bridges: List[Any] = []
+        self._background_threads: List[Any] = []
 
         # 插件私有数据目录
         try:
@@ -1499,6 +1522,206 @@ class PluginAPI(QObject):
         return None
 
     # ========================================================
+    # 编辑器智能扩展点（v2.3）
+    # ========================================================
+    def register_completion_provider(self, provider, language_ids=None):
+        """注册补全提供者 —— 让插件参与编辑器补全
+
+        这是插件从"挂菜单/面板"升级为"参与编辑智能"的关键扩展点。
+
+        参数:
+            provider: 可调用对象，签名
+                ``provider(prefix, language=..., filepath=...) -> list``
+                返回候选词列表（str 列表，或 dict:
+                ``{"label": "foo", "insert_text": "foo()", "detail": "..."}``）。
+                在**主线程**调用，应快速返回（重活请用 run_background）。
+            language_ids: 生效的语言/扩展名列表（如 ``["python", ".py"]``）；
+                None 表示对所有语言生效。
+
+        返回:
+            是否注册成功
+
+        权限: editor_read（需要读取当前编辑内容的能力）
+
+        注意:
+            * 提供者抛异常不会影响编辑器，异常被捕获并记日志；
+            * 插件卸载（cleanup）时自动注销。
+        """
+        self._check_permission(PERMISSION_EDITOR_READ)
+        win = self._host_window()
+        if win is None:
+            return False
+        registrar = getattr(win, 'register_plugin_completion_provider', None)
+        if not callable(registrar):
+            self.log("宿主不支持补全扩展点", "warning")
+            return False
+        ok = registrar(provider, language_ids=language_ids,
+                       plugin_name=self.plugin_name)
+        if ok:
+            self._registered_completion_providers.append(
+                (provider, language_ids))
+        return bool(ok)
+
+    def publish_diagnostics(self, problems, filepath=None):
+        """发布诊断信息到「问题」面板
+
+        参数:
+            problems: 列表，元素为 dict 或 ``core.problems.Problem``：
+                ``{"line": 3, "col": 0, "severity": "error"|"warning"|"info"|"hint",
+                   "message": "...", "code": "E001"}``
+                line/col 从 0 开始。
+            filepath: 目标文件；None 表示当前编辑器文件。
+
+        返回:
+            实际发布的条目数
+
+        权限: editor_read
+
+        语义:
+            * 只替换**本插件来源**的诊断，不会清掉 LSP / 其它插件的；
+            * 重复调用 = 覆盖本插件上一批诊断（适合实时校验）；
+            * 用 ``clear_diagnostics()`` 清空。
+        """
+        self._check_permission(PERMISSION_EDITOR_READ)
+        fp = filepath or self.get_current_filepath() or ""
+        try:
+            from core.problems import Problem, get_problem_manager
+        except Exception as e:
+            self.log(f"问题管理器不可用: {e}", "error")
+            return 0
+
+        normalized = []
+        for item in problems or []:
+            try:
+                if isinstance(item, Problem):
+                    normalized.append(item)
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                normalized.append(Problem(
+                    filepath=fp,
+                    line=int(item.get("line", 0) or 0),
+                    col=int(item.get("col", 0) or 0),
+                    severity=str(item.get("severity", "info")),
+                    message=str(item.get("message", "")),
+                    source=str(item.get("source") or self.plugin_name),
+                    code=str(item.get("code", "")),
+                    end_line=int(item.get("end_line", 0) or 0),
+                    end_col=int(item.get("end_col", 0) or 0),
+                ))
+            except Exception:
+                continue
+
+        try:
+            manager = get_problem_manager()
+            existing = list(manager.get_for_file(fp) or [])
+            # 只清掉"本插件发布过"的旧条目，保留其它来源
+            keep = [p for p in existing
+                    if getattr(p, 'source', '') != self.plugin_name]
+            manager.set_file_problems(fp, keep + normalized)
+            self._published_diagnostics[fp] = normalized
+            return len(normalized)
+        except Exception as e:
+            self.log(f"发布诊断失败: {e}", "error")
+            return 0
+
+    def clear_diagnostics(self, filepath=None):
+        """清除本插件发布的诊断（filepath=None 清全部）"""
+        self._check_permission(PERMISSION_EDITOR_READ)
+        try:
+            from core.problems import get_problem_manager
+            manager = get_problem_manager()
+        except Exception:
+            return 0
+        targets = [filepath] if filepath else list(
+            self._published_diagnostics.keys())
+        removed = 0
+        for fp in targets:
+            try:
+                existing = list(manager.get_for_file(fp) or [])
+                keep = [p for p in existing
+                        if getattr(p, 'source', '') != self.plugin_name]
+                if len(keep) != len(existing):
+                    manager.set_file_problems(fp, keep)
+                    removed += len(existing) - len(keep)
+                self._published_diagnostics.pop(fp, None)
+            except Exception:
+                continue
+        return removed
+
+    def run_background(self, func, on_done=None, on_error=None,
+                       name: str = ""):
+        """在后台线程执行函数，回调回到**主线程**
+
+        为什么需要（插件生态短板）：
+            插件此前只能自己 ``threading.Thread`` + 手工往主线程
+            投递，容易在窗口销毁后 emit 导致
+            ``RuntimeError: wrapped C/C++ object has been deleted``。
+            本方法用 QObject 信号桥把结果排队回主线程，并随插件
+            卸载自动失效。
+
+        参数:
+            func: 无参可调用对象（在后台线程执行）
+            on_done(result): 成功回调（主线程）
+            on_error(message): 失败回调（主线程，收到异常文本）
+            name: 任务名（仅用于日志/调试）
+
+        返回:
+            任务对象（可用 ``is_alive()`` 查询；插件卸载会自动取消）
+
+        权限: 无（但 **func 内不要直接调用 PluginAPI** —— API 只在
+        主线程安全；需要读写编辑器请在 on_done 里做）
+        """
+        import threading
+
+        api = self
+        bridge = _BackgroundBridge()
+
+        def _on_done(result):
+            if bridge.cancelled:
+                return
+            try:
+                if on_done is not None:
+                    on_done(result)
+            except Exception as e:
+                api.log(f"后台任务 {name} 的 on_done 失败: {e}", "error")
+
+        def _on_error(message):
+            if bridge.cancelled:
+                return
+            try:
+                if on_error is not None:
+                    on_error(message)
+                else:
+                    api.log(f"后台任务 {name} 失败: {message}", "error")
+            except Exception:
+                pass
+
+        bridge.done.connect(_on_done)
+        bridge.failed.connect(_on_error)
+
+        def _work():
+            try:
+                result = func()
+            except Exception as e:
+                try:
+                    bridge.failed.emit(str(e))
+                except RuntimeError:
+                    pass
+                return
+            try:
+                bridge.done.emit(result)
+            except RuntimeError:
+                pass
+
+        thread = threading.Thread(target=_work, daemon=True,
+                                  name=f"plugin-bg:{name or self.plugin_name}")
+        self._background_bridges.append(bridge)
+        self._background_threads.append(thread)
+        thread.start()
+        return thread
+
+    # ========================================================
     # LSP 注册
     # ========================================================
     def register_lsp(self, language_id: str,
@@ -1581,6 +1804,29 @@ class PluginAPI(QObject):
         """
         清理所有注册的资源（插件卸载时由 PluginLoader 调用）。
         """
+        # 清理 v2.3 扩展点（补全提供者 / 诊断 / 后台任务）
+        try:
+            win = self._host_window()
+            unregister = getattr(
+                win, 'unregister_plugin_completion_provider', None)
+            if callable(unregister):
+                unregister(self.plugin_name)
+        except Exception:
+            pass
+        self._registered_completion_providers.clear()
+        try:
+            self.clear_diagnostics()
+        except Exception:
+            pass
+        for bridge in self._background_bridges:
+            try:
+                bridge.cancelled = True
+                bridge.deleteLater()
+            except Exception:
+                pass
+        self._background_bridges.clear()
+        self._background_threads.clear()
+
         # 清理事件连接
         try:
             self._cleanup_event_connections()
