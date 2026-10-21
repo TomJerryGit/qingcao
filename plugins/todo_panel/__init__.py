@@ -175,9 +175,15 @@ class TodoPanel(QDockWidget):
         self.count_label.setText(f"共 {count} 项")
 
     def _scan_text(self, text, filepath):
-        """扫描文本"""
+        """扫描文本（应用插件设置 max_items）"""
         items = []
+        try:
+            limit = int(self.api.get_config("max_items", 200))
+        except Exception:
+            limit = 200
         for i, line in enumerate(text.splitlines(), 1):
+            if len(items) >= limit:
+                break
             m = TODO_PATTERN.search(line)
             if m:
                 items.append({
@@ -256,6 +262,31 @@ class Plugin(PluginBase):
             self.show_panel,
             shortcut="Ctrl+Alt+T"
         )
+
+        # ---- v2.4 扩展点 ----
+        # 1) 设置 schema：「工具 → 插件设置」
+        self.api.register_settings_schema([
+            {"key": "max_items", "label": "最多扫描条数",
+             "type": "int", "default": 200, "min": 10, "max": 2000},
+            {"key": "show_status", "label": "状态栏显示 TODO 计数",
+             "type": "bool", "default": True},
+        ])
+        # 2) 状态栏常驻项（显示 TODO 总数）
+        self._status_label = None
+        try:
+            if bool(self.api.get_config("show_status", True)):
+                self._status_label = self.api.add_status_item("TODO: 0")
+        except Exception:
+            self._status_label = None
+
+    def _update_status_label(self, total):
+        """扫描后更新状态栏 TODO 计数"""
+        if self._status_label is None:
+            return
+        try:
+            self._status_label.setText("TODO: %d" % total)
+        except Exception:
+            pass
 
     def on_deactivate(self):
         # D3: 显式销毁而非只 close

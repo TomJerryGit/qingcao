@@ -106,6 +106,17 @@
 - 契约测试不写真实用户会话（`_close()` 屏蔽 session.save），
   避免测试间污染。
 
+### 插件系统（更多内置插件迁移）
+
+- **markdown_preview**：新增「工具 → Markdown → 检查并报告到问题面板」，
+  把 Markdown 结构问题发布为诊断（空图片 alt = warning MD001、
+  代码围栏未闭合 = error MD002）；设置 schema 控制是否检查 alt、
+  最多报告条数；卸载清理诊断。
+- **todo_panel**：设置 schema（最多扫描条数 max_items、状态栏计数开关）；
+  新增状态栏常驻项显示 TODO 数量；扫描时应用 max_items 上限。
+- 新增 `tests/test_builtin_plugin_migrations.py`：加载真实插件模块验证
+  诊断/设置/状态栏注册、行为与清理。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
