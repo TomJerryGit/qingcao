@@ -160,6 +160,20 @@
   8 条可借鉴项与 P0/P1/P2 排期（声明式语言定义/插件 symbol provider/
   商店兼容性 + 全部更新/插件模板/事件生命周期保证/子进程沙箱）。
 
+### 编辑器（声明式语言包：Notepad++ UDL 等价物）
+
+- 新增 `core/language_pack.py`：扫描 `data/language_packs/` 与
+  `plugins/*/languages/` 下的 `*.qingcao-lang.json`，按扩展名索引，
+  **语言包优先于内置映射表**；含格式校验与错误提示。
+- 新增 `ui/generic_lexer.py`：`QsciLexerCustom` 解释语言包，支持
+  关键字/注释（行+块）/字符串/数字/标识符 6 种样式，颜色跟随当前主题；
+  文档 >1MB 自动退化为默认样式（与「大文档模式」一致）。
+- `create_lexer_for_extension()` 接入语言包：新增语言不再需要写
+  Python 词法器类，只需投放 JSON。
+- 示例 `docs/examples/mylang.qingcao-lang.json` + 文档
+  `docs/language_packs.md`；新增 `tests/test_language_pack.py`（4 项：
+  校验/发现注册/工厂命中/样式分类）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

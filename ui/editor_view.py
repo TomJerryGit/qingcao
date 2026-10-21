@@ -283,6 +283,18 @@ def create_lexer_for_extension(ext: str, parent=None):
     if not ext.startswith("."):
         ext = "." + ext
 
+    # v2.3：声明式语言包（Notepad++ UDL 等价物）优先于内置映射表。
+    # 用户/插件投放 data/language_packs/*.qingcao-lang.json 即可加语言，
+    # 无需写 Python 词法器类。
+    try:
+        from core.language_pack import get_pack_for_extension
+        pack = get_pack_for_extension(ext)
+        if pack is not None:
+            from ui.generic_lexer import create_generic_lexer
+            return create_generic_lexer(pack, parent)
+    except Exception as e:
+        print(f"[EditorWidget] 语言包加载失败({ext}): {e}")
+
     lexer_name = LEXER_BY_EXTENSION.get(ext.lower())
     if not is_instantiable_lexer(lexer_name):
         # 这里**显式**打印而不是静默返回 None：登记了不存在的类或
