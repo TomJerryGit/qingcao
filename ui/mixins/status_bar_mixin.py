@@ -18,13 +18,27 @@
 import os
 import subprocess
 
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QMessageBox, QSizePolicy, QStatusBar, QWidget
 
 
 # 从 main_window.py 复制的常量
 STATUS_REFRESH_INTERVAL = 3000
 MEMORY_WARN_THRESHOLD = 800
+
+
+class _ClickableLabel(QLabel):
+    """可点击的 QLabel（NPP 状态栏交互等价：点击 Ln/Col 跳转）"""
+
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        try:
+            if event.button() == Qt.LeftButton:
+                self.clicked.emit()
+        except Exception:
+            pass
+        super().mousePressEvent(event)
 
 
 class StatusBarMixin:
@@ -46,7 +60,10 @@ class StatusBarMixin:
         self.setStatusBar(self.status_bar)
 
         # 光标位置
-        self.cursor_label = QLabel("行 1, 列 1")
+        self.cursor_label = _ClickableLabel("行 1, 列 1")
+        self.cursor_label.setToolTip("点击跳转到行（NPP 同款：点击 Ln/Col）")
+        self.cursor_label.setCursor(Qt.PointingHandCursor)
+        self.cursor_label.clicked.connect(self._on_cursor_label_clicked)
         self.cursor_label.setMinimumWidth(120)
         self.status_bar.addWidget(self.cursor_label)
 
@@ -61,6 +78,7 @@ class StatusBarMixin:
         except ImportError:
             self.encoding_label = QLabel("UTF-8")
             self.encoding_label.setMinimumWidth(80)
+        self.encoding_label.setToolTip("当前文件编码")
         self.status_bar.addWidget(self.encoding_label)
 
         # 行尾符（可点击切换）
@@ -72,10 +90,12 @@ class StatusBarMixin:
         except ImportError:
             self.eol_label = QLabel("LF")
             self.eol_label.setMinimumWidth(40)
+        self.eol_label.setToolTip("换行符格式（LF/CRLF/CR）")
         self.status_bar.addWidget(self.eol_label)
 
         # 插入/改写模式
         self.mode_label = QLabel("插入")
+        self.mode_label.setToolTip("插入/覆盖模式")
         self.mode_label.setMinimumWidth(50)
         self.status_bar.addWidget(self.mode_label)
 
@@ -123,6 +143,19 @@ class StatusBarMixin:
         # 初始消息
         self.status_bar.showMessage("就绪")
 
+
+    def _on_cursor_label_clicked(self):
+        """点击"行/列"：跳转到行（NPP 状态栏惯例）"""
+        try:
+            proxy = self.tabs.current_proxy()
+            editor = getattr(proxy, 'sc', None) if proxy else None
+            fn = getattr(editor, '_trigger_goto_line', None)
+            if callable(fn):
+                fn()
+                return
+            self.status_bar.showMessage("当前没有可跳转的编辑器", 2500)
+        except Exception as e:
+            self.status_bar.showMessage("跳转失败: %s" % e, 3000)
 
     def _update_status_for_editor(self):
         """更新状态栏为当前编辑器信息"""

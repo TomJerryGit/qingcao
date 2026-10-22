@@ -268,6 +268,17 @@ class TestLazyPanels:
 
         import ui.main_window as mw
 
+        # 确定性：先删除会话文件。否则前序测试（会创建/关闭窗口）写入的
+        # "无可见面板"状态会在本用例构造窗口时被恢复，导致偶发
+        # `实际可见: set()`（全量顺序相关的历史 flaky）。
+        try:
+            import app.session as _sess_mod
+            _sf = getattr(_sess_mod, "SESSION_FILE", "")
+            if _sf and os.path.exists(_sf):
+                os.remove(_sf)
+        except Exception:
+            pass
+
         NAME_OF_PANEL = {
             'dir_tree': 'DirectoryTreeDock',
             'gsearch': 'GlobalSearchPanel',

@@ -223,6 +223,19 @@
   （NPP Plugins Admin 对标；下一步：更新入口强制门控、商店兼容性
   徽章、全部更新 UI、changelog 展示）。
 
+### UI（对齐 Notepad++：状态栏交互 + 对齐方案）
+
+- 状态栏新增 NPP 式交互：**「行/列」标签可点击跳转到行**
+  （`_ClickableLabel`，`Ctrl+G` 等价入口）；行列/编码/EOL/模式标签
+  补齐说明性 tooltip 与指针光标。
+- 新增 `docs/npp_ui_feature_alignment.md`：UI 骨架逐项对照
+  （菜单/工具栏/标签栏/状态栏/面板/欢迎页/主题）、功能清单对照与
+  P0/P1/P2 排期（P0 菜单重组 + 状态栏分段点击；P1 工具栏图标模式/
+  标签右键菜单/欢迎页开关/商店兼容性徽章；P2 打印预览/多实例/拼写检查）。
+- 新增 `tests/test_status_bar_ui.py`（2 项）；
+  修复 `test_default_panels_visible` 的顺序相关 flaky：
+  用例先删除会话文件，避免恢复前序测试写入的"无可见面板"状态。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
