@@ -111,3 +111,55 @@ def test_default_ignore_file_and_menus():
     assert "reload_ignore" in src
     assert "open_ignore_file" in src
     assert "spell_ignore.txt" in src
+
+
+class _FakeApi:
+    def __init__(self, text="Thiss is a testt."):
+        self._text = text
+        self.published = None
+        self.status = []
+        self.status_item = None
+        self.menu_count = 0
+
+    def log(self, *a, **k):
+        pass
+
+    def get_current_text(self):
+        return self._text
+
+    def publish_diagnostics(self, issues):
+        self.published = list(issues)
+        return len(issues)
+
+    def clear_diagnostics(self):
+        self.published = []
+
+    def add_status_item(self, text):
+        self.status_item = text
+        return "item-1"
+
+    def set_status_item_text(self, item, text):
+        self.status = (item, text)
+
+    def show_status(self, *a, **k):
+        pass
+
+    def add_menu(self, *a, **k):
+        self.menu_count += 1
+
+    def register_settings_schema(self, *a, **k):
+        pass
+
+
+def test_check_current_publishes_and_updates_status():
+    _mod, plugin = _load_plugin()
+    api = _FakeApi()
+    plugin.api = api
+    plugin.check_current()
+    assert api.published, "应发布诊断"
+    words = [i["message"] for i in api.published]
+    assert any("Thiss" in w or "testt" in w for w in words), words
+    assert api.status == ("item-1", "拼写: %d" % len(api.published))
+
+    plugin.clear()
+    assert api.status == ("item-1", "拼写: 0")

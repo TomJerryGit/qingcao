@@ -102,6 +102,10 @@ class Plugin(PluginBase):
             self._checker = None
 
         self._ignore = load_ignore_words(self._ignore_path)
+        try:
+            self._status_item = self.api.add_status_item("拼写: -")
+        except Exception:
+            self._status_item = None
         self.api.add_menu("工具/拼写检查/检查当前文档", self.check_current)
         self.api.add_menu("工具/拼写检查/清除结果", self.clear)
         self.api.add_menu("工具/拼写检查/重新加载忽略词",
@@ -156,6 +160,20 @@ class Plugin(PluginBase):
                     return issues
         return issues
 
+    def _update_status(self, count: int):
+        """状态栏显示检查结果数量（NPP 式常驻提示）"""
+        if self._status_item is None:
+            # 兼容 on_activate 未创建/测试直接调用：惰性创建
+            try:
+                self._status_item = self.api.add_status_item("拼写: -")
+            except Exception:
+                return
+        try:
+            self.api.set_status_item_text(
+                self._status_item, "拼写: %d" % count)
+        except Exception:
+            pass
+
     def reload_ignore(self):
         """重新加载忽略词文件"""
         self._ignore = load_ignore_words(self._ignore_path)
@@ -186,6 +204,7 @@ class Plugin(PluginBase):
             return
         issues = self._check_text(text, limit=200)
         n = self.api.publish_diagnostics(issues)
+        self._update_status(n)
         if n:
             self.api.show_status("发现 %d 处可疑拼写" % n, 3000, "warning")
         else:
@@ -194,6 +213,7 @@ class Plugin(PluginBase):
     def clear(self):
         try:
             self.api.clear_diagnostics()
+            self._update_status(0)
             self.api.show_status("已清除拼写检查结果", 2000, "info")
         except Exception:
             pass
