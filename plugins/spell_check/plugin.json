@@ -1,0 +1,17 @@
+{
+  "name": "spell_check",
+  "display_name": "拼写检查",
+  "version": "1.0.0",
+  "description": "英文拼写检查（可选 pyspellchecker；缺失时用内置常用词表）",
+  "author": "QingCao Editor",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": ["spell", "proofread"],
+  "permissions": ["editor_read"],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100
+}

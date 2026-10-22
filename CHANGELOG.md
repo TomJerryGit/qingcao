@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+### 插件（内置拼写检查，对标 NPP DSpellCheck）
+
+- 新增内置插件 `plugins/spell_check/`：仅 `editor_read` 权限；
+- 词典优先级：可选 `pyspellchecker`（已装则自动用）→ 内置常用词表 +
+  技术词允许列表（零依赖可运行）；
+- 只检查像英文单词的 token：跳过全大写/含数字/下划线/驼峰/URL/过短词，
+  降低误报；结果发布到「问题」面板（SPELL001 warning），状态栏给数量；
+- 设置项：启用、最短检查长度、最多报告数量；
+- 菜单：工具 → 拼写检查 → 检查当前文档 / 清除结果；
+- `tests/test_spell_check_plugin.py` 4 项（manifest/注册/误报过滤/限额）。
+
 ### UI（对齐 Notepad++：标签栏习惯）
 
 - 双击标签栏空白处 **新建文档**（NPP 同名行为，可在标签栏设置中关闭——
