@@ -44,3 +44,29 @@ def test_npp_menus_added_without_breaking_shortcuts(qapp):
         assert len(win.npp_window_menu.actions()) >= 3
     finally:
         _close(win)
+
+
+def test_encoding_and_language_menus(qapp, tmp_path):
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        titles = " | ".join(_titles(win))
+        assert "编码" in titles and "语言" in titles, titles
+
+        enc = [a.text() for a in win.npp_encoding_menu.actions()
+               if not a.isSeparator()]
+        assert len(enc) >= 3, enc
+        assert any("UTF-8" in t for t in enc), enc
+
+        lang = [a.text() for a in win.npp_language_menu.actions()
+                if not a.isSeparator()]
+        assert any("自动" in t for t in lang), lang
+
+        # 自动语言识别：打开文件后触发不应崩溃
+        f = tmp_path / "a.py"
+        f.write_text("x = 1\n", encoding="utf-8")
+        win.tabs.open_file(str(f))
+        win._apply_language_by_extension()
+    finally:
+        _close(win)

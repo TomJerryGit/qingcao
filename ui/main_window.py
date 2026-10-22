@@ -2324,8 +2324,80 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self._add_action(m, "🖥 无干扰模式", None,
                              self.toggle_distraction_free)
             self._add_action(m, "⛶ 全屏", None, self.toggle_fullscreen)
+
+            # ---- 编码(&C)（NPP 习惯：编码/换行符集中）----
+            m = _insert(QMenu("编码(&C)", self))
+            self.npp_encoding_menu = m
+            try:
+                from ui.status_bar_widgets import ENCODINGS, LINE_ENDINGS
+                for name, code in ENCODINGS:
+                    self._add_action(
+                        m, name, None,
+                        lambda c=code: self._on_encoding_changed(c))
+                m.addSeparator()
+                eol_menu = m.addMenu("换行符")
+                for name, code in LINE_ENDINGS:
+                    self._add_action(
+                        eol_menu, name, None,
+                        lambda c=code: self._on_eol_changed(c))
+            except Exception as e:
+                print(f"[MainWindow] 构建编码菜单失败: {e}")
+
+            # ---- 语言(&L)（内置映射 + 声明式语言包）----
+            m = _insert(QMenu("语言(&L)", self))
+            self.npp_language_menu = m
+            self._add_action(m, "自动（按扩展名）", None,
+                             self._apply_language_by_extension)
+            try:
+                from core.language_pack import get_packs
+                packs = {}
+                for _ext, pack in get_packs().items():
+                    packs[pack.name] = pack
+                if packs:
+                    m.addSeparator()
+                for name in sorted(packs):
+                    self._add_action(
+                        m, name, None,
+                        lambda p=packs[name]: self._apply_language_pack(p))
+            except Exception as e:
+                print(f"[MainWindow] 构建语言菜单失败: {e}")
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
+
+    def _apply_language_by_extension(self):
+        """语言 → 自动：按当前文件扩展名重新应用词法器"""
+        try:
+            proxy = self.tabs.current_proxy()
+            sc = getattr(proxy, 'sc', None) if proxy else None
+            if sc is None:
+                self.status_bar.showMessage("没有打开的编辑器", 2500)
+                return
+            path = ""
+            try:
+                path = getattr(proxy.document, 'filepath', '') or ""
+            except Exception:
+                pass
+            sc._last_lexer_filepath = None
+            sc.set_lexer_by_filename(path)
+            self.status_bar.showMessage(
+                "语言：已按扩展名自动识别", 2000)
+        except Exception as e:
+            self.status_bar.showMessage("切换语言失败: %s" % e, 3000)
+
+    def _apply_language_pack(self, pack):
+        """语言 → 声明式语言包：对当前编辑器应用通用词法器"""
+        try:
+            proxy = self.tabs.current_proxy()
+            sc = getattr(proxy, 'sc', None) if proxy else None
+            if sc is None:
+                self.status_bar.showMessage("没有打开的编辑器", 2500)
+                return
+            from ui.generic_lexer import create_generic_lexer
+            sc.set_lexer(create_generic_lexer(pack, sc))
+            self.status_bar.showMessage(
+                "语言：已应用 %s" % (pack.name or "语言包"), 2000)
+        except Exception as e:
+            self.status_bar.showMessage("应用语言包失败: %s" % e, 3000)
 
     def _show_search(self):
         """显示搜索栏"""
