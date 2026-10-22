@@ -252,6 +252,7 @@ class PluginInfo:
     min_app_version: str = ""               # 最低应用版本
     max_app_version: str = ""               # 最高应用版本
     updated_at: str = ""                    # 更新时间
+    changelog: str = ""                     # 更新日志（可选）
 
     # 安装信息
     download_url: str = ""                  # 下载地址
@@ -1637,6 +1638,15 @@ class PluginDetailDialog(QDialog):
         else:
             html_parts.append(
                 f"<li>⚠️ 不兼容: {_reason}</li>")
+
+        if getattr(self.info, 'update_url', ''):
+            _url = self.info.update_url
+            html_parts.append(
+                f"<li>更新地址: <a href='{_url}'>{_url}</a></li>")
+
+        if getattr(self.info, 'changelog', ''):
+            html_parts.append(
+                "<li>更新日志: %s</li>" % self.info.changelog)
 
         if self.info.verified:
             html_parts.append("<li>✅ 已验证</li>")

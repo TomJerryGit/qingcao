@@ -310,6 +310,12 @@
 - 新增 `tests/test_store_compatibility.py`（3 项）。
 - docs/plugin_store_benchmark.md P1 关键项完成。
 
+### 插件商店（P1：changelog / update_url 展示）
+
+- `PluginInfo` 新增 `changelog` 字段（可选，注册表可下发）；
+- 详情页技术信息新增「更新地址」（可点击链接）与「更新日志」；
+- 新增 `tests/test_store_metadata.py`（字段存在 + 详情 HTML 含两项）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
