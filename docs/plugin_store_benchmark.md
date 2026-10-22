@@ -47,11 +47,11 @@
 
 ## 四、后续改造（建议排期）
 
-**P0（1 天，安全优先）**
-1. 在 `update_plugin()` / `update_all()` 入口调用
-   `check_compatibility()`：不兼容 → 直接返回失败 `UpdateResult`
-   （`error="需要应用 >= x"`），不下载不安装；
-2. `update_all()` 跳过不兼容项并在汇总里注明"跳过 N 个不兼容"。
+**P0（1 天，安全优先）— ✅ 已完成**
+1. ✅ `update_plugin()` 入口调用 `check_compatibility()`：不兼容直接返回
+   失败 `UpdateResult`，**不下载不安装**；
+2. ✅ `update_all()` 循环内跳过不兼容项，汇总里给出"跳过: 原因"。
+   测试：`tests/test_plugin_compatibility.py`（门控不触网、批量跳过）。
 
 **P1（2 天，管理体验）**
 3. 商店列表加兼容性徽章：✅ 兼容 / ⚠️ 不兼容（tooltip 显示原因）；

@@ -827,6 +827,22 @@ class PluginUpdater(QObject):
     def update_plugin(self, info: UpdateInfo,
                        progress_callback: Optional[Callable] = None
                        ) -> UpdateResult:
+        # 兼容性门控：不满足 min/max_app_version 时不下载、不安装
+        _ok, _reason = self.check_compatibility(info)
+        if not _ok:
+            _result = UpdateResult(
+                success=False, name=info.name,
+                old_version=info.current_version,
+                new_version=info.latest_version,
+                error=_reason,
+                message="不兼容，已取消更新: %s" % _reason,
+                state=UpdateState.FAILED)
+            try:
+                self.update_failed.emit(info.name, _reason)
+            except Exception:
+                pass
+            return _result
+
         """
         更新单个插件。
 
@@ -1028,6 +1044,23 @@ class PluginUpdater(QObject):
         for i, info in enumerate(updates):
             if self._cancelled:
                 break
+
+            # 兼容性门控（P0）：跳过不兼容项，汇总里注明原因；
+            # 与 NPP Plugins Admin 一致——不兼容版本不应出现在"全部更新"。
+            _ok, _reason = self.check_compatibility(info)
+            if not _ok:
+                results.append(UpdateResult(
+                    success=False, name=info.name,
+                    old_version=info.current_version,
+                    new_version=info.latest_version,
+                    error=_reason,
+                    message="跳过：%s" % _reason,
+                    state=UpdateState.FAILED))
+                if progress_callback:
+                    progress_callback(
+                        int((i + 1) * 100 / max(1, total)),
+                        "跳过 %s: %s" % (info.name, _reason))
+                continue
 
             if progress_callback:
                 progress_callback(

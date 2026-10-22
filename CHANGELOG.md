@@ -288,6 +288,16 @@
   结束时恢复默认偏好避免污染真实配置）。
 - 已知范围：关闭后若手动关闭全部标签，仍会显示欢迎页（不影响启动体验）。
 
+### 插件系统（P0：更新路径兼容性门控）
+
+- `PluginUpdater.update_plugin()`：下载前校验 `min/max_app_version`，
+  不兼容直接返回失败 `UpdateResult`（不下载、不安装、不备份）；
+- `PluginUpdater.update_all()`：逐项门控，跳过不兼容项并在汇总中给出
+  "跳过：需要应用 >= x"；进度回调也会显示跳过原因；
+- 测试：`test_update_plugin_rejects_incompatible_before_download`
+  （不触网）、`test_update_all_skips_incompatible`（批量跳过）；
+- 文档 `docs/plugin_store_benchmark.md` 标记 P0 完成。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
