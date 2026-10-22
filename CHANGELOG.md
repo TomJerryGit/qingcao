@@ -326,6 +326,15 @@
   结束时恢复默认偏好）。
 - `docs/npp_ui_feature_alignment.md` 工具栏行标记完成。
 
+### UI（对齐 Notepad++：打印 / 打印预览）
+
+- 文件菜单新增「🖨 打印…」（Ctrl+P）与「👁 打印预览…」；
+- 实现 `_build_print_document()`：把当前编辑器文本构建为
+  QTextDocument（Consolas 等宽 10pt），打印与预览共用；
+- 打印：QPrintDialog + QPrinter.HighResolution；
+  预览：QPrintPreviewDialog（900×700，实时重排）；
+- 新增 `tests/test_print_support.py`（菜单项/方法存在/文档内容正确）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

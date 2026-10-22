@@ -2393,6 +2393,15 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self._add_action(m, "📂 打开语言包目录", None,
                              self._open_language_packs_dir)
 
+            # 文件菜单补打印入口（NPP 对齐）
+            file_menu = getattr(self, 'file_menu', None)
+            if file_menu is not None:
+                file_menu.addSeparator()
+                self._add_action(file_menu, "🖨 打印…", None,
+                                 self._print_document)
+                self._add_action(file_menu, "👁 打印预览…", None,
+                                 self._print_preview)
+
             # 视图菜单追加「显示欢迎页」开关（checkable，无快捷键）
             try:
                 from PyQt5.QtWidgets import QAction
@@ -2435,6 +2444,58 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         except Exception as e:
             self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
+
+    def _build_print_document(self):
+        """把当前编辑器文本构建为 QTextDocument（供打印/预览复用）"""
+        from PyQt5.QtGui import QFont, QTextDocument
+        proxy = self.tabs.current_proxy()
+        text = ""
+        try:
+            if proxy is not None:
+                text = proxy.get_text() or ""
+        except Exception:
+            text = ""
+        doc = QTextDocument()
+        font = QFont("Consolas")
+        font.setStyleHint(QFont.Monospace)
+        font.setPointSize(10)
+        doc.setDefaultFont(font)
+        doc.setPlainText(text)
+        return doc, proxy
+
+    def _print_document(self):
+        """文件 → 打印…（NPP 对齐）"""
+        try:
+            from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
+            doc, _proxy = self._build_print_document()
+            if doc.isEmpty():
+                self.status_bar.showMessage("没有可打印的内容", 2500)
+                return
+            printer = QPrinter(QPrinter.HighResolution)
+            dlg = QPrintDialog(printer, self)
+            dlg.setWindowTitle("打印")
+            if dlg.exec_() == QPrintDialog.Accepted:
+                doc.print_(printer)
+                self.status_bar.showMessage("已发送到打印机", 2500)
+        except Exception as e:
+            self.status_bar.showMessage("打印失败: %s" % e, 3000)
+
+    def _print_preview(self):
+        """文件 → 打印预览…（NPP 对齐）"""
+        try:
+            from PyQt5.QtPrintSupport import QPrinter, QPrintPreviewDialog
+            doc, _proxy = self._build_print_document()
+            if doc.isEmpty():
+                self.status_bar.showMessage("没有可打印的内容", 2500)
+                return
+            printer = QPrinter(QPrinter.HighResolution)
+            dlg = QPrintPreviewDialog(printer, self)
+            dlg.setWindowTitle("打印预览")
+            dlg.resize(900, 700)
+            dlg.paintRequested.connect(lambda pr: doc.print_(pr))
+            dlg.exec_()
+        except Exception as e:
+            self.status_bar.showMessage("打印预览失败: %s" % e, 3000)
 
     _TOOLBAR_ICONS = (
         ("新建", "📄"), ("打开", "📂"), ("保存", "💾"),
