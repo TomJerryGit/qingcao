@@ -21,7 +21,7 @@ P1-1 修复（版本漂移）：
     python release.py bump patch   # 同步 VERSION 文件
 """
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 
 # 打包/安装器读取的别名（部分脚本历史上叫 APP_VERSION / VERSION）
 APP_VERSION = __version__
