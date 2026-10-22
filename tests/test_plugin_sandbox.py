@@ -95,3 +95,33 @@ def test_root_audit_covers_all_builtin_plugins():
     names = {os.path.basename(r.plugin_dir): r.verdict for r in results}
     assert names.get("python_debugger") in ("review", "warn", "pass")
     assert names.get("spell_check") != "review", names.get("spell_check")
+
+
+def test_check_against_baseline(tmp_path):
+    from infrastructure.plugin_sandbox import AuditResult, check_against_baseline
+
+    def _res(name, verdict):
+        r = AuditResult()
+        r.plugin_dir = os.path.join(str(tmp_path), name)
+        r.verdict = verdict
+        return r
+
+    results = [_res("clean", "pass"), _res("known", "review"),
+               _res("newbie", "warn")]
+    violations = check_against_baseline(results, {"known": "review"})
+    assert len(violations) == 1 and "newbie" in violations[0]
+    assert check_against_baseline(
+        results, {"known": "review", "newbie": "warn"}) == []
+
+
+def test_baseline_file_covers_current_plugins():
+    import subprocess
+    import sys as _sys
+    baseline = os.path.join(ROOT, "tools", "plugin_audit_baseline.json")
+    assert os.path.exists(baseline)
+    r = subprocess.run(
+        [_sys.executable, "-m", "tools.audit_plugins",
+         "--baseline", baseline],
+        cwd=ROOT, capture_output=True, text=True,
+        encoding="utf-8", errors="replace")
+    assert r.returncode == 0, r.stdout + r.stderr

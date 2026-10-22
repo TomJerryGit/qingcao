@@ -23,6 +23,8 @@ from infrastructure.plugin_sandbox import audit_plugin, audit_plugins_root  # no
 
 _ICON = {"pass": "✅", "warn": "⚠️", "review": "🔍", "reject": "⛔"}
 
+from infrastructure.plugin_sandbox import check_against_baseline  # noqa: E402
+
 
 def main():
     ap = argparse.ArgumentParser(description="插件安全沙箱审计")
@@ -30,6 +32,8 @@ def main():
     ap.add_argument("--json", action="store_true", help="JSON 输出")
     ap.add_argument("--strict", action="store_true",
                     help="warn 也视为失败")
+    ap.add_argument("--baseline", default="",
+                    help="基线 JSON（登记既有 review/warn 插件）")
     args = ap.parse_args()
 
     results = []
@@ -59,6 +63,18 @@ def main():
         print("\n汇总: " + ", ".join(
             "%s=%d" % (k, v) for k, v in sorted(summary.items())))
 
+    if args.baseline:
+        try:
+            baseline = json.load(open(args.baseline, encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            print("[错误] 读取基线失败: %s" % e)
+            return 1
+        violations = check_against_baseline(
+            results, baseline.get("allow") or {})
+        for v in violations:
+            print("[基线] " + v)
+        if violations:
+            return 1
     bad = [r for r in results if r.verdict == "reject"]
     if args.strict:
         bad += [r for r in results if r.verdict in ("review", "warn")]

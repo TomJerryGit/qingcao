@@ -1,0 +1,8 @@
+{
+  "_comment": "插件安全审计基线：非 pass 的既有插件需在此登记；新插件必须 pass 否则 CI 失败。",
+  "allow": {
+    "ai_assistant": "warn",
+    "python_debugger": "review",
+    "spell_check": "warn"
+  }
+}

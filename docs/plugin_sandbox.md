@@ -49,3 +49,14 @@ python -m tools.audit_plugins --strict         # review/warn 也判失败
 
 - CI：`python -m tools.audit_plugins --strict` 对内置插件保留白名单；
 - 商店：上架前 `reject/review` 插件不得自动安装；`warn` 展示能力徽章。
+
+## CI 接入
+
+`test.yml`（windows + py3.11）已加入：
+
+```powershell
+python -m tools.audit_plugins --baseline tools/plugin_audit_baseline.json
+```
+
+基线 `tools/plugin_audit_baseline.json` 登记既有非 pass 插件
+（如 `python_debugger: review`）；**新插件未登记且非 pass 时 CI 失败**。

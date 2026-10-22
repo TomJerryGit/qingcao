@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+### 插件平台（P2：审计接入 CI + 基线）
+
+- `tools/audit_plugins.py` 新增 `--baseline`：按基线校验，未登记的新插件
+  必须 pass，已登记插件可放宽到指定 verdict；
+- `plugin_sandbox.check_against_baseline()` 纯函数；
+- 新增 `tools/plugin_audit_baseline.json`；
+- CI `test.yml` 增加「Plugin security audit」步骤（windows + py3.11）；
+- `docs/plugin_sandbox.md` 补 CI 接入说明。
+
 ### 插件平台（P2 第一阶段：安全沙箱静态审计）
 
 - 新增 `infrastructure/plugin_sandbox.py`：AST 扫描危险 import/调用/

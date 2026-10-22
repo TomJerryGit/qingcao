@@ -219,6 +219,23 @@ def audit_plugin(plugin_dir: str) -> AuditResult:
     return result
 
 
+_VERDICT_ORDER = {"pass": 0, "warn": 1, "review": 2, "reject": 3}
+
+
+def check_against_baseline(results: List["AuditResult"],
+                           allow: dict) -> List[str]:
+    """按基线校验：未登记插件必须 pass；已登记可放宽到指定 verdict"""
+    violations = []
+    for r in results:
+        name = os.path.basename(r.plugin_dir.rstrip("\\/"))
+        allowed = allow.get(name, "pass")
+        if _VERDICT_ORDER.get(r.verdict, 3) > _VERDICT_ORDER.get(
+                allowed, 3):
+            violations.append(
+                "%s: verdict=%s 超出基线(%s)" % (name, r.verdict, allowed))
+    return violations
+
+
 def audit_plugins_root(plugins_dir: str) -> List[AuditResult]:
     """审计插件根目录下所有子目录插件"""
     results = []

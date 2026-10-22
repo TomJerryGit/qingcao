@@ -43,6 +43,13 @@ jobs:
         run: |
           python -m pytest tests/test_plugin_conformance.py -q
 
+      # 插件安全审计：未登记的新插件必须 pass（基线见 tools/）
+      - name: Plugin security audit
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.11'
+        shell: pwsh
+        run: |
+          python -m tools.audit_plugins --baseline tools/plugin_audit_baseline.json
+
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
