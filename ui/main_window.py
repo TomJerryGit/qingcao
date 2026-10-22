@@ -398,8 +398,15 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             print(f"[MainWindow] WelcomeWidget 加载失败: {e}")
             self.welcome = None
 
-        # 默认显示欢迎页
-        if self.tabs.count() == 0:
+        # 默认显示欢迎页（视图 → 显示欢迎页 可关闭；NPP 默认无欢迎页）
+        show_welcome = True
+        try:
+            show_welcome = bool(
+                self.prefs.get("show_welcome_page", True))
+        except Exception:
+            pass
+        self._welcome_visible_pref = show_welcome
+        if self.tabs.count() == 0 and show_welcome:
             self.central_stack.setCurrentIndex(1)
         else:
             self.central_stack.setCurrentIndex(0)
@@ -2385,6 +2392,22 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self._add_action(m, "📤 导出配置…", None, self._export_config)
             self._add_action(m, "📂 打开语言包目录", None,
                              self._open_language_packs_dir)
+
+            # 视图菜单追加「显示欢迎页」开关（checkable，无快捷键）
+            try:
+                from PyQt5.QtWidgets import QAction
+                view_menu = getattr(self, 'view_menu', None)
+                if view_menu is not None:
+                    act = QAction("🏠 显示欢迎页", self)
+                    act.setCheckable(True)
+                    act.setChecked(bool(self.prefs.get(
+                        "show_welcome_page", True)))
+                    act.toggled.connect(self._set_welcome_page_enabled)
+                    view_menu.addSeparator()
+                    view_menu.addAction(act)
+                    self.welcome_page_action = act
+            except Exception as e:
+                print(f"[MainWindow] 欢迎页开关失败: {e}")
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
 
@@ -2402,6 +2425,23 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         except Exception as e:
             self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
+
+    def _set_welcome_page_enabled(self, enabled: bool):
+        """视图 → 显示欢迎页（持久化偏好；NPP 默认无欢迎页）"""
+        enabled = bool(enabled)
+        self._welcome_visible_pref = enabled
+        try:
+            self.prefs.set("show_welcome_page", enabled)
+        except Exception:
+            pass
+        try:
+            if not enabled:
+                self.central_stack.setCurrentIndex(0)
+            elif (self.tabs.count() == 0
+                  and getattr(self, 'welcome', None) is not None):
+                self.central_stack.setCurrentIndex(1)
+        except Exception:
+            pass
 
     def _apply_language_by_extension(self):
         """语言 → 自动：按当前文件扩展名重新应用词法器"""
