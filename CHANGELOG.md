@@ -1,8 +1,13 @@
-# Changelog
+## [Unreleased]
 
-所有重要的项目变更都记录在此文件中。
+### UI 修复（主题切换崩溃 + 菜单选中对号）
 
-本项目遵循 [语义化版本](https://semver.org/)。
+- 修复「主题切换失败: cannot access local variable 'QApplication'」：
+  `_apply_theme_by_name()` 后文局部 import 使 QApplication 成为整函数
+  局部变量，提前使用抛 UnboundLocalError；改为函数最前面导入。
+- 菜单选中对号（对齐 Notepad++）：「编码」勾选当前编码、
+  「换行符」勾选当前 EOL、「语言」勾选当前语言包/自动（aboutToShow 同步）。
+- 新增 tests/test_menu_checks.py（导入顺序回归 + 勾选当前项）。
 
 ## [Unreleased]
 
