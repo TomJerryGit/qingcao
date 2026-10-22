@@ -24,6 +24,8 @@ def _load_plugin():
     plugin = mod.Plugin.__new__(mod.Plugin)
     plugin._checker = None
     plugin._status_item = None
+    plugin._ignore = set()
+    plugin._ignore_path = ""
     return mod, plugin
 
 
@@ -77,3 +79,35 @@ def test_check_text_respects_limit_and_min_length():
     assert len(issues) == 10
     assert plugin._check_text("", min_length=4, limit=10) == []
     assert plugin._check_text("a b c", min_length=4, limit=10) == []
+
+
+def test_ignore_words_file_loading(tmp_path):
+    import importlib.util as _iu
+    path = os.path.join(PLUGIN_DIR, "__init__.py")
+    spec = _iu.spec_from_file_location("spell_ignore_mod", path)
+    mod = _iu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    f = tmp_path / "ignore.txt"
+    f.write_text("# comment\nQingCao\n  myword  \n\n#x\n", encoding="utf-8")
+    words = mod.load_ignore_words(str(f))
+    assert words == {"qingcao", "myword"}
+
+    _m, plugin = _load_plugin()
+    plugin._ignore = {"qingcao"}
+    assert plugin._known("QingCao") is True
+    assert plugin._known("myword") is False
+    issues = plugin._check_text("qingcao myword", min_length=4, limit=10)
+    flagged = {i["message"].split("：")[-1].lower() for i in issues}
+    assert "qingcao" not in flagged
+    assert "myword" in flagged
+
+
+def test_default_ignore_file_and_menus():
+    default = os.path.join(ROOT, "data", "spell_ignore.txt")
+    assert os.path.exists(default), "缺少默认忽略词文件"
+    _m, _plugin = _load_plugin()
+    src = open(os.path.join(PLUGIN_DIR, "__init__.py"), encoding="utf-8").read()
+    assert "reload_ignore" in src
+    assert "open_ignore_file" in src
+    assert "spell_ignore.txt" in src

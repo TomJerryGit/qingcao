@@ -10,6 +10,7 @@
   驼峰、URL/路径、长度不足的词，显著降低误报；
 * 结果发布到「问题」面板（warning，code=SPELL001），状态栏给数量。
 """
+import os
 import re
 
 from app.plugins import PluginBase
@@ -32,6 +33,25 @@ _ALLOW = {
 _BUILTIN = {"a", "about", "above", "after", "again", "against", "all", "almost", "along", "already", "also", "although", "always", "am", "among", "an", "and", "another", "any", "anyone", "anything", "are", "around", "as", "ask", "at", "back", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "call", "can", "could", "day", "did", "do", "does", "doing", "done", "down", "during", "each", "early", "even", "ever", "every", "few", "find", "first", "for", "from", "get", "give", "go", "good", "great", "had", "has", "have", "he", "help", "her", "here", "hers", "him", "his", "how", "however", "i", "if", "in", "into", "is", "it", "its", "just", "keep", "know", "last", "later", "least", "less", "let", "like", "little", "long", "look", "made", "make", "many", "may", "me", "might", "more", "most", "much", "must", "my", "need", "never", "new", "next", "no", "not", "now", "number", "of", "off", "often", "on", "once", "one", "only", "or", "other", "our", "out", "over", "own", "part", "people", "per", "perhaps", "place", "point", "put", "quite", "rather", "really", "right", "same", "say", "see", "seem", "she", "should", "show", "side", "since", "small", "so", "some", "something", "still", "such", "sure", "take", "tell", "than", "that", "the", "their", "them", "then", "there", "these", "they", "thing", "think", "this", "those", "though", "through", "time", "to", "too", "toward", "two", "under", "until", "up", "upon", "us", "use", "used", "using", "very", "want", "was", "way", "we", "well", "went", "were", "what", "when", "where", "whether", "which", "while", "who", "whom", "why", "will", "with", "within", "without", "would", "year", "yes", "yet", "you", "your", "editor", "file", "open", "save", "close", "find", "replace", "search", "view", "tool", "window", "help", "setting", "theme", "plugin", "project", "task", "session", "macro", "print", "preview", "export", "import", "document", "line", "column", "cursor", "selection", "bookmark", "folder", "directory", "tab", "panel", "error", "warning", "info", "debug", "test", "build", "release", "version", "update", "install", "spell", "check", "word", "dictionary", "language", "english", "chinese", "text", "content"}
 
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
+
+# 忽略词/自定义词典文件（每行一个词，# 开头为注释；大小写不敏感）
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+IGNORE_FILE = os.path.join(_ROOT, "data", "spell_ignore.txt")
+
+
+def load_ignore_words(path=None) -> set:
+    """从忽略词文件加载词表（不存在则返回空集）"""
+    words = set()
+    try:
+        with open(path or IGNORE_FILE, encoding="utf-8") as f:
+            for line in f:
+                word = line.split("#", 1)[0].strip().lower()
+                if word:
+                    words.add(word)
+    except OSError:
+        pass
+    return words
 
 
 def _looks_like_english(token: str) -> bool:
@@ -59,6 +79,8 @@ class Plugin(PluginBase):
         super().__init__()
         self._checker = None
         self._status_item = None
+        self._ignore = set()
+        self._ignore_path = IGNORE_FILE
 
     # --------------------------------------------------------
     # 生命周期
@@ -79,8 +101,13 @@ class Plugin(PluginBase):
         except Exception:
             self._checker = None
 
+        self._ignore = load_ignore_words(self._ignore_path)
         self.api.add_menu("工具/拼写检查/检查当前文档", self.check_current)
         self.api.add_menu("工具/拼写检查/清除结果", self.clear)
+        self.api.add_menu("工具/拼写检查/重新加载忽略词",
+                          self.reload_ignore)
+        self.api.add_menu("工具/拼写检查/编辑忽略词…",
+                          self.open_ignore_file)
 
     def on_deactivate(self):
         self.api.log("拼写检查插件已停用")
@@ -94,6 +121,8 @@ class Plugin(PluginBase):
     # --------------------------------------------------------
     def _known(self, word: str) -> bool:
         low = word.lower()
+        if low in self._ignore:
+            return True
         if self._checker is not None:
             try:
                 return low in self._checker
@@ -126,6 +155,29 @@ class Plugin(PluginBase):
                 if len(issues) >= limit:
                     return issues
         return issues
+
+    def reload_ignore(self):
+        """重新加载忽略词文件"""
+        self._ignore = load_ignore_words(self._ignore_path)
+        self.api.show_status(
+            "已加载 %d 个忽略词" % len(self._ignore), 2500, "info")
+
+    def open_ignore_file(self):
+        """打开（不存在则创建）忽略词文件"""
+        try:
+            os.makedirs(os.path.dirname(self._ignore_path), exist_ok=True)
+            if not os.path.exists(self._ignore_path):
+                with open(self._ignore_path, "w", encoding="utf-8") as f:
+                    f.write("# 拼写检查忽略词 / 自定义词典\n"
+                            "# 每行一个词，# 开头为注释，大小写不敏感\n")
+            from PyQt5.QtCore import QUrl
+            from PyQt5.QtGui import QDesktopServices
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(self._ignore_path))
+            self.api.show_status("已打开忽略词文件", 2500, "info")
+        except Exception as e:
+            self.api.show_status("打开忽略词文件失败: %s" % e, 3000,
+                                 "warning")
 
     def check_current(self):
         text = self._get_current_text()
