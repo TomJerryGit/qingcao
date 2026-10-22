@@ -1459,7 +1459,7 @@ class CapabilityWiringMixin:
 
             # 关键：通知所有面板按主题换算 QSS
             try:
-                loader.notify_widgets(self, theme, visible_only=True)
+                loader.notify_widgets(self, theme)
             except Exception as e:
                 print(f"[Theme] 启动 notify_widgets 失败: {e}")
 
