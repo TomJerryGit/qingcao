@@ -300,6 +300,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         self._build_toolbar()
         self._build_docks()
         self._build_status_bar()
+        self._build_npp_style_menus()
         self._build_shortcuts()
 
         # 连接事件总线
@@ -2253,6 +2254,79 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # 查找
     # ========================================================
+    # ========================================================
+    # NPP 式菜单重组（非破坏式）
+    # ========================================================
+    def _build_npp_style_menus(self):
+        """新增「搜索 / 宏 / 运行 / 窗口」顶级菜单（对齐 Notepad++）
+
+        设计原则（**不破坏**现有快捷键与旧入口）：
+        * 新菜单项**不绑定快捷键**（调用 `_add_action(..., None, cb)`），
+          原 QAction 仍是唯一快捷键入口 → 不会出现
+          "ambiguous shortcut overload"；
+        * 旧菜单位置保持不变，命令面板仍可搜索全部动作；
+        * 「窗口」菜单复用面板菜单里已有的 QAction（QAction 可同时出现在
+          多个菜单，不会夺走原菜单项）；
+        * 菜单通过 `insertMenu` 插到「帮助」之前，符合 NPP 习惯顺序。
+        """
+        try:
+            from PyQt5.QtWidgets import QMenu
+            menubar = self.menuBar()
+            help_menu = getattr(self, 'help_menu', None)
+
+            def _insert(menu):
+                if help_menu is not None:
+                    # QMenuBar.insertMenu 的第一个参数是 QAction
+                    menubar.insertMenu(help_menu.menuAction(), menu)
+                else:
+                    menubar.addMenu(menu)
+                return menu
+
+            # ---- 搜索(&S) ----
+            m = _insert(QMenu("搜索(&S)", self))
+            self.npp_search_menu = m
+            self._add_action(m, "🔍 查找(&F)", None, self._show_search)
+            self._add_action(m, "🗂 在文件中查找", None,
+                             self._show_global_search)
+            self._add_action(m, "⌨ 跳转到行…", None, self._show_line_palette)
+            m.addSeparator()
+            self._add_action(m, "🎛 命令面板", None,
+                             self._show_command_palette)
+            self._add_action(m, "📄 打开文件（模糊匹配）", None,
+                             self._show_file_palette)
+            self._add_action(m, "🔣 跳转到符号", None,
+                             self._show_symbol_palette)
+
+            # ---- 宏(&M) ----
+            m = _insert(QMenu("宏(&M)", self))
+            self.npp_macro_menu = m
+            self._add_action(m, "⏺ 开始/停止录制宏", None, self._toggle_macro)
+            self._add_action(m, "▶ 回放宏", None, self._play_macro)
+
+            # ---- 运行(&R) ----
+            m = _insert(QMenu("运行(&R)", self))
+            self.npp_run_menu = m
+            self._add_action(m, "▶ 运行当前文件", None, self._run_current_file)
+            debug_run = getattr(self, '_debug_run', None)
+            if callable(debug_run):
+                self._add_action(m, "🐞 调试运行", None, debug_run)
+
+            # ---- 窗口(&W) ----
+            m = _insert(QMenu("窗口(&W)", self))
+            self.npp_window_menu = m
+            panel_menu = getattr(self, 'panel_menu', None)
+            if panel_menu is not None:
+                for act in panel_menu.actions():
+                    if act.isSeparator() or act.menu() is not None:
+                        continue
+                    m.addAction(act)
+            m.addSeparator()
+            self._add_action(m, "🖥 无干扰模式", None,
+                             self.toggle_distraction_free)
+            self._add_action(m, "⛶ 全屏", None, self.toggle_fullscreen)
+        except Exception as e:
+            print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
+
     def _show_search(self):
         """显示搜索栏"""
         try:
