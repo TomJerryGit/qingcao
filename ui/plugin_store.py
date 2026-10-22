@@ -212,6 +212,18 @@ class PluginState(Enum):
 # ============================================================
 # 插件信息
 # ============================================================
+def check_plugin_compatibility(info, app_version: str = ""):
+    """插件与应用版本是否兼容（复用更新器判定，唯一实现）"""
+    try:
+        from infrastructure.plugin_updater import get_app_version, is_app_version_compatible
+        return is_app_version_compatible(
+            getattr(info, 'min_app_version', '') or "",
+            getattr(info, 'max_app_version', '') or "",
+            app_version or get_app_version())
+    except Exception as e:
+        return False, "兼容性检查失败: %s" % e
+
+
 @dataclass
 class PluginInfo:
     """
@@ -1616,6 +1628,16 @@ class PluginDetailDialog(QDialog):
         if self.info.min_app_version:
             html_parts.append(f"<li>最低版本: {self.info.min_app_version}</li>")
 
+        if self.info.max_app_version:
+            html_parts.append(f"<li>最高版本: {self.info.max_app_version}</li>")
+
+        _ok, _reason = check_plugin_compatibility(self.info)
+        if _ok:
+            html_parts.append("<li>✅ 兼容当前版本</li>")
+        else:
+            html_parts.append(
+                f"<li>⚠️ 不兼容: {_reason}</li>")
+
         if self.info.verified:
             html_parts.append("<li>✅ 已验证</li>")
 
@@ -1867,6 +1889,15 @@ class PluginStoreDialog(QDialog):
         self.check_updates_btn = QPushButton("🔍 检查更新")
         self.check_updates_btn.clicked.connect(self._check_updates)
         bottom.addWidget(self.check_updates_btn)
+        self.update_all_btn = QPushButton("⬆ 全部更新")
+        self.update_all_btn.setToolTip(
+            "检查并更新所有兼容的插件（不兼容项自动跳过）")
+        self.update_all_btn.clicked.connect(self._check_updates)
+        self.update_all_btn.setObjectName("update_all_btn")
+        self.update_all_btn.setStyleSheet(
+            "QPushButton { background: #4a90d9; color: white; "
+            "padding: 4px 12px; border-radius: 3px; }")
+        bottom.addWidget(self.update_all_btn)
 
         self.refresh_btn = QPushButton("🔄 刷新")
         self.refresh_btn.clicked.connect(self._refresh_plugins)
@@ -2270,7 +2301,15 @@ class PluginStoreDialog(QDialog):
     # 操作处理
     # --------------------------------------------------------
     def _on_install(self, info: PluginInfo):
-        """安装插件"""
+        """
+        # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
+        _ok, _reason = check_plugin_compatibility(info)
+        if not _ok:
+            QMessageBox.warning(
+                self, "不兼容",
+                "该插件与当前版本不兼容，已取消：\n\n" + _reason)
+            return
+安装插件"""
         # 检查依赖
         satisfied, missing = info.get_dependency_status()
         if not satisfied:
@@ -2342,7 +2381,15 @@ class PluginStoreDialog(QDialog):
             QMessageBox.critical(self, "卸载失败", msg)
 
     def _on_update(self, info: PluginInfo):
-        """更新插件"""
+        """
+        # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
+        _ok, _reason = check_plugin_compatibility(info)
+        if not _ok:
+            QMessageBox.warning(
+                self, "不兼容",
+                "该插件与当前版本不兼容，已取消：\n\n" + _reason)
+            return
+更新插件"""
         progress_dlg = InstallProgressDialog(info.display_title, self)
         progress_dlg.show()
 
@@ -2411,7 +2458,25 @@ class PluginStoreDialog(QDialog):
             self.status_label.setText("")
 
     def _update_all(self, updates: List[PluginInfo]):
-        """批量更新"""
+        """批量更新（不兼容项自动跳过，NPP Plugins Admin 同款）"""
+        _compat, _skipped = [], []
+        for _info in updates:
+            _ok, _reason = check_plugin_compatibility(_info)
+            if _ok:
+                _compat.append(_info)
+            else:
+                _skipped.append((_info, _reason))
+        if _skipped:
+            QMessageBox.information(
+                self, "跳过不兼容",
+                "以下插件与当前应用版本不兼容，已跳过更新：\n\n"
+                + "\n".join(
+                    "• %s：%s" % (i.display_title, r)
+                    for i, r in _skipped))
+        updates = _compat
+        if not updates:
+            return
+
         success_count = 0
         failed_count = 0
 

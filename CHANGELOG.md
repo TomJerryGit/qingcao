@@ -298,6 +298,18 @@
   （不触网）、`test_update_all_skips_incompatible`（批量跳过）；
 - 文档 `docs/plugin_store_benchmark.md` 标记 P0 完成。
 
+### 插件商店（P1：兼容性徽章 + 全部更新）
+
+- 新增 `check_plugin_compatibility()`（复用更新器唯一判定）：
+  安装、更新、详情页、批量更新共用同一套 min/max 兼容规则。
+- 安装/更新入口加门控：不兼容弹「不兼容」并取消，不再下载。
+- 详情页新增「最高版本」与兼容性徽章（✅ 兼容当前版本 /
+  ⚠️ 不兼容: 原因）。
+- 新增「⬆ 全部更新」按钮（检查更新 → 确认 → 批量更新），
+  `_update_all()` 自动跳过不兼容项并列出跳过原因。
+- 新增 `tests/test_store_compatibility.py`（3 项）。
+- docs/plugin_store_benchmark.md P1 关键项完成。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
