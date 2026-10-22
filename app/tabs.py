@@ -355,6 +355,12 @@ class TabManager(QTabWidget):
                         if index >= 0:
                             self.close_tab(index)
                             return True
+                # NPP 习惯：双击标签栏空白处新建文档
+                if event.type() == event.Type.MouseButtonDblClick:
+                    if event.button() == Qt.LeftButton:
+                        if self.tabBar().tabAt(event.pos()) < 0:
+                            self.add_tab()
+                            return True
         except Exception:
             pass
         return super().eventFilter(obj, event)
