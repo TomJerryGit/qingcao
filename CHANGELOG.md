@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+### 插件平台（P2 第一阶段：安全沙箱静态审计）
+
+- 新增 `infrastructure/plugin_sandbox.py`：AST 扫描危险 import/调用/
+  动态执行/写文件，比对 manifest 权限声明，输出
+  pass/warn/review/reject 判定；
+- 新增 `tools/audit_plugins.py` CLI（默认/--json/--strict）；
+- 新增 `docs/plugin_sandbox.md`（规则表、判定、内置插件现状、接入建议）；
+- `spell_check` 补齐 `filesystem` 权限声明（写忽略词文件）；
+- `tests/test_plugin_sandbox.py` 6 项：干净插件、网络/进程/文件系统
+  能力检测、danger 人工评审、全量内置插件无 reject。
+
 ### 插件（拼写检查：状态栏计数）
 
 - 激活时创建状态项「拼写: -」，检查后显示问题数量、清除后归零

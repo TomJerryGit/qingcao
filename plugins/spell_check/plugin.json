@@ -7,8 +7,14 @@
   "license": "MIT",
   "type": "plugin",
   "category": "tool",
-  "tags": ["spell", "proofread"],
-  "permissions": ["editor_read"],
+  "tags": [
+    "spell",
+    "proofread"
+  ],
+  "permissions": [
+    "editor_read",
+    "filesystem"
+  ],
   "dependencies": [],
   "api_version": "2.0.0",
   "enabled": true,
