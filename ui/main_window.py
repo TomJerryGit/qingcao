@@ -2361,8 +2361,47 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         lambda p=packs[name]: self._apply_language_pack(p))
             except Exception as e:
                 print(f"[MainWindow] 构建语言菜单失败: {e}")
+
+            # ---- 设置(&O)：首选项/快捷键/主题/配置/语言包目录 ----
+            m = _insert(QMenu("设置(&O)", self))
+            self.npp_settings_menu = m
+            self._add_action(m, "⚙ 首选项…", None, self._show_preferences)
+            self._add_action(m, "⌨ 快捷键一览…", None, self._show_shortcuts)
+            self._add_action(m, "⌨ 快捷键编辑器（方案）…", None,
+                             self._show_keymap_editor)
+            m.addSeparator()
+            self._add_action(m, "🎨 主题编辑器…", None,
+                             self._show_theme_editor)
+            self._add_action(m, "🎨 主题市场…", None,
+                             self._show_theme_market)
+            self._add_action(m, "📥 导入主题包…", None,
+                             self._import_theme_pack)
+            self._add_action(m, "📤 导出主题包…", None,
+                             self._export_theme_pack)
+            self._add_action(m, "📂 打开主题目录", None,
+                             self._open_theme_dir)
+            m.addSeparator()
+            self._add_action(m, "📥 导入配置…", None, self._import_config)
+            self._add_action(m, "📤 导出配置…", None, self._export_config)
+            self._add_action(m, "📂 打开语言包目录", None,
+                             self._open_language_packs_dir)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
+
+    def _open_language_packs_dir(self):
+        """设置 → 打开语言包目录（data/language_packs）"""
+        try:
+            import os
+
+            from PyQt5.QtCore import QUrl
+            from PyQt5.QtGui import QDesktopServices
+            root = os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))
+            path = os.path.join(root, "data", "language_packs")
+            os.makedirs(path, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+        except Exception as e:
+            self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
 
     def _apply_language_by_extension(self):
         """语言 → 自动：按当前文件扩展名重新应用词法器"""

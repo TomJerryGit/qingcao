@@ -70,3 +70,26 @@ def test_encoding_and_language_menus(qapp, tmp_path):
         win._apply_language_by_extension()
     finally:
         _close(win)
+
+
+def test_settings_menu(qapp):
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        titles = " | ".join(_titles(win))
+        assert "设置" in titles, titles
+        items = [a.text() for a in win.npp_settings_menu.actions()
+                 if not a.isSeparator()]
+        assert len(items) >= 8, items
+        for key in ("首选项", "快捷键", "主题", "配置", "语言包"):
+            assert any(key in t for t in items), "缺少 %s 类条目: %r" % (
+                key, items)
+        # 新菜单项不绑快捷键
+        for act in win.npp_settings_menu.actions():
+            if act.isSeparator() or act.menu() is not None:
+                continue
+            assert act.shortcut().isEmpty(), act.text()
+        assert hasattr(win, "_open_language_packs_dir")
+    finally:
+        _close(win)
