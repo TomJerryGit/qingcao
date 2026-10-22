@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.4.0] - 2026-10-22
+
 ### 插件（内置拼写检查，对标 NPP DSpellCheck）
 
 - 新增内置插件 `plugins/spell_check/`：仅 `editor_read` 权限；
