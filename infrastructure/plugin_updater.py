@@ -141,6 +141,7 @@ class UpdateInfo:
 
     # 兼容性
     min_app_version: str = ""               # 最低应用版本
+    max_app_version: str = ""               # 最高应用版本（"" = 不限）
 
     # 状态
     has_update: bool = False                # 是否有更新
@@ -337,6 +338,53 @@ class SemVer:
 # ============================================================
 # 插件更新器
 # ============================================================
+def get_app_version() -> str:
+    """当前应用版本（用于插件兼容性判断）"""
+    try:
+        from version import __version__
+        return __version__
+    except Exception:
+        return "0.0.0"
+
+
+def is_app_version_compatible(min_app_version: str = "",
+                              max_app_version: str = "",
+                              app_version: str = "") -> Tuple[bool, str]:
+    """判断应用版本是否在插件声明的兼容范围内
+
+    借鉴 Notepad++ Plugins Admin 的 `npp-compatible-version`：清单里的
+    `min_app_version` / `max_app_version` 必须在安装/更新前生效，而不是
+    只写在 JSON 里。
+
+    返回 (兼容, 原因)；空约束视为不限。
+    """
+    current_s = app_version or get_app_version()
+    try:
+        current = SemVer(current_s)
+    except Exception:
+        return False, "无法解析当前应用版本: %r" % current_s
+    import re as _re
+    _ver_re = _re.compile(r"^\d+(\.\d+){0,3}([-+][0-9A-Za-z.]+)?$")
+    for raw, label in ((min_app_version, "最低"),
+                       (max_app_version, "最高")):
+        if not raw:
+            continue
+        if not _ver_re.match(str(raw).strip()):
+            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
+        try:
+            bound = SemVer(str(raw))
+        except Exception:
+            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
+        try:
+            if label == "最低" and current < bound:
+                return False, "需要应用 >= %s（当前 %s）" % (raw, current_s)
+            if label == "最高" and current > bound:
+                return False, "仅支持应用 <= %s（当前 %s）" % (raw, current_s)
+        except Exception:
+            return False, "版本比较失败: %r vs %r" % (current_s, raw)
+    return True, ""
+
+
 class PluginUpdater(QObject):
     """
     插件更新器。
@@ -423,6 +471,15 @@ class PluginUpdater(QObject):
     # ========================================================
     # 状态
     # ========================================================
+    def check_compatibility(self, info: 'UpdateInfo',
+                            app_version: str = "") -> Tuple[bool, str]:
+        """检查某次更新是否与当前应用版本兼容"""
+        try:
+            return is_app_version_compatible(
+                info.min_app_version, info.max_app_version, app_version)
+        except Exception as e:
+            return False, "兼容性检查失败: %s" % e
+
     @property
     def state(self) -> UpdateState:
         return self._state

@@ -209,6 +209,20 @@
   （新增事件漏文档会失败）、全部事件可订阅/退订、未知事件被拒绝。
 - 对应 `docs/npp_plugin_benchmark_v2.3.md` P1-7。
 
+### 插件系统（P1：商店兼容性门控基础）
+
+- `infrastructure/plugin_updater.py`：
+  * `UpdateInfo` 新增 `max_app_version`；
+  * 新增 `get_app_version()` 与
+    `is_app_version_compatible(min, max, app_version)`：空约束不限，
+    支持 `1.2`/`1.2.3`/`1.2.3-beta`，**非法版本字符串直接拒绝**
+    （防止 SemVer 宽松解析成 0.0.0 误判兼容）；
+  * `PluginUpdater.check_compatibility(info)` 便捷包装。
+- 新增 `tests/test_plugin_compatibility.py`（3 项）；
+- 新增 `docs/plugin_store_benchmark.md`：现状/缺口/改造方案
+  （NPP Plugins Admin 对标；下一步：更新入口强制门控、商店兼容性
+  徽章、全部更新 UI、changelog 展示）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）
