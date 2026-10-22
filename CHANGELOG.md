@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+### 性能（输入路径优化，typing 211 → 149 µs/键）
+
+- cProfile（2000 次 insertAt）显示热点在每键的 provider 同步：
+  `sc.text()` 全文 + `provider.read_text()` 全文解码比较 + 逐块写入；
+- `_sync_provider_now()` 改用**内存缓存** `_last_synced_text` 比较，
+  去掉 provider 全文解码；
+- `_sync_content_to_provider()` 增加单块快速路径（小文件常见）；
+- 实测：211 µs/键 → **149 µs/键**（三次采样 143/149/160）；
+- `bench_optimization.py` 的 typing_2000 阈值 0.9 → **0.40s**，
+  锁定本阶段收益；目标 <0.20s（<100µs/键）需继续优化撤销栈路径。
+
+## [Unreleased]
+
 ### 性能（主题切换遍历优化）
 
 - `adapt_widget_styles()` 去掉了重复的 `findChildren` 遍历（原先

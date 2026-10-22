@@ -986,17 +986,21 @@ class EditorProxy(QObject):
         # 清空旧脏块
         provider.clear_dirty()
 
-        # 写入所有块
-        for bid in range(total_blocks):
-            start = bid * block_size
-            end = min(start + block_size, new_size)
-            provider.write_block(bid, encoded[start:end])
+        # 写入所有块（单块=小文件常见路径，直接写 block 0，省循环开销）
+        if total_blocks == 1:
+            provider.write_block(0, encoded)
+        else:
+            for bid in range(total_blocks):
+                start = bid * block_size
+                end = min(start + block_size, new_size)
+                provider.write_block(bid, encoded[start:end])
 
         # 更新提供者元数据
         if hasattr(provider, '_total_blocks'):
             provider._total_blocks = total_blocks
         if hasattr(provider, '_size'):
             provider._size = new_size
+        self._last_synced_text = text
 
     # ========================================================
     # 词法器
@@ -2346,12 +2350,12 @@ class EditorProxy(QObject):
             if provider is None or not getattr(provider, 'is_open', False):
                 return
             text = self.sc.text()
-            # 内容未变则跳过（避免无谓的重编码）
-            try:
-                if provider.read_text() == text:
-                    return
-            except Exception:
-                pass
+            # 内容未变则跳过（避免无谓的重编码）。
+            # 优化（C 阶段）：用上次同步文本的内存缓存比较，省掉
+            # provider.read_text() 的整篇解码（每次按键都做，实测占
+            # 输入路径可观的固定开销）。
+            if getattr(self, "_last_synced_text", None) == text:
+                return
             self._sync_content_to_provider(text)
         except Exception as e:
             logger.debug("同步 provider 失败: %s", e)
