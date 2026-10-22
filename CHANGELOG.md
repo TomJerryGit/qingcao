@@ -6,7 +6,12 @@
 
 ## [Unreleased]
 
-（下一版本开发中）
+### UI（对齐 Notepad++：窗口级拖放打开）
+
+- 主窗口启用拖放：文件拖到窗口/欢迎页任意位置即可打开；
+  目录拖入则作为项目打开（复用 `_open_folder`）；
+- 新增 `_open_dropped_paths()` 与 `dragEnterEvent/dragMoveEvent/dropEvent`；
+- 新增 `tests/test_drag_drop.py`（acceptDrops + 真实 QDropEvent 打开文件）。
 
 ## [2.3.0] - 2026-10-22
 

@@ -301,6 +301,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         self._build_docks()
         self._build_status_bar()
         self._build_npp_style_menus()
+        self.setAcceptDrops(True)
         self._build_shortcuts()
 
         # 连接事件总线
@@ -2444,6 +2445,64 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         except Exception as e:
             self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
+
+    # ========================================================
+    # 拖放打开（NPP 对齐：文件拖到窗口任意位置即可打开）
+    # ========================================================
+    def _open_dropped_paths(self, paths):
+        """打开拖入的文件/目录（供 dropEvent 与测试复用）"""
+        import os as _os
+        opened = 0
+        for path in paths or []:
+            try:
+                if not path:
+                    continue
+                if _os.path.isdir(path):
+                    if hasattr(self, '_open_folder'):
+                        self._open_folder(path)
+                    continue
+                if hasattr(self, 'tabs') and self.tabs is not None:
+                    self.tabs.open_file(path)
+                    opened += 1
+            except Exception as e:
+                print(f"[MainWindow] 拖放打开失败({path}): {e}")
+        if opened:
+            try:
+                self.status_bar.showMessage(
+                    "已打开 %d 个拖入文件" % opened, 2500)
+            except Exception:
+                pass
+        return opened
+
+    def dragEnterEvent(self, event):
+        try:
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return
+        except Exception:
+            pass
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        try:
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return
+        except Exception:
+            pass
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        try:
+            if not event.mimeData().hasUrls():
+                super().dropEvent(event)
+                return
+            paths = [u.toLocalFile() for u in event.mimeData().urls()
+                     if u.isLocalFile()]
+            event.acceptProposedAction()
+            self._open_dropped_paths(paths)
+        except Exception as e:
+            print(f"[MainWindow] 拖放处理失败: {e}")
 
     def _build_print_document(self):
         """把当前编辑器文本构建为 QTextDocument（供打印/预览复用）"""
