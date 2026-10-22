@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.5.1] - 2026-10-22
+
 ### UI 修复（主题切换崩溃 + 菜单选中对号）
 
 - 修复「主题切换失败: cannot access local variable 'QApplication'」：
