@@ -180,6 +180,50 @@ from ui.mixins.project_mixin import ProjectMixin
 from ui.mixins.status_bar_mixin import StatusBarMixin
 
 
+def adapt_widget_styles(root, theme):
+    """递归把控件树内联 QSS 中硬编码的深色适配为当前主题配色
+
+    为什么需要：部分面板只在内部子控件（QTreeWidget/QTextEdit 等）上
+    设置了硬编码深色 QSS；dock 自身 refresh_theme 只能改 dock 级样式，
+    浅色主题下会留下"黑块"（真实桌面截图确认）。
+
+    保存首次原始 QSS，后续调用从原始值重新适配，避免多次叠加失真。
+    """
+    if root is None or theme is None:
+        return 0
+    try:
+        from infrastructure.theme_loader import adapt_qss_colors
+    except Exception:
+        return 0
+    targets = [root]
+    try:
+        targets += list(root.findChildren(type(root)))
+    except Exception:
+        pass
+    try:
+        from PyQt5.QtWidgets import QWidget
+        targets = [root] + list(root.findChildren(QWidget))
+    except Exception:
+        pass
+    count = 0
+    for w in targets:
+        try:
+            qss = w.styleSheet()
+            if not qss:
+                continue
+            orig = getattr(w, '_qc_orig_qss', None)
+            if orig is None:
+                w._qc_orig_qss = qss
+                orig = qss
+            new = adapt_qss_colors(orig, theme)
+            if new and new != qss:
+                w.setStyleSheet(new)
+                count += 1
+        except Exception:
+            continue
+    return count
+
+
 class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                  EditOpsMixin, StatusBarMixin, QMainWindow):
     """
@@ -1064,6 +1108,10 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
 
             # v3.0: 通知所有面板刷新样式
             loader.notify_widgets(self, theme)
+            try:
+                adapt_widget_styles(self, theme)
+            except Exception:
+                pass
 
             # B: 遍历所有顶层窗口（含独立对话框）
             # notify_widgets 只处理 self.findChildren，独立打开的
@@ -2048,6 +2096,11 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         fn(theme)
                     except Exception:
                         pass
+        # 子控件内联深色 QSS 也要适配（dock 级 refresh_theme 覆盖不到）
+        try:
+            adapt_widget_styles(widget, theme)
+        except Exception:
+            pass
 
     def _build_panel_outline(self):
         """构造基础版大纲面板"""
