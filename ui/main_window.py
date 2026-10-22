@@ -1069,6 +1069,10 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         )
 
     def _apply_theme_by_name(self, name: str):
+        # 函数内后文有局部 `from PyQt5.QtWidgets import QApplication`，
+        # Python 会把 QApplication 当整个函数的局部变量；若在 import
+        # 之前使用（如"跟随系统"分支）会抛 UnboundLocalError。
+        from PyQt5.QtWidgets import QApplication
         """按名称应用主题"""
         try:
             from infrastructure.theme_loader import ThemeLoader
@@ -2391,24 +2395,35 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self.npp_encoding_menu = m
             try:
                 from ui.status_bar_widgets import ENCODINGS, LINE_ENDINGS
+                self._npp_encoding_actions = []
                 for name, code in ENCODINGS:
-                    self._add_action(
+                    act = self._add_action(
                         m, name, None,
                         lambda c=code: self._on_encoding_changed(c))
+                    act.setCheckable(True)
+                    self._npp_encoding_actions.append((str(code), act))
+                m.aboutToShow.connect(self._sync_encoding_menu_checks)
                 m.addSeparator()
                 eol_menu = m.addMenu("换行符")
+                self._npp_eol_actions = []
                 for name, code in LINE_ENDINGS:
-                    self._add_action(
+                    act = self._add_action(
                         eol_menu, name, None,
                         lambda c=code: self._on_eol_changed(c))
+                    act.setCheckable(True)
+                    self._npp_eol_actions.append((code, act))
+                eol_menu.aboutToShow.connect(self._sync_encoding_menu_checks)
             except Exception as e:
                 print(f"[MainWindow] 构建编码菜单失败: {e}")
 
             # ---- 语言(&L)（内置映射 + 声明式语言包）----
             m = _insert(QMenu("语言(&L)", self))
             self.npp_language_menu = m
-            self._add_action(m, "自动（按扩展名）", None,
-                             self._apply_language_by_extension)
+            self._npp_language_actions = []
+            self._npp_language_auto_action = self._add_action(
+                m, "自动（按扩展名）", None,
+                self._apply_language_by_extension)
+            self._npp_language_auto_action.setCheckable(True)
             try:
                 from core.language_pack import get_packs
                 packs = {}
@@ -2417,9 +2432,12 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 if packs:
                     m.addSeparator()
                 for name in sorted(packs):
-                    self._add_action(
+                    act = self._add_action(
                         m, name, None,
                         lambda p=packs[name]: self._apply_language_pack(p))
+                    act.setCheckable(True)
+                    self._npp_language_actions.append((name, act))
+                m.aboutToShow.connect(self._sync_language_menu_checks)
             except Exception as e:
                 print(f"[MainWindow] 构建语言菜单失败: {e}")
 
@@ -2483,6 +2501,36 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 print(f"[MainWindow] 欢迎页开关失败: {e}")
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
+
+    def _sync_encoding_menu_checks(self):
+        """编码/EOL 菜单显示当前选中项（NPP 打对号行为）"""
+        try:
+            proxy = self.tabs.current_proxy()
+            enc = "utf-8"
+            eol = "\n"
+            if proxy is not None and getattr(proxy, "document", None):
+                enc = (proxy.document.encoding or "utf-8").lower()
+                meta = getattr(proxy.document, "meta", None)
+                if meta is not None:
+                    eol = getattr(meta, "eol", "\n") or "\n"
+            for code, act in getattr(self, "_npp_encoding_actions", []):
+                act.setChecked(code.lower() == enc)
+            for code, act in getattr(self, "_npp_eol_actions", []):
+                act.setChecked(code == eol)
+        except Exception:
+            pass
+
+    def _sync_language_menu_checks(self):
+        """语言菜单显示当前选中项（自动/语言包）"""
+        try:
+            active = getattr(self, "_active_language_pack_name", None)
+            auto = getattr(self, "_npp_language_auto_action", None)
+            if auto is not None:
+                auto.setChecked(active is None)
+            for name, act in getattr(self, "_npp_language_actions", []):
+                act.setChecked(name == active)
+        except Exception:
+            pass
 
     def _open_language_packs_dir(self):
         """设置 → 打开语言包目录（data/language_packs）"""
@@ -2700,6 +2748,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             except Exception:
                 pass
             sc._last_lexer_filepath = None
+            self._active_language_pack_name = None
             sc.set_lexer_by_filename(path)
             self.status_bar.showMessage(
                 "语言：已按扩展名自动识别", 2000)
@@ -2715,6 +2764,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self.status_bar.showMessage("没有打开的编辑器", 2500)
                 return
             from ui.generic_lexer import create_generic_lexer
+            self._active_language_pack_name = pack.name
             sc.set_lexer(create_generic_lexer(pack, sc))
             self.status_bar.showMessage(
                 "语言：已应用 %s" % (pack.name or "语言包"), 2000)
