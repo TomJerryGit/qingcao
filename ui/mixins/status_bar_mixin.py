@@ -67,6 +67,15 @@ class StatusBarMixin:
         self.cursor_label.setMinimumWidth(120)
         self.status_bar.addWidget(self.cursor_label)
 
+        # 文档长度（NPP 状态栏 Length 段）：点击查看统计摘要
+        self.length_label = _ClickableLabel("长度: 0")
+        self.length_label.setToolTip(
+            "点击查看统计摘要（字符/词/行/字节）")
+        self.length_label.setCursor(Qt.PointingHandCursor)
+        self.length_label.setMinimumWidth(90)
+        self.length_label.clicked.connect(self._on_length_label_clicked)
+        self.status_bar.addWidget(self.length_label)
+
         # 编码（可点击切换）
         try:
             from ui.status_bar_widgets import EncodingLabel
@@ -144,6 +153,43 @@ class StatusBarMixin:
         self.status_bar.showMessage("就绪")
 
 
+    def _status_stats(self) -> dict:
+        """当前文档统计（供状态栏"长度"点击显示）"""
+        stats = {"lines": 0, "chars": 0, "words": 0, "bytes": 0}
+        try:
+            import re as _re
+            proxy = self.tabs.current_proxy()
+            if proxy is None:
+                return stats
+            sc = getattr(proxy, 'sc', None)
+            if sc is not None:
+                stats["lines"] = sc.lines()
+            text = proxy.get_text() or ""
+            stats["chars"] = len(text)
+            stats["words"] = len(_re.findall(r"\w+", text))
+            stats["bytes"] = len(text.encode("utf-8"))
+        except Exception as e:
+            print(f"[MainWindow] 统计失败: {e}")
+        return stats
+
+    def _on_length_label_clicked(self):
+        """点击"长度"段：弹统计摘要（NPP Length 段等价交互）"""
+        try:
+            proxy = self.tabs.current_proxy()
+            sc = getattr(proxy, 'sc', None) if proxy else None
+            if sc is not None and sc.SendScintilla(sc.SCI_GETLENGTH) > (4 << 20):
+                self.status_bar.showMessage(
+                    "文档超过 4MB，暂不统计（避免卡顿）", 3000)
+                return
+            s = self._status_stats()
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "统计摘要",
+                "行数：%d\n字符数：%d\n单词数：%d\n字节数（UTF-8）：%d"
+                % (s["lines"], s["chars"], s["words"], s["bytes"]))
+        except Exception as e:
+            self.status_bar.showMessage("统计失败: %s" % e, 3000)
+
     def _on_cursor_label_clicked(self):
         """点击"行/列"：跳转到行（NPP 状态栏惯例）"""
         try:
@@ -186,6 +232,15 @@ class StatusBarMixin:
                         eol_display = {'\n': 'LF', '\r\n': 'CRLF',
                                         '\r': 'CR'}.get(eol, 'LF')
                         self.eol_label.setText(eol_display)
+            except Exception:
+                pass
+
+            # 文档长度（字节，QScintilla 廉价查询；点击时才算字符/词）
+            try:
+                sc = getattr(proxy, 'sc', None)
+                if sc is not None:
+                    self.length_label.setText(
+                        "长度: %d" % sc.SendScintilla(sc.SCI_GETLENGTH))
             except Exception:
                 pass
 

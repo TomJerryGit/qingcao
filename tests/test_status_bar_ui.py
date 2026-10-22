@@ -42,3 +42,24 @@ def test_cursor_label_click_jumps_to_line(qapp, tmp_path):
         assert called["n"] == 1, "点击行列标签未触发跳转到行"
     finally:
         _close(win)
+
+
+def test_length_label_and_stats(qapp, tmp_path):
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        assert win.length_label.toolTip(), "长度标签缺少 tooltip"
+        f = tmp_path / "s.txt"
+        f.write_text("hello world\nabc\n", encoding="utf-8")
+        win.tabs.open_file(str(f))
+        win._update_status_for_editor()
+        assert win.length_label.text().startswith("长度: ")
+        s = win._status_stats()
+        # Scintilla 行数 = 换行符数 + 1（末尾换行也算一行）
+        assert s["lines"] == 3
+        assert s["chars"] >= 15
+        assert s["words"] == 3
+        assert s["bytes"] >= s["chars"]
+    finally:
+        _close(win)
