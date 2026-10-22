@@ -195,19 +195,27 @@ def adapt_widget_styles(root, theme):
         from infrastructure.theme_loader import adapt_qss_colors
     except Exception:
         return 0
-    targets = [root]
+    # A 阶段优化：
+    # 1) 只做一次 findChildren（原实现先按 type(root) 再按 QWidget 扫两遍）；
+    # 2) 根控件缓存主题 key：同一主题重复套用（如惰性面板反复 ensure）
+    #    直接短路，避免全树重复适配。
     try:
-        targets += list(root.findChildren(type(root)))
+        theme_key = getattr(theme, "name", None) or hash(repr(theme))
     except Exception:
-        pass
+        theme_key = id(theme)
+    if getattr(root, "_qc_theme_key", None) == theme_key:
+        return 0
+    root._qc_theme_key = theme_key
     try:
         from PyQt5.QtWidgets import QWidget
         targets = [root] + list(root.findChildren(QWidget))
     except Exception:
-        pass
+        targets = [root]
     count = 0
     for w in targets:
         try:
+            if getattr(w, "_qc_adapted_key", None) == theme_key:
+                continue
             qss = w.styleSheet()
             if not qss:
                 continue
@@ -219,6 +227,7 @@ def adapt_widget_styles(root, theme):
             if new and new != qss:
                 w.setStyleSheet(new)
                 count += 1
+            w._qc_adapted_key = theme_key
         except Exception:
             continue
     return count
