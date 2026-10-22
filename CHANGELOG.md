@@ -316,6 +316,16 @@
 - 详情页技术信息新增「更新地址」（可点击链接）与「更新日志」；
 - 新增 `tests/test_store_metadata.py`（字段存在 + 详情 HTML 含两项）。
 
+### UI（对齐 Notepad++：工具栏图标模式）
+
+- 「视图」菜单新增可勾选 **工具栏图标模式**（默认关，持久化
+  `toolbar_icon_mode`）：开启后工具栏切换为 `ToolButtonIconOnly`，
+  动作文本用 **emoji 动态生成 QIcon**（QPainter 绘制，无需图片资源），
+  原文本转为 tooltip；关闭恢复文字。
+- 新增 `tests/test_toolbar_icon_mode.py`（模式切换/图标生成/文字恢复，
+  结束时恢复默认偏好）。
+- `docs/npp_ui_feature_alignment.md` 工具栏行标记完成。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

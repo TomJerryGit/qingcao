@@ -2406,6 +2406,16 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                     view_menu.addSeparator()
                     view_menu.addAction(act)
                     self.welcome_page_action = act
+
+                    tb_act = QAction("🧰 工具栏图标模式", self)
+                    tb_act.setCheckable(True)
+                    tb_act.setChecked(bool(self.prefs.get(
+                        "toolbar_icon_mode", False)))
+                    tb_act.toggled.connect(self._set_toolbar_icon_mode)
+                    view_menu.addAction(tb_act)
+                    self.toolbar_icon_action = tb_act
+                    if tb_act.isChecked():
+                        self._set_toolbar_icon_mode(True)
             except Exception as e:
                 print(f"[MainWindow] 欢迎页开关失败: {e}")
         except Exception as e:
@@ -2425,6 +2435,66 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         except Exception as e:
             self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
+
+    _TOOLBAR_ICONS = (
+        ("新建", "📄"), ("打开", "📂"), ("保存", "💾"),
+        ("撤销", "↶"), ("重做", "↷"), ("查找", "🔍"),
+        ("替换", "🔁"), ("运行", "▶"), ("终端", "🖥"),
+        ("插件", "🧩"), ("主题", "🎨"), ("格式化", "✨"),
+        ("对比", "🔀"), ("书签", "🔖"), ("导出", "📤"),
+    )
+
+    def _build_emoji_icon(self, text: str):
+        """用 emoji 生成工具栏图标（无需图片资源）"""
+        from PyQt5.QtCore import Qt as _Qt
+        from PyQt5.QtGui import QFont, QPainter, QPixmap
+        emoji = "🔹"
+        for key, e in self._TOOLBAR_ICONS:
+            if key in (text or ""):
+                emoji = e
+                break
+        pm = QPixmap(22, 22)
+        pm.fill(_Qt.transparent)
+        painter = QPainter(pm)
+        try:
+            font = QFont()
+            font.setPointSize(13)
+            painter.setFont(font)
+            painter.drawText(pm.rect(), _Qt.AlignCenter, emoji)
+        finally:
+            painter.end()
+        return QIcon(pm)
+
+    def _set_toolbar_icon_mode(self, enabled: bool):
+        """视图 → 工具栏图标模式（NPP 风格小图标；持久化偏好）"""
+        toolbar = getattr(self, 'toolbar', None)
+        if toolbar is None:
+            return
+        enabled = bool(enabled)
+        try:
+            self.prefs.set("toolbar_icon_mode", enabled)
+        except Exception:
+            pass
+        from PyQt5.QtCore import Qt as _Qt
+        for act in toolbar.actions():
+            if act.isSeparator() or act.menu() is not None:
+                continue
+            text = act.text()
+            if not text and not act.property("qc_orig_text"):
+                continue
+            orig = act.property("qc_orig_text") or text
+            if not act.property("qc_orig_text"):
+                act.setProperty("qc_orig_text", orig)
+            if enabled:
+                if act.icon().isNull():
+                    act.setIcon(self._build_emoji_icon(orig))
+                act.setToolTip(orig)
+                act.setText("")
+            else:
+                act.setText(orig)
+        toolbar.setToolButtonStyle(
+            _Qt.ToolButtonIconOnly if enabled
+            else _Qt.ToolButtonTextOnly)
 
     def _set_welcome_page_enabled(self, enabled: bool):
         """视图 → 显示欢迎页（持久化偏好；NPP 默认无欢迎页）"""
