@@ -335,6 +335,15 @@
   预览：QPrintPreviewDialog（900×700，实时重排）；
 - 新增 `tests/test_print_support.py`（菜单项/方法存在/文档内容正确）。
 
+### 插件商店（P1：列表行内兼容性徽章）
+
+- `PluginCard` 标题行新增兼容性徽章：✅ 兼容 / ⚠️ 不兼容（tooltip 原因），
+  与详情页共用 `check_plugin_compatibility()`；
+- 不兼容时安装/更新按钮变为「不兼容」并置灰（卸载/启用不受限），
+  `_on_action_clicked` 兜底拦截；
+- `tests/test_store_card_compat.py`（源码契约 + 判定函数；卡片在
+  offscreen 实例化会 Qt 崩溃 0xC0000409，故不实例化 GUI）。
+
 ## [2.2.0] - 2026-10-20
 
 > **v2.2.0 摘要**（详见 `docs/release_notes_v2.2.0.md`）

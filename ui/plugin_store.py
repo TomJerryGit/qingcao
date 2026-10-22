@@ -1207,6 +1207,18 @@ class PluginCard(QFrame):
         )
         title_layout.addWidget(self.version_label)
 
+        # 兼容性徽章（列表行内，与详情页一致）
+        self._compat_ok, self._compat_reason = (
+            check_plugin_compatibility(self.info))
+        self.compat_label = QLabel(
+            "✅ 兼容" if self._compat_ok else "⚠️ 不兼容")
+        self.compat_label.setToolTip(
+            self._compat_reason or "与当前应用版本兼容")
+        self.compat_label.setStyleSheet(
+            "font-size: 11px; color: #4caf50;" if self._compat_ok
+            else "font-size: 11px; color: #ff9800;")
+        title_layout.addWidget(self.compat_label)
+
         # 认证标记
         if self.info.verified:
             verified_label = QLabel("✅")
@@ -1318,9 +1330,21 @@ class PluginCard(QFrame):
             self.action_btn.setText("不可用")
             self.action_btn.setEnabled(False)
 
+        # 不兼容 → 安装/更新按钮置灰（卸载/启用不受限）
+        if (state in (PluginState.NOT_INSTALLED,
+                      PluginState.UPDATE_AVAILABLE)
+                and not getattr(self, '_compat_ok', True)):
+            self.action_btn.setText("不兼容")
+            self.action_btn.setEnabled(False)
+            self.action_btn.setToolTip(self._compat_reason)
+
     def _on_action_clicked(self):
         """按钮点击"""
         state = self.info.state
+        if state in (PluginState.NOT_INSTALLED,
+                     PluginState.UPDATE_AVAILABLE):
+            if not getattr(self, '_compat_ok', True):
+                return
 
         if state == PluginState.NOT_INSTALLED:
             self.install_clicked.emit(self.info)
