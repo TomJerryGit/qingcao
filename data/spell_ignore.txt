@@ -1,0 +1,8 @@
+# 拼写检查忽略词 / 自定义词典
+# 每行一个词；# 开头为注释；大小写不敏感
+qingcao
+qingcaoeditor
+ollama
+deepseek
+qscintilla
+pyqt
