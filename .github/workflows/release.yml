@@ -28,13 +28,18 @@ jobs:
         shell: pwsh
         run: |
           $dir = $env:GITHUB_WORKSPACE
+          $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
+          $env:GIT_TERMINAL_PROMPT = "0"
           if (Test-Path "$dir\.git") {
+            # 旧工作区可能残留 HTTPS origin（被网络阻断）→ 强制改回 SSH
+            git -C $dir remote set-url origin $url
             git -C $dir fetch --tags --force origin
             git -C $dir reset --hard $env:GITHUB_SHA
           } else {
-            git clone "git@github.com:$env:GITHUB_REPOSITORY.git" $dir
+            git clone $url $dir
             git -C $dir reset --hard $env:GITHUB_SHA
           }
+          git -C $dir remote -v
 
       - name: 检查 Python
         shell: pwsh
