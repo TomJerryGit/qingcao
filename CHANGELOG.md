@@ -1,5 +1,21 @@
 ## [Unreleased]
 
+### 插件平台（B-4/B-5：沙箱示例插件 + 端到端验证）
+
+- 新增 `plugins/sandbox_demo/` 示例插件：manifest `sandbox: true`、
+  **默认 `enabled: false`**（安全交付），只实现只读 `symbols`；
+  启用后 `.sdemo` 文件的 `## 标题` 会进入大纲（符号由子进程计算）；
+- `discover_sandboxed_plugins()` 尊重 manifest `enabled`：禁用插件不参与
+  沙箱发现；
+- 宿主 `_get_sandboxed_plugins()` 支持注入插件目录
+  （`_sandbox_plugin_dir`，便于测试与自定义部署）；
+- 新增 `tests/test_sandbox_e2e.py`（3 项）：默认禁用不被发现、加载器
+  导入级排除 + 宿主代理符号合并（非目标文件无噪声）、禁用插件不发现；
+- 说明：spell_check 使用菜单/诊断/状态项等非只读 API，不适合纯只读
+  沙箱代理；B-4 采用示例插件验证链路，后续再评估扩展 RPC（诊断类）。
+
+## [Unreleased]
+
 ### 插件平台（B-3b：宿主侧沙箱注册表 + 符号合并）
 
 - `MainWindow` 新增 `_get_sandboxed_plugins()`：按 manifest

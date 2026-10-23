@@ -30,15 +30,22 @@ READONLY_METHODS = {
 }
 
 
-def is_sandbox_enabled(plugin_dir: str) -> bool:
-    """manifest 是否显式声明 sandbox: true（默认 False）"""
+def _read_manifest(plugin_dir: str):
     manifest = os.path.join(plugin_dir, "plugin.json")
     try:
         with open(manifest, encoding="utf-8") as f:
             data = json.load(f)
-        return bool(data.get("sandbox") is True)
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
+        return {}
+
+
+def is_sandbox_enabled(plugin_dir: str) -> bool:
+    """manifest 是否显式声明 sandbox: true 且未被禁用（默认 False）"""
+    data = _read_manifest(plugin_dir)
+    if data.get("sandbox") is not True:
         return False
+    return data.get("enabled", True) is not False
 
 
 def discover_sandboxed_plugins(plugins_dir: str):

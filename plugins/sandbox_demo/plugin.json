@@ -1,0 +1,18 @@
+{
+  "name": "sandbox_demo",
+  "display_name": "沙箱示例（实验）",
+  "version": "1.0.0",
+  "description": "演示 manifest sandbox:true 的只读子进程插件（大纲符号）",
+  "author": "QingCao Editor",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": ["sandbox", "experiment"],
+  "permissions": ["editor_read"],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": false,
+  "auto_load": true,
+  "load_order": 100,
+  "sandbox": true
+}

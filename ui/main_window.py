@@ -2594,8 +2594,9 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 SandboxedPlugin,
                 discover_sandboxed_plugins,
             )
-            root = _os.path.join(_os.path.dirname(_os.path.dirname(
-                _os.path.abspath(__file__))), "plugins")
+            root = getattr(self, "_sandbox_plugin_dir", None) or _os.path.join(
+                _os.path.dirname(_os.path.dirname(
+                    _os.path.abspath(__file__))), "plugins")
             for name, path in discover_sandboxed_plugins(root):
                 if name not in self._sandboxed_plugins:
                     self._sandboxed_plugins[name] = SandboxedPlugin(path)
