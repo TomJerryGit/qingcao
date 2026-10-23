@@ -1369,6 +1369,21 @@ class ThemeLoader(QObject):
         except Exception as e:
             print(f"[ThemeLoader] 应用 palette 失败: {e}")
 
+    def build_qss(self, theme: Optional[Theme] = None) -> str:
+        """构建主题 QSS 字符串（不应用）
+
+        C 阶段优化用：可先拿到 QSS 再决定应用到 Application 还是
+        MainWindow（窗口级通常更快），也便于测量 QSS 体积。
+        """
+        try:
+            theme = theme or self.get_current_theme()
+            if theme is None:
+                return ""
+            return self._generate_qss(theme.colors)
+        except Exception as e:
+            print(f"[ThemeLoader] build_qss 失败: {e}")
+            return ""
+
     def apply_qss(self, app, theme: Optional[Theme] = None,
                   lazy: bool = False):
         """

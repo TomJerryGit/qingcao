@@ -1111,7 +1111,29 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 from PyQt5.QtWidgets import QApplication
                 _app = QApplication.instance()
                 if _app is not None:
-                    loader.apply_qss(_app, theme)
+                    _pm = getattr(self, 'plugin_manager', None)
+                    if _pm is not None:
+                        try:
+                            _pm.pause_deferred_activation()
+                        except Exception:
+                            _pm = None
+                    try:
+                        # C-2：实测窗口级 QSS 35-49ms，应用级全局
+                        # setStyleSheet 90-424ms；改为窗口级应用 +
+                        # palette 兜底（子对话框随父控件继承样式）。
+                        try:
+                            loader.apply_palette(_app, theme)
+                        except Exception:
+                            pass
+                        _qss = loader.build_qss(theme)
+                        if _qss:
+                            self.setStyleSheet(_qss)
+                    finally:
+                        if _pm is not None:
+                            try:
+                                _pm.resume_deferred_activation()
+                            except Exception:
+                                pass
                     # 有些 QSS 选择器（QMainWindow 等）需要重设
                     _app.setStyleSheet(_app.styleSheet())
             except Exception as _e:

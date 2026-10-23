@@ -599,6 +599,8 @@ class PluginManager(QObject):
     # ========================================================
     # manifest 里声明 `"defer_activation": true` 的插件延后加载的延时
     DEFER_ACTIVATION_DELAY_MS = 600
+    # 主题切换期间暂停延后插件激活（避免两件重活撞车导致切换卡 1s+）
+    _theme_switch_paused = False
 
     def _deferred_plugin_names(self) -> set:
         """扫描 plugin.json，收集声明 defer_activation 的插件名
@@ -623,10 +625,24 @@ class PluginManager(QObject):
             print(f"[PluginManager] 读取延后加载配置失败: {e}")
         return names
 
+    def pause_deferred_activation(self):
+        """暂停延后插件激活（主题切换等重 UI 操作期间调用）"""
+        self._theme_switch_paused = True
+
+    def resume_deferred_activation(self):
+        """恢复延后插件激活"""
+        self._theme_switch_paused = False
+
     def _finish_deferred(self, specs) -> None:
         """启动完成后加载延后插件"""
         try:
             if not specs or not self.loader:
+                return
+            if getattr(self, '_theme_switch_paused', False):
+                # 让出 UI：延迟一小段时间后重试，主题切换结束后再激活
+                QTimer.singleShot(
+                    self.DEFER_ACTIVATION_DELAY_MS,
+                    lambda: self._finish_deferred(specs))
                 return
             # 安全：600ms 定时器可能在"用户已关闭窗口"之后才触发，
             # 此时再加载插件会去碰已销毁的控件（Qt 访问违例）。

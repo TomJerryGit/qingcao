@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### 性能（主题切换 1s+ → 130-210ms）
+
+- 根因实测：应用级 `QApplication.setStyleSheet` 会触发**全控件样式重算**
+  （90-424ms）；且延后插件激活与切换撞车时可达 2.3s（AI 插件激活
+  1937ms 叠加）；
+- C-1：`PluginManager` 新增暂停/恢复延后插件激活，
+  `_apply_theme_by_name()` 在应用 QSS 期间暂停，避免两件重活撞车；
+- C-2：新增 `ThemeLoader.build_qss()`；主题切换改为 **窗口级**
+  `self.setStyleSheet(qss)`（实测 35-49ms vs 应用级 90-424ms）+
+  `apply_palette()` 兜底，子对话框随父控件继承样式；
+- 实测真实切换：130/159/213ms（首次 363ms 含延后插件激活噪声）；
+- 待人工验证：独立非子对话框（若存在）的主题覆盖。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.5.2] - 2026-10-23
