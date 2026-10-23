@@ -681,11 +681,21 @@ class PluginManager(QObject):
                 return self._create_api(spec)
 
             defer_names = self._deferred_plugin_names() if defer_heavy                 else None
+            # B-3c：manifest sandbox:true 的插件由子进程加载，主进程跳过 import
+            exclude_names = set()
+            try:
+                from infrastructure.plugin_sandbox_manager import discover_sandboxed_plugins
+                exclude_names = {
+                    n for n, _p in discover_sandboxed_plugins(
+                        self.plugin_dir)}
+            except Exception as e:
+                print(f"[PluginManager] 沙箱插件发现失败: {e}")
             result = self.loader.load_all(
                 plugin_dir=self.plugin_dir,
                 api_factory=api_factory,
                 auto_activate=False,  # 我们自己控制激活
                 defer_names=defer_names,
+                exclude_names=exclude_names,
             )
 
             self.last_load_result = result

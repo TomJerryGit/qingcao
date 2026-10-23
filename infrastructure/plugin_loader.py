@@ -550,7 +550,9 @@ class PluginLoader(QObject):
     # ========================================================
     # 发现插件
     # ========================================================
-    def discover(self, plugin_dir: Optional[str] = None) -> List[PluginSpec]:
+    def discover(self, plugin_dir: Optional[str] = None,
+                 exclude_names: Optional[set] = None
+                 ) -> List[PluginSpec]:
         """
         扫描插件目录，发现所有插件。
 
@@ -582,6 +584,10 @@ class PluginLoader(QObject):
 
                 # 跳过模板目录
                 if name.startswith('_'):
+                    continue
+
+                # B-3c：导入级排除（沙箱插件由子进程加载，主进程不 import）
+                if exclude_names and name in exclude_names:
                     continue
 
                 # 解析插件
@@ -685,7 +691,8 @@ class PluginLoader(QObject):
     def load_all(self, plugin_dir: Optional[str] = None,
                  api_factory: Optional[Callable] = None,
                  auto_activate: bool = True,
-                 defer_names: Optional[set] = None) -> LoadResult:
+                 defer_names: Optional[set] = None,
+                 exclude_names: Optional[set] = None) -> LoadResult:
         """
         加载所有插件。
 
@@ -715,8 +722,8 @@ class PluginLoader(QObject):
         if api_factory:
             self._api_factory = api_factory
 
-        # 发现插件
-        specs = self.discover(plugin_dir)
+        # 发现插件（exclude_names：沙箱插件不在这里导入）
+        specs = self.discover(plugin_dir, exclude_names=exclude_names)
         result.total = len(specs)
         result.specs = specs
 
