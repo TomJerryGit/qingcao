@@ -1,5 +1,22 @@
 ## [Unreleased]
 
+### 插件平台（B-3b：宿主侧沙箱注册表 + 符号合并）
+
+- `MainWindow` 新增 `_get_sandboxed_plugins()`：按 manifest
+  `sandbox: true` 惰性创建 `SandboxedPlugin` 代理（无声明时为空，
+  对现有插件零影响）；
+- `_close_sandboxed_plugins()` 在 `closeEvent` 调用，退出时关闭所有
+  沙箱子进程（避免孤儿进程）；
+- `collect_plugin_symbols()` 合并沙箱插件符号（只读代理，失败/降级
+  自动跳过）；
+- 新增 `tests/test_sandboxed_collectors.py`（3 项：符号合并、退出关闭、
+  默认无沙箱插件为空）；
+- 待办：`PluginManager.load_all` 的**导入级排除**需要
+  `PluginLoader.load_all` 增加 `exclude_names` 参数（当前只在收集器
+  侧隔离，沙箱插件仍会被进程内导入），列入下一轮。
+
+## [Unreleased]
+
 ### 插件平台（B-3a：opt-in 只读沙箱管理）
 
 - 新增 `infrastructure/plugin_sandbox_manager.py`：

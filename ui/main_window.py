@@ -355,6 +355,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         self._build_status_bar()
         self._build_npp_style_menus()
         self.setAcceptDrops(True)
+        self._sandboxed_plugins = {}
         self._build_shortcuts()
 
         # 连接事件总线
@@ -2581,6 +2582,36 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # 拖放打开（NPP 对齐：文件拖到窗口任意位置即可打开）
     # ========================================================
+    # ========================================================
+    # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
+    # ========================================================
+    def _get_sandboxed_plugins(self):
+        """惰性创建沙箱插件代理（默认空：只有 manifest 声明的才会出现）"""
+        try:
+            import os as _os
+
+            from infrastructure.plugin_sandbox_manager import (
+                SandboxedPlugin,
+                discover_sandboxed_plugins,
+            )
+            root = _os.path.join(_os.path.dirname(_os.path.dirname(
+                _os.path.abspath(__file__))), "plugins")
+            for name, path in discover_sandboxed_plugins(root):
+                if name not in self._sandboxed_plugins:
+                    self._sandboxed_plugins[name] = SandboxedPlugin(path)
+        except Exception as e:
+            print(f"[MainWindow] 沙箱插件发现失败: {e}")
+        return self._sandboxed_plugins
+
+    def _close_sandboxed_plugins(self):
+        """关闭所有沙箱子进程（退出时调用，避免孤儿进程）"""
+        for sp in list(getattr(self, "_sandboxed_plugins", {}).values()):
+            try:
+                sp.close()
+            except Exception:
+                pass
+        self._sandboxed_plugins = {}
+
     def _open_dropped_paths(self, paths):
         """打开拖入的文件/目录（供 dropEvent 与测试复用）"""
         import os as _os
@@ -4138,6 +4169,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # 关闭事件
     # ========================================================
     def closeEvent(self, event):
+        self._close_sandboxed_plugins()
         """
         关闭事件。
 

@@ -655,6 +655,19 @@ class CapabilityWiringMixin:
             except Exception as e:
                 print(f"[MainWindow] symbol provider 失败"
                       f"({entry.get('plugin')}): {e}")
+        # B-3b：合并沙箱插件的符号（只读代理；失败/降级自动跳过）
+        try:
+            getter = getattr(self, '_get_sandboxed_plugins', None)
+            if callable(getter):
+                for sp in getter().values():
+                    try:
+                        items = sp.symbols(
+                            text, filepath or "", lang) or []
+                        collected.extend(_norm(items))
+                    except Exception:
+                        continue
+        except Exception:
+            pass
         return collected[:limit]
 
     def register_plugin_settings_schema(self, plugin_name: str, schema):
