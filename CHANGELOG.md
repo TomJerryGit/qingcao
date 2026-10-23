@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.6.0] - 2026-10-23
+
 ### 插件平台（B-4/B-5：沙箱示例插件 + 端到端验证）
 
 - 新增 `plugins/sandbox_demo/` 示例插件：manifest `sandbox: true`、
