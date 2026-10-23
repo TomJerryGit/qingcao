@@ -25,7 +25,7 @@ jobs:
     runs-on: [self-hosted, windows, x64]
     steps:
       - name: 检出代码（SSH）
-        shell: pwsh
+        shell: powershell
         run: |
           $dir = $env:GITHUB_WORKSPACE
           $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
@@ -42,24 +42,24 @@ jobs:
           git -C $dir remote -v
 
       - name: 检查 Python
-        shell: pwsh
+        shell: powershell
         run: |
           python --version
           python -m pip --version
 
       - name: 安装依赖
-        shell: pwsh
+        shell: powershell
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pyinstaller
 
       - name: 构建
-        shell: pwsh
+        shell: powershell
         run: |
           python build.py
 
       - name: 校验版本
-        shell: pwsh
+        shell: powershell
         run: |
           $ver = (Get-Content VERSION -Encoding UTF8).Trim()
           Write-Host "VERSION=$ver"
@@ -70,7 +70,7 @@ jobs:
           if ($fv -ne $ver) { throw "exe 版本 ($fv) 与 VERSION ($ver) 不一致" }
 
       - name: 打包 ZIP + SHA256
-        shell: pwsh
+        shell: powershell
         run: |
           $ver = (Get-Content VERSION -Encoding UTF8).Trim()
           $zip = "dist/QingCaoEditor-v$ver-windows.zip"
@@ -78,15 +78,16 @@ jobs:
           Compress-Archive -Path "dist/QingCaoEditor/*" -DestinationPath $zip -Force
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
           Set-Content -Path "$zip.sha256.txt" -Value "$hash  $(Split-Path $zip -Leaf)" -Encoding ascii
-          "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Add-Content -Path $env:GITHUB_ENV -Value "ZIP=$zip" -Encoding Ascii
           Write-Host "ZIP=$zip"
           Write-Host "SHA256=$hash"
 
       - name: 创建/更新 Release（REST API）
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
           $tag = $env:GITHUB_REF_NAME
           $ver = (Get-Content VERSION -Encoding UTF8).Trim()
           $notes = "docs/release_notes_$tag.md"
