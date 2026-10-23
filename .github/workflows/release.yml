@@ -1,129 +1,28 @@
 name: Release
-
-# 触发：推送 v* 标签（例如 v2.6.0）
-#
-# 本工作流为**自托管 Runner** 定制（GitHub 免费额度已用尽）：
-#   * 不使用任何外部 action（actions/checkout、setup-python、
-#     upload-artifact 都需要访问被网络阻断的 github.com）；
-#   * 用 SSH 克隆（本机 git 推送走 SSH，已验证可用）；
-#   * 使用本机已安装的 Python 3.11（不下载解释器）；
-#   * 发布通过 api.github.com REST API 完成（该域名可访问）。
 on:
   push:
     tags:
       - 'v*'
-
 permissions:
   contents: write
-
-env:
-  PYTHONUTF8: '1'
-  PYTHONIOENCODING: 'utf-8'
-
 jobs:
   build-release:
     runs-on: [self-hosted, windows, x64]
     steps:
-      - name: 检出代码（SSH）
+      - name: debug
         shell: powershell
         run: |
-          $dir = $env:GITHUB_WORKSPACE
-          $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
-          $env:GIT_TERMINAL_PROMPT = "0"
-          if (Test-Path "$dir\.git") {
-            # 旧工作区可能残留 HTTPS origin（被网络阻断）→ 强制改回 SSH
-            git -C $dir remote set-url origin $url
-            git -C $dir fetch --tags --force origin
-            git -C $dir reset --hard $env:GITHUB_SHA
-          } else {
-            git clone $url $dir
-            git -C $dir reset --hard $env:GITHUB_SHA
-          }
-          git -C $dir remote -v
-
-      - name: 检查 Python
-        shell: powershell
-        run: |
-          python --version
-          python -m pip --version
-
-      - name: 安装依赖
-        shell: powershell
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pyinstaller
-
-      - name: 构建
-        shell: powershell
-        run: |
-          python build.py
-
-      - name: 校验版本
-        shell: powershell
-        run: |
-          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
-          Write-Host "VERSION=$ver"
-          $exe = "dist/QingCaoEditor/QingCaoEditor.exe"
-          if (-not (Test-Path $exe)) { throw "构建产物缺失: $exe" }
-          $fv = (Get-Item $exe).VersionInfo.FileVersion
-          Write-Host "FileVersion=$fv"
-          if ($fv -ne $ver) { throw "exe 版本 ($fv) 与 VERSION ($ver) 不一致" }
-
-      - name: 打包 ZIP + SHA256
-        shell: powershell
-        run: |
-          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
-          $zip = "dist/QingCaoEditor-v$ver-windows.zip"
-          Remove-Item $zip -ErrorAction SilentlyContinue
-          Compress-Archive -Path "dist/QingCaoEditor/*" -DestinationPath $zip -Force
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
-          Set-Content -Path "$zip.sha256.txt" -Value "$hash  $(Split-Path $zip -Leaf)" -Encoding ascii
-          Add-Content -Path $env:GITHUB_ENV -Value "ZIP=$zip" -Encoding Ascii
-          Write-Host "ZIP=$zip"
-          Write-Host "SHA256=$hash"
-
-      - name: 创建/更新 Release（REST API）
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          $tag = $env:GITHUB_REF_NAME
-          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
-          $notes = "docs/release_notes_$tag.md"
-          if (-not (Test-Path $notes)) { $notes = "CHANGELOG.md" }
-          $body = Get-Content $notes -Raw -Encoding UTF8
-          $h = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = "application/vnd.github+json"
-            "X-GitHub-Api-Version" = "2022-11-28"
-          }
-          $base = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
-          $rel = $null
-          try { $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } catch {}
-          $payload = @{
-            tag_name = $tag
-            name = "青草编辑器 $tag"
-            body = $body
-            draft = $false
-            prerelease = $false
-          } | ConvertTo-Json -Depth 3
-          if ($rel) {
-            $rel = Invoke-RestMethod -Method Patch -Headers $h `
-              -Uri "$base/releases/$($rel.id)" -Body $payload `
-              -ContentType "application/json"
-            Write-Host "已更新 Release: $($rel.id)"
-          } else {
-            $rel = Invoke-RestMethod -Method Post -Headers $h `
-              -Uri "$base/releases" -Body $payload `
-              -ContentType "application/json"
-            Write-Host "已创建 Release: $($rel.id)"
-          }
-          $files = @($env:ZIP, "$env:ZIP.sha256.txt")
-          foreach ($f in $files) {
-            $name = Split-Path $f -Leaf
-            $up = Invoke-RestMethod -Method Post -Headers $h `
-              -Uri "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($rel.id)/assets?name=$name" `
-              -InFile $f -ContentType "application/octet-stream" -TimeoutSec 900
-            Write-Host "已上传: $($up.name)  $([math]::Round($up.size/1MB,2)) MB"
-          }
+          $out = "D:\actions-runner\debug.txt"
+          "=== env ===" | Out-File $out -Encoding utf8
+          "GITHUB_WORKSPACE=$env:GITHUB_WORKSPACE" | Out-File $out -Append -Encoding utf8
+          "GITHUB_SHA=$env:GITHUB_SHA" | Out-File $out -Append -Encoding utf8
+          "GITHUB_REF_NAME=$env:GITHUB_REF_NAME" | Out-File $out -Append -Encoding utf8
+          "GITHUB_REPOSITORY=$env:GITHUB_REPOSITORY" | Out-File $out -Append -Encoding utf8
+          "=== git ===" | Out-File $out -Append -Encoding utf8
+          (& "d:\Program Files\Git\cmd\git.exe" --version) 2>&1 | Out-File $out -Append -Encoding utf8
+          "=== pwd ===" | Out-File $out -Append -Encoding utf8
+          (Get-Location).Path | Out-File $out -Append -Encoding utf8
+          "=== workspace ===" | Out-File $out -Append -Encoding utf8
+          (Test-Path "$env:GITHUB_WORKSPACE") | Out-File $out -Append -Encoding utf8
+          (Test-Path "$env:GITHUB_WORKSPACE\.git") | Out-File $out -Append -Encoding utf8
+          Write-Host "debug written"
