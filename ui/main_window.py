@@ -2531,6 +2531,13 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         self._set_toolbar_icon_mode(True)
             except Exception as e:
                 print(f"[MainWindow] 欢迎页开关失败: {e}")
+
+            tools_menu = getattr(self, 'tools_menu', None)
+            if tools_menu is not None:
+                tools_menu.addSeparator()
+                self._add_action(
+                    tools_menu, "🧪 运行沙箱插件诊断", None,
+                    self.run_sandboxed_diagnostics)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
 
@@ -2585,6 +2592,69 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def run_sandboxed_diagnostics(self):
+        """运行沙箱子进程插件的诊断并发布到问题面板（C-1 宿主接线）
+
+        插件只返回诊断数据；发布/替换逻辑由宿主完成，并按
+        `sandbox:<插件名>` 作为来源，避免清掉其它来源（LSP/普通插件）。
+        """
+        try:
+            proxy = self.tabs.current_proxy()
+        except Exception:
+            proxy = None
+        if proxy is None:
+            self.status_bar.showMessage("没有打开的编辑器", 2500)
+            return 0
+        try:
+            text = proxy.get_text() or ""
+            fp = getattr(proxy.document, "filepath", "") or ""
+        except Exception:
+            return 0
+        plugins = self._get_sandboxed_plugins()
+        if not plugins:
+            self.status_bar.showMessage("没有启用的沙箱插件", 2500)
+            return 0
+        try:
+            from core.problems import Problem, get_problem_manager
+            manager = get_problem_manager()
+        except Exception as e:
+            self.status_bar.showMessage("问题管理器不可用: %s" % e, 3000)
+            return 0
+        sources = {"sandbox:%s" % n for n in plugins}
+        try:
+            existing = list(manager.get_for_file(fp) or [])
+            keep = [p for p in existing
+                    if getattr(p, "source", "") not in sources]
+        except Exception:
+            keep = []
+        produced = []
+        for name, sp in plugins.items():
+            try:
+                items = sp.diagnostics(text) or []
+            except Exception:
+                continue
+            for it in items:
+                try:
+                    produced.append(Problem(
+                        filepath=fp,
+                        line=int(it.get("line", 0) or 0),
+                        col=int(it.get("col", 0) or 0),
+                        severity=str(it.get("severity", "warning")),
+                        message=str(it.get("message", "")),
+                        source="sandbox:%s" % name,
+                        code=str(it.get("code", "")),
+                    ))
+                except Exception:
+                    continue
+        try:
+            manager.set_file_problems(fp, keep + produced)
+        except Exception as e:
+            self.status_bar.showMessage("发布沙箱诊断失败: %s" % e, 3000)
+            return 0
+        self.status_bar.showMessage(
+            "沙箱插件诊断: %d 条" % len(produced), 2500)
+        return len(produced)
+
     def _get_sandboxed_plugins(self):
         """惰性创建沙箱插件代理（默认空：只有 manifest 声明的才会出现）"""
         try:

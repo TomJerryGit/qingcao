@@ -56,9 +56,10 @@ def test_discovery_defaults_empty_without_manifest_flag(qapp):
     from ui.main_window import MainWindow
     win = MainWindow()
     try:
-        # 仓库内置插件当前都没有声明 sandbox: true
+        # 仓库里 spell_check 是沙箱试点（manifest sandbox:true），
+        # 但 sandbox_demo 默认 disabled，不应出现
         result = win._get_sandboxed_plugins()
         assert isinstance(result, dict)
-        assert result == {}
+        assert "sandbox_demo" not in result
     finally:
         _close(win)

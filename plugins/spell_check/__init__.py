@@ -197,6 +197,10 @@ class Plugin(PluginBase):
             self.api.show_status("打开忽略词文件失败: %s" % e, 3000,
                                  "warning")
 
+    def diagnostics(self, text):
+        """沙箱协议入口：只返回诊断数据（宿主负责发布到问题面板）"""
+        return self._check_text(text, limit=200)
+
     def check_current(self):
         text = self._get_current_text()
         if not text:

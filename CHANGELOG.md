@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### 插件平台（C-1 落地：宿主诊断接线 + spell_check 沙箱试点）
+
+- `MainWindow.run_sandboxed_diagnostics()`：调用沙箱插件的
+  `diagnostics()`，以 `sandbox:<插件名>` 为来源发布到「问题」面板；
+  重复运行覆盖本来源、不清除 LSP/其它插件诊断；
+- 工具菜单新增「🧪 运行沙箱插件诊断」（无快捷键、不影响旧入口）；
+- **spell_check 转为沙箱试点**：manifest 标记 `sandbox: true`，
+  新增 `diagnostics(text)` 只读入口（原 `check_current`/菜单保留给
+  非沙箱场景的测试与回溯）；
+- 更新 B-3b 默认发现测试（spell_check 属试点，sandbox_demo 仍禁用）；
+- `tests/test_sandbox_diagnostics_host.py` 2 项：宿主发布/覆盖、
+  spell_check 沙箱标记与 diagnostics 入口。
+
+## [Unreleased]
+
 ### 插件平台（C-1：沙箱受限诊断协议）
 
 - RPC 白名单新增 `diagnostics`：插件只**返回诊断数据**，发布到问题面板
