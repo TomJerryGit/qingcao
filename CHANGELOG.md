@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### 性能（撤销栈惰性物化：typing 149 → 57 µs/键，达标 <100µs）
+
+- `InsertCmd` 改为分片存储（`_parts` + 按需 join 缓存），连续输入时
+  **原地追加**，不再每次 merge 重建命令对象、不再整篇字符串拼接；
+- `UndoManager` 新增 `try_append_typing()` 打字快路径：单光标连续插入且
+  位置相邻/合并窗口内时，直接追加到栈顶命令，**跳过 CommandPool 与命令
+  对象分配**；新操作照常清空 redo 栈（与 record() 语义一致）；
+- `core/editor.py` 的 SCN_MODIFIED 插入路径接入快路径（多光标/列模式
+  仍走原逻辑）；
+- 实测：**149 → 57.2 µs/键**（三次采样 56.2/57.2/72.8，2000 次
+  insertAt 0.114s）；撤销语义 38 项定向测试通过；
+- `bench_optimization.py` typing_2000 阈值 0.40 → **0.20s**（达标）。
+
+## [Unreleased]
+
 ### 性能（输入路径优化，typing 211 → 149 µs/键）
 
 - cProfile（2000 次 insertAt）显示热点在每键的 provider 同步：

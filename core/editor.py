@@ -1149,6 +1149,22 @@ class EditorProxy(QObject):
                 self._pending_delete_text = None
                 cmd = CommandPool.acquire_delete(position, length, deleted)
 
+            # C 阶段：单光标连续插入走"原地追加"快路径，
+            # 跳过 CommandPool / 命令对象分配（实测占输入延迟大头）。
+            try:
+                if (mod_type & QsciScintilla.SC_MOD_INSERTTEXT):
+                    _multi = self.sc.SendScintilla(
+                        QsciScintilla.SCI_GETSELECTIONS) > 1
+                    _column = (self.sc.SendScintilla(
+                        QsciScintilla.SCI_GETSELECTIONMODE)
+                        == QsciScintilla.SC_SEL_RECTANGLE)
+                    if not _multi and not _column:
+                        if self.undo_manager.try_append_typing(
+                                position, text_bytes):
+                            return
+            except Exception:
+                pass
+
             # 检测是否多光标/列模式
             try:
                 multi = self.sc.SendScintilla(

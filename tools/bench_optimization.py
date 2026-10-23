@@ -65,7 +65,7 @@ THRESHOLDS = {
     "theme_reapply": 0.05,        # 重复应用必须近似 0
     "event_10k": 0.6,
     "panel_max": 0.3,
-    "typing_2000": 0.40,   # C 阶段优化后实测 ~0.30s；目标 <0.20s（<100µs/键）
+    "typing_2000": 0.20,   # C 第二阶段后实测 ~0.114s（57µs/键）；目标 <0.20s 已达标
     "open_1mb": 1.2,
     "open_10mb": 1.5,
     "open_py_2mb": 1.5,

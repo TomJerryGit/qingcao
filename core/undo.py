@@ -348,6 +348,32 @@ class UndoManager(QObject):
     # ========================================================
     # 命令合并
     # ========================================================
+    def try_append_typing(self, pos: int, text) -> bool:
+        """打字快路径：直接追加到栈顶 InsertCmd，跳过命令对象分配。
+
+        只在"连续单字符插入、位置相邻、合并窗口内"时命中；其它情况返回
+        False，由调用方走完整的命令构建路径。语义与原有 merge 完全一致
+        （一次撤销撤掉整段连续输入）。
+        """
+        if self._disabled or self._pending_group is not None:
+            return False
+        if not self.undo_stack:
+            return False
+        # 新操作使 redo 失效（与 record() 入口语义一致）
+        if self.redo_stack:
+            self.redo_stack.clear()
+        last = self.undo_stack[-1]
+        now = time.time()
+        try:
+            if not last.can_merge_append(now, pos):
+                return False
+            from core.commands import _to_text
+            last.append_text(_to_text(text), now)
+            self.statistics.record_merge(1)
+            return True
+        except Exception:
+            return False
+
     def _try_merge(self, command: Command) -> bool:
         """
         尝试将命令合并到 pending group 或上一个命令。
@@ -388,6 +414,18 @@ class UndoManager(QObject):
 
             try:
                 if last_cmd.can_merge(command):
+                    # C 阶段优化：InsertCmd 原地追加，不重建对象
+                    if (hasattr(last_cmd, "append_from")
+                            and last_cmd.append_from(command)):
+                        self.statistics.record_merge(1)
+                        if self._history_enabled:
+                            self._history.append(UndoHistoryEntry(
+                                action="merge",
+                                command_desc="原地追加",
+                                undo_stack_size=len(self.undo_stack),
+                                redo_stack_size=len(self.redo_stack),
+                            ))
+                        return True
                     merged = last_cmd.merge_with(command)
                     if merged is not None:
                         # 替换栈顶

@@ -256,8 +256,48 @@ class InsertCmd(Command):
         """
         super().__init__()
         self.pos = int(pos)
-        # 内部保存为 str（方便序列化与比较）
-        self.text: str = _to_text(text)
+        # 分片存储（C 阶段：连续输入原地追加，避免每次 merge 重建对象与
+        # 字符串整篇拼接；`text` 属性按需 join 并缓存）。
+        _s = _to_text(text)
+        self._parts = [_s]
+        self._text_cache = _s
+        self._length = len(_s)
+
+    @property
+    def text(self) -> str:
+        if self._text_cache is None:
+            self._text_cache = "".join(self._parts)
+        return self._text_cache
+
+    @text.setter
+    def text(self, value):
+        self._parts = [value]
+        self._text_cache = value
+        self._length = len(value)
+
+    @property
+    def length(self) -> int:
+        return self._length
+
+    def append_text(self, chunk: str, timestamp=None):
+        """原地追加（连续打字快路径，O(1) 分片追加）"""
+        self._parts.append(chunk)
+        self._text_cache = None
+        self._length += len(chunk)
+        if timestamp is not None:
+            self.timestamp = timestamp
+
+    def can_merge_append(self, now: float, pos: int) -> bool:
+        """快路径判断：本次插入是否紧接在本命令末尾且处于合并窗口内"""
+        return (self.pos + self._length == int(pos)
+                and (now - self.timestamp) * 1000 < MERGE_INTERVAL_MS)
+
+    def append_from(self, other: 'InsertCmd') -> bool:
+        """把另一个插入命令原地合并进本命令（不重建对象）"""
+        if not self.can_merge(other):
+            return False
+        self.append_text(other.text, other.timestamp)
+        return True
 
     def execute(self, scintilla):
         """执行插入"""
@@ -321,7 +361,7 @@ class InsertCmd(Command):
         if not isinstance(other, InsertCmd):
             return False
         # 位置相邻（本次插入位置等于另一命令的插入位置+长度）
-        if self.pos + len(self.text) == other.pos:
+        if self.pos + self._length == other.pos:
             # 时间窗口内
             if (other.timestamp - self.timestamp) * 1000 < MERGE_INTERVAL_MS:
                 return True
@@ -345,7 +385,7 @@ class InsertCmd(Command):
         return f"Insert@{self.pos}: '{text_preview}' ({len(self.text)} 字符)"
 
     def __len__(self) -> int:
-        return len(self.text)
+        return self._length
 
 
 # ============================================================
