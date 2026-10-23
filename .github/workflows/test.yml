@@ -1,65 +1,77 @@
 name: Test
 
+# Self-hosted CI (GitHub-hosted minutes exhausted).
+# No external actions: SSH checkout + local Python.
 on:
   push:
-    branches: [main, develop]
-  pull_request:
     branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
+  QT_QPA_PLATFORM: 'offscreen'
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    # 英文 Windows runner 默认 cp1252；测试输出/日志含中文会崩溃
-    env:
-      PYTHONUTF8: '1'
-      PYTHONIOENCODING: 'utf-8'
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11']
-
+    runs-on: [self-hosted, windows, x64]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+      - name: Checkout (SSH)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:HOME = "C:\Users\Administrator"
+          $env:USERPROFILE = "C:\Users\Administrator"
+          $env:GIT_TERMINAL_PROMPT = "0"
+          $git = "d:\Program Files\Git\cmd\git.exe"
+          $dir = $env:GITHUB_WORKSPACE
+          $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
+          if (-not (Test-Path "$dir\.git")) { & $git clone $url $dir }
+          & $git -C $dir remote set-url origin $url
+          & $git -C $dir fetch --tags --force origin 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "git reset failed" }
 
       - name: Install dependencies
+        shell: powershell
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-qt coverage
+          $ErrorActionPreference = "Continue"
+          python -m pip install --upgrade pip 2>&1 | Select-Object -Last 2
+          & python -m pip install -r requirements.txt pytest 2>&1 | Select-Object -Last 5
+          if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
-      # 插件 conformance 契约（扩展点 + 清单 + API 面）
-      # 只在 windows-latest 跑：需要真实 PyQt5 可用的 offscreen 环境，
-      # ubuntu 上还缺 xcb/libGL 等依赖，容易误报。
-      - name: Plugin conformance contracts
-        if: matrix.os == 'windows-latest' && matrix.python-version == '3.11'
-        env:
-          QT_QPA_PLATFORM: offscreen
-          PYTHONIOENCODING: utf-8
+      - name: Version check
+        shell: powershell
+        run: python -m tools.check_version
+
+      - name: Ruff
+        shell: powershell
         run: |
+          $ErrorActionPreference = "Continue"
+          python -m ruff check .
+          if ($LASTEXITCODE -ne 0) { throw "ruff failed" }
+
+      - name: Plugin conformance
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
           python -m pytest tests/test_plugin_conformance.py -q
+          if ($LASTEXITCODE -ne 0) { throw "conformance failed" }
 
-      # 插件安全审计：未登记的新插件必须 pass（基线见 tools/）
       - name: Plugin security audit
-        if: matrix.os == 'windows-latest' && matrix.python-version == '3.11'
-        shell: pwsh
+        shell: powershell
         run: |
+          $ErrorActionPreference = "Continue"
           python -m tools.audit_plugins --baseline tools/plugin_audit_baseline.json
+          if ($LASTEXITCODE -ne 0) { throw "security audit failed" }
 
-      - name: Run tests
-        env:
-          QT_QPA_PLATFORM: offscreen
+      - name: Full test suite
+        shell: powershell
         run: |
-          python -m pytest tests/ -v --cov=. --cov-report=xml
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-        continue-on-error: true
-        with:
-          file: ./coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
+          $ErrorActionPreference = "Continue"
+          python -m pytest tests -q
+          if ($LASTEXITCODE -ne 0) { throw "tests failed" }
