@@ -13,27 +13,23 @@ jobs:
         shell: powershell
         run: |
           $log = "D:\actions-runner\release.log"
+          Remove-Item $log -ErrorAction SilentlyContinue
           function L($m) { Add-Content -Path $log -Value $m -Encoding utf8 }
           L "START"
-          try {
-            L ("ws=" + $env:GITHUB_WORKSPACE)
-            L ("sha=" + $env:GITHUB_SHA)
-            $git = "d:\Program Files\Git\cmd\git.exe"
-            L ("git_exists=" + (Test-Path $git))
-            $dir = $env:GITHUB_WORKSPACE
-            L ("dir_exists=" + (Test-Path $dir))
-            L ("dotgit=" + (Test-Path "$dir\.git"))
-            $out = & $git -C $dir remote -v 2>&1
-            L ("remote=" + ($out -join ";"))
-            & $git -C $dir remote set-url origin "git@github.com:$env:GITHUB_REPOSITORY.git" 2>&1 | Out-Null
-            L ("seturl_rc=" + $LASTEXITCODE)
-            $f = & $git -C $dir fetch --tags --force origin 2>&1
-            L ("fetch_rc=" + $LASTEXITCODE)
-            $f | Select-Object -Last 4 | ForEach-Object { L ("fetch: " + $_) }
-            & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1 | Out-Null
-            L ("reset_rc=" + $LASTEXITCODE)
-            L "DONE"
-          } catch {
-            L ("EXCEPTION: " + $_.Exception.Message)
-            throw
-          }
+          $env:HOME = "C:\Users\Administrator"
+          $env:USERPROFILE = "C:\Users\Administrator"
+          $env:GIT_TERMINAL_PROMPT = "0"
+          $sshDir = "C:\Users\Administrator\.ssh"
+          L ("sshDir=" + (Test-Path $sshDir) + " id_rsa=" + (Test-Path "$sshDir\id_rsa") + " known_hosts=" + (Test-Path "$sshDir\known_hosts"))
+          $env:GIT_SSH_COMMAND = "ssh -i `"$sshDir\id_rsa`" -o StrictHostKeyChecking=no -o UserKnownHostsFile=`"$sshDir\known_hosts`""
+          L ("GIT_SSH_COMMAND=" + $env:GIT_SSH_COMMAND)
+          $git = "d:\Program Files\Git\cmd\git.exe"
+          $dir = $env:GITHUB_WORKSPACE
+          & $git -C $dir remote set-url origin "git@github.com:$env:GITHUB_REPOSITORY.git" 2>&1 | Out-Null
+          $f = & $git -C $dir fetch --tags --force origin 2>&1
+          L ("fetch_rc=" + $LASTEXITCODE)
+          $f | ForEach-Object { L ("out: " + $_) }
+          $r = & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1
+          L ("reset_rc=" + $LASTEXITCODE)
+          $r | ForEach-Object { L ("reset: " + $_) }
+          L "END"
