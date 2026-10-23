@@ -83,19 +83,37 @@ jobs:
           $h = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
           $base = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
           $rel = $null
-          try { $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } catch {}
+          try { $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } catch { $rel = $null }
           $payload = @{ tag_name = $tag; name = "QingCaoEditor $tag"; body = $body; draft = $false; prerelease = $false } | ConvertTo-Json -Depth 3
-          if ($rel) {
-            $rel = Invoke-RestMethod -Method Patch -Headers $h -Uri "$base/releases/$($rel.id)" -Body $payload -ContentType "application/json"
-            "RELEASE_UPDATED id=$($rel.id)" | Out-File $log -Append -Encoding utf8
-          } else {
-            $rel = Invoke-RestMethod -Method Post -Headers $h -Uri "$base/releases" -Body $payload -ContentType "application/json"
-            "RELEASE_CREATED id=$($rel.id)" | Out-File $log -Append -Encoding utf8
+          try {
+            if ($rel) {
+              Invoke-RestMethod -Method Patch -Headers $h -Uri "$base/releases/$($rel.id)" -Body $payload -ContentType "application/json" | Out-Null
+              "RELEASE_UPDATED" | Out-File $log -Append -Encoding utf8
+            } else {
+              $resp = Invoke-RestMethod -Method Post -Headers $h -Uri "$base/releases" -Body $payload -ContentType "application/json"
+              "RELEASE_POSTED type=$($resp.GetType().Name) json=$($resp | ConvertTo-Json -Depth 2 -Compress)" | Out-File $log -Append -Encoding utf8
+            }
+          } catch {
+            "RELEASE_ERROR $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8
+            if ($_.Exception.Response) {
+              $sr = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+              "RELEASE_BODY " + $sr.ReadToEnd() | Out-File $log -Append -Encoding utf8
+            }
+            throw
           }
+          Start-Sleep -Seconds 2
+          $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag"
+          "RELEASE_ID=$($rel.id) upload_url=$($rel.upload_url)" | Out-File $log -Append -Encoding utf8
+          if (-not $rel.id) { throw "release id missing" }
           foreach ($f in @($zip, "$zip.sha256.txt")) {
             $name = Split-Path $f -Leaf
-            $up = Invoke-RestMethod -Method Post -Headers $h -Uri "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($rel.id)/assets?name=$name" -InFile $f -ContentType "application/octet-stream" -TimeoutSec 900
-            "UPLOADED $($up.name) $([math]::Round($up.size/1MB,2))MB" | Out-File $log -Append -Encoding utf8
+            try {
+              $up = Invoke-RestMethod -Method Post -Headers $h -Uri "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($rel.id)/assets?name=$name" -InFile $f -ContentType "application/octet-stream" -TimeoutSec 900
+              "UPLOADED $($up.name) $([math]::Round($up.size/1MB,2))MB" | Out-File $log -Append -Encoding utf8
+            } catch {
+              "UPLOAD_ERROR $name $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8
+              throw
+            }
           }
           "ALL_DONE" | Out-File $log -Append -Encoding utf8
         env:
