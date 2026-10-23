@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.6.1] - 2026-10-23
+
 ### 插件平台（C-1 落地：宿主诊断接线 + spell_check 沙箱试点）
 
 - `MainWindow.run_sandboxed_diagnostics()`：调用沙箱插件的
