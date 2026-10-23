@@ -1,0 +1,180 @@
+# -*- coding: utf-8 -*-
+"""CI 发布工具（Python 版，替代 curl/PowerShell）
+
+在自托管 Runner 上创建/更新 GitHub Release 并上传资产：
+* 幂等：GET 404 → 创建；已存在 → 更新；已存在同名资产且 size>0 → 跳过
+* 重试：网络错误/5xx/429 指数退避
+* 校验：结束前回查资产，缺任一文件即失败
+* 只依赖标准库（urllib），不受 PowerShell 5.1 编码问题影响
+
+用法：
+    GH_TOKEN=... GITHUB_REPOSITORY=owner/repo python tools/ci_publish_release.py
+    python tools/ci_publish_release.py --dry-run --tag v2.6.1
+"""
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+API = "https://api.github.com"
+UPLOADS = "https://uploads.github.com"
+
+
+def get_version() -> str:
+    with open(os.path.join(ROOT, "VERSION"), encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def notes_path(tag: str) -> str:
+    p = os.path.join(ROOT, "docs", "release_notes_%s.md" % tag)
+    return p if os.path.exists(p) else os.path.join(ROOT, "CHANGELOG.md")
+
+
+def asset_paths(version: str):
+    zip_path = os.path.join(ROOT, "dist",
+                            "QingCaoEditor-v%s-windows.zip" % version)
+    return zip_path, zip_path + ".sha256.txt"
+
+
+def build_payload(tag: str, body: str) -> dict:
+    return {
+        "tag_name": tag,
+        "name": "QingCaoEditor %s" % tag,
+        "body": body,
+        "draft": False,
+        "prerelease": False,
+    }
+
+
+def needed_asset_names(version: str):
+    return ["QingCaoEditor-v%s-windows.zip" % version,
+            "QingCaoEditor-v%s-windows.zip.sha256.txt" % version]
+
+
+def api_request(method, url, token, data=None,
+                content_type="application/json", retries=5, timeout=120):
+    headers = {
+        "Authorization": "Bearer %s" % token,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "qingcao-ci-release",
+    }
+    if data is not None:
+        headers["Content-Type"] = content_type
+    last_error = ""
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(url, data=data, headers=headers,
+                                     method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                return resp.status, (json.loads(raw.decode("utf-8"))
+                                     if raw else {})
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")
+            if e.code == 404 and method == "GET":
+                return 404, {"error": body}
+            last_error = "HTTP %d %s" % (e.code, body[:400])
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
+                time.sleep(2 * attempt)
+                continue
+            raise SystemExit("[release] %s %s 失败: %s"
+                             % (method, url, last_error))
+        except Exception as e:
+            last_error = str(e)
+            if attempt < retries:
+                time.sleep(2 * attempt)
+                continue
+            raise SystemExit("[release] %s %s 失败: %s"
+                             % (method, url, last_error))
+    raise SystemExit("[release] 重试耗尽: %s" % last_error)
+
+
+def upload_asset(token, repo, release_id, path):
+    name = os.path.basename(path)
+    with open(path, "rb") as f:
+        data = f.read()
+    url = "%s/repos/%s/releases/%d/assets?name=%s" % (
+        UPLOADS, repo, release_id, urllib.parse.quote(name))
+    status, resp = api_request(token=token, method="POST", url=url,
+                               data=data,
+                               content_type="application/octet-stream")
+    if not isinstance(resp, dict) or not resp.get("name") \
+            or int(resp.get("size") or 0) <= 0:
+        raise SystemExit("[release] 上传校验失败: %r" % (resp,))
+    print("[release] 已上传: %s (%.1f MB)"
+          % (resp["name"], resp["size"] / 1048576))
+    return resp
+
+
+def main():
+    ap = argparse.ArgumentParser(description="CI Release 发布")
+    ap.add_argument("--tag", default=os.environ.get("GITHUB_REF_NAME", ""))
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    version = get_version()
+    tag = args.tag or ("v" + version)
+    notes = notes_path(tag)
+    zip_path, sha_path = asset_paths(version)
+    print("[release] version=%s tag=%s" % (version, tag))
+    print("[release] notes=%s" % os.path.relpath(notes, ROOT))
+    for p in (zip_path, sha_path):
+        print("[release] asset %s 存在=%s"
+              % (os.path.basename(p), os.path.exists(p)))
+    if args.dry_run:
+        print("[release] dry-run 结束")
+        return 0
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not token or not repo:
+        raise SystemExit("[release] 缺少 GH_TOKEN / GITHUB_REPOSITORY")
+    for p in (zip_path, sha_path):
+        if not os.path.exists(p):
+            raise SystemExit("[release] 缺少资产: %s" % p)
+    with open(notes, encoding="utf-8") as f:
+        body = f.read()
+    payload = json.dumps(build_payload(tag, body),
+                         ensure_ascii=False).encode("utf-8")
+    base = "%s/repos/%s" % (API, repo)
+    status, rel = api_request("GET", "%s/releases/tags/%s" % (base, tag),
+                              token)
+    if status == 404:
+        status, rel = api_request("POST", "%s/releases" % base, token,
+                                  data=payload)
+        print("[release] 已创建 Release")
+    else:
+        status, rel = api_request(
+            "PATCH", "%s/releases/%s" % (base, rel["id"]), token,
+            data=payload)
+        print("[release] 已更新 Release")
+    rel_id = rel.get("id")
+    if not rel_id:
+        raise SystemExit("[release] Release id 缺失: %r" % (rel,))
+    existing = {a.get("name") for a in (rel.get("assets") or [])
+                if int(a.get("size") or 0) > 0}
+    needed = needed_asset_names(version)
+    for p in (zip_path, sha_path):
+        name = os.path.basename(p)
+        if name in existing:
+            print("[release] 资产已存在，跳过: %s" % name)
+            continue
+        upload_asset(token, repo, rel_id, p)
+    status, rel2 = api_request("GET", "%s/releases/tags/%s" % (base, tag),
+                               token)
+    names = {a.get("name") for a in (rel2.get("assets") or [])}
+    missing = [n for n in needed if n not in names]
+    if missing:
+        raise SystemExit("[release] Release 缺少资产: %s" % missing)
+    print("[release] RELEASE_OK %s assets=%s" % (tag, ",".join(sorted(names))))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

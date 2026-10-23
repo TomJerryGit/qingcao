@@ -77,68 +77,11 @@ jobs:
           "ZIP=$zip`nSHA256=$hash" | Out-File $log -Append -Encoding utf8
           "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
 
-      - name: Release (curl + UTF-8 payload)
+      - name: Release (Python)
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Continue"
-          $log = "D:\actions-runner\release.log"
-          $tag = $env:GITHUB_REF_NAME
-          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
-          $zip = $env:ZIP
-          $notes = "docs/release_notes_$tag.md"
-          if (-not (Test-Path $notes)) { $notes = "CHANGELOG.md" }
-          $body = [string](Get-Content $notes -Raw -Encoding UTF8)
-          $payload = @{
-            tag_name = $tag
-            name = "QingCaoEditor $tag"
-            body = $body
-            draft = $false
-            prerelease = $false
-          } | ConvertTo-Json -Depth 3
-          $payloadFile = Join-Path $env:TEMP "qc_release_payload.json"
-          [System.IO.File]::WriteAllText($payloadFile, $payload,
-            (New-Object System.Text.UTF8Encoding($false)))
-          "PAYLOAD_LEN=$($payload.Length)" | Out-File $log -Append -Encoding utf8
-          $auth = "Authorization: Bearer $env:GH_TOKEN"
-          $base = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
-          function Curl([string[]]$ArgList) {
-            $out = & curl.exe -sS -L --retry 5 --retry-delay 5 --retry-all-errors @ArgList
-            if ($LASTEXITCODE -ne 0) { throw "curl failed rc=$LASTEXITCODE out=$out" }
-            return $out
-          }
-          $existing = Curl @("-X", "GET", "-H", $auth, "-H", "Accept: application/vnd.github+json", "$base/releases/tags/$tag")
-          $rel = $null
-          try { $rel = $existing | ConvertFrom-Json } catch { $rel = $null }
-          if ($rel -and $rel.id) {
-            $resp = Curl @("-X", "PATCH", "-H", $auth, "-H", "Accept: application/vnd.github+json", "-H", "Content-Type: application/json", "--data-binary", "@$payloadFile", "$base/releases/$($rel.id)")
-            "RELEASE_UPDATED $resp" | Out-File $log -Append -Encoding utf8
-          } else {
-            $resp = Curl @("-X", "POST", "-H", $auth, "-H", "Accept: application/vnd.github+json", "-H", "Content-Type: application/json", "--data-binary", "@$payloadFile", "$base/releases")
-            "RELEASE_CREATED $resp" | Out-File $log -Append -Encoding utf8
-          }
-          "REL_RESP=$resp" | Out-File $log -Append -Encoding utf8
-          $rel = Curl @("-X", "GET", "-H", $auth, "-H", "Accept: application/vnd.github+json", "$base/releases/tags/$tag") | ConvertFrom-Json
-          "RELEASE_ID=$($rel.id)" | Out-File $log -Append -Encoding utf8
-          if (-not $rel.id) { throw "release id missing" }
-          $assetNames = @($rel.assets | ForEach-Object { $_.name })
-          foreach ($f in @($zip, "$zip.sha256.txt")) {
-            $name = Split-Path $f -Leaf
-            if ($assetNames -contains $name) {
-              "ASSET_EXISTS $name (skip)" | Out-File $log -Append -Encoding utf8
-              continue
-            }
-            $resp = Curl @("-X", "POST", "-H", $auth, "-H", "Content-Type: application/octet-stream", "--data-binary", "@$f", "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($rel.id)/assets?name=$name")
-            "UPLOAD_RESP=$resp" | Out-File $log -Append -Encoding utf8
-            $up = $resp | ConvertFrom-Json
-            if (-not $up.name -or [int64]$up.size -le 0) { throw "upload failed: $name" }
-            "UPLOADED $($up.name) $([math]::Round($up.size/1MB,2))MB" | Out-File $log -Append -Encoding utf8
-          }
-          $final = Curl @("-X", "GET", "-H", $auth, "-H", "Accept: application/vnd.github+json", "$base/releases/tags/$tag") | ConvertFrom-Json
-          $names = @($final.assets | ForEach-Object { $_.name })
-          "ASSETS=" + ($names -join ",") | Out-File $log -Append -Encoding utf8
-          foreach ($need in @("QingCaoEditor-v$ver-windows.zip", "QingCaoEditor-v$ver-windows.zip.sha256.txt")) {
-            if ($names -notcontains $need) { throw "missing asset: $need" }
-          }
-          "ALL_DONE" | Out-File $log -Append -Encoding utf8
+          python tools/ci_publish_release.py 2>&1 | Tee-Object -FilePath "D:\actions-runner\release.log" -Append
+          if ($LASTEXITCODE -ne 0) { throw "release failed" }
