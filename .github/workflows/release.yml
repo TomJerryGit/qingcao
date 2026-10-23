@@ -92,14 +92,16 @@ jobs:
           $h = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
           $base = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
           $rel = $null
-          try { $rel = Retry-Web { Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } } catch { $rel = $null }
+          try { $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } catch { $rel = $null }
           $payload = @{ tag_name = $tag; name = "QingCaoEditor $tag"; body = $body; draft = $false; prerelease = $false } | ConvertTo-Json -Depth 3
+          $payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+          "PAYLOAD_LEN=$($payloadBytes.Length) HEAD=" + $payload.Substring(0, [Math]::Min(120, $payload.Length)) | Out-File $log -Append -Encoding utf8
           try {
             if ($rel) {
-              Retry-Web { Invoke-RestMethod -Method Patch -Headers $h -Uri "$base/releases/$($rel.id)" -Body $payload -ContentType "application/json" } | Out-Null
+              Retry-Web { Invoke-RestMethod -Method Patch -Headers $h -Uri "$base/releases/$($rel.id)" -Body $payloadBytes -ContentType "application/json" } | Out-Null
               "RELEASE_UPDATED" | Out-File $log -Append -Encoding utf8
             } else {
-              $resp = Retry-Web { Invoke-RestMethod -Method Post -Headers $h -Uri "$base/releases" -Body $payload -ContentType "application/json" }
+              $resp = Retry-Web { Invoke-RestMethod -Method Post -Headers $h -Uri "$base/releases" -Body $payloadBytes -ContentType "application/json" }
               "RELEASE_POSTED type=$($resp.GetType().Name) json=$($resp | ConvertTo-Json -Depth 2 -Compress)" | Out-File $log -Append -Encoding utf8
             }
           } catch {
