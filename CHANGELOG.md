@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+### 插件平台（B-1/B-2：子进程沙箱 RPC 协议 + 宿主）
+
+- 新增 `infrastructure/plugin_sandbox_rpc.py`：JSON Lines over stdin/stdout；
+  `SandboxProcess` 负责启动子进程、带超时调用、崩溃隔离与 `restart()`；
+- 新增 `infrastructure/plugin_sandbox_worker.py`：子进程内导入插件并响应
+  **只读**扩展点（symbols/hover/completion/describe），主进程永不导入
+  插件代码；插件 print 被忽略，stdout 专用于协议；
+- 方法白名单双重限制（客户端 + worker）；
+- `tests/test_plugin_sandbox_rpc.py` 4 项：正常调用、超时隔离（不杀进程）、
+  非法方法拦截、崩溃后 restart；
+- 后续（B-3/B-4）：manifest `sandbox: true` 强制隔离、接入扩展点收集器、
+  试点插件迁移。
+
+## [Unreleased]
+
 ### 性能（主题切换 1s+ → 130-210ms）
 
 - 根因实测：应用级 `QApplication.setStyleSheet` 会触发**全控件样式重算**
