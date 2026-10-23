@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+### 插件平台（C-1：沙箱受限诊断协议）
+
+- RPC 白名单新增 `diagnostics`：插件只**返回诊断数据**，发布到问题面板
+  仍由宿主完成（最小攻击面）；
+- worker 侧校验并规范化字段（line/col/severity/message/code），
+  过滤非法项、上限 500 条；
+- `SandboxedPlugin.diagnostics(text)` 只读代理，异常自动降级为空列表；
+- `tests/test_sandbox_diagnostics.py` 2 项：规范化/限量、缺方法返回空；
+- 为后续把 spell_check 等诊断类插件迁移到沙箱铺路。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.6.0] - 2026-10-23

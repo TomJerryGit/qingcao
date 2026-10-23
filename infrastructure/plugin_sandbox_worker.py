@@ -39,6 +39,35 @@ def _handle(plugin, method: str, params: dict):
     if method == "hover":
         return fn(params.get("line", 0), params.get("col", 0),
                   params.get("filepath", ""), params.get("language", ""))
+    if method == "diagnostics":
+        fn = getattr(plugin, "diagnostics", None)
+        if not callable(fn):
+            raise RuntimeError("插件未实现方法: diagnostics")
+        raw = fn(params.get("text", "")) or []
+        out = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            try:
+                diag = {
+                    "line": max(0, int(item.get("line", 0))),
+                    "col": max(0, int(item.get("col", 0))),
+                    "severity": str(item.get("severity", "warning"))
+                                .lower(),
+                    "message": str(item.get("message", ""))[:500],
+                    "code": str(item.get("code", ""))[:40],
+                }
+            except Exception:
+                continue
+            if diag["severity"] not in ("info", "warning", "error"):
+                diag["severity"] = "warning"
+            if not diag["message"]:
+                continue
+            out.append(diag)
+            if len(out) >= 500:
+                break
+        return out
+
     if method == "completion":
         return fn(params.get("prefix", ""), params.get("language", ""),
                   params.get("filepath", ""))

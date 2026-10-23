@@ -122,6 +122,12 @@ class SandboxedPlugin:
                            "language": language or "",
                            "filepath": filepath or ""}, []) or []
 
+    def diagnostics(self, text):
+        """只读诊断（插件返回数据，宿主负责发布到问题面板）"""
+        result = self._safe_call(
+            "diagnostics", {"text": text or ""}, [])
+        return result if isinstance(result, list) else []
+
     def describe(self):
         return self._safe_call("describe", {}, {})
 

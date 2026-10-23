@@ -25,6 +25,7 @@ WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 ALLOWED_METHODS = frozenset({
     "symbols", "hover", "completion", "describe",
+    "diagnostics",   # 受限：插件只返回数据，由宿主发布到问题面板
 })
 
 
