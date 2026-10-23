@@ -5,31 +5,98 @@ on:
       - 'v*'
 permissions:
   contents: write
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
 jobs:
   build-release:
     runs-on: [self-hosted, windows, x64]
     steps:
-      - name: debug checkout
+      - name: Checkout (SSH)
         shell: powershell
         run: |
+          $ErrorActionPreference = "Continue"
           $log = "D:\actions-runner\release.log"
-          Remove-Item $log -ErrorAction SilentlyContinue
-          function L($m) { Add-Content -Path $log -Value $m -Encoding utf8 }
-          L "START"
+          "CHECKOUT_START" | Out-File $log -Encoding utf8
           $env:HOME = "C:\Users\Administrator"
           $env:USERPROFILE = "C:\Users\Administrator"
           $env:GIT_TERMINAL_PROMPT = "0"
-          $sshDir = "C:\Users\Administrator\.ssh"
-          L ("sshDir=" + (Test-Path $sshDir) + " id_rsa=" + (Test-Path "$sshDir\id_rsa") + " known_hosts=" + (Test-Path "$sshDir\known_hosts"))
-          $env:GIT_SSH_COMMAND = "ssh -i `"$sshDir\id_rsa`" -o StrictHostKeyChecking=no -o UserKnownHostsFile=`"$sshDir\known_hosts`""
-          L ("GIT_SSH_COMMAND=" + $env:GIT_SSH_COMMAND)
           $git = "d:\Program Files\Git\cmd\git.exe"
           $dir = $env:GITHUB_WORKSPACE
-          & $git -C $dir remote set-url origin "git@github.com:$env:GITHUB_REPOSITORY.git" 2>&1 | Out-Null
-          $f = & $git -C $dir fetch --tags --force origin 2>&1
-          L ("fetch_rc=" + $LASTEXITCODE)
-          $f | ForEach-Object { L ("out: " + $_) }
-          $r = & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1
-          L ("reset_rc=" + $LASTEXITCODE)
-          $r | ForEach-Object { L ("reset: " + $_) }
-          L "END"
+          $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
+          if (-not (Test-Path "$dir\.git")) { & $git clone $url $dir }
+          & $git -C $dir remote set-url origin $url
+          $out = & $git -C $dir fetch --tags --force origin 2>&1
+          "fetch_rc=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
+          $out | Select-Object -Last 5 | Out-File $log -Append -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          $out = & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1
+          "reset_rc=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "git reset failed" }
+          "CHECKOUT_OK" | Out-File $log -Append -Encoding utf8
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $log = "D:\actions-runner\release.log"
+          python --version 2>&1 | Out-File $log -Append -Encoding utf8
+          python -m pip install --upgrade pip 2>&1 | Select-Object -Last 3 | Out-File $log -Append -Encoding utf8
+          & python -m pip install -r requirements.txt pyinstaller 2>&1 | Select-Object -Last 6 | Out-File $log -Append -Encoding utf8
+          "pip_rc=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+          "DEPS_OK" | Out-File $log -Append -Encoding utf8
+
+      - name: Build
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $log = "D:\actions-runner\release.log"
+          "BUILD_START" | Out-File $log -Append -Encoding utf8
+          & python build.py 2>&1 | Select-Object -Last 12 | Out-File $log -Append -Encoding utf8
+          "build_rc=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "build failed" }
+          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
+          $exe = "dist\QingCaoEditor\QingCaoEditor.exe"
+          if (-not (Test-Path $exe)) { throw "exe missing" }
+          $fv = (Get-Item $exe).VersionInfo.FileVersion
+          "BUILD_OK ver=$ver fv=$fv" | Out-File $log -Append -Encoding utf8
+          if ($fv -ne $ver) { throw "version mismatch" }
+
+      - name: Package and release
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $log = "D:\actions-runner\release.log"
+          $tag = $env:GITHUB_REF_NAME
+          $ver = (Get-Content VERSION -Encoding UTF8).Trim()
+          $zip = "dist\QingCaoEditor-v$ver-windows.zip"
+          Remove-Item $zip -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist\QingCaoEditor\*" -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          Set-Content -Path "$zip.sha256.txt" -Value "$hash  $(Split-Path $zip -Leaf)" -Encoding ascii
+          "ZIP=$zip`nSHA256=$hash" | Out-File $log -Append -Encoding utf8
+          $notes = "docs/release_notes_$tag.md"
+          if (-not (Test-Path $notes)) { $notes = "CHANGELOG.md" }
+          $body = Get-Content $notes -Raw -Encoding UTF8
+          $h = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
+          $base = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          $rel = $null
+          try { $rel = Invoke-RestMethod -Headers $h -Uri "$base/releases/tags/$tag" } catch {}
+          $payload = @{ tag_name = $tag; name = "QingCaoEditor $tag"; body = $body; draft = $false; prerelease = $false } | ConvertTo-Json -Depth 3
+          if ($rel) {
+            $rel = Invoke-RestMethod -Method Patch -Headers $h -Uri "$base/releases/$($rel.id)" -Body $payload -ContentType "application/json"
+            "RELEASE_UPDATED id=$($rel.id)" | Out-File $log -Append -Encoding utf8
+          } else {
+            $rel = Invoke-RestMethod -Method Post -Headers $h -Uri "$base/releases" -Body $payload -ContentType "application/json"
+            "RELEASE_CREATED id=$($rel.id)" | Out-File $log -Append -Encoding utf8
+          }
+          foreach ($f in @($zip, "$zip.sha256.txt")) {
+            $name = Split-Path $f -Leaf
+            $up = Invoke-RestMethod -Method Post -Headers $h -Uri "https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($rel.id)/assets?name=$name" -InFile $f -ContentType "application/octet-stream" -TimeoutSec 900
+            "UPLOADED $($up.name) $([math]::Round($up.size/1MB,2))MB" | Out-File $log -Append -Encoding utf8
+          }
+          "ALL_DONE" | Out-File $log -Append -Encoding utf8
+        env:
+          GH_TOKEN: ${{ github.token }}
