@@ -63,6 +63,20 @@ class SandboxProcess:
             text=True, encoding="utf-8", errors="replace", bufsize=1,
         )
         threading.Thread(target=self._drain_stderr, daemon=True).start()
+        # 就绪握手：worker 加载插件成功会先发 {"ready": true}；
+        # 加载失败会发 ready=false 并退出（避免"进程还活着但不可用"竞态）。
+        try:
+            line = self._readline(min(5.0, self.timeout + 3.0))
+            hello = json.loads(line)
+        except Exception as e:
+            tail = self.stderr_tail(500)
+            self.close()
+            raise SandboxError("沙箱启动失败: %s%s"
+                               % (e, (" | " + tail) if tail else ""))
+        if not isinstance(hello, dict) or not hello.get("ready"):
+            reason = hello.get("error") if isinstance(hello, dict) else hello
+            self.close()
+            raise SandboxError("沙箱加载插件失败: %s" % (reason or "未知"))
 
     def _drain_stderr(self):
         try:

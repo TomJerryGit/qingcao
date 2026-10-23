@@ -53,8 +53,14 @@ def main():
     try:
         plugin = _load_plugin(os.path.abspath(sys.argv[1]))
     except Exception as e:
-        print("加载插件失败: %r" % e, file=sys.stderr)
+        sys.stdout.write(json.dumps(
+            {"ready": False, "error": "%s: %s" % (type(e).__name__, e)},
+            ensure_ascii=False) + "\n")
+        sys.stdout.flush()
         return 3
+    sys.stdout.write(json.dumps({"ready": True},
+                                ensure_ascii=False) + "\n")
+    sys.stdout.flush()
     for line in sys.stdin:
         line = line.strip()
         if not line:

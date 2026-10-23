@@ -1,5 +1,21 @@
 ## [Unreleased]
 
+### 插件平台（B-3a：opt-in 只读沙箱管理）
+
+- 新增 `infrastructure/plugin_sandbox_manager.py`：
+  - `is_sandbox_enabled()` / `discover_sandboxed_plugins()`：
+    仅 manifest 显式 `"sandbox": true` 的插件被隔离（**默认关闭**，
+    现有插件零影响）；
+  - `SandboxedPlugin`：只读代理 symbols/hover/completion/describe，
+    惰性启进程、超时/崩溃自动降级（返回空结果 + `degraded` 标记，
+    不阻塞、不抛异常到宿主）；
+- `SandboxProcess` 增加**就绪握手**（worker 发 `{"ready": ...}`）：
+  插件导入失败时启动即报错，消除"进程活着但不可用"的竞态；
+- `tests/test_plugin_sandbox_manager.py` 4 项：开关默认值、扫描、
+  只读代理往返、坏插件降级不抛异常。
+
+## [Unreleased]
+
 ### 插件平台（B-1/B-2：子进程沙箱 RPC 协议 + 宿主）
 
 - 新增 `infrastructure/plugin_sandbox_rpc.py`：JSON Lines over stdin/stdout；
