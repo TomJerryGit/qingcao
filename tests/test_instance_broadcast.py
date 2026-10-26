@@ -44,3 +44,13 @@ def test_hook_wired_in_editor():
     src = open(os.path.join(root, "core", "editor.py"),
                encoding="utf-8").read()
     assert "notify_file_saved" in src
+
+
+def test_protocol_version_payload():
+    from infrastructure.instance_broadcast import PROTOCOL_VERSION, make_payload
+    obj = make_payload("file_saved", "/tmp/x.txt", 1.5, 7)
+    assert PROTOCOL_VERSION == 1
+    assert obj["v"] == 1
+    assert obj["type"] == "file_saved"
+    assert obj["path"] == "/tmp/x.txt"
+    assert obj["mtime"] == 1.5 and obj["pid"] == 7

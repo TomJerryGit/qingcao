@@ -30,6 +30,15 @@ def notify_file_saved(path: str) -> None:
         pass
 
 
+PROTOCOL_VERSION = 1
+
+
+def make_payload(kind: str, path: str, mtime: float, pid: int) -> dict:
+    """构造广播消息（带协议版本号，便于以后兼容旧实例）"""
+    return {"v": PROTOCOL_VERSION, "type": kind, "path": path,
+            "mtime": float(mtime), "pid": int(pid)}
+
+
 class InstanceBroadcaster(QObject):
     file_saved = pyqtSignal(str, float, int)
 
@@ -123,9 +132,9 @@ class InstanceBroadcaster(QObject):
         self._socket = None
 
     def announce(self, path: str, mtime: float) -> None:
-        payload = json.dumps({"type": "file_saved", "path": path,
-                              "mtime": float(mtime), "pid": self.pid},
-                             ensure_ascii=False) + "\n"
+        payload = json.dumps(
+            make_payload("file_saved", path, mtime, self.pid),
+            ensure_ascii=False) + "\n"
         data = payload.encode("utf-8")
         if self._hub:
             self.file_saved.emit(path, float(mtime), self.pid)
