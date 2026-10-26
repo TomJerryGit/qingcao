@@ -135,7 +135,10 @@ def _c_context_menu(api, win, tmp_path):
     assert any(e.get("label") == "conf-action"
                for e in win.collect_editor_context_actions())
     api.cleanup()
-    assert win.collect_editor_context_actions() == []
+    # 只断言"本插件注册的项被清理"：内置插件（如 json_formatter）的
+    # 右键菜单项是合法存在，CI 上插件激活时序不同才暴露原断言过严。
+    assert not any(e.get("label") == "conf-action"
+                   for e in win.collect_editor_context_actions())
 
 
 @contract("status-item")
