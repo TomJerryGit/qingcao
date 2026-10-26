@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.8.0] - 2026-10-26
+
 ### 插件平台（P2：spell_check 沙箱二阶段）
 
 - 沙箱协议新增受限 `add_ignore_word`（RPC 白名单 + worker 校验，
