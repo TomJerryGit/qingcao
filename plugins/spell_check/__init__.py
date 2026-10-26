@@ -112,6 +112,14 @@ class Plugin(PluginBase):
                           self.reload_ignore)
         self.api.add_menu("工具/拼写检查/编辑忽略词…",
                           self.open_ignore_file)
+        self.api.add_menu("工具/拼写检查/忽略本文件可疑词",
+                          self.ignore_flagged_words)
+        try:
+            self.api.add_editor_context_menu(
+                "拼写检查：忽略本文件可疑词",
+                self.ignore_flagged_words)
+        except Exception:
+            pass
 
     def on_deactivate(self):
         self.api.log("拼写检查插件已停用")
@@ -200,6 +208,50 @@ class Plugin(PluginBase):
     def diagnostics(self, text):
         """沙箱协议入口：只返回诊断数据（宿主负责发布到问题面板）"""
         return self._check_text(text, limit=200)
+
+    def ignore_flagged_words(self):
+        """把当前文档中所有可疑词加入忽略词文件（并清空本次诊断）"""
+        text = self._get_current_text()
+        if not text:
+            self.api.show_status("没有可检查的内容", 2500, "info")
+            return 0
+        issues = self._check_text(text, limit=500)
+        words = []
+        for item in issues:
+            token = str(item.get("message", "")).split("：")[-1].strip()
+            if token:
+                words.append(token.lower())
+        words = sorted(set(words))
+        if not words:
+            self.api.show_status("没有发现可疑拼写", 2500, "success")
+            return 0
+        try:
+            import os
+            os.makedirs(os.path.dirname(self._ignore_path), exist_ok=True)
+            existing = set()
+            if os.path.exists(self._ignore_path):
+                with open(self._ignore_path, encoding="utf-8") as f:
+                    for line in f:
+                        w = line.split("#", 1)[0].strip().lower()
+                        if w:
+                            existing.add(w)
+            added = [w for w in words if w not in existing]
+            if added:
+                with open(self._ignore_path, "a", encoding="utf-8") as f:
+                    for w in added:
+                        f.write(w + "\n")
+        except Exception as e:
+            self.api.show_status("写入忽略词失败: %s" % e, 3000, "warning")
+            return 0
+        self._ignore = load_ignore_words(self._ignore_path)
+        try:
+            self.api.publish_diagnostics([])
+        except Exception:
+            pass
+        self._update_status(0)
+        msg = "已忽略 %d 个词（新增 %d）" % (len(words), len(added))
+        self.api.show_status(msg, 3000, "success")
+        return len(added)
 
     def check_current(self):
         text = self._get_current_text()

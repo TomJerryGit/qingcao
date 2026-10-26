@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+### 拼写检查增强（忽略本文件可疑词）
+
+- 新增 `ignore_flagged_words()`：把当前文档全部可疑词一次性写入
+  `data/spell_ignore.txt`（去重、保留已有词），随后清空诊断并更新状态栏；
+- 菜单「工具 → 拼写检查 → 忽略本文件可疑词」+ **编辑器右键菜单**
+  同名入口（`api.add_editor_context_menu`）；
+- spell_check 恢复为进程内插件（沙箱试点已由 `plugins/sandbox_demo`
+  验证；仍保留 `diagnostics()` 协议入口以便再次迁移）；
+- 新增 `tests/test_spell_ignore_enhance.py` 2 项：追加+清诊断、
+  无可疑词时零操作。
+
+## [Unreleased]
+
 ### UI 修复（C-2：主题覆盖独立顶层对话框）
 
 - 新增 `_TopLevelThemeFilter`（应用级事件过滤器）：**新创建**的独立顶层
