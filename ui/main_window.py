@@ -180,6 +180,39 @@ from ui.mixins.project_mixin import ProjectMixin
 from ui.mixins.status_bar_mixin import StatusBarMixin
 
 
+try:
+    from PyQt5.QtCore import QEvent, QObject
+    from PyQt5.QtWidgets import QWidget
+except Exception:  # pragma: no cover - PyQt5 缺失时模块本就不可用
+    QEvent = None
+    QObject = object
+    QWidget = object
+
+
+class _TopLevelThemeFilter(QObject):
+    """应用级事件过滤器：新创建的独立顶层窗口显示时套用当前主题 QSS"""
+
+    def __init__(self, win):
+        super().__init__(win)
+        self._win = win
+
+    def eventFilter(self, obj, event):
+        try:
+            if obj is self._win or not isinstance(obj, QWidget):
+                return False
+            if event.type() != QEvent.Show or not obj.isWindow():
+                return False
+            qss = getattr(self._win, "_current_theme_qss", "")
+            if qss and not obj.styleSheet():
+                obj.setStyleSheet(qss)
+                theme = getattr(self._win, "_startup_theme", None)
+                if theme is not None:
+                    adapt_widget_styles(obj, theme)
+        except Exception:
+            pass
+        return False
+
+
 def adapt_widget_styles(root, theme):
     """递归把控件树内联 QSS 中硬编码的深色适配为当前主题配色
 
@@ -1128,7 +1161,10 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                             pass
                         _qss = loader.build_qss(theme)
                         if _qss:
+                            self._current_theme_qss = _qss
                             self.setStyleSheet(_qss)
+                            self._apply_theme_to_top_levels(_qss)
+                            self._ensure_toplevel_theme_filter()
                     finally:
                         if _pm is not None:
                             try:
@@ -2654,6 +2690,44 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         self.status_bar.showMessage(
             "沙箱插件诊断: %d 条" % len(produced), 2500)
         return len(produced)
+
+    def _apply_theme_to_top_levels(self, qss=None):
+        """把当前主题 QSS 套到所有独立顶层窗口（C-2）"""
+        qss = qss or getattr(self, "_current_theme_qss", "")
+        if not qss:
+            return 0
+        try:
+            from PyQt5.QtWidgets import QApplication, QMenu, QToolTip
+        except Exception:
+            return 0
+        theme = getattr(self, "_startup_theme", None)
+        count = 0
+        for w in QApplication.topLevelWidgets():
+            try:
+                if w is self or not w.isWindow():
+                    continue
+                if isinstance(w, (QMenu, QToolTip)):
+                    continue
+                if w.styleSheet() != qss:
+                    w.setStyleSheet(qss)
+                    count += 1
+                if theme is not None:
+                    adapt_widget_styles(w, theme)
+            except Exception:
+                continue
+        return count
+
+    def _ensure_toplevel_theme_filter(self):
+        """确保安装了"新窗口显示时套主题"的应用级事件过滤器"""
+        try:
+            from PyQt5.QtWidgets import QApplication
+            if getattr(self, "_toplevel_theme_filter", None) is not None:
+                return
+            self._toplevel_theme_filter = _TopLevelThemeFilter(self)
+            QApplication.instance().installEventFilter(
+                self._toplevel_theme_filter)
+        except Exception as e:
+            print(f"[MainWindow] 安装顶层主题过滤器失败: {e}")
 
     def _get_sandboxed_plugins(self):
         """惰性创建沙箱插件代理（默认空：只有 manifest 声明的才会出现）"""

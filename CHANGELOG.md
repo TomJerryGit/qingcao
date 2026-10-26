@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+### UI 修复（C-2：主题覆盖独立顶层对话框）
+
+- 新增 `_TopLevelThemeFilter`（应用级事件过滤器）：**新创建**的独立顶层
+  窗口显示时自动套用当前主题 QSS（QMenu/QToolTip 除外）；
+- 新增 `_apply_theme_to_top_levels()`：主题切换时同步已存在的所有顶层
+  窗口（含独立对话框），并递归适配其子控件内联 QSS；
+- `_apply_theme_by_name()` 记录 `_current_theme_qss` 并接入上述两步；
+- 新增 `tests/test_theme_toplevel.py` 3 项：已存在对话框套主题、
+  新对话框经过滤器套主题、菜单不被误改。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.6.2] - 2026-10-26
