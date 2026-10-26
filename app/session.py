@@ -66,7 +66,15 @@ try:
 except Exception:  # pragma: no cover
     _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-SESSION_FILE = os.path.join(_APP_ROOT, "session.json")
+def instance_session_file(root: str, new_window: bool, pid: int) -> str:
+    """多实例：新窗口实例使用独立会话文件，避免互相覆盖"""
+    name = ("session_w%d.json" % pid) if new_window else "session.json"
+    return os.path.join(root, name)
+
+
+SESSION_FILE = instance_session_file(
+    _APP_ROOT, os.environ.get("QINGCAO_NEW_WINDOW") == "1",
+    os.getpid())
 SESSION_BACKUP_DIR = os.path.join(_APP_ROOT, "data", "backups")
 
 # 自动备份目录

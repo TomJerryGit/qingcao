@@ -236,23 +236,40 @@ def is_portable():
     return False
 
 
+def instance_settings_dir(base_dir: str, pid: int,
+                          new_window: bool) -> str:
+    """多实例：新窗口实例使用独立的设置目录"""
+    if not new_window:
+        return base_dir
+    return os.path.join(base_dir, "instances", str(pid))
+
+
 def setup_portable_mode():
-    """配置便携模式下的 QSettings"""
-    if is_portable():
-        try:
-            from PyQt5.QtCore import QSettings
+    """配置便携/多实例模式下的 QSettings"""
+    new_window = os.environ.get("QINGCAO_NEW_WINDOW") == "1"
+    try:
+        from PyQt5.QtCore import QSettings, QStandardPaths
 
-            QSettings.setDefaultFormat(QSettings.IniFormat)
+        if is_portable():
             data_dir = os.path.join(ROOT_DIR, "data")
-            os.makedirs(data_dir, exist_ok=True)
-
-            QSettings.setPath(QSettings.IniFormat,
-                              QSettings.UserScope, data_dir)
-            QSettings.setPath(QSettings.IniFormat,
-                              QSettings.SystemScope, data_dir)
-            print(f"[便携模式] 配置存储于: {data_dir}")
-        except Exception as e:
-            print(f"[便携模式] 配置失败: {e}")
+        elif new_window:
+            base = (QStandardPaths.writableLocation(
+                        QStandardPaths.AppDataLocation)
+                    or os.path.join(os.path.expanduser("~"), "QingCao"))
+            data_dir = os.path.join(base, "data")
+        else:
+            return
+        data_dir = instance_settings_dir(data_dir, os.getpid(),
+                                         new_window)
+        os.makedirs(data_dir, exist_ok=True)
+        QSettings.setDefaultFormat(QSettings.IniFormat)
+        QSettings.setPath(QSettings.IniFormat,
+                          QSettings.UserScope, data_dir)
+        QSettings.setPath(QSettings.IniFormat,
+                          QSettings.SystemScope, data_dir)
+        print(f"[设置] 配置存储于: {data_dir}")
+    except Exception as e:
+        print(f"[设置] 配置目录初始化失败: {e}")
 
 
 # ============================================================
@@ -974,7 +991,7 @@ def print_help():
 
 选项:
   --no-splash       不显示启动画面
-  --new-window      在新窗口打开（多实例）
+  --new-window      新开独立实例（独立会话与配置）
   --project FILE    打开指定的 .qingcao-project 项目文件
   --version, -v     显示版本信息
   --help, -h        显示此帮助信息
@@ -1035,6 +1052,9 @@ def main():
     # 1. 解析命令行参数
     # --------------------------------------------------------
     args = parse_arguments(sys.argv)
+    if args.get('new_window'):
+        # 多实例：新窗口使用独立会话文件与设置目录
+        os.environ['QINGCAO_NEW_WINDOW'] = '1'
 
     if args['help']:
         print_help()
