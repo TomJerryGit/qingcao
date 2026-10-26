@@ -2636,6 +2636,112 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def _apply_sandbox_configs(self):
+        """启动时把已保存的插件配置下发到沙箱插件（P1 第3步）"""
+        try:
+            from infrastructure.plugin_sandbox_manager import load_plugin_config
+        except Exception:
+            return 0
+        count = 0
+        for name, sp in (self._get_sandboxed_plugins() or {}).items():
+            try:
+                schema = sp.config_schema()
+                if not schema:
+                    continue
+                values = load_plugin_config(name, schema)
+                if sp.config_apply(values):
+                    count += 1
+            except Exception:
+                continue
+        return count
+
+    def open_sandbox_plugin_settings(self, plugin_name):
+        """按插件 config_schema 动态渲染设置对话框（P1 第3步）"""
+        try:
+            from PyQt5.QtWidgets import (
+                QCheckBox,
+                QDialog,
+                QDialogButtonBox,
+                QDoubleSpinBox,
+                QFormLayout,
+                QLineEdit,
+                QPlainTextEdit,
+                QSpinBox,
+                QVBoxLayout,
+                QWidget,
+            )
+
+            from infrastructure.plugin_sandbox_manager import load_plugin_config, save_plugin_config
+        except Exception:
+            return False
+        plugins = self._get_sandboxed_plugins()
+        sp = plugins.get(plugin_name)
+        if sp is None:
+            self.status_bar.showMessage("插件不可用: %s" % plugin_name, 3000)
+            return False
+        schema = sp.config_schema()
+        if not schema:
+            self.status_bar.showMessage("插件未声明配置: %s" % plugin_name,
+                                        3000)
+            return False
+        values = load_plugin_config(plugin_name, schema)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("插件设置 - %s" % plugin_name)
+        layout = QVBoxLayout(dlg)
+        form = QFormLayout()
+        widgets = {}
+        for key, spec in schema.items():
+            typ = str(spec.get("type") or "str")
+            label = str(spec.get("label") or key)
+            val = values.get(key, spec.get("default"))
+            if typ == "bool":
+                w = QCheckBox()
+                w.setChecked(bool(val))
+            elif typ == "int":
+                w = QSpinBox()
+                w.setRange(-1000000, 1000000)
+                w.setValue(int(val or 0))
+            elif typ == "float":
+                w = QDoubleSpinBox()
+                w.setRange(-1000000.0, 1000000.0)
+                w.setDecimals(3)
+                w.setValue(float(val or 0.0))
+            elif typ == "str_list":
+                w = QPlainTextEdit()
+                w.setPlainText("\n".join(str(x) for x in (val or [])))
+                w.setFixedHeight(80)
+            else:
+                w = QLineEdit(str(val or ""))
+            widgets[key] = (typ, w)
+            form.addRow(label, w)
+        layout.addLayout(form)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec_() != QDialog.Accepted:
+            return False
+        result = {}
+        for key, (typ, w) in widgets.items():
+            if typ == "bool":
+                result[key] = w.isChecked()
+            elif typ == "int":
+                result[key] = w.value()
+            elif typ == "float":
+                result[key] = w.value()
+            elif typ == "str_list":
+                result[key] = [s for s in
+                               w.toPlainText().splitlines() if s.strip()]
+            else:
+                result[key] = w.text()
+        save_plugin_config(plugin_name, schema, result)
+        ok = sp.config_apply(result)
+        self.status_bar.showMessage(
+            "插件配置已保存: %s (%s)" % (plugin_name,
+                                       "已下发" if ok else "下发失败"), 3000)
+        return bool(ok)
+
     def _invoke_sandbox_menu(self, plugin_name, menu_id):
         """执行沙箱插件菜单回调并反馈状态"""
         try:
@@ -2692,6 +2798,21 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         lambda checked=False, n=name, m=mid:
                         self._invoke_sandbox_menu(n, m))
                     sub.addAction(act)
+            try:
+                for name, sp in (self._get_sandboxed_plugins()
+                                 or {}).items():
+                    try:
+                        if not sp.config_schema():
+                            continue
+                    except Exception:
+                        continue
+                    st = QAction("⚙ 设置：%s" % name, self)
+                    st.triggered.connect(
+                        lambda checked=False, n=name:
+                        self.open_sandbox_plugin_settings(n))
+                    sub.addAction(st)
+            except Exception:
+                pass
             sub.addSeparator()
             refresh = QAction("🔄 刷新插件菜单", self)
             refresh.triggered.connect(
@@ -2826,9 +2947,13 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._on_remote_file_closed)
             try:
                 from PyQt5.QtCore import QTimer
-                QTimer.singleShot(
-                    1500, lambda: self.refresh_sandbox_plugin_menus(
-                        quiet=True))
+                def _deferred_sandbox_ui():
+                    try:
+                        self._apply_sandbox_configs()
+                    except Exception:
+                        pass
+                    self.refresh_sandbox_plugin_menus(quiet=True)
+                QTimer.singleShot(1500, _deferred_sandbox_ui)
             except Exception:
                 pass
             if hasattr(self.tabs, "tab_opened"):
