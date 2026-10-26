@@ -54,3 +54,44 @@ def test_protocol_version_payload():
     assert obj["type"] == "file_saved"
     assert obj["path"] == "/tmp/x.txt"
     assert obj["mtime"] == 1.5 and obj["pid"] == 7
+
+
+def test_open_close_events(qapp):
+    import os
+
+    from infrastructure.instance_broadcast import InstanceBroadcaster
+    name = "qingcao-test-%d-oc" % os.getpid()
+    hub = InstanceBroadcaster(server_name=name)
+    client = InstanceBroadcaster(server_name=name)
+    opened, closed = [], []
+    try:
+        assert hub.start() is True
+        assert client.start(force_client=True) is False
+        client.file_opened.connect(lambda p, m, pid: opened.append(p))
+        client.file_closed.connect(lambda p, m, pid: closed.append(p))
+        for _ in range(50):
+            qapp.processEvents()
+            time.sleep(0.02)
+        hub.announce_event("file_opened", "/tmp/o.txt")
+        for _ in range(100):
+            qapp.processEvents()
+            time.sleep(0.02)
+            if opened:
+                break
+        assert opened and opened[0] == "/tmp/o.txt"
+        hub.announce_event("file_closed", "/tmp/o.txt")
+        for _ in range(100):
+            qapp.processEvents()
+            time.sleep(0.02)
+            if closed:
+                break
+        assert closed and closed[0] == "/tmp/o.txt"
+    finally:
+        client.stop()
+        hub.stop()
+
+
+def test_notify_file_event_safe():
+    from infrastructure.instance_broadcast import notify_file_event
+    notify_file_event("file_opened", "")
+    notify_file_event("file_closed", "/tmp/nonexistent_qc.txt")

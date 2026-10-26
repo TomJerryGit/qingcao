@@ -41,6 +41,8 @@ def make_payload(kind: str, path: str, mtime: float, pid: int) -> dict:
 
 class InstanceBroadcaster(QObject):
     file_saved = pyqtSignal(str, float, int)
+    file_opened = pyqtSignal(str, float, int)
+    file_closed = pyqtSignal(str, float, int)
 
     def __init__(self, parent=None, server_name=None):
         super().__init__(parent)
@@ -156,10 +158,57 @@ class InstanceBroadcaster(QObject):
                     pass
             self.file_saved.emit(path, float(mtime), self.pid)
 
+    def announce_event(self, kind: str, path: str) -> None:
+        """广播 file_opened / file_closed（增量实现）"""
+        if kind not in ("file_opened", "file_closed"):
+            return
+        try:
+            mtime = os.path.getmtime(path)
+        except Exception:
+            mtime = 0.0
+        obj = make_payload(kind, path, mtime, self.pid)
+        val = (path, float(mtime), self.pid)
+        data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+        emit = (self.file_opened.emit if kind == "file_opened"
+                else self.file_closed.emit)
+        if self._hub:
+            emit(*val)
+            for c in list(self._clients):
+                try:
+                    if c.state() == QLocalSocket.ConnectedState:
+                        c.write(data)
+                        c.flush()
+                except Exception:
+                    pass
+        else:
+            sock = self._socket
+            if sock is not None and sock.state() == QLocalSocket.ConnectedState:
+                try:
+                    sock.write(data)
+                    sock.flush()
+                    return
+                except Exception:
+                    pass
+            emit(*val)
+
     def _dispatch(self, line: str, origin=None):
         try:
             obj = json.loads(line)
         except Exception:
+            return
+        if obj.get("type") in ("file_opened", "file_closed"):
+            try:
+                val = (str(obj.get("path") or ""),
+                       float(obj.get("mtime") or 0.0),
+                       int(obj.get("pid") or 0))
+            except Exception:
+                return
+            if not val[0]:
+                return
+            if obj.get("type") == "file_opened":
+                self.file_opened.emit(*val)
+            else:
+                self.file_closed.emit(*val)
             return
         if obj.get("type") != "file_saved":
             return
@@ -180,6 +229,15 @@ class InstanceBroadcaster(QObject):
                 except Exception:
                     pass
         self.file_saved.emit(path, mtime, pid)
+
+
+def notify_file_event(kind: str, path: str) -> None:
+    """广播打开/关闭事件；未初始化时静默返回"""
+    try:
+        if _singleton is not None and path:
+            _singleton.announce_event(kind, path)
+    except Exception:
+        pass
 
 
 def start_broadcast() -> InstanceBroadcaster:
