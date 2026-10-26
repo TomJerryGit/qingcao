@@ -48,6 +48,32 @@ def is_sandbox_enabled(plugin_dir: str) -> bool:
     return data.get("enabled", True) is not False
 
 
+def collect_menu_specs(plugins) -> list:
+    """把 {name: SandboxedPlugin} 转为宿主菜单规格（P1 第2步数据层）
+
+    返回 [{plugin, id, label, path}]，按 path/plugin/label 排序；
+    非法/缺字段的声明被忽略，单个插件异常不影响其它插件。
+    """
+    specs = []
+    for name, sp in (plugins or {}).items():
+        try:
+            items = sp.menu_items() or []
+        except Exception:
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label") or "").strip()
+            mid = str(item.get("id") or "").strip()
+            path = str(item.get("path") or "").strip()
+            if not label or not mid:
+                continue
+            specs.append({"plugin": str(name), "id": mid,
+                          "label": label[:80], "path": path[:120]})
+    specs.sort(key=lambda s: (s["path"], s["plugin"], s["label"]))
+    return specs
+
+
 def discover_sandboxed_plugins(plugins_dir: str):
     """扫描插件根目录，返回 [(name, path)] —— 仅 sandbox: true 的插件"""
     found = []

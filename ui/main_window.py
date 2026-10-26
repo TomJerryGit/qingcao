@@ -2636,6 +2636,15 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def _sandbox_menu_specs(self):
+        """收集沙箱插件的菜单声明（第2步：仅数据，不创建 UI）"""
+        try:
+            from infrastructure.plugin_sandbox_manager import collect_menu_specs
+            return collect_menu_specs(self._get_sandboxed_plugins())
+        except Exception as e:
+            print(f"[MainWindow] 收集沙箱菜单失败: {e}")
+            return []
+
     def ignore_sandboxed_diagnostics(self):
         """把沙箱诊断中的可疑词加入各插件忽略表，然后重跑发布（P2）"""
         try:
