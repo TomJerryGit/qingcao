@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.9.0] - 2026-10-26
+
 ### 发布质量（P3：Release 自动附加包报告）
 
 - `tools/ci_publish_release.py` 新增 `compose_body()`：发布说明自动追加
