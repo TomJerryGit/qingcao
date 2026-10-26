@@ -178,6 +178,18 @@ class SandboxedPlugin:
         result = self._safe_call("status_text", {}, "")
         return result if isinstance(result, str) else ""
 
+    def config_schema(self):
+        """插件的配置 schema（宿主据此渲染设置并校验）"""
+        result = self._safe_call("config_schema", {}, {})
+        return result if isinstance(result, dict) else {}
+
+    def config_apply(self, values):
+        """把（宿主校验后的）配置值下发给插件"""
+        if not isinstance(values, dict) or not values:
+            return False
+        return bool(self._safe_call(
+            "config_apply", {"values": values}, False))
+
     def describe(self):
         return self._safe_call("describe", {}, {})
 

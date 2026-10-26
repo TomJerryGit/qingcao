@@ -32,7 +32,8 @@ def _handle(plugin, method: str, params: dict):
                 "version": getattr(plugin, "VERSION", "")}
     fn = getattr(plugin, method, None)
     if not callable(fn):
-        raise RuntimeError("插件未实现方法: %s" % method)
+        if method not in ("config_schema", "config_apply"):
+            raise RuntimeError("插件未实现方法: %s" % method)
     if method == "symbols":
         return fn(params.get("text", ""), params.get("filepath", ""),
                   params.get("language", ""))
@@ -113,6 +114,46 @@ def _handle(plugin, method: str, params: dict):
             return str(fn() or "")[:120]
         except Exception:
             return ""
+
+    if method == "config_schema":
+        fn = getattr(plugin, "config_schema", None)
+        if not callable(fn):
+            return {}
+        raw = fn() or {}
+        if not isinstance(raw, dict):
+            return {}
+        out = {}
+        for key, spec in raw.items():
+            key = str(key)[:40]
+            if not key or not isinstance(spec, dict):
+                continue
+            typ = str(spec.get("type") or "str")
+            if typ not in ("str", "int", "float", "bool", "str_list"):
+                typ = "str"
+            item = {"type": typ,
+                    "label": str(spec.get("label") or key)[:80]}
+            if "default" in spec:
+                item["default"] = spec["default"]
+            out[key] = item
+            if len(out) >= 30:
+                break
+        return out
+
+    if method == "config_apply":
+        fn = getattr(plugin, "on_config", None)
+        if not callable(fn):
+            raise RuntimeError("插件未实现方法: on_config")
+        values = params.get("values") or {}
+        if not isinstance(values, dict) or len(values) > 30:
+            return False
+        clean = {}
+        for k, v in values.items():
+            k = str(k)[:40]
+            if isinstance(v, (str, int, float, bool)) or (
+                    isinstance(v, list)
+                    and all(isinstance(x, str) for x in v)):
+                clean[k] = v
+        return bool(fn(clean))
 
     if method == "completion":
         return fn(params.get("prefix", ""), params.get("language", ""),

@@ -30,6 +30,8 @@ ALLOWED_METHODS = frozenset({
     "menu_items",        # 受限：插件声明菜单项（宿主创建 UI）
     "invoke_menu",       # 受限：按 id 调用插件菜单回调
     "status_text",       # 受限：状态栏文本
+    "config_schema",     # 受限：插件声明配置 schema
+    "config_apply",      # 受限：宿主下发配置值
 })
 
 
