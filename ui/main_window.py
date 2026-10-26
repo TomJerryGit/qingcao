@@ -2636,6 +2636,75 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def _invoke_sandbox_menu(self, plugin_name, menu_id):
+        """执行沙箱插件菜单回调并反馈状态"""
+        try:
+            plugins = self._get_sandboxed_plugins()
+            sp = plugins.get(plugin_name)
+            if sp is None:
+                self.status_bar.showMessage("插件不可用: %s" % plugin_name,
+                                            3000)
+                return False
+            ok = bool(sp.invoke_menu(menu_id))
+            status = ""
+            try:
+                status = sp.status_text() or ""
+            except Exception:
+                status = ""
+            msg = "插件 %s: %s%s" % (
+                plugin_name, "成功" if ok else "失败",
+                (" · " + status) if status else "")
+            self.status_bar.showMessage(msg, 3000)
+            return ok
+        except Exception as e:
+            try:
+                self.status_bar.showMessage("插件菜单调用失败: %s" % e, 3000)
+            except Exception:
+                pass
+            return False
+
+    def refresh_sandbox_plugin_menus(self, quiet=False):
+        """按沙箱插件声明重建「插件菜单」子菜单（P1 第3步）"""
+        try:
+            from PyQt5.QtWidgets import QAction
+            tools_menu = getattr(self, "tools_menu", None)
+            if tools_menu is None:
+                return 0
+            old = getattr(self, "_sandbox_menu", None)
+            if old is not None:
+                old.clear()
+                tools_menu.removeAction(old.menuAction())
+            specs = self._sandbox_menu_specs()
+            sub = tools_menu.addMenu("🧩 插件菜单")
+            self._sandbox_menu = sub
+            if not specs:
+                act = QAction("（无可用沙箱插件）", self)
+                act.setEnabled(False)
+                sub.addAction(act)
+            else:
+                for spec in specs:
+                    label = spec["label"]
+                    if spec.get("path"):
+                        label = "%s  [%s]" % (label, spec["path"])
+                    act = QAction(label, self)
+                    name, mid = spec["plugin"], spec["id"]
+                    act.triggered.connect(
+                        lambda checked=False, n=name, m=mid:
+                        self._invoke_sandbox_menu(n, m))
+                    sub.addAction(act)
+            sub.addSeparator()
+            refresh = QAction("🔄 刷新插件菜单", self)
+            refresh.triggered.connect(
+                lambda checked=False: self.refresh_sandbox_plugin_menus())
+            sub.addAction(refresh)
+            if not quiet:
+                self.status_bar.showMessage(
+                    "插件菜单已刷新: %d 项" % len(specs), 2000)
+            return len(specs)
+        except Exception as e:
+            print(f"[MainWindow] 刷新插件菜单失败: {e}")
+            return 0
+
     def _sandbox_menu_specs(self):
         """收集沙箱插件的菜单声明（第2步：仅数据，不创建 UI）"""
         try:
@@ -2755,6 +2824,13 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._on_remote_file_opened)
             self._broadcast.file_closed.connect(
                 self._on_remote_file_closed)
+            try:
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(
+                    1500, lambda: self.refresh_sandbox_plugin_menus(
+                        quiet=True))
+            except Exception:
+                pass
             if hasattr(self.tabs, "tab_opened"):
                 self._known_open_paths = self._local_open_paths()
                 self.tabs.tab_opened.connect(self._on_local_tab_opened)
