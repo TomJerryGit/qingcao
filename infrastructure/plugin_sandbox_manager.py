@@ -136,6 +136,22 @@ class SandboxedPlugin:
         return bool(self._safe_call(
             "add_ignore_word", {"word": word}, False))
 
+    def menu_items(self):
+        """插件的菜单声明（由宿主创建 UI 并回调 invoke_menu）"""
+        result = self._safe_call("menu_items", {}, [])
+        return result if isinstance(result, list) else []
+
+    def invoke_menu(self, menu_id):
+        menu_id = str(menu_id or "").strip()
+        if not menu_id:
+            return False
+        return bool(self._safe_call(
+            "invoke_menu", {"id": menu_id}, False))
+
+    def status_text(self):
+        result = self._safe_call("status_text", {}, "")
+        return result if isinstance(result, str) else ""
+
     def describe(self):
         return self._safe_call("describe", {}, {})
 

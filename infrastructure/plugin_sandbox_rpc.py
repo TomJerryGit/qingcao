@@ -27,6 +27,9 @@ ALLOWED_METHODS = frozenset({
     "symbols", "hover", "completion", "describe",
     "diagnostics",   # 受限：插件只返回数据，由宿主发布到问题面板
     "add_ignore_word",  # 受限：只允许追加忽略词
+    "menu_items",        # 受限：插件声明菜单项（宿主创建 UI）
+    "invoke_menu",       # 受限：按 id 调用插件菜单回调
+    "status_text",       # 受限：状态栏文本
 })
 
 

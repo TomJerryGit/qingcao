@@ -77,6 +77,43 @@ def _handle(plugin, method: str, params: dict):
             return False
         return bool(fn(word))
 
+    if method == "menu_items":
+        fn = getattr(plugin, "menu_items", None)
+        if not callable(fn):
+            return []
+        raw = fn() or []
+        out = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label") or "").strip()[:80]
+            mid = str(item.get("id") or "").strip()[:64]
+            path = str(item.get("path") or "").strip()[:120]
+            if not label or not mid:
+                continue
+            out.append({"id": mid, "label": label, "path": path})
+            if len(out) >= 50:
+                break
+        return out
+
+    if method == "invoke_menu":
+        fn = getattr(plugin, "invoke_menu", None)
+        if not callable(fn):
+            raise RuntimeError("插件未实现方法: invoke_menu")
+        mid = str(params.get("id") or "").strip()
+        if not mid or len(mid) > 64:
+            return False
+        return bool(fn(mid))
+
+    if method == "status_text":
+        fn = getattr(plugin, "status_text", None)
+        if not callable(fn):
+            return ""
+        try:
+            return str(fn() or "")[:120]
+        except Exception:
+            return ""
+
     if method == "completion":
         return fn(params.get("prefix", ""), params.get("language", ""),
                   params.get("filepath", ""))
