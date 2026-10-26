@@ -38,3 +38,30 @@ def test_instance_session_file():
         os.path.join("R", "session.json")
     assert session.instance_session_file("R", True, 7) == \
         os.path.join("R", "session_w7.json")
+
+
+def test_cleanup_stale_instance_dirs(tmp_path):
+    import importlib.util
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec = importlib.util.spec_from_file_location(
+        "qc_main_cl", os.path.join(root, "main.py"))
+    main = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(main)
+    inst = tmp_path / "instances"
+    dead = inst / "999999"
+    alive = inst / str(os.getpid())
+    dead.mkdir(parents=True)
+    alive.mkdir(parents=True)
+    removed = main.cleanup_stale_instance_dirs(str(tmp_path))
+    assert removed >= 1
+    assert not dead.exists()
+    assert alive.exists()
+
+
+def test_remote_open_shows_status():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "ui", "main_window.py"),
+               encoding="utf-8").read()
+    assert "其它实例已打开" in src

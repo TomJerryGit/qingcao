@@ -244,6 +244,49 @@ def instance_settings_dir(base_dir: str, pid: int,
     return os.path.join(base_dir, "instances", str(pid))
 
 
+def instance_pid_alive(pid: int) -> bool:
+    """判断进程是否存活（Windows 安全实现，不用 os.kill）"""
+    try:
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong(0)
+            ok = ctypes.windll.kernel32.GetExitCodeProcess(
+                handle, ctypes.byref(code))
+            return bool(ok) and code.value == STILL_ACTIVE
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return True
+
+
+def cleanup_stale_instance_dirs(data_dir: str) -> int:
+    """删除已退出实例的配置目录（instance_pid_alive 为假）"""
+    import shutil
+    inst = os.path.join(data_dir, "instances")
+    if not os.path.isdir(inst):
+        return 0
+    removed = 0
+    for name in os.listdir(inst):
+        try:
+            pid = int(name)
+        except ValueError:
+            continue
+        if pid == os.getpid() or instance_pid_alive(pid):
+            continue
+        try:
+            shutil.rmtree(os.path.join(inst, name), ignore_errors=True)
+            removed += 1
+        except Exception:
+            continue
+    return removed
+
+
 def setup_portable_mode():
     """配置便携/多实例模式下的 QSettings"""
     new_window = os.environ.get("QINGCAO_NEW_WINDOW") == "1"
@@ -261,6 +304,10 @@ def setup_portable_mode():
                                     "data")
         else:
             return
+        try:
+            cleanup_stale_instance_dirs(data_dir)
+        except Exception:
+            pass
         data_dir = instance_settings_dir(data_dir, os.getpid(),
                                          new_window)
         os.makedirs(data_dir, exist_ok=True)

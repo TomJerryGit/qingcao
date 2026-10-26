@@ -2715,7 +2715,15 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             pass
 
     def _on_remote_file_opened(self, path, mtime, pid):
-        return
+        """其它实例打开了文件：状态栏提示（不自动打开）"""
+        import os
+        if pid == os.getpid():
+            return
+        try:
+            self.status_bar.showMessage(
+                "其它实例已打开: %s" % os.path.basename(path), 2000)
+        except Exception:
+            pass
 
     def _on_remote_file_closed(self, path, mtime, pid):
         import os
