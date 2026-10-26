@@ -205,6 +205,24 @@ class Plugin(PluginBase):
             self.api.show_status("打开忽略词文件失败: %s" % e, 3000,
                                  "warning")
 
+    def add_ignore_word(self, word):
+        """沙箱协议入口：把单个词加入忽略词文件（P2）"""
+        word = (word or "").strip().lower()
+        if not word:
+            return False
+        try:
+            import os
+            os.makedirs(os.path.dirname(self._ignore_path),
+                        exist_ok=True)
+            if word in self._ignore:
+                return True
+            with open(self._ignore_path, "a", encoding="utf-8") as f:
+                f.write(word + "\n")
+            self._ignore = load_ignore_words(self._ignore_path)
+            return True
+        except Exception:
+            return False
+
     def diagnostics(self, text):
         """沙箱协议入口：只返回诊断数据（宿主负责发布到问题面板）"""
         return self._check_text(text, limit=200)

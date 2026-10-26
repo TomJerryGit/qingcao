@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### 插件平台（P2：spell_check 沙箱二阶段）
+
+- 沙箱协议新增受限 `add_ignore_word`（RPC 白名单 + worker 校验，
+  单词长度上限 80，空词拒绝）；
+- `SandboxedPlugin.add_ignore_word()` 只读代理（写文件仍由插件进程完成）；
+- 宿主新增「工具 → 忽略沙箱诊断中的可疑词」：读取沙箱诊断、逐词
+  调用 `add_ignore_word`，然后重跑诊断发布（来源 `sandbox:<插件>`）；
+- spell_check 重新标记 `sandbox: true`：主进程不再导入，诊断与忽略词
+  均经子进程 RPC；进程内菜单/右键入口保留给非沙箱场景；
+- `tests/test_sandbox_ignore_words.py` 2 项：RPC 忽略词、spell_check
+  沙箱标记与协议方法。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.7.0] - 2026-10-26

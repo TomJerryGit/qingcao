@@ -2574,6 +2574,9 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._add_action(
                     tools_menu, "🧪 运行沙箱插件诊断", None,
                     self.run_sandboxed_diagnostics)
+                self._add_action(
+                    tools_menu, "🧹 忽略沙箱诊断中的可疑词", None,
+                    self.ignore_sandboxed_diagnostics)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
         try:
@@ -2633,6 +2636,45 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def ignore_sandboxed_diagnostics(self):
+        """把沙箱诊断中的可疑词加入各插件忽略表，然后重跑发布（P2）"""
+        try:
+            proxy = self.tabs.current_proxy()
+        except Exception:
+            proxy = None
+        if proxy is None:
+            self.status_bar.showMessage("没有打开的编辑器", 2500)
+            return 0
+        try:
+            text = proxy.get_text() or ""
+        except Exception:
+            return 0
+        plugins = self._get_sandboxed_plugins()
+        if not plugins:
+            self.status_bar.showMessage("没有启用的沙箱插件", 2500)
+            return 0
+        added = 0
+        for _name, sp in plugins.items():
+            try:
+                items = sp.diagnostics(text) or []
+            except Exception:
+                continue
+            words = set()
+            for item in items:
+                token = str(item.get("message", "")).split("：")[-1].strip()
+                if token:
+                    words.add(token)
+            for word in words:
+                try:
+                    if sp.add_ignore_word(word):
+                        added += 1
+                except Exception:
+                    continue
+        count = self.run_sandboxed_diagnostics()
+        self.status_bar.showMessage(
+            "沙箱拼写：忽略 %d 个词，剩余诊断 %d 条" % (added, count), 3000)
+        return added
+
     def _start_instance_broadcast(self):
         """多实例：启动保存广播并处理远端保存事件（P0）"""
         try:

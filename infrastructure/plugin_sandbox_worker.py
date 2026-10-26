@@ -68,6 +68,15 @@ def _handle(plugin, method: str, params: dict):
                 break
         return out
 
+    if method == "add_ignore_word":
+        fn = getattr(plugin, "add_ignore_word", None)
+        if not callable(fn):
+            raise RuntimeError("插件未实现方法: add_ignore_word")
+        word = str(params.get("word") or "").strip()
+        if not word or len(word) > 80:
+            return False
+        return bool(fn(word))
+
     if method == "completion":
         return fn(params.get("prefix", ""), params.get("language", ""),
                   params.get("filepath", ""))

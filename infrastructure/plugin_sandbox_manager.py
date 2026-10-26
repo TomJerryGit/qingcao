@@ -128,6 +128,14 @@ class SandboxedPlugin:
             "diagnostics", {"text": text or ""}, [])
         return result if isinstance(result, list) else []
 
+    def add_ignore_word(self, word):
+        """把词加入插件忽略表（由插件自己写文件，宿主只调用）"""
+        word = str(word or "").strip()
+        if not word:
+            return False
+        return bool(self._safe_call(
+            "add_ignore_word", {"word": word}, False))
+
     def describe(self):
         return self._safe_call("describe", {}, {})
 

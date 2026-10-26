@@ -73,8 +73,9 @@ def test_spell_check_back_in_process_with_sandbox_protocol():
     # 右键增强已恢复进程内运行，但仍保留沙箱协议入口以便再次迁移。
     manifest = json.load(open(os.path.join(
         ROOT, "plugins", "spell_check", "plugin.json"), encoding="utf-8"))
-    assert "sandbox" not in manifest
+    assert manifest.get("sandbox") is True
     src = open(os.path.join(ROOT, "plugins", "spell_check", "__init__.py"),
                encoding="utf-8").read()
     assert "def diagnostics(self, text)" in src
     assert "def ignore_flagged_words(self)" in src
+    assert "def add_ignore_word(self, word)" in src
