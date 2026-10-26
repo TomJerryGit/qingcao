@@ -95,3 +95,14 @@ def test_notify_file_event_safe():
     from infrastructure.instance_broadcast import notify_file_event
     notify_file_event("file_opened", "")
     notify_file_event("file_closed", "/tmp/nonexistent_qc.txt")
+
+
+def test_tab_hooks_wired():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "ui", "main_window.py"),
+               encoding="utf-8").read()
+    assert "notify_file_event" in src
+    assert "_on_remote_file_closed" in src
+    assert "_on_local_tab_opened" in src
+    assert "_on_local_tab_closed" in src

@@ -2675,6 +2675,58 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             "沙箱拼写：忽略 %d 个词，剩余诊断 %d 条" % (added, count), 3000)
         return added
 
+    def _local_open_paths(self):
+        paths = set()
+        try:
+            for i in range(self.tabs.count()):
+                ed = self.tabs.widget(i)
+                fp = getattr(getattr(ed, "document", None),
+                             "filepath", "") or ""
+                if fp:
+                    paths.add(fp)
+        except Exception:
+            pass
+        return paths
+
+    def _on_local_tab_opened(self, index):
+        try:
+            ed = self.tabs.widget(index)
+            fp = getattr(getattr(ed, "document", None),
+                         "filepath", "") or ""
+            if not fp:
+                return
+            if not hasattr(self, "_known_open_paths"):
+                self._known_open_paths = set()
+            self._known_open_paths.add(fp)
+            from infrastructure.instance_broadcast import notify_file_event
+            notify_file_event("file_opened", fp)
+        except Exception:
+            pass
+
+    def _on_local_tab_closed(self, index):
+        try:
+            from infrastructure.instance_broadcast import notify_file_event
+            current = self._local_open_paths()
+            known = getattr(self, "_known_open_paths", set())
+            for fp in known - current:
+                notify_file_event("file_closed", fp)
+            self._known_open_paths = current
+        except Exception:
+            pass
+
+    def _on_remote_file_opened(self, path, mtime, pid):
+        return
+
+    def _on_remote_file_closed(self, path, mtime, pid):
+        import os
+        if pid == os.getpid():
+            return
+        try:
+            self.status_bar.showMessage(
+                "其它实例已关闭: %s" % os.path.basename(path), 2000)
+        except Exception:
+            pass
+
     def _start_instance_broadcast(self):
         """多实例：启动保存广播并处理远端保存事件（P0）"""
         try:
@@ -2682,6 +2734,14 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self._broadcast = start_broadcast()
             self._broadcast.file_saved.connect(
                 self._on_remote_file_saved)
+            self._broadcast.file_opened.connect(
+                self._on_remote_file_opened)
+            self._broadcast.file_closed.connect(
+                self._on_remote_file_closed)
+            if hasattr(self.tabs, "tab_opened"):
+                self._known_open_paths = self._local_open_paths()
+                self.tabs.tab_opened.connect(self._on_local_tab_opened)
+                self.tabs.tab_closed.connect(self._on_local_tab_closed)
         except Exception as e:
             print(f"[MainWindow] 启动多实例广播失败: {e}")
 
