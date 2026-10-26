@@ -74,6 +74,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Continue"
           $log = "D:\actions-runner\test.log"
-          python -m pytest tests -q 2>&1 | Tee-Object -FilePath $log
-          "PYTEST_RC=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw "tests failed" }
+          Remove-Item $log -ErrorAction SilentlyContinue
+          & python -m pytest tests -q 2>&1 | Out-File -FilePath $log -Encoding utf8
+          $rc = $LASTEXITCODE
+          "PYTEST_RC=$rc" | Out-File -FilePath $log -Append -Encoding utf8
+          if ($rc -ne 0) { throw "tests failed" }
