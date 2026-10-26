@@ -2576,6 +2576,11 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                     self.run_sandboxed_diagnostics)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
+        try:
+            self._start_instance_broadcast()
+        except Exception:
+            pass
+
 
     def _sync_encoding_menu_checks(self):
         """编码/EOL 菜单显示当前选中项（NPP 打对号行为）"""
@@ -2628,6 +2633,53 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # ========================================================
     # B-3b：opt-in 子进程沙箱插件（manifest sandbox: true）
     # ========================================================
+    def _start_instance_broadcast(self):
+        """多实例：启动保存广播并处理远端保存事件（P0）"""
+        try:
+            from infrastructure.instance_broadcast import start_broadcast
+            self._broadcast = start_broadcast()
+            self._broadcast.file_saved.connect(
+                self._on_remote_file_saved)
+        except Exception as e:
+            print(f"[MainWindow] 启动多实例广播失败: {e}")
+
+    def _on_remote_file_saved(self, path, mtime, pid):
+        """其它实例保存了同一文件：未修改自动重载，已修改询问"""
+        import os
+        if not path or pid == os.getpid():
+            return
+        try:
+            count = self.tabs.count()
+        except Exception:
+            return
+        for idx in range(count):
+            try:
+                editor = self.tabs.widget(idx)
+                fp = getattr(getattr(editor, "document", None),
+                             "filepath", "") or ""
+                if not fp or os.path.normcase(fp) != os.path.normcase(path):
+                    continue
+                doc = getattr(editor, "document", None)
+                modified = bool(doc is not None and doc.is_modified())
+                if modified:
+                    from PyQt5.QtWidgets import QMessageBox
+                    ret = QMessageBox.question(
+                        self, "文件已变更",
+                        "该文件已被其它实例修改，是否重新加载？\n%s"
+                        % path,
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes)
+                    if ret != QMessageBox.Yes:
+                        return
+                reload_fn = getattr(self.tabs, "_reload_file", None)
+                if reload_fn is not None:
+                    reload_fn(path, editor)
+                    self.status_bar.showMessage(
+                        "已从磁盘重载: %s" % os.path.basename(path), 3000)
+                return
+            except Exception:
+                continue
+
     def run_sandboxed_diagnostics(self):
         """运行沙箱子进程插件的诊断并发布到问题面板（C-1 宿主接线）
 

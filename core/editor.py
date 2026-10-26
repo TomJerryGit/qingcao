@@ -955,6 +955,14 @@ class EditorProxy(QObject):
 
                 self.modified_changed.emit(False)
 
+                # 多实例（P0）：广播本次保存，让其它实例重载
+                try:
+                    from infrastructure.instance_broadcast import notify_file_saved
+                    notify_file_saved(
+                        self.document.filepath or "")
+                except Exception:
+                    pass
+
                 # 发射事件
                 try:
                     bus.emit_event(FileSavedEvent(
