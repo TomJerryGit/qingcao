@@ -248,15 +248,17 @@ def setup_portable_mode():
     """配置便携/多实例模式下的 QSettings"""
     new_window = os.environ.get("QINGCAO_NEW_WINDOW") == "1"
     try:
-        from PyQt5.QtCore import QSettings, QStandardPaths
+        from PyQt5.QtCore import QSettings
 
         if is_portable():
             data_dir = os.path.join(ROOT_DIR, "data")
         elif new_window:
-            base = (QStandardPaths.writableLocation(
-                        QStandardPaths.AppDataLocation)
-                    or os.path.join(os.path.expanduser("~"), "QingCao"))
-            data_dir = os.path.join(base, "data")
+            # QApplication 创建前 QStandardPaths 不可靠，显式使用 AppData
+            base = (os.environ.get("APPDATA")
+                    or os.path.join(os.path.expanduser("~"), "AppData",
+                                    "Roaming"))
+            data_dir = os.path.join(base, "QingCao", "QingCaoEditor",
+                                    "data")
         else:
             return
         data_dir = instance_settings_dir(data_dir, os.getpid(),

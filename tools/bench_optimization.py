@@ -101,6 +101,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true",
                         help="超阈值返回非零退出码")
+    parser.add_argument("--factor", type=float, default=1.0,
+                        help="阈值容差倍数（慢机器 CI 用 2.5）")
     parser.add_argument("--json", type=str, default="",
                         help="把结果写入 JSON 文件")
     args = parser.parse_args()
@@ -270,7 +272,8 @@ def main():
 
     section("结果汇总")
     problems = []
-    for name, limit in THRESHOLDS.items():
+    for name, limit in {k: v * args.factor for k, v in
+                            THRESHOLDS.items()}.items():
         val = RESULTS.get(name)
         if val is None:
             continue
