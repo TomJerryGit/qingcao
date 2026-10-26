@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### 发布质量（P3：Release 自动附加包报告）
+
+- `tools/ci_publish_release.py` 新增 `compose_body()`：发布说明自动追加
+  「包信息（自动生成）」章节（ZIP/哈希文件大小 + SHA256）；
+- 发版时无需手工维护体积/哈希，Release 正文与资产一致；
+- `tests/test_ci_publish_release.py` 2 项：报告拼接、payload 字段。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.8.0] - 2026-10-26

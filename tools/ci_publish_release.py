@@ -52,6 +52,30 @@ def build_payload(tag: str, body: str) -> dict:
     }
 
 
+def compose_body(body: str, zip_path: str, sha_path: str) -> str:
+    """在发布说明后自动附加包体积/哈希报告（P3）"""
+    import hashlib
+    import os
+    lines = ["", "---", "", "## 包信息（自动生成）", "",
+             "| 文件 | 大小 |", "|---|---|"]
+    for path in (zip_path, sha_path):
+        try:
+            size = os.path.getsize(path) / 1048576.0
+            lines.append("| `%s` | %.2f MB |"
+                         % (os.path.basename(path), size))
+        except OSError:
+            continue
+    try:
+        h = hashlib.sha256()
+        with open(zip_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        lines += ["", "```", "SHA256: %s" % h.hexdigest().upper(), "```"]
+    except OSError:
+        pass
+    return body.rstrip() + "\n" + "\n".join(lines) + "\n"
+
+
 def needed_asset_names(version: str):
     return ["QingCaoEditor-v%s-windows.zip" % version,
             "QingCaoEditor-v%s-windows.zip.sha256.txt" % version]
@@ -140,6 +164,7 @@ def main():
             raise SystemExit("[release] 缺少资产: %s" % p)
     with open(notes, encoding="utf-8") as f:
         body = f.read()
+    body = compose_body(body, zip_path, sha_path)
     payload = json.dumps(build_payload(tag, body),
                          ensure_ascii=False).encode("utf-8")
     base = "%s/repos/%s" % (API, repo)
