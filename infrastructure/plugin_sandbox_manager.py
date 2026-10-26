@@ -48,6 +48,102 @@ def is_sandbox_enabled(plugin_dir: str) -> bool:
     return data.get("enabled", True) is not False
 
 
+CONFIG_ORG = "QingCao"
+
+
+def config_coerce(spec: dict, value):
+    """按 schema 类型校验/转换配置值；非法返回 default"""
+    typ = str((spec or {}).get("type") or "str")
+    default = (spec or {}).get("default")
+    try:
+        if typ == "bool":
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                low = value.strip().lower()
+                if low in ("1", "true", "yes", "on"):
+                    return True
+                if low in ("0", "false", "no", "off", ""):
+                    return False
+            if isinstance(value, (int, float)):
+                return bool(value)
+            return bool(default)
+        if typ == "int":
+            if isinstance(value, bool):
+                return int(default or 0)
+            return int(value)
+        if typ == "float":
+            if isinstance(value, bool):
+                return float(default or 0.0)
+            return float(value)
+        if typ == "str_list":
+            if isinstance(value, list):
+                return [str(x) for x in value]
+            if isinstance(value, str) and value.strip():
+                import json
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(x) for x in parsed]
+                except Exception:
+                    pass
+                return [s.strip() for s in value.split(",") if s.strip()]
+            return list(default or [])
+        return str(value if value is not None else (default or ""))
+    except (TypeError, ValueError):
+        return default
+
+
+def load_plugin_config(plugin_name, schema, settings=None):
+    """从 QSettings 读取并校验插件配置；缺省用 schema default"""
+    try:
+        import json
+        if settings is None:
+            from PyQt5.QtCore import QSettings
+            settings = QSettings(CONFIG_ORG,
+                                 "Plugin_%s" % plugin_name)
+        out = {}
+        for key, spec in (schema or {}).items():
+            raw = settings.value(key, None)
+            if isinstance(spec, dict) and spec.get("type") == "str_list" \
+                    and isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except Exception:
+                    pass
+            out[key] = config_coerce(spec, raw) if raw is not None \
+                else spec.get("default")
+        return out
+    except Exception:
+        return {}
+
+
+def save_plugin_config(plugin_name, schema, values, settings=None):
+    """校验并写入 QSettings；返回实际写入的配置"""
+    try:
+        import json
+
+        from PyQt5.QtCore import QSettings
+        if settings is None:
+            settings = QSettings(CONFIG_ORG,
+                                 "Plugin_%s" % plugin_name)
+        clean = {}
+        for key, spec in (schema or {}).items():
+            clean[key] = config_coerce(spec, (values or {}).get(key))
+            val = clean[key]
+            if isinstance(val, list):
+                settings.setValue(key, json.dumps(val, ensure_ascii=False))
+            else:
+                settings.setValue(key, val)
+        try:
+            settings.sync()
+        except Exception:
+            pass
+        return clean
+    except Exception:
+        return {}
+
+
 def collect_menu_specs(plugins) -> list:
     """把 {name: SandboxedPlugin} 转为宿主菜单规格（P1 第2步数据层）
 
