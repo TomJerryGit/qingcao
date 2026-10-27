@@ -7,7 +7,7 @@
 - 一键安装
 - 一键重启
 
-作者: hedongwei
+作者: TomJerry
 """
 import os
 

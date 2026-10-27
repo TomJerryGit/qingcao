@@ -10,7 +10,7 @@
 #else
 #define MyAppVersion "2.11.2"
 #endif
-#define MyAppPublisher "hedongwei"
+#define MyAppPublisher "TomJerry"
 #define MyAppURL "https://github.com/qingcao-editor/qingcao"
 #define MyAppExeName "QingCaoEditor.exe"
 

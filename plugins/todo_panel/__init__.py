@@ -249,7 +249,7 @@ class Plugin(PluginBase):
     NAME = "todo_panel"
     VERSION = "1.0.0"
     DESCRIPTION = "TODO 面板"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     def on_activate(self):
         self.api.log("TODO 面板插件已激活")

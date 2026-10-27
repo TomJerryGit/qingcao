@@ -3,7 +3,7 @@
   "display_name": "字数统计",
   "version": "1.0.0",
   "description": "实时统计字符数、词数、行数",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",

@@ -3,7 +3,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
@@ -4108,7 +4108,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self, "关于青草编辑器",
             f"<h2>{APP_NAME} v{APP_VERSION}</h2>"
             "<p>轻量 · 极速 · 可扩展</p>"
-            "<p>开发者：hedongwei</p>"
+            "<p>开发者：TomJerry</p>"
             "<p>联系：1265338136@qq.com</p>"
             "<p><i>青草枯荣，野火重生。</i></p>"
         )

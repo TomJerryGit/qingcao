@@ -3,7 +3,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
@@ -138,9 +138,9 @@ except ImportError:
             % _version_file
         )
 
-__author__ = "hedongwei"
+__author__ = "TomJerry"
 __email__ = "1265338136@qq.com"
-__copyright__ = "Copyright (c) 2024-2025 hedongwei"
+__copyright__ = "Copyright (c) 2024-2025 TomJerry"
 __license__ = "MIT"
 
 

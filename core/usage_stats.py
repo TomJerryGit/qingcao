@@ -16,7 +16,7 @@
 - 依赖 telemetry / session / local_completer 的公共接口
 - 失败静默，避免影响主流程
 
-作者: hedongwei
+作者: TomJerry
 """
 
 import datetime

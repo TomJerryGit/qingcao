@@ -84,7 +84,7 @@ Section: editors
 Priority: optional
 Architecture: amd64
 Depends: libc6 (>= 2.31), libglib2.0-0, libgl1
-Maintainer: hedongwei <1265338136@qq.com>
+Maintainer: TomJerry <1265338136@qq.com>
 Description: Lightweight text editor with LSP and plugin system
  青草编辑器 - 轻量、极速、可扩展的代码编辑器
 """ % VERSION)

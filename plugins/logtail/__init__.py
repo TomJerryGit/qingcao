@@ -183,7 +183,7 @@ class Plugin(PluginBase):
     NAME = "logtail"
     VERSION = "1.0.0"
     DESCRIPTION = "日志实时监视"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     def on_activate(self):
         self.api.log("日志监视插件已激活")

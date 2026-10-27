@@ -199,7 +199,7 @@ def fix_gitignore(dry_run=False):
 # ============================================================
 LICENSE_CONTENT = """MIT License
 
-Copyright (c) 2024-2026 hedongwei
+Copyright (c) 2024-2026 TomJerry
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -237,7 +237,7 @@ def create_license(dry_run=False):
     try:
         with open(path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(LICENSE_CONTENT)
-        print_ok("已创建 LICENSE（MIT，2024-2026 hedongwei）")
+        print_ok("已创建 LICENSE（MIT，2024-2026 TomJerry）")
         return True
     except Exception as e:
         print_fail(f"创建失败: {e}")

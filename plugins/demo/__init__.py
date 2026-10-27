@@ -7,7 +7,7 @@ class Plugin(PluginBase):
     NAME = "demo"
     VERSION = "1.0.0"
     DESCRIPTION = "青草编辑器最小示例插件"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
     PERMISSIONS = ["editor_read", "dialog"]
 
     def on_activate(self):

@@ -8,7 +8,7 @@
 - 安装进度反馈
 - 安装失败回滚
 
-作者: hedongwei
+作者: TomJerry
 """
 import os
 import shutil

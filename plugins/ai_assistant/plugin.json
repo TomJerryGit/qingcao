@@ -3,7 +3,7 @@
   "display_name": "AI 助手",
   "version": "1.0.0",
   "description": "在编辑器内使用 AI 进行代码解释、重构、生成测试",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "author_email": "1265338136@qq.com",
   "license": "MIT",
   "type": "plugin",

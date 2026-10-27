@@ -54,7 +54,7 @@ class Plugin(PluginBase):
     NAME = "markdown_preview"
     VERSION = "1.0.0"
     DESCRIPTION = "Markdown 预览"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     def on_activate(self):
         self.api.log("Markdown 预览插件已激活")

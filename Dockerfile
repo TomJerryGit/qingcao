@@ -19,7 +19,7 @@
 # ============================================================
 FROM python:3.11-slim
 
-LABEL maintainer="hedongwei <1265338136@qq.com>"
+LABEL maintainer="TomJerry <1265338136@qq.com>"
 LABEL description="QingCao Editor development & test environment"
 
 # ---- 是否需要测试依赖（docker-compose 的 test 服务用 INSTALL_DEV=1）----

@@ -20,7 +20,7 @@ Document 单元测试。
 - test_open_nonexistent_file 兼容抛异常与返回 False 两种行为
 - 所有测试使用 try/finally 确保资源释放
 
-作者: hedongwei
+作者: TomJerry
 """
 
 import os

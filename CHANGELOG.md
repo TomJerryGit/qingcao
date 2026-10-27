@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### 开发者信息更新
+
+- 开发者署名由 `hedongwei` 统一更新为 **TomJerry**（代码头注释、版权、
+  About 对话框、安装器发布者、插件作者、README/LICENSE/Dockerfile 等，
+  共 100+ 处；邮箱保持不变）。
+
+## [Unreleased]
+
 （下一版本开发中）
 
 ## [2.11.2] - 2026-10-27

@@ -2,7 +2,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
@@ -34,7 +34,7 @@
     - Ctrl+Shift+E        解释选中代码
     - Ctrl+Shift+R        重构选中代码
 
-作者: hedongwei
+作者: TomJerry
 
 修复记录:
 - AIWorker.run: 修正 except 块的缩进（P1-5）。
@@ -2017,7 +2017,7 @@ class Plugin(PluginBase):
     NAME = PLUGIN_NAME
     VERSION = PLUGIN_VERSION
     DESCRIPTION = PLUGIN_DESCRIPTION
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
     PERMISSIONS = [
         PERMISSION_NETWORK,
         PERMISSION_EDITOR_READ,

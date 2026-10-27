@@ -48,7 +48,10 @@ def run_files(files, timeout=None):
         out = (proc.stdout or "") + (proc.stderr or "")
     except subprocess.TimeoutExpired:
         return -999, "[timeout]", True
-    crashed = rc < 0 or rc not in (0, 1)
+    # pytest 退出码 5 = 没有收集到测试（如按条件 deselected），不算崩溃
+    crashed = rc < 0
+    if rc == 5:
+        return rc, out, False
     return rc, out, crashed
 
 
@@ -63,7 +66,7 @@ def run_shard(files, retries, name, log_dir):
             f.write(out)
         print("[shard %s] attempt %d/%d rc=%s crash=%s files=%d"
               % (name, attempt, retries, rc, crashed, len(files)))
-        if rc == 0:
+        if rc in (0, 5):
             return True, rc, crashed, attempt
     return False, rc, crashed, retries
 
@@ -74,7 +77,10 @@ def localize(files, log_dir):
     bad = []
     for f in files:
         rc, out, crashed = run_files([f])
-        tag = "CRASH" if crashed else ("FAIL" if rc != 0 else "ok")
+        if rc == 5:
+            tag = "skip (no tests)"
+        else:
+            tag = "CRASH" if crashed else ("FAIL" if rc != 0 else "ok")
         print("[localize] %-60s %s (rc=%s)" % (os.path.basename(f),
                                                tag, rc))
         if rc != 0:

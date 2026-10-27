@@ -3,7 +3,7 @@
   "display_name": "TODO 面板",
   "version": "1.0.0",
   "description": "收集并显示所有 TODO/FIXME 注释",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",

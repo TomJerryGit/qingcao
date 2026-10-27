@@ -10,7 +10,7 @@ class Plugin(PluginBase):
     NAME = "json_formatter"
     VERSION = "1.0.0"
     DESCRIPTION = "格式化 JSON"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     def on_activate(self):
         self.api.log("JSON 格式化插件已激活")

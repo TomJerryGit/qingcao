@@ -24,7 +24,7 @@
 - app.plugin_manager.PluginInfo    （数据类）
 - app.plugin_manager.PluginState   （状态枚举）
 
-作者: hedongwei
+作者: TomJerry
 """
 
 import os

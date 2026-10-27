@@ -3,7 +3,7 @@
   "display_name": "Git 深度集成",
   "version": "1.0.0",
   "description": "Git 状态、差异、提交、推送、拉取",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "integration",

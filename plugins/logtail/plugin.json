@@ -3,7 +3,7 @@
   "display_name": "日志实时监视",
   "version": "1.0.0",
   "description": "监视日志文件的变化并自动滚动",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",

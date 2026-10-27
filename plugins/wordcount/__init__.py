@@ -129,7 +129,7 @@ class Plugin(PluginBase):
     NAME = "wordcount"
     VERSION = "1.0.0"
     DESCRIPTION = "字数统计"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     def on_activate(self):
         self.api.log("字数统计插件已激活")

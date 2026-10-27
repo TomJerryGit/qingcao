@@ -3,7 +3,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
@@ -140,7 +140,7 @@ APP_DESCRIPTION = "轻量 · 极速 · 可扩展"
 # QSettings 组织名（与 main.py 的 ORG_NAME 保持一致）
 ORG_NAME = "QingCao"
 
-AUTHOR = "hedongwei"
+AUTHOR = "TomJerry"
 EMAIL = "1265338136@qq.com"
 HOMEPAGE = "https://github.com/qingcao-editor/qingcao"
 DOCS_URL = "https://qingcao-editor.github.io/docs"

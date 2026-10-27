@@ -3,7 +3,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 青草枯荣，野火重生。
 
 列编辑器（Column Editor）验证脚本

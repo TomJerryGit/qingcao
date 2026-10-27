@@ -3,7 +3,7 @@
 """
 青草编辑器 (QingCao Editor)
 ============================
-开发者：hedongwei
+开发者：TomJerry
 邮箱：1265338136@qq.com
 青草枯荣，野火重生。
 
@@ -119,11 +119,11 @@ except ImportError:  # pragma: no cover
         )
     if not APP_VERSION:
         raise SystemExit("[build] VERSION 文件为空，无法确定版本号")
-APP_AUTHOR = 'hedongwei'
+APP_AUTHOR = 'TomJerry'
 APP_EMAIL = '1265338136@qq.com'
 APP_DESCRIPTION = 'Lightweight text editor with LSP and plugin system'
-APP_COMPANY = 'hedongwei'
-APP_COPYRIGHT = 'Copyright (C) 2024-2025 hedongwei'
+APP_COMPANY = 'TomJerry'
+APP_COPYRIGHT = 'Copyright (C) 2024-2025 TomJerry'
 APP_URL = 'https://github.com/qingcao-editor/qingcao'
 
 # 需要打包的数据目录

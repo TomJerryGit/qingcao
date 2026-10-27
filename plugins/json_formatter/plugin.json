@@ -3,7 +3,7 @@
   "display_name": "JSON 格式化",
   "version": "1.0.0",
   "description": "格式化、压缩、验证 JSON",
-  "author": "hedongwei",
+  "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",

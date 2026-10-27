@@ -98,7 +98,7 @@ class Plugin(PluginBase):
     NAME = "python_debugger"
     VERSION = "2.0.0"
     DESCRIPTION = "基于标准库 bdb 的编辑器内 Python 调试器"
-    AUTHOR = "hedongwei"
+    AUTHOR = "TomJerry"
 
     #: 快捷键刻意避开宿主已占用的 F5 / F9 / F11 / Shift+F11 / F12：
     #:   F5  = 运行当前文件（宿主）

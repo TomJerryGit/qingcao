@@ -513,12 +513,12 @@ crash.log 内容（如有）
 本项目采用 MIT License 开源协议。
 
 ```text
-Copyright (c) 2024-2025 hedongwei
+Copyright (c) 2024-2025 TomJerry
 ```
 
 ## 📬 联系方式
 
-- 开发者：hedongwei
+- 开发者：TomJerry
 
 邮箱：1265338136@qq.com
 
