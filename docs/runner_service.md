@@ -1,4 +1,4 @@
-# 自托管 Runner 服务化操作手册
+﻿# 自托管 Runner 服务化操作手册
 
 > 目标：让 GitHub Actions Runner 在**开机/登录后自动运行**，
 > 并说明真正 Windows 服务化的条件与步骤。
@@ -13,7 +13,7 @@
 | 已注册 | `qingcao-local-runner`，连接正常（Listening for Jobs） |
 | 包内服务脚本 | **无 `svc.cmd`**（该分发包只含 config/run/run-helper） |
 | 当前权限 | 非管理员会话 |
-| 已配置自启 | ① Startup 目录 `QingCaoActionsRunner.vbs` ② `HKCU\...\Run` 同名项 |
+| 已配置自启 | ✅ **Windows 服务** `actions.runner.TomJerryGit-qingcao.qingcao-local-runner`（延迟自动启动，以 Administrator 账户运行） |
 
 `start-runner.vbs` 逻辑：隐藏窗口执行 `cmd /c run.cmd > runner.log 2>&1`，
 保留当前用户环境（SSH key、Python 3.11、git）。
