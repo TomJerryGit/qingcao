@@ -2253,7 +2253,7 @@ class PluginAPI(QObject):
 
             {
               "api_version": "2.0.0",
-              "app_version": "2.11.2",
+              "app_version": "2.11.3",
               "extension_points": {"completion": True, ...},
               "events": ["file_opened", ...],
               "permissions": ["editor_read", ...],
