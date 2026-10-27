@@ -62,8 +62,20 @@ v2.11.0 让沙箱插件配置**即时生效**、支持**实时诊断**，修复 
 ## 已知限制
 
 - 跨屏 DPI 与系统高对比度仍需真机人工验证（工具与清单已就绪）；
-- Runner 为用户登录 Startup 自启（服务化需管理员凭据）；
 - Python 3.12 为软矩阵（不阻塞发布）。
+
+---
+
+## 基础设施：自托管 Runner 已服务化
+
+- GitHub Actions Runner 已安装为 **Windows 服务**：
+  `actions.runner.TomJerryGit-qingcao.qingcao-local-runner`
+  - 启动类型：**Automatic（Delayed Auto Start）**
+  - 运行账户：`Administrator`（保留 SSH key 与 Python 环境，CI 检出/构建正常）
+  - 正常输出：`Listening for Jobs`
+- 实测：服务启动后 2 分钟内成功接管 `test` / `test-py312` 任务；
+- 旧的用户登录自启项（Startup 脚本、`HKCU\...\Run`）已移除，避免双进程；
+- 操作手册：`docs/runner_service.md`。
 
 ---
 
