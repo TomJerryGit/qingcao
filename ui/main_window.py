@@ -2661,6 +2661,35 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 continue
         return count
 
+    def _sandbox_config_saved(self, plugin_name, values):
+        """保存配置并即时生效（v2.11.0 P0 配置热更新）"""
+        try:
+            from infrastructure.plugin_sandbox_manager import save_plugin_config
+        except Exception:
+            return False
+        sp = (self._get_sandboxed_plugins() or {}).get(plugin_name)
+        if sp is None:
+            return False
+        try:
+            schema = sp.config_schema()
+            saved = save_plugin_config(plugin_name, schema, values)
+            ok = bool(sp.config_apply(saved))
+        except Exception as e:
+            self.status_bar.showMessage("插件配置保存失败: %s" % e, 3000)
+            return False
+        try:
+            self.run_sandboxed_diagnostics()
+        except Exception:
+            pass
+        try:
+            self.refresh_sandbox_plugin_menus(quiet=True)
+        except Exception:
+            pass
+        self.status_bar.showMessage(
+            "插件配置已保存%s: %s"
+            % ("并即时生效" if ok else "（下发失败）", plugin_name), 3000)
+        return ok
+
     def open_sandbox_plugin_settings(self, plugin_name):
         """按插件 config_schema 动态渲染设置对话框（P1 第3步）"""
         try:
@@ -2741,12 +2770,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                                w.toPlainText().splitlines() if s.strip()]
             else:
                 result[key] = w.text()
-        save_plugin_config(plugin_name, schema, result)
-        ok = sp.config_apply(result)
-        self.status_bar.showMessage(
-            "插件配置已保存: %s (%s)" % (plugin_name,
-                                       "已下发" if ok else "下发失败"), 3000)
-        return bool(ok)
+        return self._sandbox_config_saved(plugin_name, result)
 
     def _invoke_sandbox_menu(self, plugin_name, menu_id):
         """执行沙箱插件菜单回调并反馈状态"""
