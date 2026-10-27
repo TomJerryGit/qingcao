@@ -86,3 +86,39 @@ jobs:
           $rc = $LASTEXITCODE
           "PYTEST_RC=$rc" | Out-File -FilePath $log -Append -Encoding utf8
           if ($rc -ne 0) { throw "tests failed" }
+
+  # Python 3.12 软矩阵：解释器/依赖不满足时自动跳过，不阻塞主门禁。
+  test-py312:
+    runs-on: [self-hosted, windows, x64]
+    continue-on-error: true
+    steps:
+      - name: Checkout (SSH)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:HOME = "C:\Users\Administrator"
+          $env:USERPROFILE = "C:\Users\Administrator"
+          $git = "d:\Program Files\Git\cmd\git.exe"
+          $dir = $env:GITHUB_WORKSPACE
+          $url = "git@github.com:$env:GITHUB_REPOSITORY.git"
+          if (-not (Test-Path "$dir\.git")) { & $git clone $url $dir }
+          & $git -C $dir remote set-url origin $url
+          & $git -C $dir fetch --tags --force origin 2>&1 | Out-Null
+          & $git -C $dir reset --hard $env:GITHUB_SHA 2>&1 | Out-Null
+
+      - name: Run tests on Python 3.12 (soft)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          & py -3.12 --version 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Python 3.12 未安装，跳过软矩阵"
+            exit 0
+          }
+          & py -3.12 -m pip install -r requirements.txt pytest 2>&1 | Select-Object -Last 3
+          & py -3.12 -m pytest tests -q
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Python 3.12 测试未通过（软矩阵，不阻塞主门禁）"
+            exit 0
+          }
+

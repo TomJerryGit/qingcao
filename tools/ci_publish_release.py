@@ -52,8 +52,12 @@ def build_payload(tag: str, body: str) -> dict:
     }
 
 
-def compose_body(body: str, zip_path: str, sha_path: str) -> str:
-    """在发布说明后自动附加包体积/哈希报告（P3）"""
+def compose_body(body: str, zip_path: str, sha_path: str,
+                 prev_size: float = None) -> str:
+    """在发布说明后自动附加包体积/哈希报告（P3）
+
+    prev_size: 上一版本 ZIP 大小（字节）；提供时附体积变化。
+    """
     import hashlib
     import os
     lines = ["", "---", "", "## 包信息（自动生成）", "",
@@ -65,6 +69,19 @@ def compose_body(body: str, zip_path: str, sha_path: str) -> str:
                          % (os.path.basename(path), size))
         except OSError:
             continue
+    try:
+        size = os.path.getsize(zip_path)
+        if prev_size and prev_size > 0:
+            delta = size - prev_size
+            pct = delta / prev_size * 100.0
+            lines += ["", "| 对比 | 变化 |", "|---|---|",
+                      "| 较上一版 | %+.2f MB (%+.1f%%) |"
+                      % (delta / 1048576.0, pct)]
+        else:
+            lines += ["", "| 对比 | 变化 |", "|---|---|",
+                      "| 较上一版 | 首次发布/未知 |"]
+    except OSError:
+        pass
     try:
         h = hashlib.sha256()
         with open(zip_path, "rb") as f:
@@ -137,6 +154,27 @@ def upload_asset(token, repo, release_id, path):
     return resp
 
 
+def previous_release_size(base: str, token: str, tag: str):
+    """查询最近一个非当前 tag 的 Release 的 windows.zip 大小（字节）"""
+    try:
+        status, rels = api_request(
+            "GET", "%s/releases?per_page=30" % base, token)
+        if not isinstance(rels, list):
+            return None
+        for rel in rels:
+            if not isinstance(rel, dict) or rel.get("tag_name") == tag:
+                continue
+            for asset in rel.get("assets") or []:
+                name = str(asset.get("name") or "")
+                if (name.startswith("QingCaoEditor-v")
+                        and name.endswith("-windows.zip")):
+                    size = int(asset.get("size") or 0)
+                    return size if size > 0 else None
+        return None
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="CI Release 发布")
     ap.add_argument("--tag", default=os.environ.get("GITHUB_REF_NAME", ""))
@@ -164,7 +202,14 @@ def main():
             raise SystemExit("[release] 缺少资产: %s" % p)
     with open(notes, encoding="utf-8") as f:
         body = f.read()
-    body = compose_body(body, zip_path, sha_path)
+    try:
+        prev_size = previous_release_size(
+            "%s/repos/%s" % (API, repo), token, tag)
+    except Exception:
+        prev_size = None
+    if prev_size:
+        print("[release] 上一版体积: %.2f MB" % (prev_size / 1048576.0))
+    body = compose_body(body, zip_path, sha_path, prev_size)
     payload = json.dumps(build_payload(tag, body),
                          ensure_ascii=False).encode("utf-8")
     base = "%s/repos/%s" % (API, repo)
