@@ -198,6 +198,12 @@ class _TopLevelThemeFilter(QObject):
 
     def eventFilter(self, obj, event):
         try:
+            try:
+                import sip
+                if sip.isdeleted(self._win) or sip.isdeleted(obj):
+                    return False
+            except Exception:
+                pass
             if obj is self._win or not isinstance(obj, QWidget):
                 return False
             if event.type() != QEvent.Show or not obj.isWindow():
@@ -4686,6 +4692,19 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
     # 关闭事件
     # ========================================================
     def closeEvent(self, event):
+        # 主题事件过滤器挂在 QApplication 上：窗口销毁前必须显式移除，
+        # 否则多窗口/多测试连续创建时可能访问已销毁对象（崩溃）。
+        try:
+            from PyQt5.QtWidgets import QApplication
+            filt = getattr(self, "_toplevel_theme_filter", None)
+            if filt is not None:
+                QApplication.instance().removeEventFilter(filt)
+                self._toplevel_theme_filter = None
+        except Exception:
+            pass
+        self._closeEvent_impl(event)
+
+    def _closeEvent_impl(self, event):
         self._close_sandboxed_plugins()
         """
         关闭事件。
