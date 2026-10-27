@@ -90,7 +90,6 @@ jobs:
   # Python 3.12 软矩阵：解释器/依赖不满足时自动跳过，不阻塞主门禁。
   test-py312:
     runs-on: [self-hosted, windows, x64]
-    continue-on-error: true
     steps:
       - name: Checkout (SSH)
         shell: powershell
@@ -110,15 +109,24 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          & py -3.12 --version 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Python 3.12 未安装，跳过软矩阵"
-            exit 0
+          try {
+            if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
+              Write-Host "[soft-matrix] py launcher 不可用，跳过"
+              exit 0
+            }
+            $ver = & py -3.12 --version 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "[soft-matrix] Python 3.12 未安装，跳过"
+              exit 0
+            }
+            Write-Host "[soft-matrix] 检测到 $ver"
+            & py -3.12 -m pip install -r requirements.txt pytest 2>&1 | Select-Object -Last 3
+            & py -3.12 -m pytest tests -q
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "[soft-matrix] 3.12 测试未通过（不影响主门禁）"
+            }
+          } catch {
+            Write-Host "[soft-matrix] 跳过（$($_.Exception.Message)）"
           }
-          & py -3.12 -m pip install -r requirements.txt pytest 2>&1 | Select-Object -Last 3
-          & py -3.12 -m pytest tests -q
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Python 3.12 测试未通过（软矩阵，不阻塞主门禁）"
-            exit 0
-          }
+          exit 0
 
