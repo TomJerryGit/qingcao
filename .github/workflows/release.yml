@@ -83,5 +83,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Continue"
-          python tools/ci_publish_release.py 2>&1 | Tee-Object -FilePath "D:\actions-runner\release.log" -Append
-          if ($LASTEXITCODE -ne 0) { throw "release failed" }
+          $out = "D:\actions-runner\publish_utf8.log"
+          Remove-Item $out -ErrorAction SilentlyContinue
+          & python tools/ci_publish_release.py *> $out
+          $rc = $LASTEXITCODE
+          Get-Content $out -Encoding UTF8 | Tee-Object -FilePath "D:\actions-runner\release.log" -Append
+          if ($rc -ne 0) { throw "release failed: rc=$rc" }
