@@ -322,3 +322,29 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if item.get_closest_marker("isolated") is not None:
             item.add_marker(skip)
+
+
+# 稳定性专项：把 QSettings 重定向到临时目录。
+# 原因：测试会通过 MainWindow 保存布局/面板可见性到真实 QSettings；
+# 同一进程内后序测试恢复这些状态 → 顺序敏感失败（分片运行时暴露），
+# 且会污染用户真实配置。
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_qsettings(tmp_path_factory):
+    try:
+        from PyQt5.QtCore import QSettings
+    except Exception:
+        yield
+        return
+    base = tmp_path_factory.mktemp("qsettings")
+    old_format = QSettings.defaultFormat()
+    QSettings.setDefaultFormat(QSettings.IniFormat)
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
+                      str(base))
+    QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope,
+                      str(base))
+    try:
+        yield
+    finally:
+        QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, "")
+        QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope, "")
+        QSettings.setDefaultFormat(old_format)

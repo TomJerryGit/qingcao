@@ -32,3 +32,20 @@ python tools/verify_test_stability.py --runs 2
 - 主门禁：Python 3.11 全量测试；
 - Python 3.12 为**软矩阵**：解释器不可用或测试未过时静默跳过，
   不阻塞主门禁（见 `test.yml` 的 `test-py312` job）。
+
+## 分片 + 重试 + 崩溃定位（v2.11.2 起）
+
+```powershell
+# 分 2 片运行，失败自动重试，失败片逐文件定位
+python tools/run_tests_sharded.py --shards 2 --retries 1 --localize
+```
+
+- 输出在 `data/test_shards/part*.log`，崩溃文件日志为 `crashed_*.log`；
+- CI 已改为该方式（见 `test.yml` 的 Full test suite 步骤）。
+
+### 重要：QSettings 隔离
+
+测试会通过 MainWindow 保存布局/面板可见性。`tests/conftest.py` 中的
+`_isolated_qsettings`（session 级 autouse）把 QSettings 重定向到临时目录：
+- 消除**测试顺序敏感**（分片运行时暴露）；
+- 避免污染用户真实配置。

@@ -82,10 +82,10 @@ jobs:
           $ErrorActionPreference = "Continue"
           $log = "D:\actions-runner\test.log"
           Remove-Item $log -ErrorAction SilentlyContinue
-          & python -m pytest tests -q 2>&1 | Out-File -FilePath $log -Encoding utf8
+          & python tools/run_tests_sharded.py --shards 2 --retries 1 --localize 2>&1 | Out-File -FilePath $log -Encoding utf8
           $rc = $LASTEXITCODE
           "PYTEST_RC=$rc" | Out-File -FilePath $log -Append -Encoding utf8
-          if ($rc -ne 0) { throw "tests failed" }
+          if ($rc -ne 0) { throw "tests failed: rc=$rc" }
 
   # Python 3.12 软矩阵：解释器/依赖不满足时自动跳过，不阻塞主门禁。
   test-py312:
