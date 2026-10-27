@@ -29,7 +29,11 @@
 
 - 双显示器 DPI 拖动清单执行（工具已就绪）；
 - 高对比度模式手工验证（清单已就绪）；
-- 结果回填 `docs/manual_validation_results_v2.11.md`。
+- 结果回填 `docs/manual_validation_results_v2.11.md`；
+- **待查（v2.10.0 单机验证发现）**：offscreen + 125% 缩放 +
+  多测试文件连续创建/销毁 MainWindow 时出现 0xC0000005 崩溃
+  （单文件/150% 正常），需定位是否为 PyQt5 off-screen 平台问题或
+  应用侧窗口销毁顺序问题。
 
 ### P3 工程与发布
 
