@@ -2583,6 +2583,11 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._add_action(
                     tools_menu, "🧹 忽略沙箱诊断中的可疑词", None,
                     self.ignore_sandboxed_diagnostics)
+                live = QAction("⚡ 实时沙箱诊断（停止输入 500ms）", self)
+                live.setCheckable(True)
+                live.setChecked(self._sandbox_live_enabled())
+                live.toggled.connect(self._set_sandbox_live_diagnostics)
+                tools_menu.addAction(live)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
         try:
@@ -2660,6 +2665,64 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             except Exception:
                 continue
         return count
+
+    def _sandbox_live_enabled(self):
+        try:
+            from PyQt5.QtCore import QSettings
+            return bool(QSettings("QingCao", "Editor").value(
+                "sandbox_live_diagnostics", False, type=bool))
+        except Exception:
+            return False
+
+    def _set_sandbox_live_diagnostics(self, enabled):
+        """实时沙箱诊断开关（默认关，避免不必要的子进程调用）"""
+        try:
+            from PyQt5.QtCore import QSettings
+            s = QSettings("QingCao", "Editor")
+            s.setValue("sandbox_live_diagnostics", bool(enabled))
+            s.sync()
+        except Exception:
+            pass
+        try:
+            self.status_bar.showMessage(
+                "实时沙箱诊断: %s" % ("开启" if enabled else "关闭"), 2500)
+        except Exception:
+            pass
+
+    def _schedule_sandbox_diagnostics(self):
+        """编辑后 500ms 防抖，只触发一次诊断"""
+        if not self._sandbox_live_enabled():
+            return
+        try:
+            if not hasattr(self, "_sandbox_diag_timer"):
+                from PyQt5.QtCore import QTimer
+                self._sandbox_diag_timer = QTimer(self)
+                self._sandbox_diag_timer.setSingleShot(True)
+                self._sandbox_diag_timer.setInterval(500)
+                self._sandbox_diag_timer.timeout.connect(
+                    self._run_live_sandbox_diagnostics)
+            self._sandbox_diag_timer.start()
+        except Exception:
+            pass
+
+    def _run_live_sandbox_diagnostics(self):
+        try:
+            if not self._sandbox_live_enabled():
+                return 0
+            return self.run_sandboxed_diagnostics()
+        except Exception:
+            return 0
+
+    def _hook_sandbox_live_tab(self, index):
+        """为打开的编辑器接上编辑事件 → 防抖诊断"""
+        try:
+            ed = self.tabs.widget(index)
+            if ed is None or not hasattr(ed, "modified_changed"):
+                return
+            ed.modified_changed.connect(
+                lambda *a: self._schedule_sandbox_diagnostics())
+        except Exception:
+            pass
 
     def _sandbox_config_saved(self, plugin_name, values):
         """保存配置并即时生效（v2.11.0 P0 配置热更新）"""
@@ -2929,6 +2992,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self._known_open_paths.add(fp)
             from infrastructure.instance_broadcast import notify_file_event
             notify_file_event("file_opened", fp)
+            self._hook_sandbox_live_tab(index)
         except Exception:
             pass
 
@@ -2990,6 +3054,8 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._known_open_paths = self._local_open_paths()
                 self.tabs.tab_opened.connect(self._on_local_tab_opened)
                 self.tabs.tab_closed.connect(self._on_local_tab_closed)
+                for _i in range(self.tabs.count()):
+                    self._hook_sandbox_live_tab(_i)
         except Exception as e:
             print(f"[MainWindow] 启动多实例广播失败: {e}")
 
