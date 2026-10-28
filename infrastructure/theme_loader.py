@@ -2300,3 +2300,55 @@ if __name__ == '__main__':
 
 
     sys.exit(app.exec())
+
+def system_high_contrast():
+    """检测 Windows 高对比度是否开启（非 Windows/失败返回 None）"""
+    try:
+        import ctypes
+
+        class HIGHCONTRASTW(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint),
+                        ("dwFlags", ctypes.c_uint),
+                        ("lpszDefaultScheme", ctypes.c_wchar_p)]
+
+        hc = HIGHCONTRASTW()
+        hc.cbSize = ctypes.sizeof(HIGHCONTRASTW)
+        ok = ctypes.windll.user32.SystemParametersInfoW(
+            0x0042, hc.cbSize, ctypes.byref(hc), 0)
+        if not ok:
+            return None
+        return bool(hc.dwFlags & 0x00000001)
+    except Exception:
+        return None
+
+
+def build_high_contrast_qss() -> str:
+    """使用系统调色板（palette(...)）生成高对比度 QSS"""
+    return """
+* { color: palette(window-text); }
+QMainWindow, QDialog, QWidget { background-color: palette(window); }
+QMenuBar, QMenu, QMenuBar::item, QMenu::item {
+    background-color: palette(window);
+    color: palette(window-text);
+}
+QMenu::item:selected, QMenuBar::item:selected {
+    background-color: palette(highlight);
+    color: palette(highlighted-text);
+}
+QPlainTextEdit, QTextEdit, QLineEdit, QListWidget, QTreeWidget,
+QTableWidget, QComboBox {
+    background-color: palette(base);
+    color: palette(text);
+    selection-background-color: palette(highlight);
+    selection-color: palette(highlighted-text);
+}
+QStatusBar, QToolBar { background-color: palette(window);
+                       color: palette(window-text); }
+QTabBar::tab { background-color: palette(window);
+               color: palette(window-text); }
+QTabBar::tab:selected { background-color: palette(base);
+                        color: palette(text); }
+QPushButton { background-color: palette(button);
+              color: palette(button-text); }
+QSplitter::handle { background-color: palette(mid); }
+"""

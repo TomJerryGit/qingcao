@@ -1168,6 +1168,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                             loader.apply_palette(_app, theme)
                         except Exception:
                             pass
+                        self._current_theme_name = name
                         _qss = loader.build_qss(theme)
                         if _qss:
                             self._current_theme_qss = _qss
@@ -2591,6 +2592,12 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 live.setChecked(self._sandbox_live_enabled())
                 live.toggled.connect(self._set_sandbox_live_diagnostics)
                 tools_menu.addAction(live)
+                hc_act = QAction("♿ 跟随系统高对比度", self)
+                hc_act.setCheckable(True)
+                hc_act.setChecked(self._follow_system_high_contrast())
+                hc_act.toggled.connect(
+                    self._set_follow_system_high_contrast)
+                tools_menu.addAction(hc_act)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
         try:
@@ -3056,6 +3063,50 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 "其它实例已关闭: %s" % os.path.basename(path), 2000)
         except Exception:
             pass
+
+    def _follow_system_high_contrast(self) -> bool:
+        try:
+            from PyQt5.QtCore import QSettings
+            return bool(QSettings("QingCao", "Editor").value(
+                "follow_system_high_contrast", True, type=bool))
+        except Exception:
+            return True
+
+    def apply_high_contrast_if_needed(self) -> bool:
+        """系统高对比度开启时应用系统调色板 QSS（v2.13.0 P0）"""
+        try:
+            from infrastructure.theme_loader import build_high_contrast_qss, system_high_contrast
+            hc = system_high_contrast()
+            self._system_high_contrast = bool(hc)
+            if hc and self._follow_system_high_contrast():
+                qss = build_high_contrast_qss()
+                self._current_theme_qss = qss
+                self.setStyleSheet(qss)
+                self.status_bar.showMessage(
+                    "已启用高对比度适配（跟随系统）", 3000)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _set_follow_system_high_contrast(self, enabled):
+        try:
+            from PyQt5.QtCore import QSettings
+            s = QSettings("QingCao", "Editor")
+            s.setValue("follow_system_high_contrast", bool(enabled))
+            s.sync()
+        except Exception:
+            pass
+        if enabled:
+            self.apply_high_contrast_if_needed()
+        else:
+            try:
+                self._apply_theme_by_name(
+                    self._current_theme_name or "")
+            except Exception:
+                pass
+        self.status_bar.showMessage(
+            "跟随系统高对比度: %s" % ("开启" if enabled else "关闭"), 2500)
 
     def _refresh_sandbox_status(self):
         """状态栏展示沙箱插件的 status_text（v2.12.0 P1）"""

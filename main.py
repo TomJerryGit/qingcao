@@ -1322,6 +1322,12 @@ def main():
     except Exception as _e:
         logger.warning("启动主题应用到面板失败: %s", _e)
 
+    # 高对比度自动适配（v2.13.0 P0）
+    try:
+        window.apply_high_contrast_if_needed()
+    except Exception:
+        pass
+
     if args['files']:
         for filepath in args['files']:
             abs_path = os.path.abspath(filepath)

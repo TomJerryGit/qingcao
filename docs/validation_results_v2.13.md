@@ -62,3 +62,27 @@ python tools/simulate_high_contrast.py --on --yes    # 临时开启
 # ... 手动检查应用 ...
 python tools/simulate_high_contrast.py --off          # 恢复
 ```
+
+---
+
+## 5. 高对比度自动适配（P0 落地后二次验证）
+
+实现：
+- `infrastructure/theme_loader.py::system_high_contrast()` 检测系统 HC；
+- `build_high_contrast_qss()` 使用 `palette(...)` 系统调色板生成 QSS；
+- 启动时 `apply_high_contrast_if_needed()` 自动应用；
+- 工具菜单「♿ 跟随系统高对比度」可开关（默认开启）。
+
+验证（2026-10-28）：
+- 真实开启系统高对比度 → 启动应用 → 正常显示（**无崩溃恢复弹窗**）；
+- 截图：`docs/validation_high_contrast_adapted.png`；
+- 恢复显示设置后与原始状态一致 ✅。
+
+观察：
+- 本机高对比度为**浅色方案**，因此与普通浅色主题视觉差异较小；
+- 部分面板仍有自身主题 QSS，未完全让位于系统调色板
+  （后续可将 panel QSS 也纳入 HC 覆盖）；
+- 菜单栏强调色仍为应用主题色。
+
+结论：HC 检测与自动应用链路可用；若要完全系统配色，
+需要在 HC 模式下禁用/降级面板自定义 QSS。
