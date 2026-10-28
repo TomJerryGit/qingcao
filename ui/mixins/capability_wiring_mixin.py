@@ -1476,6 +1476,14 @@ class CapabilityWiringMixin:
             except Exception as e:
                 print(f"[Theme] 启动 notify_widgets 失败: {e}")
 
+            # 插件/第三方面板若无 refresh_theme，统一递归适配其硬编码 QSS
+            try:
+                adapt = getattr(self, "adapt_widget_styles", None)
+                if callable(adapt):
+                    adapt(self, theme)
+            except Exception as e:
+                print(f"[Theme] 启动子控件样式适配失败: {e}")
+
             self._startup_theme = theme
             return theme
         except Exception as e:
