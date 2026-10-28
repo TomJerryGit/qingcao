@@ -52,6 +52,29 @@ def build_payload(tag: str, body: str) -> dict:
     }
 
 
+def extract_changelog_summary(version: str, limit: int = 6) -> str:
+    """从 CHANGELOG.md 提取当前版本条目作为 Release 变更摘要"""
+    path = os.path.join(ROOT, "CHANGELOG.md")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        return ""
+    header = "## [%s]" % version
+    collecting = False
+    items = []
+    for line in lines:
+        if line.startswith("## ["):
+            if collecting:
+                break
+            collecting = line.startswith(header)
+            continue
+        if collecting and line.startswith("- "):
+            items.append(line.strip())
+            if len(items) >= limit:
+                break
+    return "\n".join(items)
+
+
 def compose_body(body: str, zip_path: str, sha_path: str,
                  prev_size: float = None) -> str:
     """在发布说明后自动附加包体积/哈希报告（P3）
@@ -210,6 +233,12 @@ def main():
     if prev_size:
         print("[release] 上一版体积: %.2f MB" % (prev_size / 1048576.0))
     body = compose_body(body, zip_path, sha_path, prev_size)
+    try:
+        summary = extract_changelog_summary(version)
+    except Exception:
+        summary = ""
+    if summary:
+        body += "\n\n## 变更摘要（自动生成）\n\n" + summary + "\n"
     payload = json.dumps(build_payload(tag, body),
                          ensure_ascii=False).encode("utf-8")
     base = "%s/repos/%s" % (API, repo)

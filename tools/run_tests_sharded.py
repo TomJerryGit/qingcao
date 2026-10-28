@@ -98,6 +98,9 @@ def main():
     ap.add_argument("--retries", type=int, default=1)
     ap.add_argument("--localize", action="store_true",
                     help="失败/崩溃后逐文件定位")
+    ap.add_argument("--parallel", action="store_true",
+                    help="并行执行各分片")
+    ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--log-dir", default=LOG_DIR)
     args = ap.parse_args()
     files = collect_test_files()
@@ -107,12 +110,32 @@ def main():
     shards = make_shards(files, args.shards)
     print("[sharded] %d 个测试文件 → %d 片" % (len(files), len(shards)))
     failed = []
-    for idx, shard in enumerate(shards, 1):
-        ok, rc, crashed, attempts = run_shard(
-            shard, max(1, args.retries), "part%d" % idx, args.log_dir)
-        if not ok:
-            failed.append((idx, shard, rc, crashed))
-            print("[shard part%d] FAILED rc=%s crashed=%s" % (idx, rc, crashed))
+    if args.parallel and len(shards) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        results = {}
+        with ThreadPoolExecutor(
+                max_workers=max(1, args.workers)) as ex:
+            futures = {
+                ex.submit(run_shard, shard, max(1, args.retries),
+                          "part%d" % (i + 1), args.log_dir): i
+                for i, shard in enumerate(shards)}
+            for fut, i in futures.items():
+                results[i] = fut.result()
+        for i in sorted(results):
+            ok, rc, crashed, attempts = results[i]
+            if not ok:
+                failed.append((i + 1, shards[i], rc, crashed))
+                print("[shard part%d] FAILED rc=%s crashed=%s"
+                      % (i + 1, rc, crashed))
+    else:
+        for idx, shard in enumerate(shards, 1):
+            ok, rc, crashed, attempts = run_shard(
+                shard, max(1, args.retries), "part%d" % idx,
+                args.log_dir)
+            if not ok:
+                failed.append((idx, shard, rc, crashed))
+                print("[shard part%d] FAILED rc=%s crashed=%s"
+                      % (idx, rc, crashed))
     if not failed:
         print("[sharded] 全部 %d 片通过 ✅" % len(shards))
         return 0

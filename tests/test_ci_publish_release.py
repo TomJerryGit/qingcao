@@ -46,3 +46,20 @@ def test_compose_body_size_delta(tmp_path):
     assert "+1.00 MB" in out and "+100.0%" in out
     first = m.compose_body("body", str(zip_path), str(sha_path))
     assert "首次发布/未知" in first
+
+
+def test_extract_changelog_summary(tmp_path):
+    import shutil
+    m = _load()
+    old_root = m.ROOT
+    try:
+        m.ROOT = str(tmp_path)
+        (tmp_path / "CHANGELOG.md").write_text(
+            "## [2.0.0] - 2026-01-01\n\n- 变更 A\n- 变更 B\n\n"
+            "## [1.0.0] - 2025-01-01\n\n- 旧变更\n",
+            encoding="utf-8")
+        s = m.extract_changelog_summary("2.0.0")
+        assert "变更 A" in s and "变更 B" in s
+        assert "旧变更" not in s
+    finally:
+        m.ROOT = old_root
