@@ -287,6 +287,25 @@ def cleanup_stale_instance_dirs(data_dir: str) -> int:
     return removed
 
 
+def count_alive_instance_dirs(data_dir: str) -> int:
+    """统计仍存活的 --new-window 实例目录数量"""
+    inst = os.path.join(data_dir, "instances")
+    if not os.path.isdir(inst):
+        return 0
+    alive = 0
+    for name in os.listdir(inst):
+        try:
+            pid = int(name)
+        except ValueError:
+            continue
+        if pid == os.getpid() or instance_pid_alive(pid):
+            alive += 1
+    return alive
+
+
+MAX_NEW_WINDOW_INSTANCES = 3
+
+
 def setup_portable_mode():
     """配置便携/多实例模式下的 QSettings"""
     new_window = os.environ.get("QINGCAO_NEW_WINDOW") == "1"
@@ -308,6 +327,17 @@ def setup_portable_mode():
             cleanup_stale_instance_dirs(data_dir)
         except Exception:
             pass
+        if new_window:
+            try:
+                if count_alive_instance_dirs(data_dir) >= \
+                        MAX_NEW_WINDOW_INSTANCES:
+                    print("[多实例] 已达实例上限（%d），请先关闭部分窗口"
+                          % MAX_NEW_WINDOW_INSTANCES)
+                    sys.exit(0)
+            except SystemExit:
+                raise
+            except Exception:
+                pass
         data_dir = instance_settings_dir(data_dir, os.getpid(),
                                          new_window)
         os.makedirs(data_dir, exist_ok=True)
@@ -1151,6 +1181,13 @@ def main():
         pass
 
     app = QApplication(sys.argv)
+    if not args.get("new_window"):
+        try:
+            from infrastructure.instance_broadcast import try_focus_existing
+            if try_focus_existing():
+                return 0
+        except Exception:
+            pass
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(__version__)

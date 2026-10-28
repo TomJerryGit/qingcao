@@ -72,9 +72,10 @@ def instance_session_file(root: str, new_window: bool, pid: int) -> str:
     return os.path.join(root, name)
 
 
-SESSION_FILE = instance_session_file(
-    _APP_ROOT, os.environ.get("QINGCAO_NEW_WINDOW") == "1",
-    os.getpid())
+SESSION_FILE = os.environ.get("QINGCAO_SESSION_FILE") or \
+    instance_session_file(
+        _APP_ROOT, os.environ.get("QINGCAO_NEW_WINDOW") == "1",
+        os.getpid())
 SESSION_BACKUP_DIR = os.path.join(_APP_ROOT, "data", "backups")
 
 # 自动备份目录

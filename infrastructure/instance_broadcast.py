@@ -43,6 +43,7 @@ class InstanceBroadcaster(QObject):
     file_saved = pyqtSignal(str, float, int)
     file_opened = pyqtSignal(str, float, int)
     file_closed = pyqtSignal(str, float, int)
+    focus_requested = pyqtSignal()
 
     def __init__(self, parent=None, server_name=None):
         super().__init__(parent)
@@ -133,6 +134,10 @@ class InstanceBroadcaster(QObject):
             pass
         self._socket = None
 
+    def announce_focus(self) -> None:
+        self._send_obj({"type": "focus_request", "path": "",
+                        "mtime": 0.0, "pid": self.pid})
+
     def announce(self, path: str, mtime: float) -> None:
         payload = json.dumps(
             make_payload("file_saved", path, mtime, self.pid),
@@ -196,7 +201,11 @@ class InstanceBroadcaster(QObject):
             obj = json.loads(line)
         except Exception:
             return
-        if obj.get("type") in ("file_opened", "file_closed"):
+        kind = obj.get("type")
+        if kind == "focus_request":
+            self.focus_requested.emit()
+            return
+        if kind in ("file_opened", "file_closed"):
             try:
                 val = (str(obj.get("path") or ""),
                        float(obj.get("mtime") or 0.0),
@@ -205,12 +214,12 @@ class InstanceBroadcaster(QObject):
                 return
             if not val[0]:
                 return
-            if obj.get("type") == "file_opened":
+            if kind == "file_opened":
                 self.file_opened.emit(*val)
             else:
                 self.file_closed.emit(*val)
             return
-        if obj.get("type") != "file_saved":
+        if kind != "file_saved":
             return
         path = str(obj.get("path") or "")
         mtime = float(obj.get("mtime") or 0.0)
@@ -230,12 +239,93 @@ class InstanceBroadcaster(QObject):
                     pass
         self.file_saved.emit(path, mtime, pid)
 
+    def _send_obj(self, obj: dict) -> None:
+        data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+        kind = obj.get("type")
+        path = str(obj.get("path") or "")
+        mtime = float(obj.get("mtime") or 0.0)
+        pid = int(obj.get("pid") or 0)
+        if kind == "focus_request":
+            emit = self.focus_requested.emit
+            args = ()
+        elif kind == "file_opened":
+            emit = self.file_opened.emit
+            args = (path, mtime, pid)
+        elif kind == "file_closed":
+            emit = self.file_closed.emit
+            args = (path, mtime, pid)
+        else:
+            emit = self.file_saved.emit
+            args = (path, mtime, pid)
+        if self._hub:
+            emit(*args)
+            for c in list(self._clients):
+                try:
+                    if c.state() == QLocalSocket.ConnectedState:
+                        c.write(data)
+                        c.flush()
+                except Exception:
+                    pass
+            return
+        sock = self._socket
+        if sock is not None and \
+                sock.state() == QLocalSocket.ConnectedState:
+            try:
+                sock.write(data)
+                sock.flush()
+                return
+            except Exception:
+                pass
+        emit(*args)
 
 def notify_file_event(kind: str, path: str) -> None:
     """广播打开/关闭事件；未初始化时静默返回"""
     try:
         if _singleton is not None and path:
             _singleton.announce_event(kind, path)
+    except Exception:
+        pass
+
+
+def notify_focus_request() -> None:
+    """请求现有实例聚焦窗口；未初始化时静默返回"""
+    try:
+        if _singleton is not None:
+            _singleton.announce_focus()
+    except Exception:
+        pass
+
+
+def try_focus_existing(timeout_ms: int = 400) -> bool:
+    """尝试通知已运行的实例聚焦；成功返回 True（调用方应退出）"""
+    try:
+        import os as _os
+        import time as _time
+
+        from PyQt5.QtNetwork import QLocalSocket
+        sock = QLocalSocket()
+        sock.connectToServer(SERVER_NAME)
+        deadline = _time.time() + timeout_ms / 1000.0
+        while sock.state() != QLocalSocket.ConnectedState:
+            if _time.time() > deadline:
+                sock.abort()
+                return False
+            QCoreApplication_process()
+        payload = '{"type": "focus_request"}\n'.encode("utf-8")
+        sock.write(payload)
+        sock.flush()
+        sock.waitForBytesWritten(300)
+        sock.disconnectFromServer()
+        sock.waitForDisconnected(200)
+        return True
+    except Exception:
+        return False
+
+
+def QCoreApplication_process():
+    try:
+        from PyQt5.QtCore import QCoreApplication
+        QCoreApplication.processEvents()
     except Exception:
         pass
 

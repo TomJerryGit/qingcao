@@ -336,6 +336,8 @@ def _isolated_qsettings(tmp_path_factory):
         yield
         return
     base = tmp_path_factory.mktemp("qsettings")
+    import os as _os
+    _os.environ["QINGCAO_SESSION_FILE"] = str(base / "session.json")
     old_format = QSettings.defaultFormat()
     QSettings.setDefaultFormat(QSettings.IniFormat)
     QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,

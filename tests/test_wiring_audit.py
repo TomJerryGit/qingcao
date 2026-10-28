@@ -1032,6 +1032,24 @@ class TestEndToEndSmoke:
 
         from ui.main_window import MainWindow
 
+        # 稳定性：清掉可能从其它测试继承的会话/窗口布局状态
+        try:
+            import os as _os
+
+            import app.session as _sess
+            if _os.path.exists(_sess.SESSION_FILE):
+                _os.remove(_sess.SESSION_FILE)
+        except Exception:
+            pass
+        try:
+            from PyQt5.QtCore import QSettings as _QS
+            _s = _QS("QingCao", "Editor")
+            for _k in ("window_state", "window_geometry",
+                       "show_directory_tree"):
+                _s.remove(_k)
+            _s.sync()
+        except Exception:
+            pass
         win = MainWindow()
         win.show()
         try:

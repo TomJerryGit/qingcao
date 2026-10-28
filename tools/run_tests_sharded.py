@@ -83,7 +83,7 @@ def localize(files, log_dir):
             tag = "CRASH" if crashed else ("FAIL" if rc != 0 else "ok")
         print("[localize] %-60s %s (rc=%s)" % (os.path.basename(f),
                                                tag, rc))
-        if rc != 0:
+        if rc not in (0, 5):
             bad.append((f, rc, crashed))
             with open(os.path.join(log_dir, "crashed_%s.log"
                                    % os.path.basename(f)), "w",

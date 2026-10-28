@@ -2981,21 +2981,24 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         return paths
 
     def _on_local_tab_opened(self, index):
+        """打开文件：同一路径只广播一次（v2.12.0 重复事件抑制）"""
         try:
             ed = self.tabs.widget(index)
             fp = getattr(getattr(ed, "document", None),
                          "filepath", "") or ""
+            self._hook_sandbox_live_tab(index)
             if not fp:
                 return
-            if not hasattr(self, "_known_open_paths"):
-                self._known_open_paths = set()
-            self._known_open_paths.add(fp)
+            known = set(getattr(self, "_known_open_paths", set()))
+            already = fp in known
+            known.add(fp)
+            self._known_open_paths = known
+            if already:
+                return
             from infrastructure.instance_broadcast import notify_file_event
             notify_file_event("file_opened", fp)
-            self._hook_sandbox_live_tab(index)
         except Exception:
             pass
-
     def _on_local_tab_closed(self, index):
         try:
             from infrastructure.instance_broadcast import notify_file_event
@@ -3028,6 +3031,17 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         except Exception:
             pass
 
+    def _on_focus_requested(self):
+        """其它实例请求聚焦：还原并激活当前窗口（单实例行为）"""
+        try:
+            if self.isMinimized():
+                self.showNormal()
+            self.raise_()
+            self.activateWindow()
+            self.status_bar.showMessage("已切换到运行中的实例", 2000)
+        except Exception:
+            pass
+
     def _start_instance_broadcast(self):
         """多实例：启动保存广播并处理远端保存事件（P0）"""
         try:
@@ -3039,6 +3053,8 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._on_remote_file_opened)
             self._broadcast.file_closed.connect(
                 self._on_remote_file_closed)
+            self._broadcast.focus_requested.connect(
+                self._on_focus_requested)
             try:
                 from PyQt5.QtCore import QTimer
                 def _deferred_sandbox_ui():
@@ -3060,7 +3076,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             print(f"[MainWindow] 启动多实例广播失败: {e}")
 
     def _on_remote_file_saved(self, path, mtime, pid):
-        """其它实例保存了同一文件：未修改自动重载，已修改询问"""
+        """其它实例保存了同一文件：冲突检测 + 自动重载/询问（v2.12.0 P0）"""
         import os
         if not path or pid == os.getpid():
             return
@@ -3076,26 +3092,41 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 if not fp or os.path.normcase(fp) != os.path.normcase(path):
                     continue
                 doc = getattr(editor, "document", None)
-                modified = bool(doc is not None and doc.is_modified())
+                if doc is None:
+                    modified = False
+                else:
+                    try:
+                        modified = bool(doc.is_modified)
+                    except TypeError:
+                        modified = bool(doc.is_modified())
                 if modified:
+                    self._last_remote_conflict = {
+                        "path": path, "mtime": mtime, "pid": pid}
                     from PyQt5.QtWidgets import QMessageBox
                     ret = QMessageBox.question(
-                        self, "文件已变更",
-                        "该文件已被其它实例修改，是否重新加载？\n%s"
-                        % path,
+                        self, "保存冲突",
+                        "该文件已被其它实例保存，而本地还有未保存修改。\n"
+                        "继续保留本地修改可能与对方互相覆盖。\n\n"
+                        "是否重新加载磁盘上的最新内容？\n%s" % path,
                         QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes)
+                        QMessageBox.No)
                     if ret != QMessageBox.Yes:
+                        try:
+                            self.status_bar.showMessage(
+                                "保留本地修改（冲突未解决）: %s"
+                                % os.path.basename(path), 4000)
+                        except Exception:
+                            pass
                         return
                 reload_fn = getattr(self.tabs, "_reload_file", None)
                 if reload_fn is not None:
                     reload_fn(path, editor)
+                    self._last_remote_conflict = None
                     self.status_bar.showMessage(
                         "已从磁盘重载: %s" % os.path.basename(path), 3000)
                 return
             except Exception:
                 continue
-
     def run_sandboxed_diagnostics(self):
         """运行沙箱子进程插件的诊断并发布到问题面板（C-1 宿主接线）
 

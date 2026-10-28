@@ -65,3 +65,30 @@ def test_remote_open_shows_status():
     src = open(os.path.join(root, "ui", "main_window.py"),
                encoding="utf-8").read()
     assert "其它实例已打开" in src
+
+
+def test_count_alive_instance_dirs(tmp_path):
+    import importlib.util
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    spec = importlib.util.spec_from_file_location(
+        "qc_main_cap", os.path.join(root, "main.py"))
+    main = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(main)
+    inst = tmp_path / "instances"
+    (inst / "999999").mkdir(parents=True)
+    (inst / str(os.getpid())).mkdir(parents=True)
+    assert main.count_alive_instance_dirs(str(tmp_path)) == 1
+    assert main.MAX_NEW_WINDOW_INSTANCES == 3
+
+
+def test_single_instance_focus_wired():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    main_src = open(os.path.join(root, "main.py"),
+                    encoding="utf-8").read()
+    win_src = open(os.path.join(root, "ui", "main_window.py"),
+                   encoding="utf-8").read()
+    assert "try_focus_existing" in main_src
+    assert "MAX_NEW_WINDOW_INSTANCES" in main_src
+    assert "_on_focus_requested" in win_src
