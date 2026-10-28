@@ -1,0 +1,13 @@
+{
+  "name": "wordcount_sandbox",
+  "display_name": "字数统计（沙箱）",
+  "version": "1.0.0",
+  "author": "TomJerry",
+  "description": "沙箱子进程字数统计试点：状态栏展示当前文档字数/字符数",
+  "enabled": true,
+  "sandbox": true,
+  "permissions": [
+    "editor_read"
+  ],
+  "api_version": "1.0"
+}

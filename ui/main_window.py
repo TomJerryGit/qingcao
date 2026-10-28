@@ -3142,12 +3142,22 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         self.status_bar.showMessage(
             "跟随系统高对比度: %s" % ("开启" if enabled else "关闭"), 2500)
     def _refresh_sandbox_status(self):
-        """状态栏展示沙箱插件的 status_text（v2.12.0 P1）"""
+        """状态栏展示沙箱插件的 status_text（v2.12.0 P1 / v2.14 传文本）"""
         try:
+            text = ""
+            try:
+                proxy = self.tabs.current_proxy()
+                if proxy is not None:
+                    text = (proxy.get_text() or "")[: 2 * 1024 * 1024]
+            except Exception:
+                text = ""
             parts = []
             for name, sp in (self._get_sandboxed_plugins() or {}).items():
                 try:
-                    txt = sp.status_text() or ""
+                    try:
+                        txt = sp.status_text(text) or ""
+                    except TypeError:
+                        txt = sp.status_text() or ""
                 except Exception:
                     txt = ""
                 if txt:

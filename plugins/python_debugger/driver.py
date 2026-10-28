@@ -401,6 +401,9 @@ class JsonDebugger(bdb.Bdb):
         if not expression:
             return ""
         try:
+            # 安全收敛：限制表达式长度，异常统一格式化（在调试目标子进程内执行）
+            if len(expression) > 4000:
+                return "<expression too long>"
             return format_value(eval(expression, frame.f_globals, frame.f_locals))
         except Exception as exc:
             return f"<错误: {exc}>"

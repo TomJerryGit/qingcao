@@ -111,7 +111,11 @@ def _handle(plugin, method: str, params: dict):
         if not callable(fn):
             return ""
         try:
-            return str(fn() or "")[:120]
+            text = params.get("text") or ""
+            try:
+                return str(fn(text) or "")[:120]
+            except TypeError:
+                return str(fn() or "")[:120]
         except Exception:
             return ""
 

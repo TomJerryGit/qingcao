@@ -56,6 +56,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", default="")
     ap.add_argument("--no-warmup", action="store_true")
+    ap.add_argument("--check", action="store_true",
+                    help="性能预算检查（超预算则退出码 1）")
+    ap.add_argument("--factor", type=float, default=2.0)
     args = ap.parse_args()
     rows = bench(with_warmup=not args.no_warmup)
     print("%-22s %10s %10s" % ("plugin", "import_ms", "bytes"))
@@ -63,6 +66,20 @@ def main():
         print("%-22s %10.1f %10d %s" % (
             r["plugin"], r["import_ms"], r["init_bytes"],
             ("ERR " + r["error"][:60]) if r["error"] else ""))
+    budget = {"ai_assistant": 450.0, "python_debugger": 120.0}
+    default_budget = 120.0
+    over = []
+    if args.check:
+        for r in rows:
+            limit = budget.get(r["plugin"], default_budget) * args.factor
+            if r["import_ms"] > limit:
+                over.append((r["plugin"], r["import_ms"], limit))
+        if over:
+            for name, ms, limit in over:
+                print("[bench] 超预算: %s %.1fms > %.0fms"
+                      % (name, ms, limit))
+            return 1
+        print("[bench] 性能预算检查通过")
     out = args.json or os.path.join(ROOT, "data", "plugin_bench.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     io.open(out, "w", encoding="utf-8", newline="\n").write(

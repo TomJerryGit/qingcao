@@ -270,8 +270,11 @@ class SandboxedPlugin:
         return bool(self._safe_call(
             "invoke_menu", {"id": menu_id}, False))
 
-    def status_text(self):
-        result = self._safe_call("status_text", {}, "")
+    def status_text(self, text=None):
+        params = {}
+        if isinstance(text, str) and text:
+            params["text"] = text
+        result = self._safe_call("status_text", params, "")
         return result if isinstance(result, str) else ""
 
     def config_schema(self):

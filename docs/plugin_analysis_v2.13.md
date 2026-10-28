@@ -67,3 +67,10 @@
 - ai_assistant 可选依赖 requests 改为惰性检测：**713ms -> 380ms（-47 percent）**；
 - wordcount / todo_panel / logtail / markdown_preview 增加 refresh_theme(theme) 精准刷新（adapt_qss_colors），切主题不再依赖全量递归；
 - 当前增量导入 Top3：ai_assistant 380.3ms, markdown_preview 210.2ms, spell_check 52.5ms。
+
+## 6. Batch 3 执行结果（2026-10-28）
+
+- python_debugger：manifest 补充 `process` 权限；eval 表达式限制 4000 字符（仍在调试目标子进程内执行）；
+- 插件性能预算门禁：`tools/bench_plugins.py --check --factor 3.0`，已接入 CI；
+- wordcount 沙箱试点：新增 `plugins/wordcount_sandbox`（sandbox:true），宿主状态栏通过 RPC 传入当前文本，插件返回「字数/字符/行」；
+- 沙箱协议扩展：`status_text(text)` 支持文本参数（worker/manager/宿主）。

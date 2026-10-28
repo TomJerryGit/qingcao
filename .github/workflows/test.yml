@@ -69,6 +69,13 @@ jobs:
           python -m tools.audit_plugins --baseline tools/plugin_audit_baseline.json
           if ($LASTEXITCODE -ne 0) { throw "security audit failed" }
 
+      - name: Plugin performance budget
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          python tools/bench_plugins.py --check --factor 3.0
+          if ($LASTEXITCODE -ne 0) { throw "plugin performance budget failed" }
+
       - name: Performance gate
         shell: powershell
         run: |
