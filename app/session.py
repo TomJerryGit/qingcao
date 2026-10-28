@@ -76,7 +76,8 @@ SESSION_FILE = os.environ.get("QINGCAO_SESSION_FILE") or \
     instance_session_file(
         _APP_ROOT, os.environ.get("QINGCAO_NEW_WINDOW") == "1",
         os.getpid())
-SESSION_BACKUP_DIR = os.path.join(_APP_ROOT, "data", "backups")
+SESSION_BACKUP_DIR = os.environ.get("QINGCAO_SESSION_BACKUP_DIR") \
+    or os.path.join(_APP_ROOT, "data", "backups")
 
 # 自动备份目录
 AUTOSAVE_DIR = os.path.join(_APP_ROOT, "backup", "autosave")
