@@ -303,7 +303,24 @@ def count_alive_instance_dirs(data_dir: str) -> int:
     return alive
 
 
-MAX_NEW_WINDOW_INSTANCES = 3
+DEFAULT_MAX_NEW_WINDOW_INSTANCES = 3
+
+
+def get_max_new_window_instances() -> int:
+    """多实例上限：环境变量 > QSettings > 默认 3，范围 1..10"""
+    try:
+        env = os.environ.get("QINGCAO_MAX_INSTANCES")
+        if env:
+            return max(1, min(10, int(env)))
+    except Exception:
+        pass
+    try:
+        from PyQt5.QtCore import QSettings
+        val = QSettings("QingCao", "Editor").value(
+            "max_new_window_instances", DEFAULT_MAX_NEW_WINDOW_INSTANCES)
+        return max(1, min(10, int(val)))
+    except Exception:
+        return DEFAULT_MAX_NEW_WINDOW_INSTANCES
 
 
 def setup_portable_mode():
@@ -329,10 +346,10 @@ def setup_portable_mode():
             pass
         if new_window:
             try:
-                if count_alive_instance_dirs(data_dir) >= \
-                        MAX_NEW_WINDOW_INSTANCES:
+                _max_inst = get_max_new_window_instances()
+                if count_alive_instance_dirs(data_dir) >= _max_inst:
                     print("[多实例] 已达实例上限（%d），请先关闭部分窗口"
-                          % MAX_NEW_WINDOW_INSTANCES)
+                          % _max_inst)
                     sys.exit(0)
             except SystemExit:
                 raise

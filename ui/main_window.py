@@ -3086,13 +3086,20 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 return
             values = load_plugin_config(plugin_name, schema)
             ok = bool(sp.config_apply(values))
+            self._last_synced_config = (plugin_name, values)
             try:
                 self.run_sandboxed_diagnostics()
             except Exception:
                 pass
+            try:
+                self.refresh_sandbox_plugin_menus(quiet=True)
+            except Exception:
+                pass
+            self._refresh_sandbox_status()
             self.status_bar.showMessage(
-                "其它实例更新了插件配置: %s（%s）"
-                % (plugin_name, "已同步" if ok else "同步失败"), 3000)
+                "配置已同步（来自其它实例）: %s · %s%s"
+                % (plugin_name, "成功" if ok else "失败",
+                   " · 已刷新菜单/诊断" if ok else ""), 5000)
         except Exception:
             pass
 

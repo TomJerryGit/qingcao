@@ -79,7 +79,8 @@ def test_count_alive_instance_dirs(tmp_path):
     (inst / "999999").mkdir(parents=True)
     (inst / str(os.getpid())).mkdir(parents=True)
     assert main.count_alive_instance_dirs(str(tmp_path)) == 1
-    assert main.MAX_NEW_WINDOW_INSTANCES == 3
+    assert main.DEFAULT_MAX_NEW_WINDOW_INSTANCES == 3
+    assert 1 <= main.get_max_new_window_instances() <= 10
 
 
 def test_single_instance_focus_wired():
