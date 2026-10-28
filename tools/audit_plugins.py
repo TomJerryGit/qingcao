@@ -26,6 +26,12 @@ _ICON = {"pass": "✅", "warn": "⚠️", "review": "🔍", "reject": "⛔"}
 from infrastructure.plugin_sandbox import check_against_baseline  # noqa: E402
 
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+
 def main():
     ap = argparse.ArgumentParser(description="插件安全沙箱审计")
     ap.add_argument("paths", nargs="*", help="插件目录（默认 plugins/）")
