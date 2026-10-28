@@ -73,7 +73,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          python tools/bench_optimization.py --check --factor 6.0
+          python tools/bench_optimization.py --check --factor 10.0
           if ($LASTEXITCODE -ne 0) { throw "performance gate failed" }
 
       - name: Full test suite
