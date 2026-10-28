@@ -74,3 +74,26 @@ def test_startup_wired_static():
                    encoding="utf-8").read()
     assert "_follow_system_high_contrast" in win_src
     assert "跟随系统高对比度" in win_src
+
+def test_panel_qss_suppressed_and_restored(qapp):
+    from PyQt5.QtWidgets import QWidget
+
+    from ui.main_window import MainWindow
+    _set_follow(True)
+    win = MainWindow()
+    try:
+        panel = QWidget(win)
+        panel.setStyleSheet("QWidget { background: #000000; }")
+        with patch("infrastructure.theme_loader.system_high_contrast",
+                   return_value=True), \
+             patch("infrastructure.theme_loader.build_high_contrast_qss",
+                   return_value="QC-HC-QSS"):
+            assert win.apply_high_contrast_if_needed() is True
+        assert panel.styleSheet() == ""
+        assert win._hc_saved_qss
+        win._set_follow_system_high_contrast(False)
+        assert panel.styleSheet() == "QWidget { background: #000000; }"
+        assert not win._hc_saved_qss
+    finally:
+        _set_follow(True)
+        _close(win)

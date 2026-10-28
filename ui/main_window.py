@@ -3072,6 +3072,36 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         except Exception:
             return True
 
+    def _suppress_panel_qss(self):
+        """HC 模式：保存并清空面板自定义 QSS，让系统调色板生效"""
+        try:
+            from PyQt5.QtWidgets import QWidget
+            if getattr(self, "_hc_saved_qss", None):
+                return
+            saved = []
+            for w in self.findChildren(QWidget):
+                if w is self:
+                    continue
+                qss = w.styleSheet()
+                if qss:
+                    saved.append((w, qss))
+                    w.setStyleSheet("")
+            self._hc_saved_qss = saved
+        except Exception:
+            pass
+
+    def _restore_panel_qss(self):
+        """退出 HC 模式：恢复面板原始 QSS"""
+        try:
+            for w, qss in getattr(self, "_hc_saved_qss", []) or []:
+                try:
+                    w.setStyleSheet(qss)
+                except Exception:
+                    continue
+            self._hc_saved_qss = []
+        except Exception:
+            pass
+
     def apply_high_contrast_if_needed(self) -> bool:
         """系统高对比度开启时应用系统调色板 QSS（v2.13.0 P0）"""
         try:
@@ -3079,16 +3109,18 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             hc = system_high_contrast()
             self._system_high_contrast = bool(hc)
             if hc and self._follow_system_high_contrast():
+                self._suppress_panel_qss()
                 qss = build_high_contrast_qss()
                 self._current_theme_qss = qss
                 self.setStyleSheet(qss)
+                self._apply_theme_to_top_levels(qss)
                 self.status_bar.showMessage(
                     "已启用高对比度适配（跟随系统）", 3000)
                 return True
+            self._restore_panel_qss()
         except Exception:
             pass
         return False
-
     def _set_follow_system_high_contrast(self, enabled):
         try:
             from PyQt5.QtCore import QSettings
@@ -3100,6 +3132,8 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         if enabled:
             self.apply_high_contrast_if_needed()
         else:
+            self._system_high_contrast = False
+            self._restore_panel_qss()
             try:
                 self._apply_theme_by_name(
                     self._current_theme_name or "")
@@ -3107,7 +3141,6 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 pass
         self.status_bar.showMessage(
             "跟随系统高对比度: %s" % ("开启" if enabled else "关闭"), 2500)
-
     def _refresh_sandbox_status(self):
         """状态栏展示沙箱插件的 status_text（v2.12.0 P1）"""
         try:
