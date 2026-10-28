@@ -1,0 +1,439 @@
+=====================================完整项目树=====================================
+一、青草编辑器 (QingCaoEditor) 完整项目树
+D:\QingCaoEditor\
+│
+├── main.py                              # 程序入口（14 个函数）
+├── crash.log                            # 崩溃日志（运行时生成）
+├── keybindings.json                     # 用户快捷键配置（可选）
+├── snippets.json                        # 用户代码片段（可选）
+├── session.json                         # 会话记录（自动生成）
+├── portable.txt                         # 便携模式标记（可选）
+├── requirements.txt                     # 依赖列表
+├── README.md                            # 项目说明
+├── LICENSE                              # 开源许可证
+│
+├── app\                                 # 应用服务层
+│   ├── __init__.py
+│   ├── actions.py                       # 动作管理器
+│   ├── config_manager.py                # 配置导入/导出
+│   ├── event_bus.py                     # 事件总线
+│   ├── menus.py                         # 菜单构建
+│   ├── plugin_manager.py                # 插件管理器
+│   ├── plugins.py                       # 插件 API
+│   ├── preferences.py                   # 偏好设置
+│   ├── session.py                       # 会话管理
+│   ├── sync.py                          # 云同步
+│   └── tabs.py                          # 标签管理器
+│
+├── core\                                # 领域层（不依赖 Qt GUI）
+│   ├── __init__.py
+│   ├── commands.py                      # 命令模式
+│   ├── content_provider.py              # 内容提供者抽象
+│   ├── document.py                      # 文档模型
+│   ├── editor.py                        # 编辑器代理
+│   ├── events.py                        # 事件数据类
+│   ├── log_lexer.py                     # 日志高亮
+│   ├── lsp_client.py                    # LSP 客户端
+│   ├── lsp_installer.py                 # LSP 自动安装
+│   ├── macro.py                         # 宏录制
+│   ├── project.py                       # 项目对象
+│   ├── search.py                        # 搜索引擎
+│   ├── search_worker.py                 # 全局搜索线程
+│   └── undo.py                          # 撤销管理器
+│
+├── ui\                                  # 表示层
+│   ├── __init__.py
+│   ├── breadcrumb.py                    # 面包屑导航
+│   ├── command_palette.py               # 命令面板
+│   ├── debug_panel.py                   # 调试器面板
+│   ├── detached_window.py               # 标签分离窗口
+│   ├── directory_tree.py                # 项目目录树
+│   ├── editor_view.py                   # 编辑器控件
+│   ├── file_association.py              # 文件关联对话框
+│   ├── global_search_panel.py           # 全局搜索面板
+│   ├── keymap_editor.py                 # 快捷键编辑器
+│   ├── macro_editor.py                  # 宏编辑器
+│   ├── main_window.py                   # 主窗口 ★
+│   ├── minimap.py                       # 缩略图（暂禁用）
+│   ├── outline_panel.py                 # 符号大纲
+│   ├── panels.py                        # 搜索栏/对话框
+│   ├── plugin_store.py                  # 插件市场
+│   ├── python_console.py                # Python 控制台
+│   ├── tips.py                          # 每日技巧
+│   └── welcome_widget.py                # 欢迎页
+│
+├── infrastructure\                      # 基础设施层
+│   ├── __init__.py
+│   ├── file_access.py                   # 文件访问封装
+│   ├── icon_manager.py                  # 图标管理器
+│   ├── plugin_loader.py                 # 插件加载器
+│   ├── plugin_sandbox.py                # 插件沙箱
+│   ├── plugin_updater.py                # 插件更新器
+│   ├── sound_manager.py                 # 音效管理器
+│   └── theme_loader.py                  # 主题加载器
+│
+├── plugins\                             # 插件目录
+│   ├── demo\                            # 示例插件
+│   │   ├── __init__.py                  # 大写转换
+│   │   └── plugin.json
+│   ├── ai_assistant\                    # AI 助手
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   ├── git_deep\                        # Git 深度集成
+│   │   ├── __init__.py
+│   │   ├── diff_view.py
+│   │   ├── commit_panel.py
+│   │   └── plugin.json
+│   ├── json_formatter\                  # JSON 格式化
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   ├── logtail\                         # 日志实时监视
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   ├── markdown_preview\                # Markdown 预览
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   ├── python_debugger\                 # Python 调试
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   ├── todo_panel\                      # TODO 面板
+│   │   ├── __init__.py
+│   │   └── plugin.json
+│   └── wordcount\                       # 字数统计
+│       ├── __init__.py
+│       └── plugin.json
+│
+├── resources\                           # 资源文件
+│   ├── qingcao_theme.qss                # 全局样式表
+│   ├── splash.png                       # 启动画面（可选）
+│   ├── icons\                           # 图标目录
+│   │   ├── qingcao.png                  # 应用图标
+│   │   ├── qingcao.ico                  # Windows 图标
+│   │   └── *.svg                        # 其他 SVG 图标
+│   └── sounds\                          # 音效目录（可选）
+│       └── *.wav
+│
+├── themes\                              # 主题目录
+│   ├── dark_night.json                  # 暗夜主题
+│   ├── light_clean.json                 # 晨曦主题
+│   ├── eye_protect.json                 # 护眼主题
+│   └── high_contrast.json               # 高对比度主题
+│
+├── locale\                              # 国际化
+│   ├── zh_CN\
+│   │   └── LC_MESSAGES\
+│   │       ├── qingcao.po
+│   │       └── qingcao.mo
+│   └── en_US\
+│       └── LC_MESSAGES\
+│           └── qingcao.mo
+│
+├── data\                                # 用户数据（运行时生成）
+│   ├── backups\                         # 会话备份
+│   ├── plugin_cache\                    # 插件缓存
+│   ├── plugin_backups\                  # 插件备份
+│   ├── drafts\                          # 草稿
+│   ├── update_cache\                    # 更新缓存
+│   ├── onboarding.json                  # 使用统计
+│   └── sync_history.json                # 同步历史
+│
+├── backup\                              # 崩溃恢复备份
+│   └── autosave_YYYYMMDD_HHMMSS\
+│       └── *.tmp
+│
+├── logs\                                # 日志目录
+│   └── runtime.log                      # 运行日志
+│
+├── tests\                               # 测试
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_commands.py
+│   ├── test_document.py
+│   ├── test_search.py
+│   ├── test_undo.py
+│   └── test_e2e.py
+│
+├── tools\                               # 开发工具
+│   ├── generate_project.py              # 目录生成脚本
+│   ├── create_plugin.py                 # 插件脚手架
+│   ├── fix_pyside6_imports.py           # PySide6 导入修复
+│   ├── fix_qtgui_imports_v2.py          # QtGui 导入修复 v2
+│   ├── fix_one.py                       # 单文件修复
+│   ├── fix_new_file.py                  # _new_file 修复
+│   ├── fix_minimap.py                   # Minimap 修复
+│   ├── fix_minimap_v2.py                # Minimap 修复 v2
+│   ├── add_prov_alias.py                # EditorProxy 别名
+│   ├── disable_minimap.py               # 禁用 Minimap
+│   ├── switch_to_pyqt5.py               # 迁移到 PyQt5
+│   ├── compat_patch.py                  # 兼容性补丁
+│   ├── debug_launch.py                  # 调试启动脚本
+│   ├── diagnose_startup.py              # 启动诊断
+│   ├── preflight_check.py               # 预检脚本
+│   ├── diagnose.py                      # 导入诊断
+│   ├── check_qaction.py                 # QAction 检查
+│   ├── package_plugin.py                # 插件打包
+│   ├── collab_server.py                 # 协作信令服务器
+│   ├── update_contributors.py           # 贡献者榜单
+│   ├── translate_helper.py              # 翻译辅助
+│   ├── slim_python.py                   # Python 瘦身
+│   ├── build_minimal.py                 # 最小构建
+│   └── install_context_menu.reg         # 右键菜单注册表
+│
+├── docs\                                # 文档（可选）
+│   ├── index.md
+│   ├── quickstart.md
+│   ├── features.md
+│   ├── plugin_dev.md
+│   ├── api.md
+│   └── contributing.md
+│
+├── .github\                             # CI/CD（可选）
+│   └── workflows\
+│       ├── build.yml
+│       ├── test.yml
+│       ├── release.yml
+│       └── plugin_review.yml
+│
+└── QingCaoEditor_RCWJ\                  # 原始备份（可删除）
+    └── generate_project.py
+
+pip install pyyaml
+python generate_project.py structure.yaml .
+
+cd /d D:\QingCaoEditor
+python tools\compat_patch.py
+for /d /r . %d in (__pycache__) do @if exist "%d" rd /s /q "%d"
+python main.py
+
+
+
+=====================================恢复程序文件=====================================
+
+ui/main_window.py 请给出最新全量源代码  一行代码都不要遗漏
+main.py           请给出最新全量源代码  一行代码都不要遗漏
+
+
+cd /d D:\QingCaoEditor
+# 1. 语法检查
+python -m py_compile ui/main_window.py ui/minimap.py app/tabs.py
+# 2. 依赖检查
+python -c "from PyQt5.QtWidgets import QAction, QApplication; print('PyQt5 OK')"
+python -c "from PyQt5.Qsci import QsciScintilla; print('QScintilla OK')"
+# 3. 启动
+python main.py --no-splash
+
+
+
+1. 备份整个项目
+cd /d D:\QingCaoEditor
+xcopy /E /I /Y D:\QingCaoEditor D:\QingCaoEditor_bak
+2. 归档旧修复脚本
+move tools\fix_*.py _archived_tools\
+move tools\switch_to_pyqt5.py _archived_tools\
+3. 运行全量迁移
+python switch_to_pyqt5_final.py
+4. 确认无残留
+python check_pyside6.py
+findstr /s /i "PySide6" app\*.py core\*.py ui\*.py infrastructure\*.py plugins\*.py
+5. 手动检查 QAction 导入
+findstr /n "QAction" app\actions.py ui\main_window.py
+6. 手动修 main_window.py 的 _new_file、minimap.py 的 set_editor
+7. 编译验证
+python -m py_compile ...
+8. 启动
+python main.py --no-splash
+
+
+cd /d D:\QingCaoEditor
+python fix_qaction_and_prov.py
+
+cd /d D:\QingCaoEditor
+:: 1) 无 PySide6 残留（除注释外）
+python check_pyside6.py
+:: 期望：只剩 event_bus.py 的注释行，其他文件都干净
+
+:: 2) 编译关键文件
+python -m py_compile app\tabs.py ui\main_window.py ui\command_palette.py ui\welcome_widget.py ui\outline_panel.py ui\directory_tree.py ui\global_search_panel.py ui\python_console.py ui\panels.py
+
+:: 3) 启动
+python main.py --no-splash
+
+
+python fix_tabs_and_editor.py
+python fix_tabs_mod_state.py
+python fix_mod_state.py
+
+
+python diagnose_new_file.py
+python diagnose_new_tab.py
+python main.py --no-splash
+
+
+
+cd /d D:\QingCaoEditor
+python fix_main_window_new_file.py
+
+python -m py_compile ui/main_window.py
+python main.py --no-splash
+
+
+cd /d D:\QingCaoEditor
+:: 1. 确认 _new_file 有没有诊断打印
+findstr /n "新建文件成功" ui\main_window.py
+
+:: 2. 用最终版诊断替换
+python fix_new_file_final.py
+
+:: 3. 编译
+python -m py_compile ui\main_window.py
+
+:: 4. 确认 setQuitOnLastWindowClosed
+findstr /n "setQuitOnLastWindowClosed" main.py
+
+:: 5. 启动
+python -u main.py --no-splash
+
+cd /d D:\QingCaoEditor
+D:\QingCaoEditor>pip install QScintilla
+python -c "from PyQt5.Qsci import QsciScintilla; print('QScintilla OK')"
+D:\QingCaoEditor>python -m py_compile ui\main_window.py app\tabs.py ui\editor_view.py
+
+
+cd /d D:\QingCaoEditor
+python -u diagnose_launch.py 2>&1 | findstr /v "MMKV MemoryFile SogouPY"
+
+
+cd /d D:\QingCaoEditor
+python -m py_compile ui\minimap.py ui\main_window.py
+python -X faulthandler -u main.py --no-splash 2>&1 | findstr /v "MMKV MemoryFile SogouPY"
+
+cd /d D:\QingCaoEditor
+python fix_newfile_and_save.py
+python -m py_compile ui\main_window.py ui\editor_view.py
+python -u main.py --no-splash
+
+cd /d D:\QingCaoEditor
+python -u main.py --no-splash 2>&1 | findstr /v "MMKV MemoryFile SogouPY"
+
+cd /d D:\QingCaoEditor
+python tests\run_all.py
+
+cd locale\zh_CN\LC_MESSAGES
+msgfmt qingcao.po -o qingcao.mo
+python -m py_compile core\i18n.py ui\main_window.py
+
+python create_plugin.py my_plugin
+
+:: 查看版本
+python release.py version
+
+:: 升级补丁版本
+python release.py bump patch
+
+:: 只构建
+python release.py build
+
+:: 完整发布
+python release.py release minor
+
+
+
+# 构建镜像
+docker-compose build
+
+# 运行测试
+docker-compose run test
+
+# 运行应用（需要 X11 转发）
+docker-compose run app
+
+
+
+cmd
+:: 生成 Markdown 文档
+python tools\generate_docs.py
+
+:: 生成 HTML 文档（需要 mkdocs）
+pip install mkdocs mkdocs-material
+mkdocs build
+
+
+
+cd /d D:\QingCaoEditor
+python main.py
+
+
+
+方案 A：启动 Ollama（如果你已安装）
+1. 检查是否安装了 Ollama：
+cmd
+where ollama
+2. 如果没有安装，从官网下载：https://ollama.com/download
+3. 启动服务：
+cmd
+ollama serve
+应看到：
+text
+Ollama is running on 127.0.0.1:11434
+4. 下载模型（首次使用需要）：
+cmd
+ollama pull llama3.2
+（或 qwen2.5、gemma2 等）
+5. 验证：
+cmd
+curl http://127.0.0.1:11434/api/tags
+应返回 JSON。然后重新在 AI 助手里执行操作。‘
+
+curl http://localhost:11434/api/tags
+http://127.0.0.1:11434/v1
+
+main.py	                             请给出最新全量源代码  一行代码都不要遗漏
+-----------------------下载 按照 git-----------------------
+--it 仓库但未安装 git，请从 https://git-scm.com/download/win 安装，或用 Git for Windows 自带的 "Git Bash"
+C:\Users\Administrator>cd /d D:\QingCaoEditor
+D:\QingCaoEditor>git checkout -b feature/v2.1-security
+fatal: not a git repository (or any of the parent directories): .git
+D:\QingCaoEditor>git init
+Initialized empty Git repository in D:/QingCaoEditor/.git/
+D:\QingCaoEditor>git checkout -b feature/v2.1-security
+Switched to a new branch 'feature/v2.1-security'
+D:\QingCaoEditor>git checkout -b feature/v2.1-security
+Switched to a new branch 'feature/v2.1-security'
+D:\QingCaoEditor>
+--it 仓库但未安装 git，请从 https://git-scm.com/download/win 安装，或用 Git for Windows 自带的 "Git Bash"
+
+
+cd /d D:\QingCaoEditor
+python -m pytest tests/test_secure_storage.py -v
+python -c "from core.secure_storage import get_secure_storage; s=get_secure_storage(); print(s.dump())"
+
+[SecureStorage] 已启用 keyring 后端: WinVaultKeyring
+SecureStorage
+============================================================
+  backend             : keyring
+  backend_display     : 系统密钥环 (WinVaultKeyring)
+  is_secure           : True
+  keyring_available   : True
+  keyring_error       :
+  cache_size          : 0
+  service             : QingCaoEditor
+配置 git 身份
+Windows CMD 里，全局配置只需执行一次：
+
+D:\QingCaoEditor>git config --global user.name "TomJerry"
+
+D:\QingCaoEditor>git config --global user.email "1265338136@qq.com"
+
+D:\QingCaoEditor>git config --global --list
+user.name=TomJerry
+user.email=1265338136@qq.com
+
+D:\QingCaoEditor>
+
+配置 git 全局编码（一次配置，永久生效）
+cd /d D:\QingCaoEditor
+git config --global i18n.commitEncoding utf-8
+git config --global i18n.logOutputEncoding utf-8
+git config --global core.autocrlf false
+
+沙箱之所以重要，一句话概括：插件系统本质上是在用户机器上运行陌生人的代码，沙箱是让这件事变得可控、可审计、可撤销的最后一道防线。
