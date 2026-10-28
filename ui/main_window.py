@@ -274,6 +274,9 @@ def adapt_widget_styles(root, theme):
 
 class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                  EditOpsMixin, StatusBarMixin, QMainWindow):
+    # 实时沙箱诊断的大文件阈值（超过则跳过，避免卡顿）
+    MAX_LIVE_DIAGNOSTICS_BYTES = 5 * 1024 * 1024
+
     """
     青草编辑器主窗口。
 
@@ -2709,10 +2712,22 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         try:
             if not self._sandbox_live_enabled():
                 return 0
+            try:
+                proxy = self.tabs.current_proxy()
+                text = proxy.get_text() if proxy is not None else ""
+                if len(text) > self.MAX_LIVE_DIAGNOSTICS_BYTES:
+                    if not getattr(self, "_live_diag_skip_notified",
+                                   False):
+                        self._live_diag_skip_notified = True
+                        self.status_bar.showMessage(
+                            "文件过大（>5MB），已跳过实时沙箱诊断", 4000)
+                    return 0
+                self._live_diag_skip_notified = False
+            except Exception:
+                pass
             return self.run_sandboxed_diagnostics()
         except Exception:
             return 0
-
     def _hook_sandbox_live_tab(self, index):
         """为打开的编辑器接上编辑事件 → 防抖诊断"""
         try:
