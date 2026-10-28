@@ -84,7 +84,7 @@ class TodoPanel(QDockWidget):
         self.setWidget(container)
 
     def _apply_style(self):
-        self.setStyleSheet("""
+        self._base_qss = """
             QDockWidget {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
@@ -122,8 +122,19 @@ class TodoPanel(QDockWidget):
                 padding: 4px 8px;
             }
             QPushButton:hover { background-color: #1177bb; }
-        """)
+"""
+        self.setStyleSheet(self._base_qss)
 
+
+    def refresh_theme(self, theme):
+        """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            base = getattr(self, "_base_qss", "")
+            if base:
+                self.setStyleSheet(adapt_qss_colors(base, theme))
+        except Exception:
+            pass
     def scan_current_file(self):
         """扫描当前文件"""
         try:

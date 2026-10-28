@@ -61,3 +61,9 @@
 - python_debugger 安全复核与权限收敛；
 - 插件性能预算纳入 CI；
 - 市场预留字段（分类/截图/许可）。
+
+## 5. Batch 2 执行结果（2026-10-28）
+
+- ai_assistant 可选依赖 requests 改为惰性检测：**713ms -> 380ms（-47 percent）**；
+- wordcount / todo_panel / logtail / markdown_preview 增加 refresh_theme(theme) 精准刷新（adapt_qss_colors），切主题不再依赖全量递归；
+- 当前增量导入 Top3：ai_assistant 380.3ms, markdown_preview 210.2ms, spell_check 52.5ms。

@@ -24,7 +24,7 @@ class MarkdownPanel(QDockWidget):
         self._apply_style()
 
     def _apply_style(self):
-        self.setStyleSheet("""
+        self._base_qss = """
             QDockWidget {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
@@ -40,8 +40,19 @@ class MarkdownPanel(QDockWidget):
                 padding: 12px;
                 selection-background-color: #264f78;
             }
-        """)
+"""
+        self.setStyleSheet(self._base_qss)
 
+
+    def refresh_theme(self, theme):
+        """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            base = getattr(self, "_base_qss", "")
+            if base:
+                self.setStyleSheet(adapt_qss_colors(base, theme))
+        except Exception:
+            pass
     def render(self, text):
         """渲染"""
         try:

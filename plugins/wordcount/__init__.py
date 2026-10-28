@@ -76,7 +76,7 @@ class WordCountPanel(QDockWidget):
         self.setWidget(container)
 
     def _apply_style(self):
-        self.setStyleSheet("""
+        self._base_qss = """
             QDockWidget {
                 background-color: #252526;
                 color: #d4d4d4;
@@ -94,8 +94,19 @@ class WordCountPanel(QDockWidget):
                 padding: 6px 12px;
             }
             QPushButton:hover { background-color: #1177bb; }
-        """)
+"""
+        self.setStyleSheet(self._base_qss)
 
+
+    def refresh_theme(self, theme):
+        """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
+        try:
+            from infrastructure.theme_loader import adapt_qss_colors
+            base = getattr(self, "_base_qss", "")
+            if base:
+                self.setStyleSheet(adapt_qss_colors(base, theme))
+        except Exception:
+            pass
     def refresh(self):
         """刷新"""
         try:

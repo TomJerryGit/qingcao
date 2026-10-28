@@ -211,12 +211,19 @@ except ImportError as e:
     PERMISSION_DIALOG = "dialog"
 
 
-# 检查额外依赖（缺失时提示）
-try:
-    import requests
-    _REQUESTS_OK = True
-except ImportError:
-    _REQUESTS_OK = False
+# 检查额外依赖（缺失时提示）；惰性检测，避免启动时导入 requests（~0.9s）
+_REQUESTS_OK = None
+
+
+def _requests_ok():
+    global _REQUESTS_OK
+    if _REQUESTS_OK is None:
+        try:
+            import requests  # noqa: F401
+            _REQUESTS_OK = True
+        except ImportError:
+            _REQUESTS_OK = False
+    return _requests_ok()
 
 
 # ============================================================
@@ -1500,7 +1507,7 @@ class AIConfigDialog(QDialog):
             )
             return
 
-        if not _REQUESTS_OK:
+        if not _requests_ok():
             QMessageBox.warning(
                 self, "测试失败",
                 "缺少 requests 库\n请运行: pip install requests"
@@ -2049,7 +2056,7 @@ class Plugin(PluginBase):
             )
             return
 
-        if not _REQUESTS_OK:
+        if not _requests_ok():
             self.api.show_status(
                 "AI 助手：缺少 requests 库，请运行 pip install requests",
                 5000, "warning"
