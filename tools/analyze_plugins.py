@@ -6,6 +6,7 @@ import json
 import os
 import sys
 
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEAVY = {"numpy", "pandas", "matplotlib", "scipy", "requests",
          "PyQt5.QtWebEngineWidgets", "torch", "PIL"}
