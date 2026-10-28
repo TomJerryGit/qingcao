@@ -223,9 +223,36 @@ class Plugin(PluginBase):
         except Exception:
             return False
 
+    def menu_items(self):
+        """沙箱协议：声明菜单（宿主创建 UI 并回调 invoke_menu）"""
+        return [
+            {"id": "ignore_flagged", "label": "忽略本文件可疑词",
+             "path": "工具/拼写检查"},
+            {"id": "reload_ignore", "label": "重新加载忽略词",
+             "path": "工具/拼写检查"},
+        ]
+
+    def invoke_menu(self, menu_id):
+        """沙箱协议：执行菜单回调"""
+        if menu_id == "ignore_flagged":
+            return self.ignore_flagged_words() >= 0
+        if menu_id == "reload_ignore":
+            self.reload_ignore()
+            return True
+        return False
+
+    def status_text(self):
+        """沙箱协议：状态栏文本"""
+        n = getattr(self, "_last_issue_count", None)
+        if n is None:
+            return "拼写: 就绪"
+        return "拼写: %d 条" % n
+
     def diagnostics(self, text):
         """沙箱协议入口：只返回诊断数据（宿主负责发布到问题面板）"""
-        return self._check_text(text, limit=200)
+        items = self._check_text(text, limit=200)
+        self._last_issue_count = len(items)
+        return items
 
     def ignore_flagged_words(self):
         """把当前文档中所有可疑词加入忽略词文件（并清空本次诊断）"""

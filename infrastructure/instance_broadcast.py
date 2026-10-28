@@ -44,6 +44,7 @@ class InstanceBroadcaster(QObject):
     file_opened = pyqtSignal(str, float, int)
     file_closed = pyqtSignal(str, float, int)
     focus_requested = pyqtSignal()
+    config_changed = pyqtSignal(str)
 
     def __init__(self, parent=None, server_name=None):
         super().__init__(parent)
@@ -134,6 +135,10 @@ class InstanceBroadcaster(QObject):
             pass
         self._socket = None
 
+    def announce_config_changed(self, plugin_name: str) -> None:
+        self._send_obj({"type": "config_changed", "name": str(plugin_name)},
+                       )
+
     def announce_focus(self) -> None:
         self._send_obj({"type": "focus_request", "path": "",
                         "mtime": 0.0, "pid": self.pid})
@@ -205,6 +210,9 @@ class InstanceBroadcaster(QObject):
         if kind == "focus_request":
             self.focus_requested.emit()
             return
+        if kind == "config_changed":
+            self.config_changed.emit(str(obj.get("name") or ""))
+            return
         if kind in ("file_opened", "file_closed"):
             try:
                 val = (str(obj.get("path") or ""),
@@ -245,7 +253,10 @@ class InstanceBroadcaster(QObject):
         path = str(obj.get("path") or "")
         mtime = float(obj.get("mtime") or 0.0)
         pid = int(obj.get("pid") or 0)
-        if kind == "focus_request":
+        if kind == "config_changed":
+            emit = self.config_changed.emit
+            args = (str(obj.get("name") or ""),)
+        elif kind == "focus_request":
             emit = self.focus_requested.emit
             args = ()
         elif kind == "file_opened":
@@ -326,6 +337,15 @@ def QCoreApplication_process():
     try:
         from PyQt5.QtCore import QCoreApplication
         QCoreApplication.processEvents()
+    except Exception:
+        pass
+
+
+def notify_config_changed(plugin_name: str) -> None:
+    """广播插件配置变更到其它实例；未初始化时静默返回"""
+    try:
+        if _singleton is not None and plugin_name:
+            _singleton.announce_config_changed(plugin_name)
     except Exception:
         pass
 

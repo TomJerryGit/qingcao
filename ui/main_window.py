@@ -2748,6 +2748,12 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self.refresh_sandbox_plugin_menus(quiet=True)
         except Exception:
             pass
+        try:
+            from infrastructure.instance_broadcast import notify_config_changed
+            notify_config_changed(plugin_name)
+        except Exception:
+            pass
+        self._refresh_sandbox_status()
         self.status_bar.showMessage(
             "插件配置已保存%s: %s"
             % ("并即时生效" if ok else "（下发失败）", plugin_name), 3000)
@@ -2854,6 +2860,11 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 plugin_name, "成功" if ok else "失败",
                 (" · " + status) if status else "")
             self.status_bar.showMessage(msg, 3000)
+            try:
+                self.run_sandboxed_diagnostics()
+            except Exception:
+                pass
+            self._refresh_sandbox_status()
             return ok
         except Exception as e:
             try:
@@ -3031,6 +3042,45 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         except Exception:
             pass
 
+    def _refresh_sandbox_status(self):
+        """状态栏展示沙箱插件的 status_text（v2.12.0 P1）"""
+        try:
+            parts = []
+            for name, sp in (self._get_sandboxed_plugins() or {}).items():
+                try:
+                    txt = sp.status_text() or ""
+                except Exception:
+                    txt = ""
+                if txt:
+                    parts.append("%s: %s" % (name, txt))
+            if parts:
+                self.status_bar.showMessage(" | ".join(parts)[:120], 4000)
+        except Exception:
+            pass
+
+    def _on_remote_config_changed(self, plugin_name):
+        """其它实例修改了插件配置：重新读取并下发（配置变更广播）"""
+        try:
+            from infrastructure.plugin_sandbox_manager import load_plugin_config
+            plugins = self._get_sandboxed_plugins() or {}
+            sp = plugins.get(plugin_name)
+            if sp is None:
+                return
+            schema = sp.config_schema()
+            if not schema:
+                return
+            values = load_plugin_config(plugin_name, schema)
+            ok = bool(sp.config_apply(values))
+            try:
+                self.run_sandboxed_diagnostics()
+            except Exception:
+                pass
+            self.status_bar.showMessage(
+                "其它实例更新了插件配置: %s（%s）"
+                % (plugin_name, "已同步" if ok else "同步失败"), 3000)
+        except Exception:
+            pass
+
     def _on_focus_requested(self):
         """其它实例请求聚焦：还原并激活当前窗口（单实例行为）"""
         try:
@@ -3055,6 +3105,8 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._on_remote_file_closed)
             self._broadcast.focus_requested.connect(
                 self._on_focus_requested)
+            self._broadcast.config_changed.connect(
+                self._on_remote_config_changed)
             try:
                 from PyQt5.QtCore import QTimer
                 def _deferred_sandbox_ui():
@@ -3188,6 +3240,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             return 0
         self.status_bar.showMessage(
             "沙箱插件诊断: %d 条" % len(produced), 2500)
+        self._refresh_sandbox_status()
         return len(produced)
 
     def _apply_theme_to_top_levels(self, qss=None):
