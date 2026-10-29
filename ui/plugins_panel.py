@@ -425,21 +425,50 @@ class PluginsPanel(QDockWidget):
 
 
     def _theme_colors(self, theme) -> dict:
-        """按主题类型返回确定的 QSS 颜色（浅/深/高对比，v2.14.1）"""
+        """优先取主题真实配色（支持 eye_protect 等变体），v2.14.2"""
         t = getattr(theme, "type", "dark")
         if t == "light":
-            return {"window_bg": "#ffffff", "panel_bg": "#f0f0f0",
-                    "bg": "#ffffff", "fg": "#333333", "border": "#d0d0d0",
-                    "sel": "#0078d4", "sel_fg": "#ffffff",
-                    "muted": "#666666"}
-        if t == "high_contrast":
-            return {"window_bg": "#000000", "panel_bg": "#000000",
-                    "bg": "#000000", "fg": "#ffffff", "border": "#ffffff",
-                    "sel": "#ffff00", "sel_fg": "#000000",
-                    "muted": "#ffff00"}
-        return {"window_bg": "#1e1e1e", "panel_bg": "#252526",
-                "bg": "#1e1e1e", "fg": "#d4d4d4", "border": "#3c3c3c",
-                "sel": "#094771", "sel_fg": "#ffffff", "muted": "#888888"}
+            fallback = {"window_bg": "#ffffff", "panel_bg": "#f0f0f0",
+                        "bg": "#ffffff", "fg": "#333333", "border": "#d0d0d0",
+                        "sel": "#0078d4", "sel_fg": "#ffffff",
+                        "muted": "#666666"}
+        elif t == "high_contrast":
+            fallback = {"window_bg": "#000000", "panel_bg": "#000000",
+                        "bg": "#000000", "fg": "#ffffff", "border": "#ffffff",
+                        "sel": "#ffff00", "sel_fg": "#000000",
+                        "muted": "#ffff00"}
+        else:
+            fallback = {"window_bg": "#1e1e1e", "panel_bg": "#252526",
+                        "bg": "#1e1e1e", "fg": "#d4d4d4", "border": "#3c3c3c",
+                        "sel": "#094771", "sel_fg": "#ffffff",
+                        "muted": "#888888"}
+        try:
+            c = theme.colors
+
+            def pick(attr, key):
+                val = getattr(c, attr, None)
+                if isinstance(val, str) and val.startswith("#"):
+                    fallback[key] = val
+
+            pick("window_bg", "window_bg")
+            pick("panel_bg", "panel_bg")
+            pick("background", "bg")
+            pick("foreground", "fg")
+            pick("border", "border")
+            pick("selection", "sel")
+            pick("selection_foreground", "sel_fg")
+            pick("line_number_fg", "muted")
+            # 浅色主题中若 foreground 过浅（如 #f5f5f5），回退深色
+            fg = fallback["fg"]
+            try:
+                rgb = tuple(int(fg[i:i + 2], 16) for i in (1, 3, 5))
+                if t == "light" and sum(rgb) > 600:
+                    fallback["fg"] = "#333333"
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return fallback
 
     def _build_theme_qss(self, theme) -> str:
         """按主题生成插件面板 QSS（v2.14.1）"""

@@ -68,9 +68,13 @@ def main():
         print("[smoke] 未找到插件面板 dock")
 
     light, dark, names = pick_themes()
+    eye = next((n for n in names if "eye" in n.lower()), None)
     print("[smoke] 主题列表:", names[:10], "... light=%r dark=%r" % (light, dark))
     out = []
-    for label, name in (("light", light), ("dark", dark)):
+    targets = [("light", light), ("dark", dark)]
+    if eye:
+        targets.append(("eye", eye))
+    for label, name in targets:
         if not name:
             continue
         try:
