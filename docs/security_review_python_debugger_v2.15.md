@@ -34,3 +34,11 @@
 - `tests/test_debugger_eval_guard.py`：正常表达式、dunder/危险内建拦截、
   语法错误文本；
 - 安全审计：`python -m tools.audit_plugins`（review 属预期）。
+
+## 补充：求值 RPC 层校验（v2.15.x P3）
+
+- 宿主侧 `DebugSession.evaluate` 先经 `validate_eval_expression`：
+  空表达式与 >4000 字符表达式**直接拒绝**，不再下发子进程；
+- 实际求值在调试目标子进程（`cmd=eval` RPC）内执行，
+  并经 `_safe_eval` 二次校验（表达式模式 / dunder / 危险内建）；
+- 即：**宿主 → RPC → 目标进程** 两级校验。

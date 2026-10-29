@@ -4,6 +4,9 @@
 
 ### 新增
 
+- 沙箱 RPC 白名单自动化审计：`tools/audit_sandbox_rpc.py`（校验白名单/worker/manager 一致性），纳入 CI；
+- 插件市场签名校验：SHA256 + HMAC-SHA256（fail closed），文档 `docs/plugin_market_security.md`；
+- 调试器求值 RPC 层校验：空/超长表达式宿主侧直接拒绝；
 - 多实例广播协议版本协商：hello/hello_ack 交换协议版本，不同版本按兼容模式处理并在状态栏提示；
 - 性能门禁智能降级：`bench_optimization.py --auto` 按 CPU/内存负载自动放大容差（1.0~4.0），CI 使用 `--auto --factor 3.0`。
 

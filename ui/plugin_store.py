@@ -202,6 +202,37 @@ PERMISSION_DESCRIPTIONS = {
 # ============================================================
 
 
+def plugin_bytes_sha256(data: bytes) -> str:
+    """返回插件包 SHA256（小写十六进制）"""
+    return hashlib.sha256(data).hexdigest()
+
+
+def verify_plugin_signature(data: bytes, expected_hash: str = "",
+                            signature: str = "",
+                            key_env: str = "QINGCAO_PLUGIN_SIGNING_KEY"
+                            ) -> Tuple[bool, str]:
+    """校验插件包完整性/签名（v2.15.x P3）
+
+    - expected_hash：SHA256 校验和（注册表提供）；
+    - signature：HMAC-SHA256(sha256_hex) 签名，密钥来自环境变量；
+      未配置密钥时**拒绝**带签名的安装（fail closed）。
+    """
+    actual = plugin_bytes_sha256(data)
+    if expected_hash and actual.lower() != expected_hash.lower():
+        return (False, "文件哈希校验失败")
+    if signature:
+        import hmac
+        key = os.environ.get(key_env, "")
+        if not key:
+            return (False, "未配置签名密钥（%s），拒绝安装" % key_env)
+        expected = hmac.new(key.encode("utf-8"),
+                            actual.encode("ascii"),
+                            hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature.lower()):
+            return (False, "签名校验失败")
+    return (True, "ok")
+
+
 def build_market_catalog(plugin_root: str) -> Dict[str, Any]:
     """从本地插件 manifest 构建市场目录（v2.15 离线 MVP）"""
     plugins = []
@@ -294,6 +325,7 @@ class PluginInfo:
     download_url: str = ""                  # 下载地址
     update_url: str = ""                    # 更新检测地址
     file_hash: str = ""                     # 文件哈希（SHA256）
+    signature: str = ""                     # HMAC 签名（可选）
     file_size: int = 0                      # 文件大小
 
     # 依赖
@@ -788,14 +820,16 @@ class PluginStoreClient:
             if data is None:
                 return (False, "下载失败")
 
-            # 校验哈希
-            if info.file_hash:
+            # 校验哈希/签名（v2.15.x P3）
+            if info.file_hash or getattr(info, "signature", ""):
                 if progress_callback:
                     progress_callback(40, "校验中...")
 
-                actual_hash = hashlib.sha256(data).hexdigest()
-                if actual_hash.lower() != info.file_hash.lower():
-                    return (False, "文件哈希校验失败")
+                ok, msg = verify_plugin_signature(
+                    data, info.file_hash,
+                    getattr(info, "signature", ""))
+                if not ok:
+                    return (False, msg)
 
             # 安装依赖
             if install_deps and info.dependencies:

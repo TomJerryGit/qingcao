@@ -135,6 +135,16 @@ def _creation_flags():
 # ============================================================
 # 调试会话
 # ============================================================
+def validate_eval_expression(expression):
+    """RPC 层校验表达式（v2.15.x P3）：空/超长直接拒绝，避免下发子进程"""
+    expr = str(expression or "")
+    if not expr.strip():
+        return (False, "表达式为空")
+    if len(expr) > 4000:
+        return (False, "表达式过长（>4000 字符）")
+    return (True, expr)
+
+
 class DebugSession(QObject):
     """一次调试会话。
 
@@ -418,7 +428,11 @@ class DebugSession(QObject):
         return self.send({"cmd": "locals"})
 
     def evaluate(self, expression):
-        return self.send({"cmd": "eval", "expr": str(expression)})
+        """在调试目标子进程内求值（RPC cmd=eval，v2.15.x）"""
+        ok, expr = validate_eval_expression(expression)
+        if not ok:
+            return {"error": expr}
+        return self.send({"cmd": "eval", "expr": expr})
 
     def quit(self):
         return self.send({"cmd": "quit"})
