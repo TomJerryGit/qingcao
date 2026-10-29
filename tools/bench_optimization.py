@@ -97,6 +97,51 @@ def section(title):
     print("=" * 74)
 
 
+
+
+def system_load_factor() -> float:
+    """按当前 CPU/内存负载返回 1.0~4.0 的容差放大系数（v2.15.x 智能降级）"""
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        ms = MEMORYSTATUSEX()
+        ms.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms))
+        mem_load = ms.dwMemoryLoad / 100.0
+
+        def _cpu_times():
+            idle = ctypes.c_ulonglong()
+            kernel = ctypes.c_ulonglong()
+            user = ctypes.c_ulonglong()
+            ctypes.windll.kernel32.GetSystemTimes(
+                ctypes.byref(idle), ctypes.byref(kernel),
+                ctypes.byref(user))
+            return idle.value, kernel.value + user.value
+
+        i1, t1 = _cpu_times()
+        time.sleep(0.2)
+        i2, t2 = _cpu_times()
+        dt = max(1, t2 - t1)
+        cpu_load = 1.0 - max(0, i2 - i1) / dt
+        cpu_load = max(0.0, min(1.0, cpu_load))
+        factor = 1.0 + 1.5 * mem_load + 1.5 * cpu_load
+        return round(max(1.0, min(4.0, factor)), 2)
+    except Exception:
+        return 1.0
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true",
@@ -105,7 +150,15 @@ def main():
                         help="阈值容差倍数（慢机器 CI 用 2.5）")
     parser.add_argument("--json", type=str, default="",
                         help="把结果写入 JSON 文件")
+    parser.add_argument("--auto", action="store_true",
+                        help="按当前系统负载自动放大容差（智能降级）")
     args = parser.parse_args()
+
+    if args.auto:
+        auto = system_load_factor()
+        args.factor = round(args.factor * auto, 2)
+        print("  [auto] 系统负载系数 %.2f -> 有效容差 %.2f"
+              % (auto, args.factor))
 
     from ui.main_window import MainWindow  # noqa: E402
 

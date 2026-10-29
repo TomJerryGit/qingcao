@@ -45,6 +45,7 @@ class InstanceBroadcaster(QObject):
     file_closed = pyqtSignal(str, float, int)
     focus_requested = pyqtSignal()
     config_changed = pyqtSignal(str)
+    peer_versions_changed = pyqtSignal(dict)
 
     def __init__(self, parent=None, server_name=None):
         super().__init__(parent)
@@ -55,6 +56,7 @@ class InstanceBroadcaster(QObject):
         self._socket = None
         self._retry = None
         self._hub = False
+        self._peer_versions = {}
 
     def start(self, force_client: bool = False) -> bool:
         """启动；force_client=True 时跳过 listen（测试/强制 client）"""
@@ -124,6 +126,10 @@ class InstanceBroadcaster(QObject):
             sock.disconnected.connect(self._on_client_disconnect)
             sock.connectToServer(self._server_name)
             self._socket = sock
+            try:
+                QTimer.singleShot(300, self.announce_hello)
+            except Exception:
+                pass
         except Exception:
             self._socket = None
 
@@ -201,12 +207,68 @@ class InstanceBroadcaster(QObject):
                     pass
             emit(*val)
 
+
+
+    def announce_hello(self) -> None:
+        """协议版本协商：广播 hello（v2.15.x）"""
+        self._write_raw({"v": PROTOCOL_VERSION, "type": "hello",
+                         "pid": self.pid})
+
+    def _write_raw(self, obj: dict, origin=None) -> None:
+        data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+        if self._hub:
+            for c in list(self._clients):
+                if c is origin:
+                    continue
+                try:
+                    if c.state() == QLocalSocket.ConnectedState:
+                        c.write(data)
+                        c.flush()
+                except Exception:
+                    pass
+        else:
+            sock = self._socket
+            if sock is not None and sock.state() == QLocalSocket.ConnectedState:
+                try:
+                    sock.write(data)
+                    sock.flush()
+                except Exception:
+                    pass
+
+    def _note_peer_version(self, pid, version) -> None:
+        try:
+            pid = int(pid or 0)
+            version = int(version or 0)
+        except Exception:
+            return
+        if pid <= 0 or pid == self.pid:
+            return
+        if self._peer_versions.get(pid) == version:
+            return
+        self._peer_versions[pid] = version
+        try:
+            self.peer_versions_changed.emit(dict(self._peer_versions))
+        except Exception:
+            pass
+
     def _dispatch(self, line: str, origin=None):
         try:
             obj = json.loads(line)
         except Exception:
             return
         kind = obj.get("type")
+        if kind == "hello":
+            self._note_peer_version(obj.get("pid"), obj.get("v"))
+            if self._hub:
+                self._write_raw(obj, origin)
+                self._write_raw({"v": PROTOCOL_VERSION,
+                                 "type": "hello_ack", "pid": self.pid,
+                                 "peer_pid": obj.get("pid")}, origin)
+            return
+        if kind == "hello_ack":
+            self._note_peer_version(
+                obj.get("peer_pid") or obj.get("pid"), obj.get("v"))
+            return
         if kind == "focus_request":
             self.focus_requested.emit()
             return

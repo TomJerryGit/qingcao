@@ -3201,6 +3201,23 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         except Exception:
             pass
 
+    def _on_peer_versions_changed(self, versions):
+        """多实例协议版本协商结果（v2.15.x）"""
+        try:
+            from infrastructure.instance_broadcast import PROTOCOL_VERSION
+            bad = {int(p): int(v) for p, v in (versions or {}).items()
+                   if int(v) != PROTOCOL_VERSION}
+        except Exception:
+            return
+        if bad and not getattr(self, "_compat_warned", False):
+            self._compat_warned = True
+            try:
+                self.status_bar.showMessage(
+                    "检测到不同协议版本的实例（%s），已按兼容模式处理" % bad,
+                    5000)
+            except Exception:
+                pass
+
     def _on_focus_requested(self):
         """其它实例请求聚焦：还原并激活当前窗口（单实例行为）"""
         try:
@@ -3227,6 +3244,14 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._on_focus_requested)
             self._broadcast.config_changed.connect(
                 self._on_remote_config_changed)
+            try:
+                from PyQt5.QtCore import QTimer as _QTimer
+                self._broadcast.peer_versions_changed.connect(
+                    self._on_peer_versions_changed)
+                _QTimer.singleShot(1500,
+                                   self._broadcast.announce_hello)
+            except Exception:
+                pass
             try:
                 from PyQt5.QtCore import QTimer
                 def _deferred_sandbox_ui():
