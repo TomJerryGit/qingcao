@@ -2736,7 +2736,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 self._live_diag_skip_notified = False
             except Exception:
                 pass
-            return self.run_sandboxed_diagnostics()
+            return self.run_sandboxed_diagnostics(all_files=False)
         except Exception:
             return 0
     def _hook_sandbox_live_tab(self, index):
@@ -3299,27 +3299,53 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 return
             except Exception:
                 continue
-    def run_sandboxed_diagnostics(self):
-        """运行沙箱子进程插件的诊断并发布到问题面板（C-1 宿主接线）
+    def _sandbox_diagnostic_targets(self, all_files=True):
+        """收集沙箱诊断目标（文件路径, 文本）；all_files=False 只取当前文件"""
+        out = []
+        try:
+            tabs = getattr(self, "tabs", None)
+            if tabs is None:
+                return out
+            if all_files:
+                indexes = list(range(tabs.count()))
+            else:
+                idx = tabs.currentIndex()
+                indexes = [idx] if idx >= 0 else []
+            for i in indexes:
+                try:
+                    w = tabs.widget(i)
+                except Exception:
+                    continue
+                proxy = getattr(w, "proxy", None)
+                if proxy is None:
+                    continue
+                try:
+                    text = proxy.get_text() or ""
+                    doc = getattr(proxy, "document", None)
+                    fp = getattr(doc, "filepath", "") or ""
+                except Exception:
+                    continue
+                out.append((fp, text))
+        except Exception:
+            pass
+        return out
+
+    def run_sandboxed_diagnostics(self, all_files=True):
+        """运行沙箱子进程插件诊断并发布到问题面板（v2.15 按文件聚合）
 
         插件只返回诊断数据；发布/替换逻辑由宿主完成，并按
         `sandbox:<插件名>` 作为来源，避免清掉其它来源（LSP/普通插件）。
+
+        all_files=True 时对所有已打开文件分别诊断并逐文件发布，
+        问题面板自然按文件分组展示；实时诊断传 False 只算当前文件。
         """
-        try:
-            proxy = self.tabs.current_proxy()
-        except Exception:
-            proxy = None
-        if proxy is None:
-            self.status_bar.showMessage("没有打开的编辑器", 2500)
-            return 0
-        try:
-            text = proxy.get_text() or ""
-            fp = getattr(proxy.document, "filepath", "") or ""
-        except Exception:
-            return 0
         plugins = self._get_sandboxed_plugins()
         if not plugins:
             self.status_bar.showMessage("没有启用的沙箱插件", 2500)
+            return 0
+        targets = self._sandbox_diagnostic_targets(all_files=all_files)
+        if not targets:
+            self.status_bar.showMessage("没有打开的编辑器", 2500)
             return 0
         try:
             from core.problems import Problem, get_problem_manager
@@ -3328,40 +3354,43 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             self.status_bar.showMessage("问题管理器不可用: %s" % e, 3000)
             return 0
         sources = {"sandbox:%s" % n for n in plugins}
-        try:
-            existing = list(manager.get_for_file(fp) or [])
-            keep = [p for p in existing
-                    if getattr(p, "source", "") not in sources]
-        except Exception:
-            keep = []
-        produced = []
-        for name, sp in plugins.items():
-            try:
-                items = sp.diagnostics(text) or []
-            except Exception:
+        total = 0
+        for fp, text in targets:
+            if len(text) > self.MAX_LIVE_DIAGNOSTICS_BYTES:
                 continue
-            for it in items:
+            try:
+                existing = list(manager.get_for_file(fp) or [])
+                keep = [p for p in existing
+                        if getattr(p, "source", "") not in sources]
+            except Exception:
+                keep = []
+            produced = []
+            for name, sp in plugins.items():
                 try:
-                    produced.append(Problem(
-                        filepath=fp,
-                        line=int(it.get("line", 0) or 0),
-                        col=int(it.get("col", 0) or 0),
-                        severity=str(it.get("severity", "warning")),
-                        message=str(it.get("message", "")),
-                        source="sandbox:%s" % name,
-                        code=str(it.get("code", "")),
-                    ))
+                    items = sp.diagnostics(text) or []
                 except Exception:
                     continue
-        try:
-            manager.set_file_problems(fp, keep + produced)
-        except Exception as e:
-            self.status_bar.showMessage("发布沙箱诊断失败: %s" % e, 3000)
-            return 0
+                for it in items:
+                    try:
+                        produced.append(Problem(
+                            filepath=fp,
+                            line=int(it.get("line", 0) or 0),
+                            col=int(it.get("col", 0) or 0),
+                            severity=str(it.get("severity", "warning")),
+                            message=str(it.get("message", "")),
+                            source="sandbox:%s" % name,
+                            code=str(it.get("code", "")),
+                        ))
+                    except Exception:
+                        continue
+            try:
+                manager.set_file_problems(fp, keep + produced)
+            except Exception:
+                pass
+            total += len(produced)
         self.status_bar.showMessage(
-            "沙箱插件诊断: %d 条" % len(produced), 2500)
-        self._refresh_sandbox_status()
-        return len(produced)
+            "沙箱诊断: %d 个文件, %d 条" % (len(targets), total), 3000)
+        return total
 
     def _apply_theme_to_top_levels(self, qss=None):
         """把当前主题 QSS 套到所有独立顶层窗口（C-2）"""
