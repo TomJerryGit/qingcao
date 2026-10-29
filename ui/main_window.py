@@ -3326,6 +3326,20 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 except Exception:
                     continue
                 out.append((fp, text))
+            if not out:
+                # 兼容：部分测试/降级标签实现只提供 current_proxy
+                try:
+                    proxy = tabs.current_proxy()
+                except Exception:
+                    proxy = None
+                if proxy is not None:
+                    try:
+                        text = proxy.get_text() or ""
+                        doc = getattr(proxy, "document", None)
+                        fp = getattr(doc, "filepath", "") or ""
+                    except Exception:
+                        text, fp = "", ""
+                    out.append((fp, text))
         except Exception:
             pass
         return out
