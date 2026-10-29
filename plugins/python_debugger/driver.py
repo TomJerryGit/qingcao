@@ -404,7 +404,8 @@ class JsonDebugger(bdb.Bdb):
             # 安全收敛：限制表达式长度，异常统一格式化（在调试目标子进程内执行）
             if len(expression) > 4000:
                 return "<expression too long>"
-            return format_value(eval(expression, frame.f_globals, frame.f_locals))
+            return format_value(_safe_eval(expression, frame.f_globals,
+                                        frame.f_locals))
         except Exception as exc:
             return f"<错误: {exc}>"
 
@@ -412,6 +413,36 @@ class JsonDebugger(bdb.Bdb):
 # ============================================================
 # stdin 读线程
 # ============================================================
+
+# ------------------------------------------------------------------
+# 安全复核（v2.15）：受限表达式求值
+# ------------------------------------------------------------------
+_BLOCKED_NAMES = frozenset({
+    "open", "exec", "eval", "compile", "__import__", "input", "breakpoint",
+    "exit", "quit", "globals", "locals", "vars", "getattr", "setattr",
+    "delattr", "memoryview", "help",
+})
+
+
+def _safe_eval(expression, globals_, locals_):
+    """受限表达式求值：拒绝 dunder/危险内建，异常返回可读文本。"""
+    import ast
+
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError as e:
+        return "<syntax error: %s>" % e
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            if node.id.startswith("__") or node.id in _BLOCKED_NAMES:
+                return "<blocked: %s>" % node.id
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                return "<blocked attribute: %s>" % node.attr
+    code = compile(tree, "<qingcao-debugger-eval>", "eval")
+    return eval(code, globals_, locals_)
+
+
 def _reader_loop(command_queue, debugger):
     """逐行读 JSON 命令。EOF 说明宿主已经走了 → 立刻自杀，不留孤儿。"""
     stream = sys.stdin
