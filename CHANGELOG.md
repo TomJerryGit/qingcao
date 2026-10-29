@@ -2,6 +2,26 @@
 
 （下一版本开发中）
 
+## [2.14.0] - 2026-10-29
+
+### 插件全面提振（Batch 1-5）
+
+- 全面分析 13 个插件（AST 扫描/导入基准/安全审计），报告
+  `docs/plugin_analysis_v2.13.md`；
+- 主题：宿主启动主题统一递归适配插件面板；wordcount/todo_panel/
+  logtail/markdown_preview/ai_assistant 实现 `refresh_theme(theme)`；
+- 性能：ai_assistant 可选依赖 requests 惰性化；真实增量导入
+  ai_assistant 1.8ms / python_debugger 8.9ms；CI 性能预算门禁
+  （150/60/30ms，×2 容差）；
+- 安全：python_debugger 补 `process` 权限，eval 表达式限长；
+- 沙箱：`status_text(text)` 支持文本；新增 wordcount_sandbox 试点；
+- 市场：13 个插件补齐 homepage/keywords；`check_plugin_market.py --strict`
+  纳入 CI。
+
+
+
+（下一版本开发中）
+
 ## [2.13.0] - 2026-10-28
 
 ### 无障碍：高对比度自动适配
