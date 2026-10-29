@@ -1166,6 +1166,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         # palette 兜底（子对话框随父控件继承样式）。
                         try:
                             loader.apply_palette(_app, theme)
+                            self.setPalette(_app.palette())
                         except Exception:
                             pass
                         self._current_theme_name = name

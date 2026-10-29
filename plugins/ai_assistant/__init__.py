@@ -223,7 +223,7 @@ def _requests_ok():
             _REQUESTS_OK = True
         except ImportError:
             _REQUESTS_OK = False
-    return _requests_ok()
+    return _REQUESTS_OK
 
 
 # ============================================================
@@ -3181,6 +3181,22 @@ class Plugin(PluginBase):
 # ============================================================
 # 模块测试
 # ============================================================
+
+    def refresh_theme(self, theme):
+        """主题切换：适配面板基样式 + 子控件内联 QSS（v2.14）"""
+        try:
+            from PyQt5.QtWidgets import QWidget
+
+            from infrastructure.theme_loader import adapt_qss_colors
+            base = getattr(self, "_base_qss", "")
+            if base:
+                self.setStyleSheet(adapt_qss_colors(base, theme))
+            for w in self.findChildren(QWidget):
+                qss = w.styleSheet()
+                if qss:
+                    w.setStyleSheet(adapt_qss_colors(qss, theme))
+        except Exception:
+            pass
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication, QMainWindow
 
@@ -3240,19 +3256,3 @@ if __name__ == "__main__":
     QTimer.singleShot(2000, app.quit)
     sys.exit(app.exec_())
 
-
-    def refresh_theme(self, theme):
-        """主题切换：适配面板基样式 + 子控件内联 QSS（v2.14）"""
-        try:
-            from PyQt5.QtWidgets import QWidget
-
-            from infrastructure.theme_loader import adapt_qss_colors
-            base = getattr(self, "_base_qss", "")
-            if base:
-                self.setStyleSheet(adapt_qss_colors(base, theme))
-            for w in self.findChildren(QWidget):
-                qss = w.styleSheet()
-                if qss:
-                    w.setStyleSheet(adapt_qss_colors(qss, theme))
-        except Exception:
-            pass
