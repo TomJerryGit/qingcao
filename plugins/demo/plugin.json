@@ -17,5 +17,7 @@
   "api_version": "2.0.0",
   "enabled": true,
   "auto_load": true,
-  "load_order": 100
+  "load_order": 100,
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": []
 }

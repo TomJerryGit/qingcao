@@ -14,6 +14,9 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 
 def warmup():
     """预热宿主公共模块，避免把宿主首次导入算进插件耗时"""

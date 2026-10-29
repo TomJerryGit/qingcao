@@ -25,5 +25,7 @@
   "enabled": true,
   "auto_load": true,
   "load_order": 50,
-  "defer_activation": true
+  "defer_activation": true,
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": []
 }

@@ -20,5 +20,7 @@
   "enabled": true,
   "auto_load": true,
   "load_order": 100,
-  "sandbox": true
+  "sandbox": true,
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": []
 }

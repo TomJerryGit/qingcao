@@ -9,5 +9,9 @@
   "permissions": [
     "editor_read"
   ],
-  "api_version": "1.0"
+  "api_version": "1.0",
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": [],
+  "category": "tools",
+  "license": "MIT"
 }

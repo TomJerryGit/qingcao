@@ -74,3 +74,10 @@
 - 插件性能预算门禁：`tools/bench_plugins.py --check --factor 3.0`，已接入 CI；
 - wordcount 沙箱试点：新增 `plugins/wordcount_sandbox`（sandbox:true），宿主状态栏通过 RPC 传入当前文本，插件返回「字数/字符/行」；
 - 沙箱协议扩展：`status_text(text)` 支持文本参数（worker/manager/宿主）。
+
+## 7. Batch 4 执行结果（2026-10-29）
+
+- 修正插件基准工具 sys.path 缺陷（预热此前静默失败，数字虚高）；
+- 真实增量导入：**ai_assistant 1.8ms、python_debugger 8.9ms**，均远低于 150ms 目标；
+- ai_assistant 增加 `refresh_theme(theme)`：面板基样式 + 子控件内联 QSS 统一适配主题；
+- 插件市场元数据：全部 13 个插件补齐 `homepage`/`keywords`，新增 `tools/check_plugin_market.py` 校验（category/license/homepage/keywords/description）。

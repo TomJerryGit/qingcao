@@ -638,7 +638,7 @@ class AIResultDialog(QDialog):
 
     def _apply_style(self):
         """应用样式"""
-        self.setStyleSheet("""
+        self._base_qss = """
             QDialog {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
@@ -674,7 +674,8 @@ class AIResultDialog(QDialog):
                 background-color: #0e639c;
                 border-radius: 2px;
             }
-        """)
+"""
+        self.setStyleSheet(self._base_qss)
 
     # --------------------------------------------------------
     # 流式接收
@@ -3238,3 +3239,20 @@ if __name__ == "__main__":
 
     QTimer.singleShot(2000, app.quit)
     sys.exit(app.exec_())
+
+
+    def refresh_theme(self, theme):
+        """主题切换：适配面板基样式 + 子控件内联 QSS（v2.14）"""
+        try:
+            from PyQt5.QtWidgets import QWidget
+
+            from infrastructure.theme_loader import adapt_qss_colors
+            base = getattr(self, "_base_qss", "")
+            if base:
+                self.setStyleSheet(adapt_qss_colors(base, theme))
+            for w in self.findChildren(QWidget):
+                qss = w.styleSheet()
+                if qss:
+                    w.setStyleSheet(adapt_qss_colors(qss, theme))
+        except Exception:
+            pass
