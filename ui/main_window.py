@@ -253,6 +253,9 @@ def adapt_widget_styles(root, theme):
     count = 0
     for w in targets:
         try:
+            # 自管理主题的控件（插件面板等）由 refresh_theme 处理，避免被覆盖
+            if callable(getattr(w, "refresh_theme", None)):
+                continue
             if getattr(w, "_qc_adapted_key", None) == theme_key:
                 continue
             qss = w.styleSheet()
@@ -1189,12 +1192,12 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 if theme.qss:
                     self.setStyleSheet(theme.qss)
 
-            # v3.0: 通知所有面板刷新样式
-            loader.notify_widgets(self, theme)
+            # v3.0: 先统一适配硬编码 QSS，再通知面板刷新（v2.14.1 顺序修复）
             try:
                 adapt_widget_styles(self, theme)
             except Exception:
                 pass
+            loader.notify_widgets(self, theme)
 
             # B: 遍历所有顶层窗口（含独立对话框）
             # notify_widgets 只处理 self.findChildren，独立打开的

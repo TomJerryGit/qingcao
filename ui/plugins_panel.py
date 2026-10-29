@@ -424,16 +424,113 @@ class PluginsPanel(QDockWidget):
         self.setWidget(container)
 
 
+    def _theme_colors(self, theme) -> dict:
+        """按主题类型返回确定的 QSS 颜色（浅/深/高对比，v2.14.1）"""
+        t = getattr(theme, "type", "dark")
+        if t == "light":
+            return {"window_bg": "#ffffff", "panel_bg": "#f0f0f0",
+                    "bg": "#ffffff", "fg": "#333333", "border": "#d0d0d0",
+                    "sel": "#0078d4", "sel_fg": "#ffffff",
+                    "muted": "#666666"}
+        if t == "high_contrast":
+            return {"window_bg": "#000000", "panel_bg": "#000000",
+                    "bg": "#000000", "fg": "#ffffff", "border": "#ffffff",
+                    "sel": "#ffff00", "sel_fg": "#000000",
+                    "muted": "#ffff00"}
+        return {"window_bg": "#1e1e1e", "panel_bg": "#252526",
+                "bg": "#1e1e1e", "fg": "#d4d4d4", "border": "#3c3c3c",
+                "sel": "#094771", "sel_fg": "#ffffff", "muted": "#888888"}
+
+    def _build_theme_qss(self, theme) -> str:
+        """按主题生成插件面板 QSS（v2.14.1）"""
+        p = self._theme_colors(theme)
+        return """
+            QDockWidget { background-color: %(panel_bg)s; color: %(fg)s; }
+            QDockWidget::title {
+                background-color: %(panel_bg)s; color: %(fg)s;
+                padding: 4px 8px; border-bottom: 1px solid %(border)s;
+            }
+            QToolButton {
+                background-color: transparent; color: %(fg)s;
+                border: none; border-radius: 3px; font-size: 14px;
+            }
+            QToolButton:hover { background-color: %(border)s; }
+            QLineEdit, QComboBox {
+                background-color: %(bg)s; color: %(fg)s;
+                border: 1px solid %(border)s; border-radius: 3px;
+                padding: 3px 6px; font-size: 12px;
+            }
+            QLineEdit:focus, QComboBox:focus { border-color: %(sel)s; }
+            QComboBox::drop-down { border: none; width: 18px; }
+            QComboBox QAbstractItemView {
+                background-color: %(bg)s; color: %(fg)s;
+                selection-background-color: %(sel)s;
+                selection-color: %(sel_fg)s; border: 1px solid %(border)s;
+            }
+            QTreeWidget {
+                background-color: %(bg)s; color: %(fg)s;
+                border: none; font-size: 12px; outline: none;
+            }
+            QTreeWidget::item { padding: 3px 4px; border-radius: 2px; }
+            QTreeWidget::item:hover { background-color: %(panel_bg)s; }
+            QTreeWidget::item:selected {
+                background-color: %(sel)s; color: %(sel_fg)s;
+            }
+            QHeaderView::section {
+                background-color: %(panel_bg)s; color: %(muted)s;
+                border: none; border-bottom: 1px solid %(border)s;
+                padding: 4px; font-size: 11px;
+            }
+            QLabel { color: %(fg)s; }
+        """ % p
+
     def refresh_theme(self, theme):
-        """主题变更时刷新样式（v3.0）"""
+        """主题切换：按主题确定颜色并直接应用到关键控件（v2.14.1）"""
         try:
-            from infrastructure.theme_loader import adapt_qss_colors
-            # 保存原始 QSS（只保存一次）
-            if not hasattr(self, '_original_qss') or not self._original_qss:
-                self._original_qss = self.styleSheet()
-            if self._original_qss:
-                qss = adapt_qss_colors(self._original_qss, theme)
+            qss = self._build_theme_qss(theme)
+            if qss:
                 self.setStyleSheet(qss)
+            pal = self._theme_colors(theme)
+            bg, fg = pal["bg"], pal["fg"]
+            border, sel, sel_fg = pal["border"], pal["sel"], pal["sel_fg"]
+            panel_bg, muted = pal["panel_bg"], pal["muted"]
+            edit = getattr(self, "search_edit", None)
+            if edit is not None:
+                edit.setStyleSheet(
+                    "QLineEdit { background-color: %s; color: %s; "
+                    "border: 1px solid %s; border-radius: 3px; "
+                    "padding: 3px 6px; }" % (bg, fg, border))
+            combo = getattr(self, "category_combo", None)
+            if combo is not None:
+                combo.setStyleSheet(
+                    "QComboBox { background-color: %s; color: %s; "
+                    "border: 1px solid %s; border-radius: 3px; "
+                    "padding: 3px 6px; } "
+                    "QComboBox QAbstractItemView { background-color: %s; "
+                    "color: %s; selection-background-color: %s; "
+                    "selection-color: %s; }" % (
+                        bg, fg, border, bg, fg, sel, sel_fg))
+            tree = getattr(self, "tree", None)
+            if tree is not None:
+                tree.setStyleSheet(
+                    "QTreeWidget { background-color: %s; color: %s; "
+                    "border: none; outline: none; } "
+                    "QTreeWidget::item { padding: 3px 4px; } "
+                    "QTreeWidget::item:hover { background-color: %s; } "
+                    "QTreeWidget::item:selected { background-color: %s; "
+                    "color: %s; }" % (bg, fg, panel_bg, sel, sel_fg))
+                hdr = tree.header() if hasattr(tree, "header") else None
+                if hdr is not None:
+                    hdr.setStyleSheet(
+                        "QHeaderView::section { background-color: %s; "
+                        "color: %s; border: none; padding: 4px; }" % (
+                            panel_bg, muted))
+            cv = self.widget()
+            if cv is not None:
+                cv.setStyleSheet("QWidget { background-color: %s; }" % panel_bg)
+            label = getattr(self, "stats_label", None)
+            if label is not None:
+                label.setStyleSheet("color: %s; font-size: 11px;" % muted)
         except Exception as e:
             print(f"[{self.__class__.__name__}] refresh_theme 失败: {e}")
 
