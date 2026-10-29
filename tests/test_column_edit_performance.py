@@ -174,32 +174,63 @@ def test_batch_column_edit_multibyte_positions(qapp, tmp_path):
 # ============================================================
 # 2. 缩放（防 O(n²) 回归）
 # ============================================================
+def _system_load_factor() -> float:
+    """粗测系统负载（1.0~4.0）；用于高负载时跳过易抖动的缩放断言"""
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        ms = MEMORYSTATUSEX()
+        ms.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms))
+        mem = ms.dwMemoryLoad / 100.0
+        return 1.0 + 1.5 * mem
+    except Exception:
+        return 1.0
+
+
+def _best_column_edit_time(tmp_path, n_rows, name, repeats=3):
+    """同一规模重复测量取最小值（过滤负载尖峰）"""
+    best = None
+    for i in range(repeats):
+        proxy = _make_editor(tmp_path, n_rows, "%s_%d.txt" % (name, i))
+        try:
+            _r, elapsed = _time_column_edit(proxy, n_rows)
+        finally:
+            try:
+                proxy.sc.deleteLater()
+            except Exception:
+                pass
+        if best is None or elapsed < best:
+            best = elapsed
+    return best
+
+
 def test_column_edit_scales_linearly(qapp, tmp_path):
     """规模翻 4 倍（1000 → 4000），耗时不应超过 8 倍
 
     线性算法约 4 倍；二次方算法约 16 倍。阈值 8 倍能稳定区分两者，
     同时给机器抖动留余量。
     """
+    if _system_load_factor() > 2.6:
+        pytest.skip("系统内存负载过高，跳过缩放时序断言")
+
     small_n = 1000
     large_n = 4000
-
-    p1 = _make_editor(tmp_path, small_n, "s1.txt")
-    try:
-        _r1, t_small = _time_column_edit(p1, small_n)
-    finally:
-        try:
-            p1.sc.deleteLater()
-        except Exception:
-            pass
-
-    p2 = _make_editor(tmp_path, large_n, "s4.txt")
-    try:
-        _r2, t_large = _time_column_edit(p2, large_n)
-    finally:
-        try:
-            p2.sc.deleteLater()
-        except Exception:
-            pass
+    t_small = _best_column_edit_time(tmp_path, small_n, "s1")
+    t_large = _best_column_edit_time(tmp_path, large_n, "s4")
 
     # 小规模可能极快（<1ms），用下限避免除零/噪声放大
     base = max(t_small, 0.002)
