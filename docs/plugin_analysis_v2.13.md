@@ -81,3 +81,9 @@
 - 真实增量导入：**ai_assistant 1.8ms、python_debugger 8.9ms**，均远低于 150ms 目标；
 - ai_assistant 增加 `refresh_theme(theme)`：面板基样式 + 子控件内联 QSS 统一适配主题；
 - 插件市场元数据：全部 13 个插件补齐 `homepage`/`keywords`，新增 `tools/check_plugin_market.py` 校验（category/license/homepage/keywords/description）。
+
+## 8. Batch 5 收尾（2026-10-29）
+
+- 性能预算收紧：ai_assistant ≤150ms、python_debugger ≤60ms、其余 ≤30ms（CI 容差 2.0）；
+- 市场元数据校验 `tools/check_plugin_market.py --strict` 纳入 CI；
+- v2.14.0 发布说明草稿已包含插件分析报告与四批次成果。

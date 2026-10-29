@@ -69,8 +69,8 @@ def main():
         print("%-22s %10.1f %10d %s" % (
             r["plugin"], r["import_ms"], r["init_bytes"],
             ("ERR " + r["error"][:60]) if r["error"] else ""))
-    budget = {"ai_assistant": 450.0, "python_debugger": 120.0}
-    default_budget = 120.0
+    budget = {"ai_assistant": 150.0, "python_debugger": 60.0}
+    default_budget = 30.0
     over = []
     if args.check:
         for r in rows:
