@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QBrush, QColor
 from PyQt5.QtWidgets import (
     QApplication,
+    QComboBox,
     QDockWidget,
     QHBoxLayout,
     QLabel,
@@ -70,7 +71,20 @@ class ProblemsPanel(QDockWidget):
         clear_btn.clicked.connect(self.pm.clear)
         top.addWidget(clear_btn)
 
+        sandbox_clear_btn = QToolButton()
+        sandbox_clear_btn.setText("🧹")
+        sandbox_clear_btn.setToolTip("清除沙箱诊断")
+        sandbox_clear_btn.clicked.connect(self._clear_sandbox)
+        top.addWidget(sandbox_clear_btn)
+
         top.addStretch()
+
+        self.filter_combo = QComboBox()
+        self.filter_combo.addItem("全部来源", "all")
+        self.filter_combo.addItem("仅沙箱", "sandbox")
+        self.filter_combo.addItem("仅非沙箱", "other")
+        self.filter_combo.currentIndexChanged.connect(self.refresh)
+        top.addWidget(self.filter_combo)
 
         # 过滤
         self.filter_label = QLabel("")
@@ -145,6 +159,31 @@ class ProblemsPanel(QDockWidget):
             }
         """)
 
+    def _clear_sandbox(self):
+        """清除所有沙箱来源诊断（v2.15）"""
+        mw = self.main_window
+        if mw is not None and hasattr(mw, "clear_sandbox_problems"):
+            try:
+                mw.clear_sandbox_problems()
+            except Exception:
+                pass
+        self.refresh()
+
+    def _filter_problems(self, problems):
+        """按来源过滤（全部/仅沙箱/仅非沙箱，v2.15）"""
+        mode = "all"
+        try:
+            mode = self.filter_combo.currentData()
+        except Exception:
+            pass
+        if mode == "sandbox":
+            return [p for p in problems
+                    if str(getattr(p, "source", "")).startswith("sandbox:")]
+        if mode == "other":
+            return [p for p in problems
+                    if not str(getattr(p, "source", "")).startswith("sandbox:")]
+        return problems
+
     def refresh(self):
         """刷新显示"""
         self.tree.clear()
@@ -154,6 +193,10 @@ class ProblemsPanel(QDockWidget):
 
         total = 0
         for filepath, problems in sorted(file_problems.items()):
+            if not problems:
+                continue
+
+            problems = self._filter_problems(problems)
             if not problems:
                 continue
 

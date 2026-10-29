@@ -161,6 +161,29 @@ class GeneralPage(QWidget):
         update_layout.addWidget(self.telemetry_cb)
 
         layout.addWidget(update_group)
+
+        # ---- 多实例 ----
+        inst_group = QGroupBox("多实例")
+        inst_layout = QVBoxLayout(inst_group)
+        inst_row = QHBoxLayout()
+        inst_row.addWidget(QLabel("新窗口实例上限:"))
+        self.max_instances_spin = QSpinBox()
+        self.max_instances_spin.setRange(1, 10)
+        try:
+            cur = QSettings("QingCao", "Editor").value(
+                "max_new_window_instances", 3, type=int)
+        except Exception:
+            cur = 3
+        self.max_instances_spin.setValue(int(cur or 3))
+        inst_row.addWidget(self.max_instances_spin)
+        inst_row.addStretch()
+        inst_layout.addLayout(inst_row)
+        inst_note = QLabel(
+            "环境变量 QINGCAO_MAX_INSTANCES 优先于该设置；范围 1~10。")
+        inst_note.setWordWrap(True)
+        inst_layout.addWidget(inst_note)
+        layout.addWidget(inst_group)
+
         layout.addStretch()
 
     def apply(self):
@@ -177,6 +200,13 @@ class GeneralPage(QWidget):
                        self.splash_duration_spin.value())
         self.prefs.set("check_update", self.check_update_cb.isChecked())
         self.prefs.set("telemetry", self.telemetry_cb.isChecked())
+        try:
+            settings = QSettings("QingCao", "Editor")
+            settings.setValue("max_new_window_instances",
+                              self.max_instances_spin.value())
+            settings.sync()
+        except Exception:
+            pass
 
 
 # ============================================================

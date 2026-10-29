@@ -3299,6 +3299,29 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 return
             except Exception:
                 continue
+    def clear_sandbox_problems(self) -> int:
+        """清除所有沙箱来源诊断，保留 LSP/普通插件来源（v2.15）"""
+        try:
+            from core.problems import get_problem_manager
+            manager = get_problem_manager()
+        except Exception:
+            return 0
+        removed = 0
+        try:
+            files = list(getattr(manager, "problems", {}).items())
+            for fp, problems in files:
+                keep = [p for p in problems
+                        if not str(getattr(p, "source", "")).startswith(
+                            "sandbox:")]
+                removed += len(problems) - len(keep)
+                if len(keep) != len(problems):
+                    manager.set_file_problems(fp, keep)
+            self.status_bar.showMessage(
+                "已清除沙箱诊断 %d 条" % removed, 2500)
+        except Exception:
+            pass
+        return removed
+
     def _sandbox_diagnostic_targets(self, all_files=True):
         """收集沙箱诊断目标（文件路径, 文本）；all_files=False 只取当前文件"""
         out = []

@@ -200,6 +200,42 @@ PERMISSION_DESCRIPTIONS = {
 # ============================================================
 # 插件状态枚举
 # ============================================================
+
+
+def build_market_catalog(plugin_root: str) -> Dict[str, Any]:
+    """从本地插件 manifest 构建市场目录（v2.15 离线 MVP）"""
+    plugins = []
+    try:
+        names = sorted(os.listdir(plugin_root))
+    except OSError:
+        names = []
+    for name in names:
+        mf = os.path.join(plugin_root, name, "plugin.json")
+        if not os.path.isfile(mf):
+            continue
+        try:
+            with open(mf, encoding="utf-8") as f:
+                m = json.load(f)
+        except Exception:
+            continue
+        plugins.append({
+            "name": m.get("name") or name,
+            "display_name": m.get("display_name") or m.get("name") or name,
+            "version": m.get("version", "0.0.0"),
+            "description": m.get("description", ""),
+            "author": m.get("author", ""),
+            "category": m.get("category", "other"),
+            "license": m.get("license", ""),
+            "homepage": m.get("homepage", ""),
+            "keywords": m.get("keywords") or [],
+            "permissions": m.get("permissions") or [],
+            "sandbox": bool(m.get("sandbox")),
+            "enabled": bool(m.get("enabled", True)),
+        })
+    return {"version": 1, "plugins": plugins, "themes": [],
+            "_from_local_catalog": True}
+
+
 class PluginState(Enum):
     """插件状态"""
     NOT_INSTALLED = auto()   # 未安装
@@ -498,6 +534,10 @@ class PluginStoreClient:
             )
 
             if not os.path.exists(fallback_path):
+                catalog = build_market_catalog(
+                    os.path.join(root, "plugins"))
+                if catalog.get("plugins"):
+                    return catalog
                 return None
 
             with open(fallback_path, encoding='utf-8') as f:
@@ -505,6 +545,11 @@ class PluginStoreClient:
 
             if not isinstance(data, dict):
                 return None
+            if not data.get("plugins"):
+                catalog = build_market_catalog(
+                    os.path.join(root, "plugins"))
+                if catalog.get("plugins"):
+                    return catalog
 
             # 打标记，便于 UI 区分
             data['_from_fallback'] = True
