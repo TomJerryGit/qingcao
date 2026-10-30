@@ -2,6 +2,8 @@
 
 （下一版本开发中）
 
+## [2.15.1] - 2026-10-30
+
 ### 新增
 
 - 沙箱 RPC 白名单自动化审计：`tools/audit_sandbox_rpc.py`（校验白名单/worker/manager 一致性），纳入 CI；
