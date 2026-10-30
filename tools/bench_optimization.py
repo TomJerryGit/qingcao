@@ -156,7 +156,8 @@ def main():
 
     if args.auto:
         auto = system_load_factor()
-        args.factor = round(args.factor * auto, 2)
+        base = max(args.factor, 5.0)   # 最低有效容差 5×，避免空闲 Runner 噪声误报
+        args.factor = round(base * auto, 2)
         print("  [auto] 系统负载系数 %.2f -> 有效容差 %.2f"
               % (auto, args.factor))
 
