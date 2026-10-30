@@ -95,9 +95,10 @@ class ProblemsPanel(QDockWidget):
 
         # 问题树
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["", "问题", "文件", "行"])
+        self.tree.setHeaderLabels(["", "问题", "文件", "行", "来源"])
         self.tree.setColumnWidth(0, 30)
         self.tree.setColumnWidth(1, 350)
+        self.tree.setColumnWidth(4, 110)
         self.tree.itemDoubleClicked.connect(self._on_jump)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
@@ -220,6 +221,7 @@ class ProblemsPanel(QDockWidget):
                 child.setText(1, prob.message)
                 child.setText(2, fname)
                 child.setText(3, str(prob.line + 1))
+                child.setText(4, str(getattr(prob, "source", "") or ""))
                 child.setData(0, Qt.UserRole, ('problem', prob))
                 total += 1
 

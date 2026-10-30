@@ -103,7 +103,7 @@ jobs:
           $ErrorActionPreference = "Continue"
           $log = "D:\actions-runner\test.log"
           Remove-Item $log -ErrorAction SilentlyContinue
-          & python tools/run_tests_sharded.py --shards 2 --retries 1 --parallel --localize 2>&1 | Out-File -FilePath $log -Encoding utf8
+          & python tools/run_tests_sharded.py --auto-shards --retries 1 --parallel --localize 2>&1 | Out-File -FilePath $log -Encoding utf8
           $rc = $LASTEXITCODE
           "PYTEST_RC=$rc" | Out-File -FilePath $log -Append -Encoding utf8
           if ($rc -ne 0) { throw "tests failed: rc=$rc" }

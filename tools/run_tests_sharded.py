@@ -92,9 +92,22 @@ def localize(files, log_dir):
     return bad
 
 
+def pick_shards(cpu_count=None, cap=4):
+    """按 CPU 数选择分片数（2~cap，v2.16 P2）"""
+    cpu = int(cpu_count or os.cpu_count() or 2)
+    if cpu <= 4:
+        shards = 2
+    elif cpu <= 8:
+        shards = 3
+    else:
+        shards = cap
+    return max(2, min(int(cap), shards))
+
 def main():
     ap = argparse.ArgumentParser(description="分片测试 + 重试 + 崩溃定位")
     ap.add_argument("--shards", type=int, default=2)
+    ap.add_argument("--auto-shards", action="store_true",
+                    help="按 CPU 数自动选择分片数（2~4）")
     ap.add_argument("--retries", type=int, default=1)
     ap.add_argument("--localize", action="store_true",
                     help="失败/崩溃后逐文件定位")
@@ -107,6 +120,9 @@ def main():
     if not files:
         print("[sharded] 未找到测试文件")
         return 1
+    if args.auto_shards:
+        args.shards = pick_shards()
+        print("[sharded] 自适应分片数: %d" % args.shards)
     shards = make_shards(files, args.shards)
     print("[sharded] %d 个测试文件 → %d 片" % (len(files), len(shards)))
     failed = []

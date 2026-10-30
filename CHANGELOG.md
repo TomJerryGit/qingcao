@@ -4,6 +4,10 @@
 
 ### 新增
 
+- 测试分片数自适应（按 CPU 数 2~4 片），CI 使用 `--auto-shards`；
+- 问题面板新增「来源」列（sandbox:<插件> / LSP 等）；
+- 广播 ACK 重试：file_saved 带 msg_id，500ms 未确认自动重发一次；
+- 多屏高 DPI 手动验证清单 `docs/manual_validation_v2.16_multimonitor.md`；
 - Ed25519 非对称签名：公钥可配置（QINGCAO_PLUGIN_PUBKEYS，支持轮换）+ 吊销名单（QINGCAO_PLUGIN_REVOKED），HMAC 回退；
 - 插件市场详情展示签名安全状态（未签名/SHA256/HMAC/Ed25519/已吊销）；
 - 沙箱 RPC 审计基线版本化（tools/baselines/sandbox_rpc.json），CI 比对白名单变更；

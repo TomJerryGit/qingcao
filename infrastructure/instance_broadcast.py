@@ -57,6 +57,9 @@ class InstanceBroadcaster(QObject):
         self._retry = None
         self._hub = False
         self._peer_versions = {}
+        self._pending_acks = {}
+        self._msg_seq = 0
+        self._ack_timer = None
 
     def start(self, force_client: bool = False) -> bool:
         """启动；force_client=True 时跳过 listen（测试/强制 client）"""
@@ -108,10 +111,16 @@ class InstanceBroadcaster(QObject):
             pass
 
     def _read_from(self, sock):
+        """读取 socket 消息；单次最多处理 1000 条，避免事件循环饥饿"""
         try:
+            processed = 0
             while sock.canReadLine():
                 line = bytes(sock.readLine()).decode("utf-8", "replace")
                 self._dispatch(line, origin=sock)
+                processed += 1
+                if processed >= 1000:
+                    QTimer.singleShot(0, lambda s=sock: self._read_from(s))
+                    return
         except Exception:
             pass
 
@@ -150,10 +159,13 @@ class InstanceBroadcaster(QObject):
                         "mtime": 0.0, "pid": self.pid})
 
     def announce(self, path: str, mtime: float) -> None:
-        payload = json.dumps(
-            make_payload("file_saved", path, mtime, self.pid),
-            ensure_ascii=False) + "\n"
+        self._msg_seq += 1
+        msg_id = "%d-%d" % (self.pid, self._msg_seq)
+        obj = make_payload("file_saved", path, mtime, self.pid)
+        obj["msg_id"] = msg_id
+        payload = json.dumps(obj, ensure_ascii=False) + "\n"
         data = payload.encode("utf-8")
+        self._track_pending(msg_id, obj)
         if self._hub:
             self.file_saved.emit(path, float(mtime), self.pid)
             for c in list(self._clients):
@@ -269,6 +281,9 @@ class InstanceBroadcaster(QObject):
             self._note_peer_version(
                 obj.get("peer_pid") or obj.get("pid"), obj.get("v"))
             return
+        if kind == "ack":
+            self._pending_acks.pop(str(obj.get("msg_id") or ""), None)
+            return
         if kind == "focus_request":
             self.focus_requested.emit()
             return
@@ -308,6 +323,49 @@ class InstanceBroadcaster(QObject):
                 except Exception:
                     pass
         self.file_saved.emit(path, mtime, pid)
+        msg_id = str(obj.get("msg_id") or "")
+        if msg_id:
+            ack = {"v": PROTOCOL_VERSION, "type": "ack",
+                   "msg_id": msg_id, "pid": self.pid}
+            if self._hub and origin is not None:
+                try:
+                    data = (json.dumps(ack, ensure_ascii=False)
+                            + "\n").encode("utf-8")
+                    if origin.state() == QLocalSocket.ConnectedState:
+                        origin.write(data)
+                        origin.flush()
+                except Exception:
+                    pass
+            elif not self._hub:
+                self._write_raw(ack)
+
+    def _track_pending(self, msg_id: str, obj: dict) -> None:
+        """ACK 重试：500ms 未收到确认则重发一次（v2.16 P2）"""
+        self._pending_acks[msg_id] = {"obj": dict(obj), "attempts": 0}
+        try:
+            if self._ack_timer is None:
+                self._ack_timer = QTimer(self)
+                self._ack_timer.setSingleShot(True)
+                self._ack_timer.timeout.connect(self._retry_pending)
+            self._ack_timer.start(500)
+        except Exception:
+            pass
+
+    def _retry_pending(self) -> None:
+        for msg_id, item in list(self._pending_acks.items()):
+            if item["attempts"] >= 1:
+                self._pending_acks.pop(msg_id, None)
+                continue
+            item["attempts"] += 1
+            try:
+                self._write_raw(item["obj"])
+            except Exception:
+                pass
+        if self._pending_acks:
+            try:
+                self._ack_timer.start(500)
+            except Exception:
+                pass
 
     def _send_obj(self, obj: dict) -> None:
         data = (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
