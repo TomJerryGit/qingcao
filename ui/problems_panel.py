@@ -171,7 +171,7 @@ class ProblemsPanel(QDockWidget):
         self.refresh()
 
     def _filter_problems(self, problems):
-        """按来源过滤（全部/仅沙箱/仅非沙箱，v2.15）"""
+        """按来源过滤（全部/沙箱/非沙箱/指定插件，v2.16）"""
         mode = "all"
         try:
             mode = self.filter_combo.currentData()
@@ -183,11 +183,47 @@ class ProblemsPanel(QDockWidget):
         if mode == "other":
             return [p for p in problems
                     if not str(getattr(p, "source", "")).startswith("sandbox:")]
+        if isinstance(mode, str) and mode.startswith("plugin:"):
+            want = mode[len("plugin:"):]
+            return [p for p in problems
+                    if str(getattr(p, "source", "")) == want]
         return problems
+
+    def _sync_filter_options(self):
+        """动态加入沙箱插件来源选项（保留当前选择，v2.16）"""
+        try:
+            cur = self.filter_combo.currentData()
+        except Exception:
+            cur = "all"
+        sources = set()
+        try:
+            for probs in (self.pm.problems or {}).values():
+                for prob in probs:
+                    src = str(getattr(prob, "source", "") or "")
+                    if src.startswith("sandbox:"):
+                        sources.add(src)
+        except Exception:
+            pass
+        try:
+            existing = {self.filter_combo.itemData(i)
+                        for i in range(self.filter_combo.count())}
+        except Exception:
+            existing = set()
+        for src in sorted(sources):
+            key = "plugin:" + src
+            if key not in existing:
+                self.filter_combo.addItem("插件: " + src, key)
+        try:
+            idx = self.filter_combo.findData(cur)
+            if idx >= 0:
+                self.filter_combo.setCurrentIndex(idx)
+        except Exception:
+            pass
 
     def refresh(self):
         """刷新显示"""
         self.tree.clear()
+        self._sync_filter_options()
 
         # 按文件分组
         file_problems = self.pm.problems

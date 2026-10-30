@@ -4,6 +4,8 @@
 
 ### 新增
 
+- 多主题 E2E 截图基线：`tools/theme_e2e_screenshots.py`（dark/light/eye/high_contrast 主窗口+插件面板，产物 docs/theme_baseline/）；
+- 问题面板支持按沙箱插件来源动态过滤（插件: sandbox:<name>）；
 - 测试分片数自适应（按 CPU 数 2~4 片），CI 使用 `--auto-shards`；
 - 问题面板新增「来源」列（sandbox:<插件> / LSP 等）；
 - 广播 ACK 重试：file_saved 带 msg_id，500ms 未确认自动重发一次；
