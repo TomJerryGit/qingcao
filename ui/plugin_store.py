@@ -249,6 +249,47 @@ def plugin_signature_status(info) -> str:
         return "Ed25519 签名"
     return "HMAC 签名"
 
+
+SECURITY_FILTERS = [
+    ("all", "全部安全状态"),
+    ("ed25519", "仅 Ed25519 签名"),
+    ("hmac", "仅 HMAC 签名"),
+    ("sha256", "仅 SHA256 校验和"),
+    ("unsigned", "未签名"),
+    ("revoked", "已吊销"),
+]
+
+
+def plugin_security_bucket(info) -> str:
+    """安全状态分类（v2.17 市场筛选）"""
+    try:
+        from core.plugin_signature import is_revoked
+        if is_revoked(getattr(info, "name", "")):
+            return "revoked"
+    except Exception:
+        pass
+    algo = (getattr(info, "signature_algo", "") or "").lower()
+    if not getattr(info, "signature", ""):
+        return "sha256" if getattr(info, "file_hash", "") else "unsigned"
+    return "ed25519" if algo == "ed25519" else "hmac"
+
+
+def plugin_source_badge(info) -> str:
+    """来源徽章：官方 / 本地 / 第三方（v2.17）"""
+    if getattr(info, "installed", False):
+        return "本地"
+    if getattr(info, "verified", False) or getattr(info, "featured", False):
+        return "官方"
+    return "第三方"
+
+
+def filter_plugins_by_security(plugins, mode):
+    """按安全状态筛选插件列表（v2.17）"""
+    if not mode or mode == "all":
+        return list(plugins)
+    return [p for p in plugins if plugin_security_bucket(p) == mode]
+
+
 def build_market_catalog(plugin_root: str) -> Dict[str, Any]:
     """从本地插件 manifest 构建市场目录（v2.15 离线 MVP）"""
     plugins = []
@@ -865,10 +906,19 @@ class PluginStoreClient:
             target_dir = (self.themes_dir if info.type == PLUGIN_TYPE_THEME
                           else self.plugins_dir)
 
+            _target_path = os.path.join(target_dir, info.name)
+            _existed_before = os.path.exists(_target_path)
             success, msg = self._extract_plugin(
                 data, target_dir, info.name, info.type
             )
             if not success:
+                # 回滚：清理本次新建的半成品目录（v2.17）
+                try:
+                    if not _existed_before and os.path.isdir(_target_path):
+                        import shutil
+                        shutil.rmtree(_target_path, ignore_errors=True)
+                except Exception:
+                    pass
                 return (False, msg)
 
             # 更新状态
@@ -1304,6 +1354,20 @@ class PluginCard(QFrame):
         )
         title_layout.addWidget(self.version_label)
 
+        try:
+            _badge = QLabel(plugin_source_badge(self.info))
+            _badge.setStyleSheet(
+                "font-size:10px; color:#9cdcfe; "
+                "border:1px solid #3c3c3c; border-radius:3px; "
+                "padding:1px 4px;")
+            title_layout.addWidget(_badge)
+            _sec = QLabel(plugin_security_bucket(self.info))
+            _sec.setStyleSheet("font-size:10px; color:#888;")
+            _sec.setToolTip("安全状态")
+            title_layout.addWidget(_sec)
+        except Exception:
+            pass
+
         # 兼容性徽章（列表行内，与详情页一致）
         self._compat_ok, self._compat_reason = (
             check_plugin_compatibility(self.info))
@@ -1666,6 +1730,12 @@ class PluginDetailDialog(QDialog):
         try:
             _sec = plugin_signature_status(self.info)
             html_parts.append(f"<p>安全状态: <b>{_sec}</b></p>")
+            _ok, _missing = self.info.get_dependency_status()
+            if _ok:
+                html_parts.append("<p>依赖状态: <b>全部满足</b></p>")
+            else:
+                html_parts.append(
+                    "<p>依赖状态: <b>缺失 " + ", ".join(_missing) + "</b></p>")
         except Exception:
             pass
 
@@ -2133,6 +2203,14 @@ class PluginStoreDialog(QDialog):
         layout.addWidget(self.sort_combo)
 
         # 把 filter_row 加到 toolbar 的 outer 布局
+        # 安全状态筛选（v2.17）
+        self.security_combo = QComboBox()
+        for _key, _label in SECURITY_FILTERS:
+            self.security_combo.addItem(_label, _key)
+        self.security_combo.currentIndexChanged.connect(
+            lambda *a: self._apply_filters())
+        filter_row.addWidget(self.security_combo)
+
         outer.addLayout(filter_row)
 
         return toolbar
@@ -2380,6 +2458,13 @@ class PluginStoreDialog(QDialog):
                     or any(text in tag.lower() for tag in p.tags))
             ]
 
+        # 安全状态筛选（v2.17）
+        try:
+            _sec_mode = self.security_combo.currentData()
+        except Exception:
+            _sec_mode = "all"
+        plugins = filter_plugins_by_security(plugins, _sec_mode)
+
         # 排序
         if self._current_sort == "downloads":
             plugins.sort(key=lambda p: p.downloads, reverse=True)
@@ -2491,7 +2576,7 @@ class PluginStoreDialog(QDialog):
             # 通知用户重启
             QMessageBox.information(
                 self, "提示",
-                "插件已安装，重启编辑器后生效。"
+                "插件已安装，请重载插件（插件面板 → 重载）或重启编辑器后生效。"
             )
         else:
             QMessageBox.critical(self, "安装失败", msg)
