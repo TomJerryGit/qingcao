@@ -339,6 +339,9 @@ def _isolated_qsettings(tmp_path_factory):
     import os as _os
     _os.environ["QINGCAO_SESSION_FILE"] = str(base / "session.json")
     _os.environ["QINGCAO_SESSION_BACKUP_DIR"] = str(base / "backups")
+    _sandbox_dir = base / "sandbox_plugins"
+    _sandbox_dir.mkdir(parents=True, exist_ok=True)
+    _os.environ["QINGCAO_SANDBOX_PLUGIN_DIR"] = str(_sandbox_dir)
     old_format = QSettings.defaultFormat()
     QSettings.setDefaultFormat(QSettings.IniFormat)
     QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,

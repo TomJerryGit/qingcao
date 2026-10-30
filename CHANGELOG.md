@@ -6,6 +6,9 @@
 
 ### 新增
 
+- 插件签名工具 `tools/sign_plugin.py`（keygen/sign/verify）与密钥轮换/吊销手册 `docs/plugin_market_key_rotation_playbook.md`；
+- 新增只读沙箱插件 `whitespace_sandbox`（行尾空白/Tab/超长行诊断）；
+- 主题 E2E 基线对比 `--check` 纳入 CI（像素差异阈值 24）；
 - 多主题 E2E 截图基线：`tools/theme_e2e_screenshots.py`（dark/light/eye/high_contrast 主窗口+插件面板，产物 docs/theme_baseline/）；
 - 问题面板支持按沙箱插件来源动态过滤（插件: sandbox:<name>）；
 - 测试分片数自适应（按 CPU 数 2~4 片），CI 使用 `--auto-shards`；

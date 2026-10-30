@@ -97,6 +97,14 @@ jobs:
           python tools/bench_optimization.py --check --auto --factor 3.0
           if ($LASTEXITCODE -ne 0) { throw "performance gate failed" }
 
+      - name: Theme baseline check
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python tools/theme_e2e_screenshots.py --check
+          if ($LASTEXITCODE -ne 0) { throw "theme baseline check failed" }
+
       - name: Full test suite
         shell: powershell
         run: |
