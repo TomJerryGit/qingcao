@@ -14,6 +14,12 @@
    - 使用 `hmac.compare_digest` 常量时间比较。
 3. 解压前完成上述校验（`PluginStoreClient.install_plugin`）。
 
+2b. **Ed25519 非对称签名**（v2.16）
+   - 公钥：`QINGCAO_PLUGIN_PUBKEYS`（hex/base64，逗号分隔，支持轮换）；
+   - 吊销：`QINGCAO_PLUGIN_REVOKED`（插件名列表）；
+   - 签名算法：Ed25519（`cryptography`），失败回退 HMAC；
+   - 入口：`core/plugin_signature.py::verify_ed25519`。
+
 ## 代码入口
 
 - `ui/plugin_store.py::verify_plugin_signature`

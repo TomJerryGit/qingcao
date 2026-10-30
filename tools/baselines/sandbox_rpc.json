@@ -1,0 +1,28 @@
+{
+  "allowed": [
+    "add_ignore_word",
+    "completion",
+    "config_apply",
+    "config_schema",
+    "describe",
+    "diagnostics",
+    "hover",
+    "invoke_menu",
+    "menu_items",
+    "status_text",
+    "symbols"
+  ],
+  "handlers": [
+    "add_ignore_word",
+    "completion",
+    "config_apply",
+    "config_schema",
+    "describe",
+    "diagnostics",
+    "hover",
+    "invoke_menu",
+    "menu_items",
+    "status_text",
+    "symbols"
+  ]
+}

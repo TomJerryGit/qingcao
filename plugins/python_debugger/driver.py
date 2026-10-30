@@ -424,17 +424,28 @@ _BLOCKED_NAMES = frozenset({
 })
 
 
+def _eval_mode() -> str:
+    """求值模式：restricted（默认）| developer（v2.16 可配置）"""
+    return (os.environ.get("QINGCAO_DEBUGGER_EVAL_MODE", "restricted")
+            or "restricted").strip().lower()
+
+
 def _safe_eval(expression, globals_, locals_):
-    """受限表达式求值：拒绝 dunder/危险内建，异常返回可读文本。"""
+    """受限表达式求值：拒绝 dunder/危险内建，异常返回可读文本。
+
+    QINGCAO_DEBUGGER_EVAL_MODE=developer 时仅保留 dunder 防护。
+    """
     import ast
 
+    developer = _eval_mode() == "developer"
+    blocked = frozenset() if developer else _BLOCKED_NAMES
     try:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as e:
         return "<syntax error: %s>" % e
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
-            if node.id.startswith("__") or node.id in _BLOCKED_NAMES:
+            if node.id.startswith("__") or node.id in blocked:
                 return "<blocked: %s>" % node.id
         elif isinstance(node, ast.Attribute):
             if node.attr.startswith("__"):

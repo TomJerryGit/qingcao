@@ -209,18 +209,18 @@ def plugin_bytes_sha256(data: bytes) -> str:
 
 def verify_plugin_signature(data: bytes, expected_hash: str = "",
                             signature: str = "",
+                            signature_algo: str = "",
                             key_env: str = "QINGCAO_PLUGIN_SIGNING_KEY"
                             ) -> Tuple[bool, str]:
-    """校验插件包完整性/签名（v2.15.x P3）
-
-    - expected_hash：SHA256 校验和（注册表提供）；
-    - signature：HMAC-SHA256(sha256_hex) 签名，密钥来自环境变量；
-      未配置密钥时**拒绝**带签名的安装（fail closed）。
-    """
+    """校验插件包完整性/签名（v2.16：SHA256 + HMAC/Ed25519，fail closed）"""
     actual = plugin_bytes_sha256(data)
     if expected_hash and actual.lower() != expected_hash.lower():
         return (False, "文件哈希校验失败")
     if signature:
+        algo = (signature_algo or "").lower()
+        if algo == "ed25519":
+            from core.plugin_signature import verify_ed25519
+            return verify_ed25519(data, signature)
         import hmac
         key = os.environ.get(key_env, "")
         if not key:
@@ -232,6 +232,22 @@ def verify_plugin_signature(data: bytes, expected_hash: str = "",
             return (False, "签名校验失败")
     return (True, "ok")
 
+
+def plugin_signature_status(info) -> str:
+    """市场 UI 用：插件安全状态文本（v2.16）"""
+    try:
+        from core.plugin_signature import is_revoked
+        if is_revoked(getattr(info, "name", "")):
+            return "已吊销"
+    except Exception:
+        pass
+    algo = (getattr(info, "signature_algo", "") or "").lower()
+    if not getattr(info, "signature", ""):
+        return "未签名（仅 SHA256 校验和）" if getattr(info, "file_hash", "") \
+            else "无签名"
+    if algo == "ed25519":
+        return "Ed25519 签名"
+    return "HMAC 签名"
 
 def build_market_catalog(plugin_root: str) -> Dict[str, Any]:
     """从本地插件 manifest 构建市场目录（v2.15 离线 MVP）"""
@@ -325,7 +341,8 @@ class PluginInfo:
     download_url: str = ""                  # 下载地址
     update_url: str = ""                    # 更新检测地址
     file_hash: str = ""                     # 文件哈希（SHA256）
-    signature: str = ""                     # HMAC 签名（可选）
+    signature: str = ""                     # 签名（HMAC/Ed25519）
+    signature_algo: str = ""                # 签名算法（hmac/ed25519）
     file_size: int = 0                      # 文件大小
 
     # 依赖
@@ -827,7 +844,8 @@ class PluginStoreClient:
 
                 ok, msg = verify_plugin_signature(
                     data, info.file_hash,
-                    getattr(info, "signature", ""))
+                    getattr(info, "signature", ""),
+                    getattr(info, "signature_algo", ""))
                 if not ok:
                     return (False, msg)
 
@@ -1644,6 +1662,12 @@ class PluginDetailDialog(QDialog):
     def _build_html(self) -> str:
         """构建详情 HTML"""
         html_parts = []
+
+        try:
+            _sec = plugin_signature_status(self.info)
+            html_parts.append(f"<p>安全状态: <b>{_sec}</b></p>")
+        except Exception:
+            pass
 
         html_parts.append("<style>")
         html_parts.append("""

@@ -83,10 +83,50 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strict", action="store_true")
     ap.add_argument("--json", default="")
+    ap.add_argument("--baseline", default="")
+    ap.add_argument("--update-baseline", action="store_true")
     args = ap.parse_args()
     result = audit_sets(_allowed_methods(), _worker_handlers(),
                         _manager_proxies())
     result["ok"] = not (result["missing_handler"] or result["unlisted_handler"])
+    base_problem = []
+    if args.baseline:
+        try:
+            import json as _json
+            base = _json.load(io.open(args.baseline, encoding="utf-8"))
+            base_allowed = set(base.get("allowed") or [])
+            added = sorted(set(result["allowed"]) - base_allowed)
+            removed = sorted(base_allowed - set(result["allowed"]))
+            if added or removed:
+                base_problem = ["白名单变更未更新基线（新增=%s 移除=%s）"
+                                % (added, removed)]
+                if args.update_baseline:
+                    result_write = {"allowed": result["allowed"],
+                                    "handlers": result["handlers"]}
+                    import json as _json2
+                    io.open(args.baseline, "w", encoding="utf-8",
+                            newline="\n").write(
+                        _json2.dumps(result_write, ensure_ascii=False,
+                                     indent=2))
+                    print("  基线已更新:", args.baseline)
+                    base_problem = []
+        except FileNotFoundError:
+            if args.update_baseline:
+                import json as _json
+                io.open(args.baseline, "w", encoding="utf-8",
+                        newline="\n").write(
+                    _json.dumps({"allowed": result["allowed"],
+                                 "handlers": result["handlers"]},
+                                ensure_ascii=False, indent=2))
+                print("  基线已创建:", args.baseline)
+            else:
+                base_problem = ["基线文件不存在: %s" % args.baseline]
+        except Exception as e:
+            base_problem = ["基线读取失败: %s" % e]
+    if base_problem:
+        for msg in base_problem:
+            print("  [baseline]", msg)
+        result["ok"] = False
     print("[sandbox-rpc] 白名单 %d 个方法" % len(result["allowed"]))
     if result["missing_handler"]:
         print("  缺少 handler:", result["missing_handler"])

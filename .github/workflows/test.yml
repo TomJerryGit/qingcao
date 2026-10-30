@@ -73,7 +73,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          python tools/audit_sandbox_rpc.py --strict
+          python tools/audit_sandbox_rpc.py --strict --baseline tools/baselines/sandbox_rpc.json
           if ($LASTEXITCODE -ne 0) { throw "sandbox rpc audit failed" }
 
       - name: Plugin market metadata

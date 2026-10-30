@@ -2,6 +2,13 @@
 
 （下一版本开发中）
 
+### 新增
+
+- Ed25519 非对称签名：公钥可配置（QINGCAO_PLUGIN_PUBKEYS，支持轮换）+ 吊销名单（QINGCAO_PLUGIN_REVOKED），HMAC 回退；
+- 插件市场详情展示签名安全状态（未签名/SHA256/HMAC/Ed25519/已吊销）；
+- 沙箱 RPC 审计基线版本化（tools/baselines/sandbox_rpc.json），CI 比对白名单变更；
+- 调试器求值模式可配置（QINGCAO_DEBUGGER_EVAL_MODE=restricted/developer）。
+
 ## [2.15.1] - 2026-10-30
 
 ### 新增
