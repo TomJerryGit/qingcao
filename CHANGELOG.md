@@ -2,6 +2,8 @@
 
 （下一版本开发中）
 
+## [2.16.0] - 2026-10-30
+
 ### 新增
 
 - 多主题 E2E 截图基线：`tools/theme_e2e_screenshots.py`（dark/light/eye/high_contrast 主窗口+插件面板，产物 docs/theme_baseline/）；

@@ -4,7 +4,7 @@
 
 轻量 · 极速 · 可扩展的跨平台代码编辑器。基于 **PyQt5** + **QScintilla** 构建，内置 LSP、插件系统、AI 助手、宏录制等现代化功能。
 
-[![Version](https://img.shields.io/badge/version-2.15.1-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-2.16.0-brightgreen.svg)](#)
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](#)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -96,9 +96,9 @@
 
 前往 [Releases](https://github.com/qingcao-editor/qingcao/releases) 下载对应平台的安装包：
 
-- **Windows**：`QingCaoEditor_Setup_v2.15.1.exe`
-- **macOS**：`QingCaoEditor_v2.15.1.dmg`
-- **Linux**：`QingCaoEditor_v2.15.1_linux_x64.tar.gz` 或 `.deb`
+- **Windows**：`QingCaoEditor_Setup_v2.16.0.exe`
+- **macOS**：`QingCaoEditor_v2.16.0.dmg`
+- **Linux**：`QingCaoEditor_v2.16.0_linux_x64.tar.gz` 或 `.deb`
 
 ### 方式二：从源码运行（推荐开发者）
 
