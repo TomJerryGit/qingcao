@@ -32,7 +32,7 @@ v2.18.0 从"本地工程化"走向"可分发、可维护、可真机验证"：
 
 ## 三、P1（v2.18.0 必做）
 
-### 1. 插件市场在线服务化 MVP
+### 1. 插件市场在线服务化 MVP（✅ 已实现：注册表服务/签名发布/端到端验证）
 - 本地/内网**注册表服务**（静态 JSON + HTTP，可选 Flask/FastAPI 或 http.server）；
 - 注册表生成工具：扫描本地插件 → 生成 market catalog（含 file_hash/signature/signature_algo）；
 - **签名发布脚本**：`sign_plugin.py` 接入发布流程，输出 SHA256 + Ed25519 签名；
