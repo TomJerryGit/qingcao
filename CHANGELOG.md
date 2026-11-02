@@ -2,6 +2,8 @@
 
 （下一版本开发中）
 
+## [2.18.1] - 2026-11-02
+
 ### 新增
 
 - 真机验证模拟：DPI 缩放矩阵工具（1.0~2.0 通过）+ UI Automation 可访问性树检查（65/65 命名，NVDA 替代）+ 结果文档 `docs/manual_validation_results_v2.18.md`；
