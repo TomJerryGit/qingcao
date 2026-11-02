@@ -91,12 +91,12 @@ def test_recover_pending_journal(tmp_path, monkeypatch):
     target = tmp_path / "recover_me.txt"
     original = b"original content\n"
     target.write_bytes(b"half written")
-    jpath = jdir / "recover_me.txt.123.journal"
-    jpath.write_bytes(original)
     monkeypatch.setenv("QINGCAO_EDIT_JOURNAL_DIR", str(jdir))
+    jpath = m._write_journal(str(target), original,
+                             [(0, len(original))])
     assert m.recover_pending_journals(str(tmp_path)) == 1
     assert target.read_bytes() == original
-    assert not jpath.exists()
+    assert not os.path.exists(jpath)
 
 
 def test_document_and_main_wiring_static():

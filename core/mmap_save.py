@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
-"""mmap 增量保存（v2.19 M1）：等长字节替换 + journal 备份/恢复
+"""mmap 增量保存（v2.19 M1）：等长字节替换 + 区间级 journal 备份/恢复
 
 默认关闭（灰度）：
     环境变量 QINGCAO_MMAP_SAVE=1 或 QSettings("QingCao","Editor")
     .mmap_incremental_save = true 时启用；
     QINGCAO_MMAP_SAVE_MIN_MB 可覆盖最小文件阈值（默认 10MB，测试用）。
 """
-import hashlib
 import io
 import os
-import shutil
+import struct
 import time
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_MIN_MB = 10.0
 JOURNAL_REL = os.path.join("data", "edit_journal")
+MAGIC = b"QCJ1"
+_CHUNK = 1 << 16
 
 
 def min_bytes():
@@ -40,52 +41,100 @@ def enabled():
 
 
 def journal_dir():
-    path = os.environ.get("QINGCAO_EDIT_JOURNAL_DIR") or os.path.join(
+    return os.environ.get("QINGCAO_EDIT_JOURNAL_DIR") or os.path.join(
         ROOT, JOURNAL_REL)
-    return path
 
 
-def newline_positions(data: bytes):
-    return [i for i, b in enumerate(data) if b == 10]
-
-
-def can_incremental_save(old: bytes, new: bytes,
-                         min_size: int = None) -> bool:
-    """等长且换行位置一致才可原地补丁（保证行结构不变）"""
-    if min_size is None:
-        min_size = min_bytes()
-    if len(old) != len(new) or len(old) < min_size:
-        return False
-    if old.count(b"\n") != new.count(b"\n"):
-        return False
-    if newline_positions(old) != newline_positions(new):
-        return False
-    return True
-
-
-def diff_spans(old: bytes, new: bytes, chunk=1 << 20):
-    """返回 [(start, end)] 差异区间；按块比较，避免逐字节 Python 循环"""
+def diff_spans(old: bytes, new: bytes, chunk: int = _CHUNK):
+    """返回 [(start, end)] 差异区间（按 64KB 块比较，避免逐字节循环）"""
+    if old == new:
+        return []
     spans = []
     n = len(old)
     pos = 0
     while pos < n:
         end = min(pos + chunk, n)
         if old[pos:end] != new[pos:end]:
-            sub = memoryview(new)[pos:end]
-            first = next(i for i in range(len(sub)) if old[pos + i] != sub[i])
-            last = len(sub) - 1
-            while last > first and old[pos + last] == sub[last]:
-                last -= 1
-            spans.append((pos + first, pos + last + 1))
+            # 在块内找首/尾差异，减少 Python 循环
+            lo = pos
+            hi = end
+            a = old
+            b = new
+            while lo < hi and a[lo] == b[lo]:
+                lo += 1
+            while hi > lo and a[hi - 1] == b[hi - 1]:
+                hi -= 1
+            spans.append((lo, hi))
         pos = end
     return spans
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def plan_incremental_save(old: bytes, new: bytes, min_size: int = None):
+    """规划等长补丁：返回 spans 或 None（行结构必须不变）"""
+    if min_size is None:
+        min_size = min_bytes()
+    if len(old) != len(new) or len(old) < min_size:
+        return None
+    if old.count(b"\n") != new.count(b"\n"):
+        return None
+    spans = diff_spans(old, new)
+    for start, end in spans:
+        # 差异区间不得改变换行符位置（否则行结构变化）
+        if b"\n" in old[start:end] or b"\n" in new[start:end]:
+            return None
+    return spans
 
 
-def _apply_patch(path: str, old: bytes, new: bytes, spans):
+def can_incremental_save(old: bytes, new: bytes,
+                         min_size: int = None) -> bool:
+    return plan_incremental_save(old, new, min_size) is not None
+
+
+def _write_journal(path: str, old: bytes, spans) -> str:
+    """只记录差异区间的旧字节（小 journal，崩溃可恢复）"""
+    d = journal_dir()
+    os.makedirs(d, exist_ok=True)
+    jpath = os.path.join(
+        d, "%s.%d.journal" % (os.path.basename(path), int(time.time() * 1000)))
+    buf = bytearray()
+    buf += MAGIC
+    buf += struct.pack("<I", len(spans))
+    for start, end in spans:
+        buf += struct.pack("<QI", start, end - start)
+        buf += old[start:end]
+    with io.open(jpath, "wb") as f:
+        f.write(buf)
+        f.flush()
+        os.fsync(f.fileno())
+    return jpath
+
+
+def _read_journal(jpath: str):
+    data = io.open(jpath, "rb").read()
+    if not data.startswith(MAGIC):
+        return None
+    pos = len(MAGIC)
+    (count,) = struct.unpack_from("<I", data, pos)
+    pos += 4
+    records = []
+    for _ in range(count):
+        start, length = struct.unpack_from("<QI", data, pos)
+        pos += 12
+        records.append((start, data[pos:pos + length]))
+        pos += length
+    return records
+
+
+def _restore_records(target: str, records):
+    with io.open(target, "r+b") as f:
+        for start, old_bytes in records:
+            f.seek(start)
+            f.write(old_bytes)
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _apply_patch(path: str, new: bytes, spans):
     import mmap
     with io.open(path, "r+b") as f:
         mm = mmap.mmap(f.fileno(), 0)
@@ -97,47 +146,45 @@ def _apply_patch(path: str, old: bytes, new: bytes, spans):
             mm.close()
 
 
-def _write_journal(path: str, old: bytes) -> str:
-    d = journal_dir()
-    os.makedirs(d, exist_ok=True)
-    jpath = os.path.join(
-        d, "%s.%d.journal" % (os.path.basename(path), int(time.time() * 1000)))
-    with io.open(jpath, "wb") as f:
-        f.write(old)
-        f.flush()
-        os.fsync(f.fileno())
-    return jpath
+def _verify_patch(path: str, new: bytes, spans) -> bool:
+    size = os.path.getsize(path)
+    if size != len(new):
+        return False
+    with io.open(path, "rb") as f:
+        for start, end in spans:
+            f.seek(start)
+            if f.read(end - start) != new[start:end]:
+                return False
+    return True
 
 
 def maybe_incremental_save(target: str, new_bytes: bytes,
                            clear_dirty=None):
     """尝试 mmap 增量保存。
 
-    返回 True  → 已增量保存（调用方应跳过全量写盘）
+    返回 True  → 已增量保存（调用方跳过全量写盘）
     返回 None  → 不满足条件/失败，调用方回退全量保存
     """
-    if not enabled():
-        return None
-    if not target or not os.path.isfile(target):
+    if not enabled() or not target or not os.path.isfile(target):
         return None
     try:
         old = io.open(target, "rb").read()
     except Exception:
         return None
-    if not can_incremental_save(old, new_bytes):
+    spans = plan_incremental_save(old, new_bytes)
+    if spans is None:
         return None
-    if _sha256(old) == _sha256(new_bytes):
+    if not spans:
         try:
             if clear_dirty:
                 clear_dirty()
         except Exception:
             pass
         return True
-    jpath = _write_journal(target, old)
+    jpath = _write_journal(target, old, spans)
     try:
-        spans = diff_spans(old, new_bytes)
-        _apply_patch(target, old, new_bytes, spans)
-        if _sha256(io.open(target, "rb").read()) != _sha256(new_bytes):
+        _apply_patch(target, new_bytes, spans)
+        if not _verify_patch(target, new_bytes, spans):
             raise OSError("mmap 校验失败")
         try:
             if clear_dirty:
@@ -152,8 +199,12 @@ def maybe_incremental_save(target: str, new_bytes: bytes,
     except Exception as e:
         print(f"[mmap-save] 增量保存失败，回退全量: {e}")
         try:
-            with io.open(target, "wb") as f:
-                f.write(old)
+            records = _read_journal(jpath)
+            if records:
+                _restore_records(target, records)
+            else:
+                with io.open(target, "wb") as f:
+                    f.write(old)
         except Exception as restore_err:
             print(f"[mmap-save] journal 恢复失败: {restore_err}")
         try:
@@ -172,16 +223,22 @@ def pending_journals():
 
 
 def recover_journal(journal_path: str, repo_root: str = None):
-    """从 journal 恢复原文件（journal 名格式: <basename>.<ts>.journal）"""
+    """从 journal 恢复原文件（文件名格式: <basename>.<ts>.journal）"""
     name = os.path.basename(journal_path)
-    base = name.rsplit(".", 2)[0]   # 去掉 .<ts>.journal
+    base = name.rsplit(".", 2)[0]
     root = repo_root or ROOT
     target = os.path.join(root, base)
     if not os.path.exists(target):
         print(f"[mmap-save] 恢复跳过（目标不存在）: {target}")
         return False
-    with io.open(journal_path, "rb") as f:
-        shutil.copyfileobj(f, io.open(target, "wb"))
+    records = _read_journal(journal_path)
+    if records is None:
+        # 兼容旧版全文 journal
+        import shutil
+        with io.open(journal_path, "rb") as f, io.open(target, "wb") as out:
+            shutil.copyfileobj(f, out)
+    else:
+        _restore_records(target, records)
     os.remove(journal_path)
     print(f"[mmap-save] 已从 journal 恢复: {target}")
     return True
