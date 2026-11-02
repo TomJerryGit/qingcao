@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """P1 配置代理第3步：设置 UI + 启动下发"""
 import os
@@ -54,8 +57,7 @@ def test_apply_sandbox_configs_on_start(qapp):
 
 
 def test_settings_ui_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "open_sandbox_plugin_settings" in src
     assert "_apply_sandbox_configs" in src
     assert "插件设置" in src

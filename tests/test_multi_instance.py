@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """多实例：--new-window 解析、设置目录与会话文件隔离"""
 import importlib.util
@@ -62,8 +65,7 @@ def test_cleanup_stale_instance_dirs(tmp_path):
 def test_remote_open_shows_status():
     import os
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(root, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "其它实例已打开" in src
 
 
@@ -88,8 +90,7 @@ def test_single_instance_focus_wired():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     main_src = open(os.path.join(root, "main.py"),
                     encoding="utf-8").read()
-    win_src = open(os.path.join(root, "ui", "main_window.py"),
-                   encoding="utf-8").read()
+    win_src = read_main_ui_source()
     assert "try_focus_existing" in main_src
     assert "MAX_NEW_WINDOW_INSTANCES" in main_src
     assert "_on_focus_requested" in win_src

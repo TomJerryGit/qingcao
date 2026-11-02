@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.13.0 P0：高对比度自动适配"""
 import os
@@ -70,8 +73,7 @@ def test_respects_follow_off(qapp):
 def test_startup_wired_static():
     src = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
     assert "apply_high_contrast_if_needed" in src
-    win_src = open(os.path.join(ROOT, "ui", "main_window.py"),
-                   encoding="utf-8").read()
+    win_src = read_main_ui_source()
     assert "_follow_system_high_contrast" in win_src
     assert "跟随系统高对比度" in win_src
 

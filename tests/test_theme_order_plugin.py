@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.14.1：插件面板主题冒烟与顺序修复"""
 import os
@@ -8,8 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_theme_apply_order_adapt_before_notify():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     i_adapt = src.find("adapt_widget_styles(self, theme)")
     i_notify = src.find("loader.notify_widgets(self, theme)")
     assert i_adapt != -1 and i_notify != -1

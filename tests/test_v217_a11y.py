@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.17 无障碍深化：名称/缩放/焦点环/键盘审计"""
 import os
@@ -61,8 +64,7 @@ def test_keyboard_audit_strict_pass():
 def test_a11y_wiring_and_docs():
     main = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
     assert "apply_accessibility_settings" in main
-    win = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    win = read_main_ui_source()
     assert "focus_ring_qss" in win
     prefs = open(os.path.join(ROOT, "ui", "preferences_panel.py"),
                  encoding="utf-8").read()

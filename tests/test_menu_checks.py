@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """菜单选中对号 + 主题切换 UnboundLocalError 回归测试"""
 import os
@@ -17,8 +20,7 @@ def _close(win):
 
 
 def test_theme_switch_imports_qapplication_first():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     i = src.index("def _apply_theme_by_name")
     fn = src[i:i + 1200]
     imp = fn.index("from PyQt5.QtWidgets import QApplication")

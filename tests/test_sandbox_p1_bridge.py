@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.12.0 P1：沙箱 spell 菜单/状态/配置广播"""
 import os
@@ -100,8 +103,7 @@ def test_remote_config_handler(qapp, tmp_path):
 
 
 def test_status_and_config_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "_refresh_sandbox_status" in src
     assert "_on_remote_config_changed" in src
     assert "notify_config_changed" in src

@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """P0：多实例保存广播（hub/client 中继）"""
 import os
@@ -100,8 +103,7 @@ def test_notify_file_event_safe():
 def test_tab_hooks_wired():
     import os
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(root, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "notify_file_event" in src
     assert "_on_remote_file_closed" in src
     assert "_on_local_tab_opened" in src

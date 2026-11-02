@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.12.0 P0：多实例冲突检测 + 重复事件抑制"""
 import os
@@ -96,7 +99,6 @@ def test_duplicate_open_event_suppressed(qapp, tmp_path):
 
 
 def test_conflict_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "_last_remote_conflict" in src
     assert "保存冲突" in src

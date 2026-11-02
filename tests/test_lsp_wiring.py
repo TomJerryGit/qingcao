@@ -32,6 +32,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 源码工具（AST，不看注释与字符串）
 # ============================================================
 def read_source(relpath):
+    if str(relpath).replace("\\", "/").endswith("ui/main_window.py"):
+        from ui_source_utils import read_main_ui_source
+        return read_main_ui_source()
     with open(os.path.join(ROOT, relpath), encoding="utf-8") as f:
         return f.read()
 

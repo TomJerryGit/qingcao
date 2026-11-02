@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """P1 第2步：沙箱菜单规格收集（数据层）"""
 
@@ -47,7 +50,6 @@ def test_collect_menu_specs_empty_and_none():
 def test_main_window_has_data_layer():
     import os
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(root, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "_sandbox_menu_specs" in src
     assert "collect_menu_specs" in src

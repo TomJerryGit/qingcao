@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.17 大文件性能：模式/阈值/基准"""
 import importlib.util
@@ -66,8 +69,7 @@ def test_wiring_and_bench():
     tabs = open(os.path.join(ROOT, "app", "tabs.py"),
                 encoding="utf-8").read()
     assert "apply_large_file_mode" in tabs
-    win = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    win = read_main_ui_source()
     assert "_live_diag_limit" in win
     bench = open(os.path.join(ROOT, "tools", "bench_optimization.py"),
                  encoding="utf-8").read()

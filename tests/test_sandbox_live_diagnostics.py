@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.11.0 P1：实时沙箱诊断"""
 import os
@@ -73,8 +76,7 @@ def test_live_diagnostics_enabled_runs_after_debounce(qapp, tmp_path):
 
 
 def test_live_diagnostics_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "_schedule_sandbox_diagnostics" in src
     assert "_run_live_sandbox_diagnostics" in src
     assert "实时沙箱诊断" in src

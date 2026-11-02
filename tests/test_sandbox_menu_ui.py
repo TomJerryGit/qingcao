@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """P1 第3步：沙箱插件菜单 UI"""
 import os
@@ -71,8 +74,7 @@ def test_refresh_menu_without_plugins(qapp):
 
 
 def test_ui_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "refresh_sandbox_plugin_menus" in src
     assert "_invoke_sandbox_menu" in src
     assert "插件菜单" in src

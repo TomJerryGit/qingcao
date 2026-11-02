@@ -1,3 +1,6 @@
+from ui_source_utils import read_main_ui_source
+
+
 # -*- coding: utf-8 -*-
 """v2.11.0 P0：沙箱配置热更新"""
 import os
@@ -67,7 +70,6 @@ def test_config_saved_hot_apply(qapp, tmp_path):
 
 
 def test_hot_update_wired_static():
-    src = open(os.path.join(ROOT, "ui", "main_window.py"),
-               encoding="utf-8").read()
+    src = read_main_ui_source()
     assert "_sandbox_config_saved" in src
     assert "run_sandboxed_diagnostics" in src
