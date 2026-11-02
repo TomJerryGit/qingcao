@@ -2732,7 +2732,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
             try:
                 proxy = self.tabs.current_proxy()
                 text = proxy.get_text() if proxy is not None else ""
-                if len(text) > self.MAX_LIVE_DIAGNOSTICS_BYTES:
+                if len(text) > self._live_diag_limit():
                     if not getattr(self, "_live_diag_skip_notified",
                                    False):
                         self._live_diag_skip_notified = True
@@ -3220,6 +3220,14 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         except Exception:
             pass
 
+    def _live_diag_limit(self) -> int:
+        """实时沙箱诊断大文件阈值（可配置，v2.17）"""
+        try:
+            from core.large_file import live_diagnostics_limit_bytes
+            return live_diagnostics_limit_bytes()
+        except Exception:
+            return self.MAX_LIVE_DIAGNOSTICS_BYTES
+
     def _on_peer_versions_changed(self, versions):
         """多实例协议版本协商结果（v2.15.x）"""
         try:
@@ -3437,7 +3445,7 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
         sources = {"sandbox:%s" % n for n in plugins}
         total = 0
         for fp, text in targets:
-            if len(text) > self.MAX_LIVE_DIAGNOSTICS_BYTES:
+            if len(text) > self._live_diag_limit():
                 continue
             try:
                 existing = list(manager.get_for_file(fp) or [])

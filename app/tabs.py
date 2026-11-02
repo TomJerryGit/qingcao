@@ -511,6 +511,15 @@ class TabManager(QTabWidget):
 
                 editor = EditorWidget(provider=provider)
 
+                # 大文件模式：加载前关闭折叠/彩虹缩进等高开销特性（v2.17）
+                try:
+                    from core.large_file import apply_large_file_mode, is_huge_file, is_large_file
+                    if is_large_file(filepath):
+                        apply_large_file_mode(
+                            editor, huge=is_huge_file(filepath))
+                except Exception:
+                    pass
+
                 # 打开文件（加载内容）
                 try:
                     editor.proxy.open_file(filepath)

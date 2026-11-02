@@ -68,6 +68,7 @@ THRESHOLDS = {
     "typing_2000": 0.20,   # C 第二阶段后实测 ~0.114s（57µs/键）；目标 <0.20s 已达标
     "open_1mb": 1.2,
     "open_10mb": 1.5,
+    "open_50mb": 3.0,    # 实测 1.46s（50MB/3M 行，大文件模式）
     "open_py_2mb": 1.5,
     "session_save": 0.4,
     "theme_notify": 0.8,
@@ -282,6 +283,10 @@ def main():
         with open(big_txt, "wb") as f:
             f.write(b"hello world 12345\n" * 580_000)
         cases.append(("open_10mb", big_txt, 580_001))
+        huge_txt = os.path.join(tmp, "huge.txt")
+        with open(huge_txt, "wb") as f:
+            f.write(b"hello world 12345\n" * 3_000_000)
+        cases.append(("open_50mb", huge_txt, 3_000_001))
         mid_txt = os.path.join(tmp, "mid.txt")
         with open(mid_txt, "wb") as f:
             f.write(b"hello world 12345\n" * 55_000)
@@ -290,10 +295,27 @@ def main():
         with open(big_py, "wb") as f:
             f.write(b"def a():\n    return 1\n" * 250_000)
         cases.append(("open_py_2mb", big_py, 500_001))
+        def _wait_loaded(limit=180.0):
+            ed = win.tabs.widget(0)
+            proxy = getattr(ed, "proxy", None)
+            deadline = time.time() + limit
+            while time.time() < deadline:
+                app.processEvents()
+                cur = getattr(proxy, "_load_cursor", 0)
+                tot = getattr(proxy, "_load_total", 0)
+                if not tot or cur >= tot:
+                    return
+                time.sleep(0.005)
+
+        def _open_and_wait(p):
+            pr = win.tabs.open_file(p)
+            _wait_loaded()
+            return pr
+
         for name, path, expect_lines in cases:
             while win.tabs.count():
                 win.tabs.close_tab(0)
-            pr = measure(name, lambda p=path: win.tabs.open_file(p))
+            pr = measure(name, lambda p=path: _open_and_wait(p))
             app.processEvents()
             lines = pr.sc.lines() if pr is not None else -1
             print("    行数=%d（期望 %d）%s"
