@@ -496,6 +496,11 @@ class PluginStoreClient:
         self.themes_dir = THEMES_DIR
         self.cache_dir = CACHE_DIR
 
+        # 鉴权/TLS（v2.18.x P3）
+        self.registry_token = os.environ.get("QINGCAO_REGISTRY_TOKEN", "")
+        self.verify_tls = os.environ.get(
+            "QINGCAO_REGISTRY_VERIFY_TLS", "1") != "0"
+
         # 缓存
         self._registry_cache: Optional[Dict[str, Any]] = None
         self._registry_cache_time: float = 0.0
@@ -574,17 +579,34 @@ class PluginStoreClient:
 
         return None
 
+    def _registry_headers(self) -> Dict[str, str]:
+        """注册表请求头（Token 鉴权，v2.18.x P3）"""
+        token = self.registry_token or os.environ.get(
+            "QINGCAO_REGISTRY_TOKEN", "")
+        if not token:
+            try:
+                from PyQt5.QtCore import QSettings
+                token = QSettings("QingCao", "Editor").value(
+                    "registry_token", "", type=str) or ""
+            except Exception:
+                token = ""
+        return {"Authorization": "Bearer %s" % token} if token else {}
+
     def _download_json(self, url: str) -> Optional[Dict[str, Any]]:
         """下载 JSON"""
         try:
             import requests
-            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT)
+            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT,
+                                headers=self._registry_headers(),
+                                verify=self.verify_tls)
             if resp.status_code == 200:
                 return resp.json()
         except ImportError:
             # 使用 urllib 回退
             import urllib.request
-            with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as f:
+            _req = urllib.request.Request(
+                url, headers=self._registry_headers())
+            with urllib.request.urlopen(_req, timeout=DOWNLOAD_TIMEOUT) as f:
                 return json.loads(f.read().decode('utf-8'))
         except Exception as e:
             print(f"[PluginStore] 下载失败: {e}")
@@ -1138,7 +1160,9 @@ class PluginStoreClient:
         """下载字节数据"""
         try:
             import requests
-            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True)
+            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT,
+                                headers=self._registry_headers(),
+                                verify=self.verify_tls, stream=True)
             if resp.status_code != 200:
                 return None
 
@@ -1152,7 +1176,9 @@ class PluginStoreClient:
         except ImportError:
             import urllib.request
             try:
-                with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as f:
+                _req = urllib.request.Request(
+                    url, headers=self._registry_headers())
+                with urllib.request.urlopen(_req, timeout=DOWNLOAD_TIMEOUT) as f:
                     return f.read()
             except Exception:
                 return None

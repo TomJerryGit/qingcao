@@ -2,6 +2,12 @@
 
 （下一版本开发中）
 
+### 新增
+
+- 插件市场安全增强：注册表服务 Token 鉴权（Bearer）+ HTTPS（证书/私钥）；客户端支持 `QINGCAO_REGISTRY_TOKEN` 与 TLS 校验开关；
+- mmap 增量编辑预研：`tools/bench_mmap_edit.py`（24MB 文件 7.7× 加速）+ 设计文档 `docs/mmap_incremental_edit_design.md`；
+- i18n 脚手架：`core/i18n_json.py`（JSON 翻译映射/安全回退）+ `tools/extract_i18n_strings.py`（已提取 5218 条中文串）+ 迁移计划。
+
 ## [2.18.0] - 2026-11-02
 
 ### 规划

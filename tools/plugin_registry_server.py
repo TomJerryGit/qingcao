@@ -23,6 +23,22 @@ if ROOT not in sys.path:
 
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
+    token = ""
+
+    def _authorized(self):
+        if not self.token:
+            return True
+        import hmac
+        auth = self.headers.get("Authorization", "")
+        expected = "Bearer %s" % self.token
+        return hmac.compare_digest(auth, expected)
+
+    def do_GET(self):
+        if not self._authorized():
+            self.send_error(401, "Unauthorized")
+            return
+        super().do_GET()
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -32,9 +48,18 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-def make_server(registry_dir, host="127.0.0.1", port=8765):
-    handler = functools.partial(_Handler, directory=os.path.abspath(registry_dir))
-    return http.server.ThreadingHTTPServer((host, port), handler)
+def make_server(registry_dir, host="127.0.0.1", port=8765,
+                token="", certfile="", keyfile=""):
+    handler_cls = type("Handler", (_Handler,), {"token": token or ""})
+    handler = functools.partial(handler_cls,
+                                directory=os.path.abspath(registry_dir))
+    srv = http.server.ThreadingHTTPServer((host, port), handler)
+    if certfile and keyfile:
+        import ssl
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile, keyfile)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+    return srv
 
 
 def check_registry(registry_dir):
@@ -64,6 +89,9 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--token", default="")
+    ap.add_argument("--cert", default="")
+    ap.add_argument("--key", default="")
     args = ap.parse_args()
     registry_dir = args.registry if os.path.isabs(args.registry) \
         else os.path.join(ROOT, args.registry)
@@ -71,7 +99,9 @@ def main():
         ok, msg = check_registry(registry_dir)
         print("[registry-server] " + msg)
         return 0 if ok else 1
-    srv = make_server(registry_dir, args.host, args.port)
+    srv = make_server(registry_dir, args.host, args.port,
+                      token=args.token, certfile=args.cert,
+                      keyfile=args.key)
     print("[registry-server] http://%s:%d/registry.json（Ctrl+C 停止）"
           % (args.host, args.port))
     try:
