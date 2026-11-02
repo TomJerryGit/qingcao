@@ -10,6 +10,9 @@
 
 ### 新增
 
+- mmap 增量保存（M1）：大文件等长修改走原地补丁 + journal 备份 + 崩溃恢复 + 默认关闭灰度（`core/mmap_save.py`）；
+  50MB 文件单行保存实测 **<0.5s**，非等长/失败自动回退全量写盘；
+
 - 真机验证模拟：DPI 缩放矩阵工具（1.0~2.0 通过）+ UI Automation 可访问性树检查（65/65 命名，NVDA 替代）+ 结果文档 `docs/manual_validation_results_v2.18.md`；
 - 插件市场安全增强：注册表服务 Token 鉴权（Bearer）+ HTTPS（证书/私钥）；客户端支持 `QINGCAO_REGISTRY_TOKEN` 与 TLS 校验开关；
 - mmap 增量编辑预研：`tools/bench_mmap_edit.py`（24MB 文件 7.7× 加速）+ 设计文档 `docs/mmap_incremental_edit_design.md`；

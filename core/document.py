@@ -410,10 +410,28 @@ class Document(QObject):
             # 更新编码到 provider
             self.provider.encoding = self.meta.encoding
 
+            # v2.19 M1：大文件等长修改优先走 mmap 增量保存（默认关闭灰度）
+            _incremental = None
+            try:
+                if (filepath is None
+                        and self.meta.filepath
+                        and os.path.abspath(self.meta.filepath) == target):
+                    from core.mmap_save import maybe_incremental_save
+                    _incremental = maybe_incremental_save(
+                        target,
+                        self.provider.encode(self.provider.read_text()),
+                        clear_dirty=getattr(self.provider, "clear_dirty", None))
+            except Exception as _e:
+                print(f"[Document] mmap 增量保存尝试失败: {_e}")
+                _incremental = None
+
             # 关键修复：把 target 传给 provider
             # - 若 target 与原路径相同：写脏块
             # - 若 target 不同：另存为完整文件
-            success = self.provider.save(target)
+            if _incremental is True:
+                success = True
+            else:
+                success = self.provider.save(target)
 
             if success:
                 # 更新元数据

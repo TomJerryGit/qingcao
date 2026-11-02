@@ -1323,6 +1323,15 @@ def main():
     #
     # 顺序很重要：必须在打开文件之前 —— 打开文件会创建编辑器标签，
     # 而主题里包含 Scintilla 的字体/配色应用。
+    # v2.19: 启动时恢复未完成的 mmap 增量保存（journal）
+    try:
+        from core.mmap_save import recover_pending_journals
+        _n = recover_pending_journals()
+        if _n:
+            print(f"[mmap-save] 已恢复 {_n} 个未完成保存")
+    except Exception:
+        pass
+
     try:
         if hasattr(window, 'apply_startup_theme'):
             _theme = window.apply_startup_theme()
