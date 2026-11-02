@@ -101,8 +101,23 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          python tools/bench_optimization.py --check --auto --factor 3.0
+          python tools/bench_optimization.py --check --auto --factor 3.0 --json data/perf_latest.json
           if ($LASTEXITCODE -ne 0) { throw "performance gate failed" }
+
+      - name: Performance trend
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:QINGCAO_PERF_HISTORY = "D:/actions-runner/perf_history.jsonl"
+          python tools/perf_trend_report.py --record --report
+          if ($LASTEXITCODE -ne 0) { throw "performance trend failed" }
+
+      - name: Crash history analysis
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          python tools/analyze_crash_dumps.py
+          if ($LASTEXITCODE -ne 0) { throw "crash analysis failed" }
 
       - name: Keyboard a11y audit
         shell: powershell

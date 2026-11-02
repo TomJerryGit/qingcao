@@ -1341,6 +1341,8 @@ def main():
     # 无障碍：字体缩放 + 可访问名称（v2.17）
     try:
         window.apply_accessibility_settings()
+        from ui.accessibility import apply_accessible_descriptions
+        apply_accessible_descriptions(window)
         from PyQt5.QtWidgets import QApplication as _QApp
 
         from ui.accessibility import focus_ring_qss as _focus

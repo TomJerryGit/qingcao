@@ -14,6 +14,10 @@
 
 ### 新增
 
+- 性能趋势报告 `tools/perf_trend_report.py`（记录/趋势表入 CI）；
+- 崩溃历史分析 `tools/analyze_crash_dumps.py`（Worker 日志统计，产物 docs/crash_analysis_v2.18.md）；
+- NVDA 修复批次：输入类控件可访问描述（accessibleDescription）；
+
 - CI Qt 崩溃治理：faulthandler 崩溃栈 + WER 本地转储工具与CI best-effort 步骤 + 排查手册；
 - 全局搜索跳过 >10MB 大文件并在结果中提示；
 - 市场批量更新确认已具备（`_update_all`，检查更新后可一键全部更新）；

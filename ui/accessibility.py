@@ -57,6 +57,35 @@ def apply_accessible_names(root) -> int:
     return count
 
 
+def apply_accessible_descriptions(root) -> int:
+    """为输入类控件补充可访问描述（NVDA 修复批次，v2.18）"""
+    if root is None:
+        return 0
+    count = 0
+    try:
+        widgets = [root] + list(root.findChildren(QWidget))
+    except Exception:
+        widgets = [root]
+    for w in widgets:
+        try:
+            if w.accessibleDescription():
+                continue
+            desc = ""
+            ph = getattr(w, "placeholderText", None)
+            if callable(ph):
+                desc = str(ph() or "").strip()
+            if not desc:
+                tip = getattr(w, "toolTip", None)
+                if callable(tip):
+                    desc = str(tip() or "").strip()
+            if desc:
+                w.setAccessibleDescription(desc[:160])
+                count += 1
+        except Exception:
+            continue
+    return count
+
+
 def apply_font_scale(root, factor: float) -> int:
     """界面字体缩放（0.8~2.0），跳过 Scintilla 编辑器。
 
