@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFontComboBox,
     QFormLayout,
@@ -160,6 +161,30 @@ class GeneralPage(QWidget):
         self.telemetry_cb.setChecked(prefs.get("telemetry", False))
         update_layout.addWidget(self.telemetry_cb)
 
+        # ---- 无障碍 ----
+        a11y_group = QGroupBox("无障碍")
+        a11y_layout = QVBoxLayout(a11y_group)
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("界面字体缩放:"))
+        self.ui_scale_spin = QDoubleSpinBox()
+        self.ui_scale_spin.setRange(0.8, 2.0)
+        self.ui_scale_spin.setSingleStep(0.1)
+        self.ui_scale_spin.setDecimals(1)
+        try:
+            from PyQt5.QtCore import QSettings as _QS
+            self.ui_scale_spin.setValue(
+                float(_QS("QingCao", "Editor").value(
+                    "ui_scale", 1.0, type=float) or 1.0))
+        except Exception:
+            self.ui_scale_spin.setValue(1.0)
+        scale_row.addWidget(self.ui_scale_spin)
+        scale_row.addStretch()
+        a11y_layout.addLayout(scale_row)
+        a11y_note = QLabel("提示：0.8~2.0 倍；编辑器字号请在外观页单独设置。")
+        a11y_note.setWordWrap(True)
+        a11y_layout.addWidget(a11y_note)
+        layout.addWidget(a11y_group)
+
         layout.addWidget(update_group)
 
         # ---- 多实例 ----
@@ -204,6 +229,9 @@ class GeneralPage(QWidget):
             settings = QSettings("QingCao", "Editor")
             settings.setValue("max_new_window_instances",
                               self.max_instances_spin.value())
+            settings.sync()
+            settings.setValue("ui_scale",
+                              self.ui_scale_spin.value())
             settings.sync()
         except Exception:
             pass

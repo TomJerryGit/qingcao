@@ -97,6 +97,14 @@ jobs:
           python tools/bench_optimization.py --check --auto --factor 3.0
           if ($LASTEXITCODE -ne 0) { throw "performance gate failed" }
 
+      - name: Keyboard a11y audit
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python tools/audit_keyboard_a11y.py --strict
+          if ($LASTEXITCODE -ne 0) { throw "keyboard a11y audit failed" }
+
       - name: Theme baseline check
         shell: powershell
         run: |

@@ -1328,6 +1328,19 @@ def main():
     except Exception:
         pass
 
+    # 无障碍：字体缩放 + 可访问名称（v2.17）
+    try:
+        window.apply_accessibility_settings()
+        from PyQt5.QtWidgets import QApplication as _QApp
+
+        from ui.accessibility import focus_ring_qss as _focus
+        _app = _QApp.instance()
+        if _app is not None:
+            _app.setStyleSheet(
+                (_app.styleSheet() or "") + _focus())
+    except Exception:
+        pass
+
     if args['files']:
         for filepath in args['files']:
             abs_path = os.path.abspath(filepath)

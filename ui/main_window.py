@@ -1175,6 +1175,12 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                         self._current_theme_name = name
                         _qss = loader.build_qss(theme)
                         if _qss:
+                            try:
+                                from ui.accessibility import focus_ring_qss
+                                _acc = focus_ring_qss()
+                            except Exception:
+                                _acc = ""
+                            _qss = (_qss or "") + _acc
                             self._current_theme_qss = _qss
                             self.setStyleSheet(_qss)
                             self._apply_theme_to_top_levels(_qss)
@@ -3198,6 +3204,19 @@ class MainWindow(CapabilityWiringMixin, ProjectMixin, FileOpsMixin,
                 "配置已同步（来自其它实例）: %s · %s%s"
                 % (plugin_name, "成功" if ok else "失败",
                    " · 已刷新菜单/诊断" if ok else ""), 5000)
+        except Exception:
+            pass
+
+    def apply_accessibility_settings(self):
+        """应用无障碍设置：字体缩放 + 可访问名称（v2.17）"""
+        try:
+            from PyQt5.QtCore import QSettings
+
+            from ui.accessibility import apply_accessible_names, apply_font_scale
+            factor = QSettings("QingCao", "Editor").value(
+                "ui_scale", 1.0, type=float)
+            apply_font_scale(self, factor or 1.0)
+            apply_accessible_names(self)
         except Exception:
             pass
 
