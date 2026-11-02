@@ -44,6 +44,13 @@ jobs:
           & python -m pip install -r requirements.txt pytest 2>&1 | Select-Object -Last 5
           if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
+      - name: Enable crash dumps
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          python tools/enable_crash_dumps.py --folder "D:/actions-runner/crash_dumps"
+          Write-Output "crash dump setup exit=$LASTEXITCODE (best effort)"
+
       - name: Version check
         shell: powershell
         run: python -m tools.check_version

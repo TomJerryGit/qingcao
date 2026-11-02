@@ -77,6 +77,8 @@ except ImportError:
 # ============================================================
 # 搜索选项
 # ============================================================
+SEARCH_LARGE_FILE_LIMIT = 10 * 1024 * 1024  # 搜索跳过 >10MB 大文件（v2.17.x）
+
 @dataclass
 class SearchOptions:
     """
@@ -1248,6 +1250,7 @@ class FileSearcher(QObject):
         """
         start_time = time.time()
         result = SearchResult(pattern=options.pattern)
+        result.skipped_large = 0
 
         try:
             files = self._collect_files(
@@ -1259,6 +1262,12 @@ class FileSearcher(QObject):
                     result.cancelled = True
                     break
 
+                try:
+                    if os.path.getsize(filepath) >= SEARCH_LARGE_FILE_LIMIT:
+                        result.skipped_large += 1
+                        continue
+                except Exception:
+                    pass
                 file_matches = self._search_file(filepath, options)
                 if file_matches:
                     result.file_results[filepath] = file_matches
@@ -1281,6 +1290,7 @@ class FileSearcher(QObject):
         """后台搜索线程"""
         start_time = time.time()
         result = SearchResult(pattern=options.pattern)
+        result.skipped_large = 0
 
         try:
             self.search_started.emit(options.pattern, len(files))
@@ -1291,6 +1301,13 @@ class FileSearcher(QObject):
                     result.cancelled = True
                     break
 
+                # 大文件跳过（v2.17.x）
+                try:
+                    if os.path.getsize(filepath) >= SEARCH_LARGE_FILE_LIMIT:
+                        result.skipped_large += 1
+                        continue
+                except Exception:
+                    pass
                 # 搜索单个文件
                 file_matches = self._search_file(filepath, options)
 

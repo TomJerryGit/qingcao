@@ -589,6 +589,16 @@ def setup_logging():
 
     os.makedirs(LOGS_DIR, exist_ok=True)
 
+    # v2.17.x：原生崩溃转储（faulthandler → logs/crash_dump_<pid>.log）
+    try:
+        import faulthandler
+        _dump = open(os.path.join(
+            LOGS_DIR, "crash_dump_%d.log" % os.getpid()),
+            "a", encoding="utf-8", errors="replace")
+        faulthandler.enable(file=_dump)
+    except Exception:
+        pass
+
     # 日志轮转：超过 max_bytes 则重命名
     try:
         if os.path.exists(RUNTIME_LOG) and \

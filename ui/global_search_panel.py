@@ -1077,8 +1077,11 @@ class GlobalSearchPanel(QDockWidget):
             else:
                 time_str = f"{elapsed/1000:.2f}s"
 
+            _skipped = int(getattr(result, "skipped_large", 0) or 0)
+            _suffix = ("，跳过 %d 个 >10MB 大文件" % _skipped
+                       if _skipped else "")
             self.result_label.setText(
-                f"✓ {file_count} 文件, {match_count} 项 ({time_str})"
+                f"✓ {file_count} 文件, {match_count} 项 ({time_str}){_suffix}"
             )
             self.result_label.setStyleSheet("color: #7ec850; font-weight: bold;")
 
