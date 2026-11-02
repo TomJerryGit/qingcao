@@ -48,8 +48,8 @@ v2.18.0 从"本地工程化"走向"可分发、可维护、可真机验证"：
 - 验收：main_window 行数下降 ≥40%；无回归；导入时间不劣化。
 
 ### 3. 真机验证执行（非代码）
-- 按 `docs/manual_validation_v2.17_nvda.md` 执行 NVDA 验证并记录；
-- 按 `docs/manual_validation_v2.16_multimonitor.md` 执行跨屏 DPI 检查（需双屏）；
+- 按 `docs/manual_validation_v2.17_nvda.md` 执行 NVDA 验证并记录（✅ UIA 树替代验证 65/65；真机 NVDA 待安装）；
+- 按 `docs/manual_validation_v2.16_multimonitor.md` 执行跨屏 DPI 检查（需双屏）（✅ 单机 DPI 矩阵模拟已通过；真机项待硬件）；
 - 高对比度真机回归（开启系统 HC → 启动 → 截图 → 恢复）。
 - 验收：结果文档 `docs/manual_validation_results_v2.18.md` 入库。
 
