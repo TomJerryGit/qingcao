@@ -63,8 +63,7 @@ class _KeySequenceAppFilter(QObject):
 
     def set_owner(self, owner):
         """切换归属窗口（多窗口/测试场景复用同一个过滤器）"""
-        self._owner_ref = weakref.ref(owner) if owner is not None else \
-            (lambda: None)
+        self._owner_ref = weakref.ref(owner) if owner is not None else (lambda: None)
 
     def eventFilter(self, obj, event):
         """转交给归属窗口处理；任何异常都放行
@@ -84,9 +83,9 @@ class _KeySequenceAppFilter(QObject):
             owner = self._owner_ref() if self._owner_ref else None
             if owner is None:
                 return False
-            if getattr(owner, '_closing', False):
+            if getattr(owner, "_closing", False):
                 return False
-            handler = getattr(owner, '_handle_keyseq_event', None)
+            handler = getattr(owner, "_handle_keyseq_event", None)
             if handler is None:
                 return False
             return bool(handler(obj, event))
@@ -113,8 +112,7 @@ class CapabilityWiringMixin:
         try:
             from core.formatter import get_formatter_registry
 
-            available = [f.name for f in get_formatter_registry()
-                         .list_available()]
+            available = [f.name for f in get_formatter_registry().list_available()]
         except Exception:
             available = []
 
@@ -127,8 +125,9 @@ class CapabilityWiringMixin:
 
         # 始终提供"自动选择"，即使当前机器一个格式化器都没装 ——
         # 菜单项存在但点击时给出明确安装提示，比菜单项凭空消失好。
-        self._add_action(self.format_menu, "自动选择可用格式化器",
-                         "Ctrl+Alt+Shift+F", self._format_document)
+        self._add_action(
+            self.format_menu, "自动选择可用格式化器", "Ctrl+Alt+Shift+F", self._format_document
+        )
         if available:
             self.format_menu.addSeparator()
             for name in available:
@@ -138,20 +137,18 @@ class CapabilityWiringMixin:
                     "clang-format": "clang-format（C/C++/Java/JS）",
                 }.get(name, name)
                 self._add_action(
-                    self.format_menu, label, None,
+                    self.format_menu,
+                    label,
+                    None,
                     lambda _checked=False, n=name: self._format_document(n),
                 )
         else:
             self.format_menu.addSeparator()
-            act = self._add_action(
-                self.format_menu, "（未检测到本地格式化器）", None, None
-            )
+            act = self._add_action(self.format_menu, "（未检测到本地格式化器）", None, None)
             try:
                 if act is not None:
                     act.setEnabled(False)
-                    act.setToolTip(
-                        "安装方式：pip install black 或 pip install autopep8"
-                    )
+                    act.setToolTip("安装方式：pip install black 或 pip install autopep8")
             except Exception:
                 pass
 
@@ -237,7 +234,7 @@ class CapabilityWiringMixin:
         """关窗时卸载按键过滤器（避免 QApplication 持有失效窗口）"""
         try:
             global _KEYSEQ_APP_FILTER
-            filt = getattr(self, '_keyseq_app_filter', None)
+            filt = getattr(self, "_keyseq_app_filter", None)
             if filt is not None and _KEYSEQ_APP_FILTER is filt:
                 try:
                     app = QApplication.instance()
@@ -247,7 +244,7 @@ class CapabilityWiringMixin:
                     pass
                 _KEYSEQ_APP_FILTER = None
             self._keyseq_app_filter = None
-            mgr = getattr(self, 'key_sequence_manager', None)
+            mgr = getattr(self, "key_sequence_manager", None)
             if mgr is not None:
                 try:
                     mgr.cancel()
@@ -278,8 +275,9 @@ class CapabilityWiringMixin:
         problems = []
         try:
             from PyQt5.QtWidgets import QAction
-            mgr = getattr(self, 'act_mgr', None)
-            actions = getattr(mgr, 'actions', {}) or {}
+
+            mgr = getattr(self, "act_mgr", None)
+            actions = getattr(mgr, "actions", {}) or {}
 
             # 收集全窗口所有带快捷键的动作（含未注册到 ActionManager 的）
             shortcut_owners = {}
@@ -295,17 +293,15 @@ class CapabilityWiringMixin:
             for keys, handler_name, desc in self.KEY_SEQUENCES:
                 prefix = keys[0]
                 if prefix in shortcut_owners:
-                    problems.append((
-                        " ".join(keys),
-                        "前缀键 %s 已被动作占用: %s"
-                        % (prefix, shortcut_owners[prefix][:3])
-                    ))
+                    problems.append(
+                        (
+                            " ".join(keys),
+                            "前缀键 %s 已被动作占用: %s" % (prefix, shortcut_owners[prefix][:3]),
+                        )
+                    )
                 # 处理器必须存在
                 if not callable(getattr(self, handler_name, None)):
-                    problems.append((
-                        " ".join(keys),
-                        "缺少处理器 %s" % handler_name
-                    ))
+                    problems.append((" ".join(keys), "缺少处理器 %s" % handler_name))
             _ = actions
         except Exception as e:
             problems.append(("<检查失败>", str(e)))
@@ -351,6 +347,7 @@ class CapabilityWiringMixin:
             _ = target
 
             from core.key_sequence_manager import key_event_to_string
+
             return key_event_to_string(event)
         except Exception:
             return ""
@@ -369,7 +366,7 @@ class CapabilityWiringMixin:
             if event.type() != QEvent.KeyPress:
                 return False
 
-            mgr = getattr(self, 'key_sequence_manager', None)
+            mgr = getattr(self, "key_sequence_manager", None)
             if mgr is None:
                 return False
 
@@ -390,19 +387,20 @@ class CapabilityWiringMixin:
     # ========================================================
     # 插件扩展点宿主侧实现（v2.3）
     # ========================================================
-    def register_plugin_completion_provider(self, provider, language_ids=None,
-                                            plugin_name=""):
+    def register_plugin_completion_provider(self, provider, language_ids=None, plugin_name=""):
         """登记插件补全提供者（由 PluginAPI.register_completion_provider 调用）"""
         try:
-            providers = getattr(self, '_plugin_completion_providers', None)
+            providers = getattr(self, "_plugin_completion_providers", None)
             if providers is None:
                 providers = []
                 self._plugin_completion_providers = providers
-            providers.append({
-                'provider': provider,
-                'languages': [str(x).lower() for x in (language_ids or [])],
-                'plugin': plugin_name or 'unknown',
-            })
+            providers.append(
+                {
+                    "provider": provider,
+                    "languages": [str(x).lower() for x in (language_ids or [])],
+                    "plugin": plugin_name or "unknown",
+                }
+            )
             return True
         except Exception as e:
             print(f"[MainWindow] 注册插件补全提供者失败: {e}")
@@ -410,18 +408,19 @@ class CapabilityWiringMixin:
 
     def unregister_plugin_completion_provider(self, plugin_name: str):
         """注销某插件的全部补全提供者（插件卸载时）"""
-        providers = getattr(self, '_plugin_completion_providers', None)
+        providers = getattr(self, "_plugin_completion_providers", None)
         if not providers:
             return
         try:
             self._plugin_completion_providers = [
-                p for p in providers if p.get('plugin') != plugin_name
+                p for p in providers if p.get("plugin") != plugin_name
             ]
         except Exception:
             pass
 
-    def collect_plugin_completions(self, prefix: str, language: str = "",
-                                   filepath: str = "", limit: int = 50):
+    def collect_plugin_completions(
+        self, prefix: str, language: str = "", filepath: str = "", limit: int = 50
+    ):
         """收集所有插件补全候选（供编辑器调用）
 
         语言匹配规则：
@@ -429,24 +428,23 @@ class CapabilityWiringMixin:
             * 否则语言键（如 "python"）或扩展名（如 ".py"）命中即可。
         """
         out = []
-        providers = getattr(self, '_plugin_completion_providers', None) or []
+        providers = getattr(self, "_plugin_completion_providers", None) or []
         if not providers or not prefix:
             return out
         lang = (language or "").lower()
         ext = os.path.splitext(filepath or "")[1].lower()
         for entry in providers:
             try:
-                langs = entry.get('languages') or []
+                langs = entry.get("languages") or []
                 if langs and lang not in langs and ext not in langs:
                     continue
-                fn = entry.get('provider')
+                fn = entry.get("provider")
                 if not callable(fn):
                     continue
                 items = fn(prefix, language=lang, filepath=filepath) or []
                 for item in items:
                     if isinstance(item, dict):
-                        word = (item.get('insert_text')
-                                or item.get('label') or '')
+                        word = item.get("insert_text") or item.get("label") or ""
                     else:
                         word = str(item)
                     word = word.strip()
@@ -455,8 +453,7 @@ class CapabilityWiringMixin:
                         if len(out) >= limit:
                             return out
             except Exception as e:
-                print(f"[MainWindow] 插件补全提供者异常"
-                      f"({entry.get('plugin')}): {e}")
+                print(f"[MainWindow] 插件补全提供者异常({entry.get('plugin')}): {e}")
         return out
 
     # ========================================================
@@ -464,28 +461,29 @@ class CapabilityWiringMixin:
     # ========================================================
     def _ensure_plugin_extension_registries(self):
         for attr, factory in (
-                ('_plugin_hover_providers', list),
-                ('_plugin_context_actions', list),
-                ('_plugin_code_action_providers', list),
-                ('_plugin_status_items', list),
-                ('_plugin_settings_schemas', dict),
-                ('_plugin_symbol_providers', list)):
+            ("_plugin_hover_providers", list),
+            ("_plugin_context_actions", list),
+            ("_plugin_code_action_providers", list),
+            ("_plugin_status_items", list),
+            ("_plugin_settings_schemas", dict),
+            ("_plugin_symbol_providers", list),
+        ):
             if not hasattr(self, attr):
                 setattr(self, attr, factory())
 
-    def register_plugin_hover_provider(self, provider, language_ids=None,
-                                       plugin_name=""):
+    def register_plugin_hover_provider(self, provider, language_ids=None, plugin_name=""):
         """登记插件 hover 提供者"""
         self._ensure_plugin_extension_registries()
-        self._plugin_hover_providers.append({
-            'provider': provider,
-            'languages': [str(x).lower() for x in (language_ids or [])],
-            'plugin': plugin_name or 'unknown',
-        })
+        self._plugin_hover_providers.append(
+            {
+                "provider": provider,
+                "languages": [str(x).lower() for x in (language_ids or [])],
+                "plugin": plugin_name or "unknown",
+            }
+        )
         return True
 
-    def collect_plugin_hover(self, filepath: str, line: int, col: int,
-                             language: str = "") -> str:
+    def collect_plugin_hover(self, filepath: str, line: int, col: int, language: str = "") -> str:
         """收集插件 hover 文本（按语言过滤，多个提供者用空行分隔）"""
         self._ensure_plugin_extension_registries()
         lang = (language or "").lower()
@@ -493,31 +491,31 @@ class CapabilityWiringMixin:
         parts = []
         for entry in self._plugin_hover_providers:
             try:
-                langs = entry.get('languages') or []
+                langs = entry.get("languages") or []
                 if langs and lang not in langs and ext not in langs:
                     continue
-                fn = entry.get('provider')
+                fn = entry.get("provider")
                 if not callable(fn):
                     continue
                 text = fn(line, col, filepath=filepath, language=lang)
                 if text:
                     parts.append(str(text).strip())
             except Exception as e:
-                print(f"[MainWindow] hover 提供者失败"
-                      f"({entry.get('plugin')}): {e}")
+                print(f"[MainWindow] hover 提供者失败({entry.get('plugin')}): {e}")
         return "\n\n".join(p for p in parts if p)[:4000]
 
-    def add_plugin_editor_context_action(self, label: str, callback,
-                                         plugin_name=""):
+    def add_plugin_editor_context_action(self, label: str, callback, plugin_name=""):
         """登记插件编辑器右键菜单项"""
         self._ensure_plugin_extension_registries()
         if not callable(callback):
             return False
-        self._plugin_context_actions.append({
-            'label': label,
-            'callback': callback,
-            'plugin': plugin_name or 'unknown',
-        })
+        self._plugin_context_actions.append(
+            {
+                "label": label,
+                "callback": callback,
+                "plugin": plugin_name or "unknown",
+            }
+        )
         return True
 
     def collect_editor_context_actions(self, editor=None):
@@ -525,20 +523,19 @@ class CapabilityWiringMixin:
         self._ensure_plugin_extension_registries()
         return list(self._plugin_context_actions)
 
-    def register_plugin_code_action_provider(self, provider,
-                                             language_ids=None,
-                                             plugin_name=""):
+    def register_plugin_code_action_provider(self, provider, language_ids=None, plugin_name=""):
         """登记插件代码操作提供者"""
         self._ensure_plugin_extension_registries()
-        self._plugin_code_action_providers.append({
-            'provider': provider,
-            'languages': [str(x).lower() for x in (language_ids or [])],
-            'plugin': plugin_name or 'unknown',
-        })
+        self._plugin_code_action_providers.append(
+            {
+                "provider": provider,
+                "languages": [str(x).lower() for x in (language_ids or [])],
+                "plugin": plugin_name or "unknown",
+            }
+        )
         return True
 
-    def collect_code_actions(self, filepath: str, line: int, col: int,
-                             language: str = ""):
+    def collect_code_actions(self, filepath: str, line: int, col: int, language: str = ""):
         """收集代码操作（统一结构：title/callback/kind）"""
         self._ensure_plugin_extension_registries()
         lang = (language or "").lower()
@@ -546,66 +543,73 @@ class CapabilityWiringMixin:
         out = []
         for entry in self._plugin_code_action_providers:
             try:
-                langs = entry.get('languages') or []
+                langs = entry.get("languages") or []
                 if langs and lang not in langs and ext not in langs:
                     continue
-                fn = entry.get('provider')
+                fn = entry.get("provider")
                 if not callable(fn):
                     continue
                 items = fn(line, col, filepath=filepath, language=lang) or []
                 for item in items:
                     if not isinstance(item, dict):
                         continue
-                    title = item.get('title') or item.get('label')
-                    callback = item.get('callback') or item.get('run')
+                    title = item.get("title") or item.get("label")
+                    callback = item.get("callback") or item.get("run")
                     if title and callable(callback):
-                        out.append({'title': str(title),
-                                    'kind': str(item.get('kind', '')),
-                                    'callback': callback,
-                                    'plugin': entry.get('plugin')})
+                        out.append(
+                            {
+                                "title": str(title),
+                                "kind": str(item.get("kind", "")),
+                                "callback": callback,
+                                "plugin": entry.get("plugin"),
+                            }
+                        )
             except Exception as e:
-                print(f"[MainWindow] 代码操作提供者失败"
-                      f"({entry.get('plugin')}): {e}")
+                print(f"[MainWindow] 代码操作提供者失败({entry.get('plugin')}): {e}")
         return out
 
     def show_plugin_code_actions(self, editor) -> bool:
         """弹出代码操作菜单并执行选中项（右键菜单入口）"""
         try:
             from PyQt5.QtWidgets import QMenu
+
             line, col = editor.getCursorPosition()
             actions = self.collect_code_actions(
-                getattr(getattr(editor, 'document', None), 'filepath', '') or '',
-                line, col,
-                language=getattr(editor, '_completion_language', lambda: "")())
+                getattr(getattr(editor, "document", None), "filepath", "") or "",
+                line,
+                col,
+                language=getattr(editor, "_completion_language", lambda: "")(),
+            )
             if not actions:
                 return False
             menu = QMenu(self)
             for action in actions:
-                label = action['title']
-                if action['kind']:
-                    label = "%s（%s）" % (label, action['kind'])
+                label = action["title"]
+                if action["kind"]:
+                    label = "%s（%s）" % (label, action["kind"])
                 act = menu.addAction(label)
-                act.triggered.connect(
-                    lambda _checked=False, cb=action['callback']: cb())
+                act.triggered.connect(lambda _checked=False, cb=action["callback"]: cb())
             menu.exec_(editor.mapToGlobal(editor.cursorRect().bottomRight()))
             return True
         except Exception as e:
             print(f"[MainWindow] 代码操作菜单失败: {e}")
             return False
 
-    def register_plugin_symbol_provider(self, provider, language_ids=None,
-                                        plugin_name=""):
+    def register_plugin_symbol_provider(self, provider, language_ids=None, plugin_name=""):
         """登记插件符号提供者（大纲面板合并）"""
         self._ensure_plugin_extension_registries()
-        self._plugin_symbol_providers.append({
-            'provider': provider,
-            'languages': [str(x).lower() for x in (language_ids or [])],
-            'plugin': plugin_name or 'unknown',
-        })
+        self._plugin_symbol_providers.append(
+            {
+                "provider": provider,
+                "languages": [str(x).lower() for x in (language_ids or [])],
+                "plugin": plugin_name or "unknown",
+            }
+        )
         return True
 
-    def collect_plugin_symbols(self, text: str, filepath: str = "",
-                               language: str = "", limit: int = 5000):
+    def collect_plugin_symbols(
+        self, text: str, filepath: str = "", language: str = "", limit: int = 5000
+    ):
         """收集插件符号（规范化为 dict 列表，含 children）"""
         self._ensure_plugin_extension_registries()
         lang = (language or "").lower()
@@ -618,34 +622,33 @@ class CapabilityWiringMixin:
             for item in items:
                 if not isinstance(item, dict):
                     continue
-                name = item.get('name') or item.get('label')
+                name = item.get("name") or item.get("label")
                 if not name:
                     continue
                 node = {
-                    'name': str(name),
-                    'type': str(item.get('type') or item.get('kind')
-                                or 'unknown'),
-                    'line': int(item.get('line') or 0),
-                    'col': int(item.get('col') or 0),
-                    'end_line': int(item.get('end_line') or 0),
-                    'indent': int(item.get('indent') or depth),
-                    'signature': str(item.get('signature') or ''),
+                    "name": str(name),
+                    "type": str(item.get("type") or item.get("kind") or "unknown"),
+                    "line": int(item.get("line") or 0),
+                    "col": int(item.get("col") or 0),
+                    "end_line": int(item.get("end_line") or 0),
+                    "indent": int(item.get("indent") or depth),
+                    "signature": str(item.get("signature") or ""),
                 }
-                children = _norm(item.get('children') or [], depth + 1)
+                children = _norm(item.get("children") or [], depth + 1)
                 if children:
-                    node['children'] = children
+                    node["children"] = children
                 out.append(node)
                 if len(out) >= limit:
                     break
             return out
 
         collected = []
-        for entry in getattr(self, '_plugin_symbol_providers', []):
+        for entry in getattr(self, "_plugin_symbol_providers", []):
             try:
-                langs = entry.get('languages') or []
+                langs = entry.get("languages") or []
                 if langs and lang not in langs and ext not in langs:
                     continue
-                fn = entry.get('provider')
+                fn = entry.get("provider")
                 if not callable(fn):
                     continue
                 items = fn(text, filepath=filepath, language=lang) or []
@@ -653,16 +656,14 @@ class CapabilityWiringMixin:
                 if len(collected) >= limit:
                     break
             except Exception as e:
-                print(f"[MainWindow] symbol provider 失败"
-                      f"({entry.get('plugin')}): {e}")
+                print(f"[MainWindow] symbol provider 失败({entry.get('plugin')}): {e}")
         # B-3b：合并沙箱插件的符号（只读代理；失败/降级自动跳过）
         try:
-            getter = getattr(self, '_get_sandboxed_plugins', None)
+            getter = getattr(self, "_get_sandboxed_plugins", None)
             if callable(getter):
                 for sp in getter().values():
                     try:
-                        items = sp.symbols(
-                            text, filepath or "", lang) or []
+                        items = sp.symbols(text, filepath or "", lang) or []
                         collected.extend(_norm(items))
                     except Exception:
                         continue
@@ -673,20 +674,21 @@ class CapabilityWiringMixin:
     def register_plugin_settings_schema(self, plugin_name: str, schema):
         """登记插件设置 schema（供设置面板/文档展示；对话框由插件 API 生成）"""
         self._ensure_plugin_extension_registries()
-        self._plugin_settings_schemas[plugin_name or 'unknown'] = list(schema)
+        self._plugin_settings_schemas[plugin_name or "unknown"] = list(schema)
         return True
 
     def unregister_plugin_extras(self, plugin_name: str):
         """注销某插件的全部 v2.4 扩展点（插件卸载时）"""
         self._ensure_plugin_extension_registries()
-        for attr in ('_plugin_hover_providers',
-                     '_plugin_code_action_providers',
-                     '_plugin_context_actions',
-                     '_plugin_symbol_providers'):
+        for attr in (
+            "_plugin_hover_providers",
+            "_plugin_code_action_providers",
+            "_plugin_context_actions",
+            "_plugin_symbol_providers",
+        ):
             current = getattr(self, attr, [])
-            setattr(self, attr, [
-                e for e in current if e.get('plugin') != plugin_name])
-        schemas = getattr(self, '_plugin_settings_schemas', {})
+            setattr(self, attr, [e for e in current if e.get("plugin") != plugin_name])
+        schemas = getattr(self, "_plugin_settings_schemas", {})
         schemas.pop(plugin_name, None)
 
     def add_plugin_status_item(self, widget):
@@ -716,6 +718,7 @@ class CapabilityWiringMixin:
         """
         try:
             from ui.lsp_panel import LspPanel
+
             # 注意签名是 `(main_window=None, parent=None)` —— 主窗口要按
             # **关键字**传，否则会被当成 main_window 而不是 parent。
             self.lsp = LspPanel(main_window=self, parent=self)
@@ -726,8 +729,9 @@ class CapabilityWiringMixin:
             self.addDockWidget(self._right_dock_area(), self.lsp)
             self.lsp.hide()
             try:
-                if hasattr(self.lsp, 'set_installer'):
+                if hasattr(self.lsp, "set_installer"):
                     from core.lsp_installer import LspInstaller
+
                     self.lsp.set_installer(LspInstaller())
             except Exception:
                 pass
@@ -742,6 +746,7 @@ class CapabilityWiringMixin:
         """
         try:
             from ui.undo_history_panel import UndoHistoryPanel
+
             self.undo_history = UndoHistoryPanel(main_window=self, parent=self)
             try:
                 self.undo_history.setObjectName("UndoHistoryPanel")
@@ -758,18 +763,18 @@ class CapabilityWiringMixin:
         """把当前标签的撤销栈变化实时喂给撤销历史面板"""
         try:
             proxy = self.tabs.current_proxy()
-            panel = getattr(self, 'undo_history', None)
+            panel = getattr(self, "undo_history", None)
             if proxy is None or panel is None:
                 return
-            if getattr(proxy, '_undo_history_connected', False):
+            if getattr(proxy, "_undo_history_connected", False):
                 return
-            um = getattr(proxy, 'undo_manager', None)
+            um = getattr(proxy, "undo_manager", None)
             if um is None:
                 return
 
             def _refresh(*_a):
                 try:
-                    if hasattr(panel, 'refresh'):
+                    if hasattr(panel, "refresh"):
                         panel.refresh()
                 except Exception:
                     pass
@@ -779,7 +784,7 @@ class CapabilityWiringMixin:
                 proxy._undo_history_connected = True
             except Exception:
                 pass
-            for setter in ('set_manager', 'set_undo_manager'):
+            for setter in ("set_manager", "set_undo_manager"):
                 if hasattr(panel, setter):
                     try:
                         getattr(panel, setter)(um)
@@ -802,21 +807,18 @@ class CapabilityWiringMixin:
         返回:
             追加后的列表（便于链式调用）
         """
-        panels.append(("LSP 状态", "panel.lsp",
-                       self._toggle_lsp_panel))
-        panels.append(("撤销历史", "panel.undo_history",
-                       self._toggle_undo_history_panel))
+        panels.append(("LSP 状态", "panel.lsp", self._toggle_lsp_panel))
+        panels.append(("撤销历史", "panel.undo_history", self._toggle_undo_history_panel))
         return panels
 
     def _toggle_lsp_panel(self, checked):
         """切换 LSP 面板"""
-        if self._ensure_panel('lsp') and getattr(self, 'lsp', None):
+        if self._ensure_panel("lsp") and getattr(self, "lsp", None):
             self.lsp.setVisible(checked)
 
     def _toggle_undo_history_panel(self, checked):
         """切换撤销历史面板"""
-        if self._ensure_panel('undo_history') and \
-                getattr(self, 'undo_history', None):
+        if self._ensure_panel("undo_history") and getattr(self, "undo_history", None):
             self.undo_history.setVisible(checked)
             if checked:
                 self._connect_undo_history()
@@ -825,6 +827,7 @@ class CapabilityWiringMixin:
         """右侧停靠区（避免各面板各自 import Qt 常量）"""
         try:
             from PyQt5.QtCore import Qt
+
             return Qt.RightDockWidgetArea
         except Exception:
             return 2
@@ -833,6 +836,7 @@ class CapabilityWiringMixin:
         """底部停靠区"""
         try:
             from PyQt5.QtCore import Qt
+
             return Qt.BottomDockWidgetArea
         except Exception:
             return 8
@@ -853,16 +857,16 @@ class CapabilityWiringMixin:
                 logger.debug("创建导出菜单失败: %s", e)
             return
 
-        self._add_action(self.export_menu, "导出为 PDF…", None,
-                         self._export_current_as_pdf)
-        self._add_action(self.export_menu, "导出为 HTML…", None,
-                         self._export_current_as_html)
-        self._add_action(self.export_menu, "导出为 Markdown…", None,
-                         self._export_current_as_markdown)
+        self._add_action(self.export_menu, "导出为 PDF…", None, self._export_current_as_pdf)
+        self._add_action(self.export_menu, "导出为 HTML…", None, self._export_current_as_html)
+        self._add_action(
+            self.export_menu, "导出为 Markdown…", None, self._export_current_as_markdown
+        )
 
         # reportlab 是可选依赖：缺失时禁用 PDF 项并说明原因
         try:
             import reportlab  # noqa: F401
+
             pdf_ok = True
         except Exception:
             pdf_ok = False
@@ -871,9 +875,7 @@ class CapabilityWiringMixin:
                 acts = self.export_menu.actions()
                 if acts:
                     acts[0].setEnabled(False)
-                    acts[0].setToolTip(
-                        "需要 reportlab：pip install reportlab"
-                    )
+                    acts[0].setToolTip("需要 reportlab：pip install reportlab")
             except Exception:
                 pass
 
@@ -899,49 +901,45 @@ class CapabilityWiringMixin:
                 "md": "Markdown (*.md)",
             }[fmt]
             path, _ = QFileDialog.getSaveFileName(
-                self, "导出",
-                os.path.join(os.path.dirname(
-                    proxy.document.filepath or ""), default),
+                self,
+                "导出",
+                os.path.join(os.path.dirname(proxy.document.filepath or ""), default),
                 filters,
             )
             if not path:
                 return
 
             import core.exporter as exporter
+
             text = proxy.get_text()
             title = os.path.basename(proxy.document.filepath or "未命名")
             language = "text"
             try:
-                language = getattr(proxy.document.meta, "language", "text") \
-                    or "text"
+                language = getattr(proxy.document.meta, "language", "text") or "text"
             except Exception:
                 pass
 
             if fmt == "pdf":
                 ok = exporter.to_pdf(text, path, title=title)
-                if isinstance(ok, tuple):        # 可能返回 (ok, msg)
+                if isinstance(ok, tuple):  # 可能返回 (ok, msg)
                     ok = ok[0]
             elif fmt == "html":
-                content = exporter.to_html(text, title=title,
-                                           language=language)
+                content = exporter.to_html(text, title=title, language=language)
                 with open(path, "w", encoding="utf-8", newline="") as f:
                     f.write(content)
                 ok = True
             else:
-                content = exporter.to_markdown(text, title=title,
-                                               language=language)
+                content = exporter.to_markdown(text, title=title, language=language)
                 with open(path, "w", encoding="utf-8", newline="") as f:
                     f.write(content)
                 ok = True
 
             self.status_bar.showMessage(
-                f"已导出: {os.path.basename(path)}" if ok
-                else "导出失败（详见日志）", 5000
+                f"已导出: {os.path.basename(path)}" if ok else "导出失败（详见日志）", 5000
             )
         except ImportError as e:
             self.status_bar.showMessage(
-                f"导出失败：缺少依赖（{e}）。PDF 需要 reportlab："
-                f"pip install reportlab", 9000
+                f"导出失败：缺少依赖（{e}）。PDF 需要 reportlab：pip install reportlab", 9000
             )
         except Exception as e:
             print(f"[MainWindow] 导出失败: {e}")
@@ -973,12 +971,11 @@ class CapabilityWiringMixin:
             from PyQt5.QtWidgets import QMessageBox
 
             from core.crash_stats import CrashStats
+
             stats = CrashStats()
             total = stats.get_total_count()
             if not total:
-                QMessageBox.information(
-                    self, "崩溃统计", "没有记录到崩溃。"
-                )
+                QMessageBox.information(self, "崩溃统计", "没有记录到崩溃。")
                 return
             top = stats.get_top_exceptions(5)
             recent = stats.get_recent_count(7)
@@ -988,7 +985,7 @@ class CapabilityWiringMixin:
                 "",
                 "最常见异常：",
             ]
-            for item in (top or []):
+            for item in top or []:
                 try:
                     name, cnt = item[0], item[1]
                 except Exception:
@@ -1005,6 +1002,7 @@ class CapabilityWiringMixin:
             print(f"[MainWindow] 崩溃统计失败: {e}")
             try:
                 from PyQt5.QtWidgets import QMessageBox
+
                 QMessageBox.warning(self, "崩溃统计", f"读取失败: {e}")
             except Exception:
                 pass
@@ -1033,7 +1031,7 @@ class CapabilityWiringMixin:
             if editor is None:
                 self.status_bar.showMessage("新建标签失败", 4000)
                 return
-            proxy = getattr(editor, 'proxy', None)
+            proxy = getattr(editor, "proxy", None)
             if proxy is None:
                 self.status_bar.showMessage("新建标签失败（无编辑器）", 4000)
                 return
@@ -1046,9 +1044,7 @@ class CapabilityWiringMixin:
             except Exception:
                 pass
 
-            self.status_bar.showMessage(
-                "已从模板生成「%s」，保存时请确认文件名" % title, 6000
-            )
+            self.status_bar.showMessage("已从模板生成「%s」，保存时请确认文件名" % title, 6000)
         except Exception as e:
             print(f"[MainWindow] 从模板新建失败: {e}")
             try:
@@ -1135,6 +1131,7 @@ class CapabilityWiringMixin:
         """
         try:
             from ui.profiler_panel import ProfilerDialog
+
             dlg = ProfilerDialog(self)
             try:
                 dlg.setToolTip(
@@ -1167,8 +1164,7 @@ class CapabilityWiringMixin:
         """
         try:
             menu = self._make_menu("⭐ 特色功能")
-            anchor = getattr(self, '_view_menu_action', None) or \
-                self.view_menu.menuAction()
+            anchor = getattr(self, "_view_menu_action", None) or self.view_menu.menuAction()
             # ⚠️ 实测坑：`QMenuBar.insertMenu()` 返回的是 **QAction**
             #   （即菜单的 menuAction），不是 QMenu。原实现把返回值直接
             #   赋给 `self.feature_menu`，后续 `addSeparator()` 就抛
@@ -1185,13 +1181,9 @@ class CapabilityWiringMixin:
                 return
 
         # AI：直接列出 AI 助手插件**真实注册**的命令（命令面板里同源）
-        self._add_plugin_commands_submenu(
-            "🤖 AI 助手（ai_assistant）", "ai_assistant", "ai"
-        )
+        self._add_plugin_commands_submenu("🤖 AI 助手（ai_assistant）", "ai_assistant", "ai")
         self.feature_menu.addSeparator()
-        self._add_plugin_commands_submenu(
-            "🔀 Git（git_deep）", "git_deep", "git"
-        )
+        self._add_plugin_commands_submenu("🔀 Git（git_deep）", "git_deep", "git")
         self.feature_menu.addSeparator()
         # 调试：**复用工具菜单里已存在的 F5 动作**，绝不新建。
         #
@@ -1205,15 +1197,39 @@ class CapabilityWiringMixin:
         if run_action is not None:
             self.feature_menu.addAction(run_action)
         else:
-            self._add_action(self.feature_menu, "▶ 运行当前文件", None,
-                             self._debug_run)
-        self._add_action(self.feature_menu, "⚙ 在当前行切换断点", None,
-                         self._debug_breakpoint)
+            self._add_action(self.feature_menu, "▶ 运行当前文件", None, self._debug_run)
+        self._add_action(self.feature_menu, "⚙ 在当前行切换断点", None, self._debug_breakpoint)
         self.feature_menu.addSeparator()
-        self._add_action(self.feature_menu, "🧠 LSP 状态 / 安装向导", None,
-                         self._show_panel_lsp)
-        self._add_action(self.feature_menu, "📊 问题（LSP 诊断）", None,
-                         lambda: self._show_panel('problems'))
+        self._add_action(self.feature_menu, "🧠 LSP 状态 / 安装向导", None, self._show_panel_lsp)
+        self._add_action(
+            self.feature_menu, "📊 问题（LSP 诊断）", None, lambda: self._show_panel("problems")
+        )
+        self._sync_feature_plugin_visibility()
+
+    def _sync_feature_plugin_visibility(self):
+        """按插件命令是否存在，显示/隐藏「特色功能」中的插件子菜单（v2.19 P2）"""
+        try:
+            menus = getattr(self, "_feature_plugin_menus", {}) or {}
+        except Exception:
+            return
+        for menu in menus.values():
+            try:
+                has_items = any(not a.isSeparator() for a in menu.actions())
+                menu.menuAction().setVisible(bool(has_items))
+            except Exception:
+                continue
+        # 清理相邻分隔符（避免隐藏后出现连续分隔线）
+        try:
+            acts = self.feature_menu.actions()
+            for i, act in enumerate(acts):
+                if not act.isSeparator():
+                    continue
+                left = next((x for x in reversed(acts[:i]) if not x.isSeparator()), None)
+                right = next((x for x in acts[i + 1 :] if not x.isSeparator()), None)
+                visible = any(x is not None and x.isVisible() for x in (left, right))
+                act.setVisible(visible)
+        except Exception:
+            pass
 
     def _find_action_with_text(self, text: str):
         """在整个菜单栏里按文本找已存在的 QAction（用于跨菜单复用同一动作）
@@ -1233,6 +1249,7 @@ class CapabilityWiringMixin:
         """
         try:
             from PyQt5.QtWidgets import QMenu
+
             found = []
             menus = list(self.findChildren(QMenu))
             # 递归展开子菜单（QMenu 的菜单项本身也是 QAction/QMenu）
@@ -1255,7 +1272,7 @@ class CapabilityWiringMixin:
                         stack.append(sub)
             for act in found:
                 if not act.shortcut().isEmpty():
-                    return act          # 带快捷键的优先
+                    return act  # 带快捷键的优先
             return found[0] if found else None
         except Exception as e:
             if logger:
@@ -1277,8 +1294,8 @@ class CapabilityWiringMixin:
         """
         out = []
         try:
-            mgr = getattr(self, 'act_mgr', None)
-            actions = getattr(mgr, 'actions', None) if mgr else None
+            mgr = getattr(self, "act_mgr", None)
+            actions = getattr(mgr, "actions", None) if mgr else None
             if not actions:
                 return out
             prefix = "plugin.%s." % plugin_name
@@ -1290,8 +1307,7 @@ class CapabilityWiringMixin:
                 logger.debug("枚举插件命令失败: %s", e)
         return sorted(out, key=lambda kv: kv[0])
 
-    def _add_plugin_commands_submenu(self, title: str, plugin_name: str,
-                                     icon_key: str = ""):
+    def _add_plugin_commands_submenu(self, title: str, plugin_name: str, icon_key: str = ""):
         """把某插件注册的命令加成一个子菜单
 
         **找不到命令时如实说明**，而不是放一个点了没反应的菜单项 ——
@@ -1301,23 +1317,17 @@ class CapabilityWiringMixin:
             sub = self.feature_menu.addMenu(title)
         except Exception:
             return
+        # v2.19 P2：记录子菜单，供「插件未启用时隐藏」与延后刷新使用
+        if not hasattr(self, "_feature_plugin_menus"):
+            self._feature_plugin_menus = {}
+        self._feature_plugin_menus[title] = sub
         cmds = self._plugin_commands(plugin_name)
         if not cmds:
-            # 注意：不能用 `_add_action(..., slot=None)` —— 它内部会执行
-            # `action.triggered.connect(None)`，PyQt 直接抛
-            # `TypeError: argument 1 has unexpected type 'NoneType'`。
-            # 这里手工建一个**禁用**的占位项，明确告诉用户为什么是空的。
+            # 插件未启用/未注册命令：直接隐藏子菜单，不再显示禁用占位项
             try:
-                from PyQt5.QtWidgets import QAction as _QAction
-                act = _QAction("（该插件未注册命令，或未启用）", self)
-                act.setEnabled(False)
-                act.setToolTip(
-                    "请到「工具 → 插件管理」确认 %s 已启用" % plugin_name
-                )
-                sub.addAction(act)
-            except Exception as e:
-                if logger:
-                    logger.debug("添加占位菜单项失败: %s", e)
+                sub.menuAction().setVisible(False)
+            except Exception:
+                pass
             return
         for name, action in cmds:
             short = name.rsplit(".", 1)[-1]
@@ -1334,6 +1344,7 @@ class CapabilityWiringMixin:
     def _make_menu(self, title):
         """创建一个 QMenu（抽出来便于异常处理）"""
         from PyQt5.QtWidgets import QMenu
+
         return QMenu(title, self)
 
     def _invoke_plugin_command(self, plugin_name: str):
@@ -1349,8 +1360,7 @@ class CapabilityWiringMixin:
                 cmds[0][1].trigger()
                 return True
             self.status_bar.showMessage(
-                f"插件「{plugin_name}」未注册命令或未启用："
-                f"请到「工具 → 插件管理」确认", 8000
+                f"插件「{plugin_name}」未注册命令或未启用：请到「工具 → 插件管理」确认", 8000
             )
         except Exception as e:
             print(f"[MainWindow] 调用插件命令失败: {e}")
@@ -1359,26 +1369,24 @@ class CapabilityWiringMixin:
     def _toggle_ai_inline(self):
         """开关 AI 行内补全（`ui/ai_inline_completer.py`）"""
         try:
-            completer = getattr(self, 'ai_inline_completer', None)
+            completer = getattr(self, "ai_inline_completer", None)
             if completer is None:
                 self.status_bar.showMessage(
-                    "AI 行内补全不可用：请先在插件中配置 AI 服务商"
-                    "（工具 → 插件管理 → AI 助手）", 8000
+                    "AI 行内补全不可用：请先在插件中配置 AI 服务商（工具 → 插件管理 → AI 助手）",
+                    8000,
                 )
                 return
-            enabled = getattr(completer, 'enabled', False)
-            if hasattr(completer, 'set_enabled'):
+            enabled = getattr(completer, "enabled", False)
+            if hasattr(completer, "set_enabled"):
                 completer.set_enabled(not enabled)
-                self.status_bar.showMessage(
-                    f"AI 行内补全已{'关闭' if enabled else '开启'}", 3000
-                )
+                self.status_bar.showMessage(f"AI 行内补全已{'关闭' if enabled else '开启'}", 3000)
         except Exception as e:
             print(f"[MainWindow] 切换 AI 行内补全失败: {e}")
 
     def _debug_run(self):
         """启动调试（复用已有能力，找不到就明确提示）"""
         try:
-            if hasattr(self, '_run_current_file'):
+            if hasattr(self, "_run_current_file"):
                 self._run_current_file()
             else:
                 self.status_bar.showMessage("调试不可用", 3000)
@@ -1391,10 +1399,9 @@ class CapabilityWiringMixin:
             proxy = self.tabs.current_proxy()
             if proxy is None:
                 return
-            if hasattr(proxy, 'toggle_breakpoint'):
+            if hasattr(proxy, "toggle_breakpoint"):
                 proxy.toggle_breakpoint()
-                n = len(proxy.get_breakpoints()) \
-                    if hasattr(proxy, 'get_breakpoints') else 0
+                n = len(proxy.get_breakpoints()) if hasattr(proxy, "get_breakpoints") else 0
                 self.status_bar.showMessage(f"当前断点数: {n}", 3000)
             else:
                 self.status_bar.showMessage("该编辑器不支持断点", 3000)
@@ -1404,7 +1411,7 @@ class CapabilityWiringMixin:
     def _show_panel_lsp(self):
         """打开 LSP 面板"""
         try:
-            if self._ensure_panel('lsp') and getattr(self, 'lsp', None):
+            if self._ensure_panel("lsp") and getattr(self, "lsp", None):
                 self.lsp.setVisible(True)
                 self.lsp.raise_()
         except Exception as e:
@@ -1453,6 +1460,7 @@ class CapabilityWiringMixin:
                 # 没有保存过主题 → 用内置暗夜（与 main.load_theme 的回退一致）
                 try:
                     from infrastructure.theme_loader import BuiltinThemes
+
                     theme = BuiltinThemes.dark_night()
                 except Exception:
                     theme = None

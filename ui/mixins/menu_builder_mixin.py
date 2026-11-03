@@ -375,21 +375,35 @@ class MenuBuilderMixin:
             ("🔀 Git（git_deep）", "git_deep"),
         ):
             try:
-                for act in self.feature_menu.actions():
-                    if not (act.menu() and act.text() == title):
-                        continue
-                    act.menu().clear()
-                    cmds = self._plugin_commands(plugin)
-                    if not cmds:
-                        item = act.menu().addAction("（该插件未注册命令，或未启用）")
-                        item.setEnabled(False)
-                    else:
-                        for _name, qa in cmds:
-                            act.menu().addAction(qa)
-                    break
+                sub = None
+                try:
+                    sub = (getattr(self, "_feature_plugin_menus", {}) or {}).get(title)
+                except Exception:
+                    sub = None
+                if sub is None:
+                    for act in self.feature_menu.actions():
+                        if act.menu() and act.text() == title:
+                            sub = act.menu()
+                            break
+                if sub is None:
+                    continue
+                sub.clear()
+                cmds = self._plugin_commands(plugin)
+                if cmds:
+                    for _name, qa in cmds:
+                        sub.addAction(qa)
+                try:
+                    # v2.19 P2：无命令时隐藏整个子菜单，不显示禁用占位项
+                    sub.menuAction().setVisible(bool(cmds))
+                except Exception:
+                    pass
             except Exception as e:
                 if logger is not None:
                     logger.debug("刷新特色功能菜单失败(%s): %s", plugin, e)
+        try:
+            self._sync_feature_plugin_visibility()
+        except Exception:
+            pass
 
     def _build_panel_menu(self):
         """构建面板切换子菜单"""
