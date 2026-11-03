@@ -50,6 +50,11 @@ def read_text(path):
         return f.read()
 
 
+def _base(v):
+    """预发布版本（-alpha/-beta/-rc）比较基线"""
+    return re.split(r"[-+]", str(v))[0]
+
+
 def get_authoritative_version():
     """读取 version.py 中的 __version__"""
     path = os.path.join(ROOT, "version.py")
@@ -100,7 +105,7 @@ def main(argv=None):
     if os.path.exists(iss):
         m = re.search(r'#define\s+MyAppVersion\s+"([^"]+)"', read_text(iss))
         if m:
-            if m.group(1) != version:
+            if _base(m.group(1)) != _base(version):
                 problems.append("installer.iss MyAppVersion = %r，应为 %r" % (m.group(1), version))
             elif verbose:
                 print("  OK  installer.iss = %s" % m.group(1))
@@ -112,10 +117,10 @@ def main(argv=None):
     if os.path.exists(readme):
         src = read_text(readme)
         for m in re.finditer(r"badge/version-([0-9]+\.[0-9]+\.[0-9]+)", src):
-            if m.group(1) != version:
+            if _base(m.group(1)) != _base(version):
                 problems.append("README 版本徽章为 %r，应为 %r" % (m.group(1), version))
         for m in re.finditer(r"QingCaoEditor(?:_Setup)?_v([0-9]+\.[0-9]+\.[0-9]+)", src):
-            if m.group(1) != version:
+            if _base(m.group(1)) != _base(version):
                 problems.append("README 发行包名为 %r，应为 %r" % (m.group(1), version))
 
     # ---- 4. 生产代码中的过期应用版本字面量 ----
