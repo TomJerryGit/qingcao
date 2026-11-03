@@ -6,30 +6,44 @@
 
 - v2.19.0 roadmap：mmap 增量编辑落地 / i18n 翻译落地 / 市场公网化（`docs/roadmap_v2.19.0.md`）。
 
-## [2.18.1] - 2026-11-02
+### 新增
 
-### 文档
+- mmap 增量保存（M1）：大文件等长修改走原地补丁 + 区间级 journal 备份 + 崩溃恢复 + 默认关闭灰度（`core/mmap_save.py`）；
+  50MB 文件单行保存实测 **0.36s**（达标 <0.5s），非等长/失败自动回退全量写盘；
+- 真机验证模拟：DPI 缩放矩阵工具（1.0~2.0 通过）+ UI Automation 可访问性树检查（65/65 命名，NVDA 替代）
+  + 结果文档 `docs/manual_validation_results_v2.18.md`。
 
-- 功能入口与质量审计（v2.19）：14 菜单/170 动作无死菜单；发现 F5 重复绑定、4 项设置无 UI、i18n 未接线等问题（`docs/audit_v2.19.0.md`）。
+## [2.18.2] - 2026-11-03
 
 ### 修复
 
-- 「特色功能」菜单：插件未启用/未注册命令时**隐藏**对应 AI/Git 子菜单（不再显示禁用占位项），插件延后加载后自动显示；
-
-- **主题菜单**：修复 v2.18 Mixin 拆分后 `themes/` 路径错误导致菜单内置主题缺失；
-- **设置 UI**：新增 mmap 增量保存开关、大文件阈值（设置→编辑器）；实时诊断大文件阈值（设置→高级）；插件市场访问令牌 + TLS 校验（市场工具栏）。
+- **主题菜单**：修复 v2.18 拆分 Mixin 后 `themes/` 路径错误导致菜单内置主题（暗夜/护眼/高对比/明亮）缺失；
+- **设置 UI**（审计缺口）：
+  - 设置 → 编辑器 → 保存：mmap 增量保存开关（实验）+ 大文件阈值（1~512MB）；
+  - 设置 → 高级 → 性能与诊断：实时诊断大文件阈值（1~512MB）；
+  - 插件市场工具栏：访问令牌（Bearer，密码框）+ 校验 TLS 证书；
+- 「特色功能」菜单：插件未启用/未注册命令时隐藏对应 AI/Git 子菜单（不再显示禁用占位项），
+  插件延后加载后自动显示。
 
 ### 新增
 
-- CI 卫生：`ruff format tools tests` 通过（210 文件）；Windows-only 崩溃工具测试加平台跳过；Linux 跨平台测试任务暂标非阻断（技术债跟踪）。
+- CI 卫生：`ruff format tools tests` 通过（210 文件）；Windows-only 崩溃工具测试加平台跳过；
+  Linux 跨平台测试任务暂标非阻断（技术债跟踪，主门禁为自托管 Windows 全量）。
 
-- mmap 增量保存（M1）：大文件等长修改走原地补丁 + journal 备份 + 崩溃恢复 + 默认关闭灰度（`core/mmap_save.py`）；
-  50MB 文件单行保存实测 **0.36s**（区间级 journal，达标 <0.5s），非等长/失败自动回退全量写盘；
+### 文档
 
-- 真机验证模拟：DPI 缩放矩阵工具（1.0~2.0 通过）+ UI Automation 可访问性树检查（65/65 命名，NVDA 替代）+ 结果文档 `docs/manual_validation_results_v2.18.md`；
-- 插件市场安全增强：注册表服务 Token 鉴权（Bearer）+ HTTPS（证书/私钥）；客户端支持 `QINGCAO_REGISTRY_TOKEN` 与 TLS 校验开关；
-- mmap 增量编辑预研：`tools/bench_mmap_edit.py`（24MB 文件 7.7× 加速）+ 设计文档 `docs/mmap_incremental_edit_design.md`；
-- i18n 脚手架：`core/i18n_json.py`（JSON 翻译映射/安全回退）+ `tools/extract_i18n_strings.py`（已提取 5218 条中文串）+ 迁移计划。
+- 功能入口与质量审计（v2.19）：14 菜单 / 170 动作无死菜单；发现并跟踪入口缺口
+  （`docs/audit_v2.19.0.md`）。
+
+## [2.18.1] - 2026-11-02
+
+### 新增
+
+- 真机验证模拟：DPI 缩放矩阵 + UI Automation 可访问性树检查（NVDA 替代）；
+- 插件市场安全增强：注册表服务 Token 鉴权（Bearer）+ HTTPS（证书/私钥）；
+  客户端支持 `QINGCAO_REGISTRY_TOKEN` 与 TLS 校验开关；
+- mmap 增量编辑预研：`tools/bench_mmap_edit.py`（24MB 文件 7.7× 加速）+ 设计文档；
+- i18n 脚手架：`core/i18n_json.py` + `tools/extract_i18n_strings.py`（已提取 5218 条中文串）。
 
 ## [2.18.0] - 2026-11-02
 
