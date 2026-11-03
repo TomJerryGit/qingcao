@@ -25,6 +25,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import tempfile
@@ -119,17 +120,24 @@ try:
 
     d, elapsed = timed(lambda: doc_open(big_path))
     print("       文件 %.1f MB / %d 行" % (real_mb, n_lines))
-    check("S1a 10MB 文件打开成功", d is not None and d.get_text() != "",
-          "耗时 %.2fs" % elapsed)
+    check("S1a 10MB 文件打开成功", d is not None and d.get_text() != "", "耗时 %.2fs" % elapsed)
     check("S1b 打开耗时 < 5.0s", elapsed < 5.0, "%.2fs" % elapsed)
     got = d.get_text()
-    check("S1c 内容逐字符一致（无截断/无乱码）",
-          got == big_text,
-          "原文 %d 字符 / 读回 %d 字符" % (len(big_text), len(got)))
-    check("S1d 行数正确", d.get_line_count() == n_lines + 1,
-          "%d vs %d" % (d.get_line_count(), n_lines + 1))
-    check("S1e 编码检测为 UTF-8", str(d.encoding).lower().replace("_", "-")
-          in ("utf-8", "utf8"), str(d.encoding))
+    check(
+        "S1c 内容逐字符一致（无截断/无乱码）",
+        got == big_text,
+        "原文 %d 字符 / 读回 %d 字符" % (len(big_text), len(got)),
+    )
+    check(
+        "S1d 行数正确",
+        d.get_line_count() == n_lines + 1,
+        "%d vs %d" % (d.get_line_count(), n_lines + 1),
+    )
+    check(
+        "S1e 编码检测为 UTF-8",
+        str(d.encoding).lower().replace("_", "-") in ("utf-8", "utf8"),
+        str(d.encoding),
+    )
     d.close()
 except Exception as e:
     check("S1 10MB 场景", False, "%s: %s" % (type(e).__name__, e))
@@ -156,8 +164,11 @@ else:
         # 注意：每行都以 "\n" 结尾，末尾会多一个"空行起点"，
         # 所以正确的行数是 1000000 + 1（与 S1 的推导一致）。
         # 原断言写成 == 1000000 是测试自身错误（Lead 实测修正）。
-        check("S2c 行数 == 1000001（100 万行 + 末尾空行起点）",
-              d2.get_line_count() == 1000001, str(d2.get_line_count()))
+        check(
+            "S2c 行数 == 1000001（100 万行 + 末尾空行起点）",
+            d2.get_line_count() == 1000001,
+            str(d2.get_line_count()),
+        )
         d2.close()
     except Exception as e:
         check("S2 100 万行场景", False, "%s: %s" % (type(e).__name__, e))
@@ -174,8 +185,9 @@ try:
     d3, el3 = timed(lambda: doc_open(p3))
     check("S3a 超长单行打开成功", d3 is not None, "耗时 %.2fs" % el3)
     check("S3b 耗时 < 3s", el3 < 3.0, "%.2fs" % el3)
-    check("S3c 内容保真", d3.get_text() == longline,
-          "%d vs %d" % (len(longline), len(d3.get_text())))
+    check(
+        "S3c 内容保真", d3.get_text() == longline, "%d vs %d" % (len(longline), len(d3.get_text()))
+    )
     check("S3d 行数 == 2", d3.get_line_count() == 2, str(d3.get_line_count()))
     d3.close()
 except Exception as e:
@@ -208,9 +220,11 @@ for codec, label in ENCODINGS:
         d, el = timed(lambda: doc_open(p))
         got = d.get_text()
         det = str(d.encoding).lower().replace("_", "-")
-        check("S4 %s 读回内容一致" % label,
-              got.replace("\r\n", "\n") == expect.replace("\r\n", "\n"),
-              "检测=%s 原文=%d 读回=%d" % (det, len(expect), len(got)))
+        check(
+            "S4 %s 读回内容一致" % label,
+            got.replace("\r\n", "\n") == expect.replace("\r\n", "\n"),
+            "检测=%s 原文=%d 读回=%d" % (det, len(expect), len(got)),
+        )
         d.close()
     except Exception as e:
         check("S4 %s" % label, False, "%s: %s" % (type(e).__name__, e))
@@ -226,13 +240,14 @@ for eol, name in (("\n", "LF"), ("\r\n", "CRLF"), ("\r", "CR")):
         p = write_bytes("eol_%s.txt" % name, text.encode("utf-8"))
         d, el = timed(lambda: doc_open(p))
         got = d.get_text()
-        check("S5 %s 打开后行数 == 4" % name, d.get_line_count() == 4,
-              str(d.get_line_count()))
+        check("S5 %s 打开后行数 == 4" % name, d.get_line_count() == 4, str(d.get_line_count()))
         # Document 会把 EOL 统一/保留：只断言"读出 3 行内容不丢"
         norm = got.replace("\r\n", "\n").replace("\r", "\n")
-        check("S5 %s 三行内容不丢" % name,
-              norm.count("\n") == 3 and "line1" in norm and "line3" in norm,
-              repr(norm[:40]))
+        check(
+            "S5 %s 三行内容不丢" % name,
+            norm.count("\n") == 3 and "line1" in norm and "line3" in norm,
+            repr(norm[:40]),
+        )
         d.close()
     except Exception as e:
         check("S5 %s" % name, False, "%s: %s" % (type(e).__name__, e))
@@ -262,8 +277,7 @@ try:
         check("S6a 草稿已写入磁盘", len(drafts) >= 1, "%d 个" % len(drafts))
         if drafts:
             _p, _orig, text, _mt = drafts[0]
-            check("S6b 草稿内容 == 未保存内容",
-                  "崩溃后不能丢" in text, repr(text[:40]))
+            check("S6b 草稿内容 == 未保存内容", "崩溃后不能丢" in text, repr(text[:40]))
             check("S6c 草稿记录了原始路径", bool(_orig), str(_orig))
         d.close()
     finally:
@@ -290,10 +304,11 @@ for label, data, expect in edges:
         got = d.get_text()
         check("S7 %s 不崩溃" % label, d is not None, "%.3fs" % el)
         if label != "BOM + 空":
-            check("S7 %s 内容符合预期" % label,
-                  got.replace("\r\n", "\n").replace("\r", "\n")
-                  == expect.replace("\r\n", "\n"),
-                  repr(got[:20]))
+            check(
+                "S7 %s 内容符合预期" % label,
+                got.replace("\r\n", "\n").replace("\r", "\n") == expect.replace("\r\n", "\n"),
+                repr(got[:20]),
+            )
         d.close()
     except Exception as e:
         check("S7 %s" % label, False, "%s: %s" % (type(e).__name__, e))
@@ -328,6 +343,7 @@ if WARN:
 # 清理
 try:
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
 except Exception:
     pass

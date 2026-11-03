@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """P1 配置代理第2步：宿主持久化（QSettings）"""
+
 import os
 
 
 def _settings(tmp_path, name="cfg_plugin"):
     from PyQt5.QtCore import QSettings
+
     path = os.path.join(str(tmp_path), name + ".ini")
     return QSettings(path, QSettings.IniFormat)
 
@@ -20,6 +22,7 @@ SCHEMA = {
 
 def test_coerce_types():
     from infrastructure.plugin_sandbox_manager import config_coerce
+
     assert config_coerce(SCHEMA["enabled"], "false") is False
     assert config_coerce(SCHEMA["enabled"], 0) is False
     assert config_coerce(SCHEMA["max_words"], "42") == 42
@@ -32,11 +35,14 @@ def test_coerce_types():
 
 def test_save_load_roundtrip(tmp_path):
     from infrastructure.plugin_sandbox_manager import load_plugin_config, save_plugin_config
+
     s = _settings(tmp_path)
-    saved = save_plugin_config("cfg_plugin", SCHEMA,
-                               {"enabled": False, "max_words": 50,
-                                "ratio": 0.25, "words": ["z"],
-                                "unknown_key": 1}, settings=s)
+    saved = save_plugin_config(
+        "cfg_plugin",
+        SCHEMA,
+        {"enabled": False, "max_words": 50, "ratio": 0.25, "words": ["z"], "unknown_key": 1},
+        settings=s,
+    )
     assert saved["enabled"] is False and saved["max_words"] == 50
     assert "unknown_key" not in saved
     loaded = load_plugin_config("cfg_plugin", SCHEMA, settings=s)
@@ -48,6 +54,7 @@ def test_save_load_roundtrip(tmp_path):
 
 def test_load_defaults_when_empty(tmp_path):
     from infrastructure.plugin_sandbox_manager import load_plugin_config
+
     s = _settings(tmp_path, "empty_plugin")
     loaded = load_plugin_config("empty_plugin", SCHEMA, settings=s)
     assert loaded["enabled"] is True

@@ -44,8 +44,8 @@ class TestUndoRedoStackInvalidation:
         mgr = UndoManager(merge_interval=100000)  # 放宽窗口使合并确定发生
 
         # 两条不可互相合并的命令
-        mgr.record(InsertCmd(0, "AAA"))   # stack=[A]
-        mgr.record(InsertCmd(0, "Z"))     # 0+3 != 0 -> 不合并，stack=[A, Z]
+        mgr.record(InsertCmd(0, "AAA"))  # stack=[A]
+        mgr.record(InsertCmd(0, "Z"))  # 0+3 != 0 -> 不合并，stack=[A, Z]
 
         assert len(mgr.undo_stack) == 2, "前置条件：应有两条独立命令"
 
@@ -55,7 +55,7 @@ class TestUndoRedoStackInvalidation:
 
         # 新的编辑动作：走 _pending_group 合并分支
         mgr.begin_group(InsertCmd(0, "P"))
-        mgr.record(InsertCmd(1, "Q"))     # 时间窗内 -> 合并，return True
+        mgr.record(InsertCmd(1, "Q"))  # 时间窗内 -> 合并，return True
 
         assert mgr.can_redo() is False, (
             "INV-1 违反：内容已改变（新命令 P/Q 被记录并合并进撤销栈），"
@@ -79,12 +79,12 @@ class TestUndoRedoStackInvalidation:
         mgr = UndoManager()
 
         # 多光标编辑批次 1
-        mgr.record(GroupCmd([InsertCmd(0, "AAA")]))   # stack=[G1]
+        mgr.record(GroupCmd([InsertCmd(0, "AAA")]))  # stack=[G1]
         # 一次普通编辑（它会把 editor 侧 pending group 冲刷掉，
         # 也在这里提供一条非 GroupCmd 的栈顶之下内容）
-        mgr.record(InsertCmd(0, "X"))                 # stack=[G1, X]
+        mgr.record(InsertCmd(0, "X"))  # stack=[G1, X]
 
-        assert mgr.undo() is True                     # stack=[G1], redo=[X]
+        assert mgr.undo() is True  # stack=[G1], redo=[X]
         assert mgr.can_redo() is True
 
         # 多光标编辑批次 2 —— G1.can_merge(G2) 恒为 True
@@ -97,8 +97,7 @@ class TestUndoRedoStackInvalidation:
             f"redo_stack={[c.describe() for c in mgr.redo_stack]}"
         )
 
-    def test_editor_merge_after_undo_produces_unreachable_state(
-            self, qapp, monkeypatch):
+    def test_editor_merge_after_undo_produces_unreachable_state(self, qapp, monkeypatch):
         """EditorProxy 级别复现（真实 QScintilla + SCN_MODIFIED 记录）。
 
         InsertCmd.can_merge 的时间窗是模块常量 core.commands.MERGE_INTERVAL_MS
@@ -108,7 +107,7 @@ class TestUndoRedoStackInvalidation:
         """
         import core.commands as commands
 
-        monkeypatch.setattr(commands, "MERGE_INTERVAL_MS", 10 ** 9)
+        monkeypatch.setattr(commands, "MERGE_INTERVAL_MS", 10**9)
 
         from PyQt5.Qsci import QsciScintilla
 
@@ -165,11 +164,11 @@ class TestUndoRedoStackInvalidation:
         sc.setUtf8(True)
         proxy = EditorProxy(sc, Document())
 
-        sc.SendScintilla(sc.SCI_INSERTTEXT, 0, b"abc")     # state1 = "abc"
-        sc.SendScintilla(sc.SCI_INSERTTEXT, 3, b"def")     # state2
-        sc.SendScintilla(sc.SCI_DELETERANGE, 0, 1)         # state3
+        sc.SendScintilla(sc.SCI_INSERTTEXT, 0, b"abc")  # state1 = "abc"
+        sc.SendScintilla(sc.SCI_INSERTTEXT, 3, b"def")  # state2
+        sc.SendScintilla(sc.SCI_DELETERANGE, 0, 1)  # state3
 
-        expected = ["abcde", "abcdef", "abc"]   # 步骤快照（可能因合并而不同）
+        expected = ["abcde", "abcdef", "abc"]  # 步骤快照（可能因合并而不同）
 
         states = []
         for _ in range(10):
@@ -180,8 +179,7 @@ class TestUndoRedoStackInvalidation:
 
         # 最终必须能回到空文档
         assert sc.text() == "", (
-            f"撤销到底后文本应为空，实际 {sc.text()!r}；"
-            f"中间状态={states}；期望快照={expected}"
+            f"撤销到底后文本应为空，实际 {sc.text()!r}；中间状态={states}；期望快照={expected}"
         )
 
 
@@ -216,7 +214,7 @@ class TestVimUndo:
 
         # 关键：先建代理（它会禁用内置撤销栈），再启用 Vim
         proxy = EditorProxy(sc, Document())
-        vm = VimMode(sc)          # 生产路径：ui/main_window.py:1539-1544
+        vm = VimMode(sc)  # 生产路径：ui/main_window.py:1539-1544
         vm.set_enabled(True)
         assert vm.state == VimState.NORMAL
 
@@ -224,18 +222,12 @@ class TestVimUndo:
 
         # 'x' 删除光标处字符：走 VimMode -> SCI_DELETERANGE
         # -> SCN_MODIFIED -> 自研 UndoManager 记录
-        vm.handle_key(
-            QKeyEvent(QKeyEvent.KeyPress, Qt.Key_X, Qt.NoModifier, 'x')
-        )
+        vm.handle_key(QKeyEvent(QKeyEvent.KeyPress, Qt.Key_X, Qt.NoModifier, "x"))
         assert sc.text() != before
-        assert len(proxy.undo_manager.undo_stack) >= 1, (
-            "前置条件：Vim 的 x 应被自研撤销栈记录"
-        )
+        assert len(proxy.undo_manager.undo_stack) >= 1, "前置条件：Vim 的 x 应被自研撤销栈记录"
 
         # 'u' 撤销
-        vm.handle_key(
-            QKeyEvent(QKeyEvent.KeyPress, Qt.Key_U, Qt.NoModifier, 'u')
-        )
+        vm.handle_key(QKeyEvent(QKeyEvent.KeyPress, Qt.Key_U, Qt.NoModifier, "u"))
         assert sc.text() == before, (
             "Vim 的 u 未生效。VimMode 调用了 self.editor.undo()（QScintilla "
             "内置撤销），而 EditorProxy 已执行 SCI_SETUNDOCOLLECTION(0) "
@@ -268,16 +260,13 @@ class TestVimUndo:
         proxy.undo()
         after_undo = sc.text()
 
-        vm.handle_key(
-            QKeyEvent(QKeyEvent.KeyPress, Qt.Key_R,
-                      Qt.ControlModifier, '\x12')
-        )
+        vm.handle_key(QKeyEvent(QKeyEvent.KeyPress, Qt.Key_R, Qt.ControlModifier, "\x12"))
         assert sc.text() != after_undo, (
-            "Vim 的 Ctrl+R 未生效：同样调用了被禁用的内置 redo。"
-            f" 文本={sc.text()!r}"
+            f"Vim 的 Ctrl+R 未生效：同样调用了被禁用的内置 redo。 文本={sc.text()!r}"
         )
 
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))

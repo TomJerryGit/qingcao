@@ -20,6 +20,7 @@
 阈值说明：本机 offscreen 实测值 × 约 2 倍余量，避免正常抖动误报；
 CI/他人机器更慢时可用 `--no-check` 或调整 `THRESHOLDS`。
 """
+
 import argparse
 import json
 import os
@@ -58,17 +59,17 @@ for _p in (r"C:\Windows\Fonts\consola.ttf", r"C:\Windows\Fonts\msyh.ttc"):
 
 # 阈值（秒）：实测值的约 2 倍，留出机器差异余量
 THRESHOLDS = {
-    "mainwindow": 2.5,            # 已先应用 QSS，控件创建会解析样式
-    "startup_theme": 0.3,         # 同主题应被跳过（只处理可见面板）
-    "plugin_ready_after": 2.0,    # 首轮插件就绪（不含延后插件）
-    "plugins_fully_ready": 4.0,   # 含延后插件
-    "theme_reapply": 0.05,        # 重复应用必须近似 0
+    "mainwindow": 2.5,  # 已先应用 QSS，控件创建会解析样式
+    "startup_theme": 0.3,  # 同主题应被跳过（只处理可见面板）
+    "plugin_ready_after": 2.0,  # 首轮插件就绪（不含延后插件）
+    "plugins_fully_ready": 4.0,  # 含延后插件
+    "theme_reapply": 0.05,  # 重复应用必须近似 0
     "event_10k": 0.6,
     "panel_max": 0.3,
-    "typing_2000": 0.20,   # C 第二阶段后实测 ~0.114s（57µs/键）；目标 <0.20s 已达标
+    "typing_2000": 0.20,  # C 第二阶段后实测 ~0.114s（57µs/键）；目标 <0.20s 已达标
     "open_1mb": 1.2,
     "open_10mb": 1.5,
-    "open_50mb": 3.0,    # 实测 1.46s（50MB/3M 行，大文件模式）
+    "open_50mb": 3.0,  # 实测 1.46s（50MB/3M 行，大文件模式）
     "open_py_2mb": 1.5,
     "session_save": 0.4,
     "theme_notify": 0.8,
@@ -86,8 +87,7 @@ def measure(name, fn, repeat=1):
         vals.append(time.perf_counter() - t0)
     val = statistics.median(vals)
     RESULTS[name] = round(val, 4)
-    print("  %-24s %8.3f s%s" % (name, val,
-                                 "  (%d 次取中位)" % repeat if repeat > 1 else ""))
+    print("  %-24s %8.3f s%s" % (name, val, "  (%d 次取中位)" % repeat if repeat > 1 else ""))
     return out
 
 
@@ -96,8 +96,6 @@ def section(title):
     print("=" * 74)
     print(title)
     print("=" * 74)
-
-
 
 
 def system_load_factor() -> float:
@@ -128,8 +126,8 @@ def system_load_factor() -> float:
             kernel = ctypes.c_ulonglong()
             user = ctypes.c_ulonglong()
             ctypes.windll.kernel32.GetSystemTimes(
-                ctypes.byref(idle), ctypes.byref(kernel),
-                ctypes.byref(user))
+                ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)
+            )
             return idle.value, kernel.value + user.value
 
         i1, t1 = _cpu_times()
@@ -143,24 +141,24 @@ def system_load_factor() -> float:
     except Exception:
         return 1.0
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check", action="store_true",
-                        help="超阈值返回非零退出码")
-    parser.add_argument("--factor", type=float, default=1.0,
-                        help="阈值容差倍数（慢机器 CI 用 2.5）")
-    parser.add_argument("--json", type=str, default="",
-                        help="把结果写入 JSON 文件")
-    parser.add_argument("--auto", action="store_true",
-                        help="按当前系统负载自动放大容差（智能降级）")
+    parser.add_argument("--check", action="store_true", help="超阈值返回非零退出码")
+    parser.add_argument(
+        "--factor", type=float, default=1.0, help="阈值容差倍数（慢机器 CI 用 2.5）"
+    )
+    parser.add_argument("--json", type=str, default="", help="把结果写入 JSON 文件")
+    parser.add_argument(
+        "--auto", action="store_true", help="按当前系统负载自动放大容差（智能降级）"
+    )
     args = parser.parse_args()
 
     if args.auto:
         auto = system_load_factor()
-        base = max(args.factor, 5.0)   # 最低有效容差 5×，避免空闲 Runner 噪声误报
+        base = max(args.factor, 5.0)  # 最低有效容差 5×，避免空闲 Runner 噪声误报
         args.factor = round(base * auto, 2)
-        print("  [auto] 系统负载系数 %.2f -> 有效容差 %.2f"
-              % (auto, args.factor))
+        print("  [auto] 系统负载系数 %.2f -> 有效容差 %.2f" % (auto, args.factor))
 
     from ui.main_window import MainWindow  # noqa: E402
 
@@ -173,6 +171,7 @@ def main():
     #     第二段 `theme_reapply` 专门验证这次重复已被跳过。
     try:
         import main as _main
+
         t0 = time.perf_counter()
         _main.load_theme(app)
         RESULTS["load_theme"] = round(time.perf_counter() - t0, 4)
@@ -199,10 +198,8 @@ def main():
             break
         time.sleep(0.005)
     app.processEvents()
-    RESULTS["plugin_ready_after"] = round(
-        time.perf_counter() - t_start, 4)
-    print("  %-24s %8.3f s（累计，含插件）"
-          % ("plugin_ready_after", RESULTS["plugin_ready_after"]))
+    RESULTS["plugin_ready_after"] = round(time.perf_counter() - t_start, 4)
+    print("  %-24s %8.3f s（累计，含插件）" % ("plugin_ready_after", RESULTS["plugin_ready_after"]))
     pm = getattr(win, "plugin_manager", None)
     print("  插件管理器: %r" % (pm,))
 
@@ -211,8 +208,7 @@ def main():
     def _active_count():
         ld = getattr(pm, "loader", None)
         specs = getattr(ld, "specs", {}) or {}
-        return sum(1 for s in specs.values()
-                   if "ACTIVATED" in str(getattr(s, "state", "")))
+        return sum(1 for s in specs.values() if "ACTIVATED" in str(getattr(s, "state", "")))
 
     t0 = time.perf_counter()
     deadline = t0 + 8
@@ -221,10 +217,11 @@ def main():
         if _active_count() >= 10:
             break
         time.sleep(0.01)
-    RESULTS["plugins_fully_ready"] = round(
-        time.perf_counter() - t_start, 4)
-    print("  %-24s %8.3f s（含延后插件，累计）"
-          % ("plugins_fully_ready", RESULTS["plugins_fully_ready"]))
+    RESULTS["plugins_fully_ready"] = round(time.perf_counter() - t_start, 4)
+    print(
+        "  %-24s %8.3f s（含延后插件，累计）"
+        % ("plugins_fully_ready", RESULTS["plugins_fully_ready"])
+    )
 
     # 验证"同主题重复应用"已被跳过（应接近 0）
     measure("theme_reapply", win.apply_startup_theme)
@@ -249,9 +246,19 @@ def main():
 
     section("4. 面板首次构造")
     panel_times = {}
-    for name in ("outline", "dir_tree", "gsearch", "console", "plugins_panel",
-                 "perf_monitor", "minimap", "problems", "lsp",
-                 "undo_history", "task"):
+    for name in (
+        "outline",
+        "dir_tree",
+        "gsearch",
+        "console",
+        "plugins_panel",
+        "perf_monitor",
+        "minimap",
+        "problems",
+        "lsp",
+        "undo_history",
+        "task",
+    ):
         t0 = time.perf_counter()
         win._ensure_panel(name)
         panel_times[name] = round(time.perf_counter() - t0, 4)
@@ -295,6 +302,7 @@ def main():
         with open(big_py, "wb") as f:
             f.write(b"def a():\n    return 1\n" * 250_000)
         cases.append(("open_py_2mb", big_py, 500_001))
+
         def _wait_loaded(limit=180.0):
             ed = win.tabs.widget(0)
             proxy = getattr(ed, "proxy", None)
@@ -318,11 +326,12 @@ def main():
             pr = measure(name, lambda p=path: _open_and_wait(p))
             app.processEvents()
             lines = pr.sc.lines() if pr is not None else -1
-            print("    行数=%d（期望 %d）%s"
-                  % (lines, expect_lines,
-                     " ✔" if lines == expect_lines else " ✘ 内容不完整!"))
+            print(
+                "    行数=%d（期望 %d）%s"
+                % (lines, expect_lines, " ✔" if lines == expect_lines else " ✘ 内容不完整!")
+            )
             if lines != expect_lines:
-                RESULTS[name] = 999.0     # 数据不完整视为严重失败
+                RESULTS[name] = 999.0  # 数据不完整视为严重失败
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -348,8 +357,7 @@ def main():
 
     section("结果汇总")
     problems = []
-    for name, limit in {k: v * args.factor for k, v in
-                            THRESHOLDS.items()}.items():
+    for name, limit in {k: v * args.factor for k, v in THRESHOLDS.items()}.items():
         val = RESULTS.get(name)
         if val is None:
             continue
@@ -357,13 +365,13 @@ def main():
         if val > limit:
             mark = "FAIL"
             problems.append((name, val, limit))
-        print("  %-24s %8.3f s   阈值 %5.2f s   %s"
-              % (name, val, limit, mark))
+        print("  %-24s %8.3f s   阈值 %5.2f s   %s" % (name, val, limit, mark))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as f:
-            json.dump({"results": RESULTS, "thresholds": THRESHOLDS},
-                      f, ensure_ascii=False, indent=2)
+            json.dump(
+                {"results": RESULTS, "thresholds": THRESHOLDS}, f, ensure_ascii=False, indent=2
+            )
         print("\n  结果已写入: %s" % args.json)
 
     if problems:

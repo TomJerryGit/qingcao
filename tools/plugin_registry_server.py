@@ -7,6 +7,7 @@
 
 客户端设置注册表 URL 为: http://127.0.0.1:8765/registry.json
 """
+
 import argparse
 import functools
 import http.server
@@ -29,6 +30,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         if not self.token:
             return True
         import hmac
+
         auth = self.headers.get("Authorization", "")
         expected = "Bearer %s" % self.token
         return hmac.compare_digest(auth, expected)
@@ -48,14 +50,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-def make_server(registry_dir, host="127.0.0.1", port=8765,
-                token="", certfile="", keyfile=""):
+def make_server(registry_dir, host="127.0.0.1", port=8765, token="", certfile="", keyfile=""):
     handler_cls = type("Handler", (_Handler,), {"token": token or ""})
-    handler = functools.partial(handler_cls,
-                                directory=os.path.abspath(registry_dir))
+    handler = functools.partial(handler_cls, directory=os.path.abspath(registry_dir))
     srv = http.server.ThreadingHTTPServer((host, port), handler)
     if certfile and keyfile:
         import ssl
+
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile, keyfile)
         srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
@@ -93,17 +94,17 @@ def main():
     ap.add_argument("--cert", default="")
     ap.add_argument("--key", default="")
     args = ap.parse_args()
-    registry_dir = args.registry if os.path.isabs(args.registry) \
-        else os.path.join(ROOT, args.registry)
+    registry_dir = (
+        args.registry if os.path.isabs(args.registry) else os.path.join(ROOT, args.registry)
+    )
     if args.check:
         ok, msg = check_registry(registry_dir)
         print("[registry-server] " + msg)
         return 0 if ok else 1
-    srv = make_server(registry_dir, args.host, args.port,
-                      token=args.token, certfile=args.cert,
-                      keyfile=args.key)
-    print("[registry-server] http://%s:%d/registry.json（Ctrl+C 停止）"
-          % (args.host, args.port))
+    srv = make_server(
+        registry_dir, args.host, args.port, token=args.token, certfile=args.cert, keyfile=args.key
+    )
+    print("[registry-server] http://%s:%d/registry.json（Ctrl+C 停止）" % (args.host, args.port))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

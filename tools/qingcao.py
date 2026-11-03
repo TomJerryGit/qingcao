@@ -34,13 +34,13 @@ ROOT = os.path.dirname(TOOLS_DIR)
 
 # 命令 -> (脚本文件名, 说明)
 COMMANDS = {
-    'check':             ('check_deps.py',         '依赖检查'),
-    'health':            ('health_check.py',       '项目健康扫描'),
-    'diagnose-ai':       ('diagnose_ai.py',        'AI 配置诊断'),
-    'diagnose-proxy':    ('diagnose_proxy.py',     '代理环境诊断'),
-    'diagnose-shortcut': ('diagnose_shortcut.py',  '快捷键冲突诊断'),
-    'quick-check':       ('quick_check.py',        '快速自检'),
-    'new-plugin':        ('create_plugin.py',      '创建插件骨架'),
+    "check": ("check_deps.py", "依赖检查"),
+    "health": ("health_check.py", "项目健康扫描"),
+    "diagnose-ai": ("diagnose_ai.py", "AI 配置诊断"),
+    "diagnose-proxy": ("diagnose_proxy.py", "代理环境诊断"),
+    "diagnose-shortcut": ("diagnose_shortcut.py", "快捷键冲突诊断"),
+    "quick-check": ("quick_check.py", "快速自检"),
+    "new-plugin": ("create_plugin.py", "创建插件骨架"),
 }
 
 
@@ -49,22 +49,22 @@ def print_usage():
 
 
 def print_commands():
-    print('可用命令：')
+    print("可用命令：")
     for cmd, (_, desc) in sorted(COMMANDS.items()):
-        print('  {:16s} {}'.format(cmd, desc))
+        print("  {:16s} {}".format(cmd, desc))
 
 
 def run_script(script_name, extra_args):
     """通过 subprocess 调用 tools/ 下的脚本"""
     script_path = os.path.join(TOOLS_DIR, script_name)
     if not os.path.exists(script_path):
-        print('[ERROR] 脚本不存在: {}'.format(script_path))
+        print("[ERROR] 脚本不存在: {}".format(script_path))
         return 1
     cmd = [sys.executable, script_path] + list(extra_args)
     try:
         return subprocess.run(cmd, cwd=ROOT).returncode
     except KeyboardInterrupt:
-        print('\n用户中断')
+        print("\n用户中断")
         return 130
 
 
@@ -76,16 +76,16 @@ def main():
     command = sys.argv[1]
     extra = sys.argv[2:]
 
-    if command in ('-h', '--help', 'help'):
+    if command in ("-h", "--help", "help"):
         print_usage()
         return 0
 
-    if command == 'list':
+    if command == "list":
         print_commands()
         return 0
 
     if command not in COMMANDS:
-        print('[ERROR] 未知命令: {}'.format(command))
+        print("[ERROR] 未知命令: {}".format(command))
         print()
         print_commands()
         return 1
@@ -94,5 +94,5 @@ def main():
     return run_script(script_name, extra)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

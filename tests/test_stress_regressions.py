@@ -17,6 +17,7 @@
 文本没丢，但行号/行数全错 → 跳转到行、行级 diff、列编辑器、书签、
 LSP 行列位置全部错位。
 """
+
 import os
 import sys
 import tempfile
@@ -33,12 +34,14 @@ if ROOT not in sys.path:
 def qapp():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
     yield app
 
 
 def _open(tmp_path, name, data, encoding=None):
     from core.document import Document
+
     p = tmp_path / name
     p.write_bytes(data)
     d = Document()
@@ -60,7 +63,7 @@ def test_utf16_bom_not_in_text(qapp, tmp_path, codec):
     elif codec == "utf-16-be":
         data = b"\xfe\xff" + SAMPLE.encode("utf-16-be")
     else:
-        data = SAMPLE.encode("utf-16")        # 自动带 LE BOM
+        data = SAMPLE.encode("utf-16")  # 自动带 LE BOM
     d = _open(tmp_path, "u16_%s.txt" % codec, data)
     try:
         got = d.get_text()
@@ -68,10 +71,7 @@ def test_utf16_bom_not_in_text(qapp, tmp_path, codec):
             "读回的正文以 BOM（U+FEFF）开头 —— "
             "`decode()` 没有剥离 BOM（缺陷复发）。repr=%r" % (got[:20],)
         )
-        assert got == SAMPLE, (
-            "UTF-16 内容不一致：期望 %r 实际 %r"
-            % (SAMPLE, got[:40])
-        )
+        assert got == SAMPLE, "UTF-16 内容不一致：期望 %r 实际 %r" % (SAMPLE, got[:40])
         assert len(got) == len(SAMPLE)
     finally:
         d.close()
@@ -95,9 +95,9 @@ def test_utf16_bom_file_roundtrip_bytes(qapp, tmp_path):
         d.mark_modified()
         out = tmp_path / "u16_rt_saved.txt"
         d.save(str(out))
-        assert out.read_bytes() == data, (
-            "保存后字节与原文不一致：\n"
-            "  原文 %r\n  保存 %r" % (data[:12], out.read_bytes()[:12])
+        assert out.read_bytes() == data, "保存后字节与原文不一致：\n  原文 %r\n  保存 %r" % (
+            data[:12],
+            out.read_bytes()[:12],
         )
     finally:
         d.close()
@@ -128,20 +128,21 @@ def test_no_bom_file_unaffected(qapp, tmp_path):
 # ============================================================
 # 缺陷 2：换行符 → 行索引
 # ============================================================
-@pytest.mark.parametrize("eol,label", [
-    ("\n", "LF"),
-    ("\r\n", "CRLF"),
-    ("\r", "CR"),
-])
+@pytest.mark.parametrize(
+    "eol,label",
+    [
+        ("\n", "LF"),
+        ("\r\n", "CRLF"),
+        ("\r", "CR"),
+    ],
+)
 def test_line_count_all_eol_styles(qapp, tmp_path, eol, label):
     """LF / CRLF / CR 三种换行的行数都必须正确"""
     text = eol.join(["line1", "line2", "line3"]) + eol
     d = _open(tmp_path, "eol_%s.txt" % label, text.encode("utf-8"))
     try:
         # 3 行内容 + 末尾一个空行起点 = 4
-        assert d.get_line_count() == 4, (
-            "%s 文件行数 = %d（期望 4）" % (label, d.get_line_count())
-        )
+        assert d.get_line_count() == 4, "%s 文件行数 = %d（期望 4）" % (label, d.get_line_count())
     finally:
         d.close()
 
@@ -163,9 +164,7 @@ def test_crlf_not_double_counted(qapp, tmp_path):
     """CRLF 不能被算成两行（\r 与 \n 各断一次）—— 这是修 CR 时最易引入的回归"""
     d = _open(tmp_path, "crlf_count.txt", b"a\r\nb\r\nc\r\n")
     try:
-        assert d.get_line_count() == 4, (
-            "CRLF 被重复计数，行数 = %d（期望 4）" % d.get_line_count()
-        )
+        assert d.get_line_count() == 4, "CRLF 被重复计数，行数 = %d（期望 4）" % d.get_line_count()
         assert d.get_line_text(0) == "a"
         assert d.get_line_text(1) == "b"
         assert d.get_line_text(2) == "c"
@@ -196,9 +195,9 @@ def test_line_index_does_not_change_text(qapp, tmp_path):
         d.mark_modified()
         out = tmp_path / "nochange_saved.txt"
         d.save(str(out))
-        assert out.read_bytes() == raw, (
-            "行索引修复把文本改了：原文 %r 保存 %r"
-            % (raw, out.read_bytes())
+        assert out.read_bytes() == raw, "行索引修复把文本改了：原文 %r 保存 %r" % (
+            raw,
+            out.read_bytes(),
         )
     finally:
         d.close()

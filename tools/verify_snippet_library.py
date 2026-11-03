@@ -34,6 +34,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import json
 import os
 import sys
@@ -95,62 +96,75 @@ from core.snippet_market import (  # noqa: E402
 )
 
 
-check("A1 默认片段包目录为绝对路径",
-      os.path.isabs(DEFAULT_PACK_DIR), DEFAULT_PACK_DIR)
+check("A1 默认片段包目录为绝对路径", os.path.isabs(DEFAULT_PACK_DIR), DEFAULT_PACK_DIR)
 
 pack_dir = os.path.join(TMP, "packs")
 os.makedirs(pack_dir, exist_ok=True)
 
 # 两种格式各一个文件
 with open(os.path.join(pack_dir, "a.json"), "w", encoding="utf-8") as f:
-    json.dump({"snippets": [
-        {"name": "Py Snip", "language": "python",
-         "description": "python 片段", "body": "print(1)"},
-    ]}, f, ensure_ascii=False)
+    json.dump(
+        {
+            "snippets": [
+                {
+                    "name": "Py Snip",
+                    "language": "python",
+                    "description": "python 片段",
+                    "body": "print(1)",
+                },
+            ]
+        },
+        f,
+        ensure_ascii=False,
+    )
 with open(os.path.join(pack_dir, "b.json"), "w", encoding="utf-8") as f:
-    json.dump([
-        {"name": "Js Snip", "language": "javascript",
-         "description": "js 片段", "body": "console.log(1)"},
-    ], f, ensure_ascii=False)
+    json.dump(
+        [
+            {
+                "name": "Js Snip",
+                "language": "javascript",
+                "description": "js 片段",
+                "body": "console.log(1)",
+            },
+        ],
+        f,
+        ensure_ascii=False,
+    )
 # 坏文件：不应影响其它文件
 with open(os.path.join(pack_dir, "broken.json"), "w", encoding="utf-8") as f:
     f.write("{ this is not json")
 
 lib = SnippetLibrary(source_dir=pack_dir)
 items = lib.scan()
-check("A2 扫描到 2 个片段（坏文件被跳过）", len(items) == 2,
-      str([i.get("name") for i in items]))
-check("A3 支持 {\"snippets\": [...]} 格式",
-      any(i.get("name") == "Py Snip" for i in items), "")
-check("A4 支持裸数组格式",
-      any(i.get("name") == "Js Snip" for i in items), "")
-check("A5 每个片段带 source_file",
-      all(i.get("source_file") for i in items), "")
+check("A2 扫描到 2 个片段（坏文件被跳过）", len(items) == 2, str([i.get("name") for i in items]))
+check('A3 支持 {"snippets": [...]} 格式', any(i.get("name") == "Py Snip" for i in items), "")
+check("A4 支持裸数组格式", any(i.get("name") == "Js Snip" for i in items), "")
+check("A5 每个片段带 source_file", all(i.get("source_file") for i in items), "")
 
 # 空目录 → 内置示例
 empty_dir = os.path.join(TMP, "empty")
 os.makedirs(empty_dir, exist_ok=True)
 lib_empty = SnippetLibrary(source_dir=empty_dir)
 check("A6 空目录扫描结果为空", lib_empty.scan() == [], "")
-check("A7 内置示例可用于兜底",
-      len(SnippetLibrary.builtin_snippets()) >= 3,
-      "%d 条" % len(SnippetLibrary.builtin_snippets()))
+check(
+    "A7 内置示例可用于兜底",
+    len(SnippetLibrary.builtin_snippets()) >= 3,
+    "%d 条" % len(SnippetLibrary.builtin_snippets()),
+)
 
 # 切换目录 + 记住
 got = []
 lib.set_source_dir(empty_dir)
 lib.fetch_completed.connect(lambda lst: got.append(list(lst)))
 lib.fetch_async(force=True)
-check("A8 set_source_dir 生效",
-      lib.source_dir == os.path.abspath(empty_dir), lib.source_dir)
-check("A9 异步读取能完成", wait_for(lambda: bool(got)),
-      "%d 次回调" % len(got))
-check("A10 新目录读取结果为空（无片段包）",
-      got and got[0] == [], str(got[:1]))
-check("A11 目录选择被记住",
-      os.path.abspath(SnippetLibrary.saved_source_dir())
-      == os.path.abspath(empty_dir),
-      SnippetLibrary.saved_source_dir())
+check("A8 set_source_dir 生效", lib.source_dir == os.path.abspath(empty_dir), lib.source_dir)
+check("A9 异步读取能完成", wait_for(lambda: bool(got)), "%d 次回调" % len(got))
+check("A10 新目录读取结果为空（无片段包）", got and got[0] == [], str(got[:1]))
+check(
+    "A11 目录选择被记住",
+    os.path.abspath(SnippetLibrary.saved_source_dir()) == os.path.abspath(empty_dir),
+    SnippetLibrary.saved_source_dir(),
+)
 
 # ============================================================
 # B. 导入
@@ -170,14 +184,11 @@ from core.snippets import get_snippet_manager  # noqa: E402
 
 
 mgr = get_snippet_manager()
-check("B1 片段库路径为绝对路径", os.path.isabs(mgr.filepath),
-      mgr.filepath)
+check("B1 片段库路径为绝对路径", os.path.isabs(mgr.filepath), mgr.filepath)
 
 lib_back.download_async(py_snip)
-check("B2 导入成功", wait_for(lambda: bool(done) or bool(failed)),
-      str(done or failed))
-check("B3 片段进入 SnippetManager",
-      any(s.name == "Py Snip" for s in mgr.list_all()), "")
+check("B2 导入成功", wait_for(lambda: bool(done) or bool(failed)), str(done or failed))
+check("B3 片段进入 SnippetManager", any(s.name == "Py Snip" for s in mgr.list_all()), "")
 
 # 同名不同内容 → 加后缀，不静默覆盖
 done2 = []
@@ -185,24 +196,27 @@ lib_back.download_completed.connect(lambda p: done2.append(p))
 same_name = dict(py_snip)
 same_name["body"] = "print(999)"
 lib_back.download_async(same_name)
-check("B4 同名不同内容导入完成", wait_for(lambda: bool(done2)),
-      str(done2))
+check("B4 同名不同内容导入完成", wait_for(lambda: bool(done2)), str(done2))
 prefix = done2[0] if done2 else ""
 check("B5 同名不静默覆盖（自动加后缀）", prefix.endswith("_2"), prefix)
 old = mgr.get(done[0]) if done else None
-check("B6 原片段内容未被覆盖",
-      old is not None and old.body == "print(1)",
-      getattr(old, 'body', None))
+check(
+    "B6 原片段内容未被覆盖", old is not None and old.body == "print(1)", getattr(old, "body", None)
+)
 
 lib_back.download_async(js_snip)
-check("B7 导入第二个片段成功",
-      wait_for(lambda: any(s.name == "Js Snip" for s in mgr.list_all())), "")
+check(
+    "B7 导入第二个片段成功", wait_for(lambda: any(s.name == "Js Snip" for s in mgr.list_all())), ""
+)
 
 # 缺 body 的片段必须被拒绝（不能塞空片段进库）
 bad = {"name": "No Body"}
 lib_back.download_async(bad)
-check("B8 无 body 的片段被拒绝（失败信号）",
-      wait_for(lambda: len(failed) >= 1 or len(done) >= 4), str(failed))
+check(
+    "B8 无 body 的片段被拒绝（失败信号）",
+    wait_for(lambda: len(failed) >= 1 or len(done) >= 4),
+    str(failed),
+)
 
 # ============================================================
 # C. 对话框
@@ -214,23 +228,22 @@ from ui.snippet_market_dialog import SnippetMarketDialog  # noqa: E402
 
 dlg = SnippetMarketDialog()
 check("C1 对话框可构造", dlg is not None, "")
-check("C2 标题是「代码片段库」", dlg.windowTitle() == "代码片段库",
-      dlg.windowTitle())
-check("C3 有目录显示与选择目录按钮",
-      hasattr(dlg, "dir_label")
-      and callable(getattr(dlg, "_on_choose_dir", None)), "")
+check("C2 标题是「代码片段库」", dlg.windowTitle() == "代码片段库", dlg.windowTitle())
+check(
+    "C3 有目录显示与选择目录按钮",
+    hasattr(dlg, "dir_label") and callable(getattr(dlg, "_on_choose_dir", None)),
+    "",
+)
 check("C4 有语言过滤下拉", hasattr(dlg, "lang_combo"), "")
 check("C5 有搜索框", hasattr(dlg, "search_edit"), "")
 check("C6 有导入按钮逻辑", callable(getattr(dlg, "_on_install", None)), "")
 
 # 过滤逻辑：直接注入数据验证
 dlg._snippets = [
-    {"name": "PyOne", "language": "python", "description": "aaa",
-     "body": "x"},
-    {"name": "JsOne", "language": "javascript", "description": "bbb",
-     "body": "y"},
+    {"name": "PyOne", "language": "python", "description": "aaa", "body": "x"},
+    {"name": "JsOne", "language": "javascript", "description": "bbb", "body": "y"},
 ]
-dlg.lang_combo.setCurrentIndex(0)      # 全部
+dlg.lang_combo.setCurrentIndex(0)  # 全部
 dlg.search_edit.setText("")
 dlg._apply_filter()
 n_all = dlg.list_widget.count()
@@ -241,8 +254,7 @@ dlg.lang_combo.setCurrentText("全部")
 dlg.search_edit.setText("bbb")
 dlg._apply_filter()
 n_kw = dlg.list_widget.count()
-check("C7 语言过滤生效", n_py == 1 and n_all == 2,
-      "全部=%d python=%d" % (n_all, n_py))
+check("C7 语言过滤生效", n_py == 1 and n_all == 2, "全部=%d python=%d" % (n_all, n_py))
 check("C8 关键词过滤生效", n_kw == 1, "命中 %d" % n_kw)
 dlg.close()
 
@@ -256,16 +268,17 @@ from ui.main_window import MainWindow  # noqa: E402
 
 win = MainWindow()
 texts = [a.text() for a in win.findChildren(QAction)]
-check("D1 菜单项「📚 代码片段库…」存在",
-      "📚 代码片段库…" in texts, "")
-check("D2 处理器 _show_snippet_library 可调用",
-      callable(getattr(win, "_show_snippet_library", None)), "")
+check("D1 菜单项「📚 代码片段库…」存在", "📚 代码片段库…" in texts, "")
+check(
+    "D2 处理器 _show_snippet_library 可调用",
+    callable(getattr(win, "_show_snippet_library", None)),
+    "",
+)
 
 # 协作模块必须真的没了
 root = r"D:\QingCaoEditor"
 for rel in ("ui/collab_dialog.py", "core/collab.py"):
-    check("D3 协作模块已删除: %s" % rel,
-          not os.path.isfile(os.path.join(root, rel)), "")
+    check("D3 协作模块已删除: %s" % rel, not os.path.isfile(os.path.join(root, rel)), "")
 
 # 全仓不得再有对 core.collab 的 import（注释/文档里的说明不算）
 import io  # noqa: E402
@@ -281,15 +294,13 @@ for sub in ("core", "ui", "app", "main.py"):
     else:
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = [d for d in dirnames if d != "__pycache__"]
-            files.extend(os.path.join(dirpath, f) for f in filenames
-                         if f.endswith(".py"))
+            files.extend(os.path.join(dirpath, f) for f in filenames if f.endswith(".py"))
     for path in files:
         try:
             src = io.open(path, encoding="utf-8", errors="replace").read()
         except OSError:
             continue
-        for m in re.finditer(r"^\s*(?:from|import)\s+core\.collab\b",
-                             src, re.M):
+        for m in re.finditer(r"^\s*(?:from|import)\s+core\.collab\b", src, re.M):
             offenders.append(os.path.relpath(path, root))
 check("D4 无残留 core.collab 导入", not offenders, str(offenders[:5]))
 
@@ -299,8 +310,7 @@ check("D4 无残留 core.collab 导入", not offenders, str(offenders[:5]))
 # 该模块的**文档字符串**刻意写明了「原实现拉一个不存在的仓库」，
 # 那是解释**为什么改为本地库**的必需文档。这里只检查真正的**代码**：
 # import 语句、赋值语句、函数调用。
-src_market = io.open(os.path.join(root, "core", "snippet_market.py"),
-                     encoding="utf-8").read()
+src_market = io.open(os.path.join(root, "core", "snippet_market.py"), encoding="utf-8").read()
 code_offenders = []
 for pat, desc in (
     (r"^\s*import\s+requests\b", "import requests"),
@@ -311,12 +321,11 @@ for pat, desc in (
 ):
     if re.search(pat, src_market, re.M):
         code_offenders.append(desc)
-check("D5 片段库代码里不再有网络请求", not code_offenders,
-      str(code_offenders))
-check("D6 片段库不再定义网络市场地址常量",
-      not re.search(r"^\s*MARKET_API\s*=", src_market, re.M), "")
-check("D7 文档里说明了改为本地库的原因（404）",
-      "404" in src_market, "")
+check("D5 片段库代码里不再有网络请求", not code_offenders, str(code_offenders))
+check(
+    "D6 片段库不再定义网络市场地址常量", not re.search(r"^\s*MARKET_API\s*=", src_market, re.M), ""
+)
+check("D7 文档里说明了改为本地库的原因（404）", "404" in src_market, "")
 
 # ============================================================
 # 汇总
@@ -332,6 +341,7 @@ if FAIL:
 
 try:
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
 except Exception:
     pass

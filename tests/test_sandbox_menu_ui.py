@@ -15,8 +15,7 @@ class _FakeSandbox:
 
     def menu_items(self):
         return [
-            {"id": "ignore_all", "label": "忽略全部",
-             "path": "工具/拼写检查"},
+            {"id": "ignore_all", "label": "忽略全部", "path": "工具/拼写检查"},
             {"id": "recheck", "label": "重新检查", "path": ""},
         ]
 
@@ -43,6 +42,7 @@ def _close(win):
 
 def test_refresh_menu_builds_actions_and_invokes(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     fake = _FakeSandbox()
     try:
@@ -53,8 +53,7 @@ def test_refresh_menu_builds_actions_and_invokes(qapp):
         labels = [a.text() for a in sub.actions()]
         assert any("忽略全部" in t for t in labels)
         assert any("刷新插件菜单" in t for t in labels)
-        target = next(a for a in sub.actions()
-                      if "忽略全部" in a.text())
+        target = next(a for a in sub.actions() if "忽略全部" in a.text())
         target.trigger()
         assert fake.invoked == ["ignore_all"]
     finally:
@@ -63,6 +62,7 @@ def test_refresh_menu_builds_actions_and_invokes(qapp):
 
 def test_refresh_menu_without_plugins(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         win._sandboxed_plugins = {}

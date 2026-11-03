@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.13.0 候选：配置同步反馈 / 上限可配置 / 高对比度工具"""
+
 import importlib.util
 import os
 import subprocess
@@ -63,6 +64,7 @@ def test_max_instances_configurable(monkeypatch):
 
 def test_config_sync_feedback(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     fake = _FakeSandbox()
     try:
@@ -76,18 +78,31 @@ def test_config_sync_feedback(qapp):
 
 def test_high_contrast_tool_status():
     path = os.path.join(ROOT, "tools", "simulate_high_contrast.py")
-    out = subprocess.run([sys.executable, path, "--status"], cwd=ROOT,
-                         capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", timeout=60)
+    out = subprocess.run(
+        [sys.executable, path, "--status"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
     assert out.returncode == 0
     import json
+
     data = json.loads(out.stdout.strip().splitlines()[-1])
     assert "high_contrast" in data
 
 
 def test_high_contrast_requires_confirm():
     path = os.path.join(ROOT, "tools", "simulate_high_contrast.py")
-    out = subprocess.run([sys.executable, path, "--on"], cwd=ROOT,
-                         capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", timeout=60)
+    out = subprocess.run(
+        [sys.executable, path, "--on"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
     assert out.returncode == 2

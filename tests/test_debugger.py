@@ -14,6 +14,7 @@
 
 以及 Lead 追加的 `external_change_detected` 接线回归（`TestExternalChangeWiring`）。
 """
+
 import importlib.util
 import io
 import json
@@ -88,9 +89,7 @@ def plugin_module(qapp):
 @pytest.fixture(scope="module")
 def driver():
     """加载驱动脚本模块（driver.py 同样是脚本，无包上下文）。"""
-    return load_module_by_path(
-        "qingcao_plugin_python_debugger_driver_for_test", DRIVER_PATH
-    )
+    return load_module_by_path("qingcao_plugin_python_debugger_driver_for_test", DRIVER_PATH)
 
 
 @pytest.fixture
@@ -452,15 +451,13 @@ class TestBreakpoints:
         editor = EditorWidget()
         try:
             editor.setText("a\nb\nc\nd\ne\nf\ng\n")
-            editor._on_margin_clicked(0, 2, None)   # 行号边距：不动断点
-            assert editor.get_breakpoints() == [], (
-                "行号边距不应切换断点（会与双击加书签冲突）"
-            )
-            editor._on_margin_clicked(1, 5, None)   # 断点装订线
+            editor._on_margin_clicked(0, 2, None)  # 行号边距：不动断点
+            assert editor.get_breakpoints() == [], "行号边距不应切换断点（会与双击加书签冲突）"
+            editor._on_margin_clicked(1, 5, None)  # 断点装订线
             assert editor.get_breakpoints() == [5]
             editor._on_margin_clicked(1, 5, None)
             assert editor.get_breakpoints() == []
-            editor._on_margin_clicked(2, 7, None)   # 折叠边距
+            editor._on_margin_clicked(2, 7, None)  # 折叠边距
             assert editor.get_breakpoints() == []
             editor._on_margin_clicked(1, 999, None)  # 越界行
             assert editor.get_breakpoints() == []
@@ -475,9 +472,7 @@ class TestBreakpoints:
             event = QKeyEvent(QEvent.KeyPress, Qt.Key_F9, Qt.NoModifier)
             editor.keyPressEvent(event)
             assert editor.get_breakpoints() == [0]
-            editor.keyPressEvent(
-                QKeyEvent(QEvent.KeyPress, Qt.Key_F9, Qt.NoModifier)
-            )
+            editor.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_F9, Qt.NoModifier))
             assert editor.get_breakpoints() == []
         finally:
             editor.deleteLater()
@@ -508,9 +503,7 @@ class TestSessionCommands:
         script = tmp_path / "demo.py"
         script.write_text("print(1)\n", encoding="utf-8")
 
-        command = mod.build_driver_command(
-            str(script), ["a", "b"], python="PY", driver="DRV"
-        )
+        command = mod.build_driver_command(str(script), ["a", "b"], python="PY", driver="DRV")
         assert command == ["PY", "-u", "DRV", str(script), "a", "b"]
 
         default = mod.build_driver_command(str(script))
@@ -538,16 +531,19 @@ class TestSessionCommands:
             "files": {"/tmp/a.py": [1, 5]},
         }
 
-    @pytest.mark.parametrize("method,expected", [
-        ("continue_", "continue"),
-        ("step_over", "step_over"),
-        ("step_into", "step_into"),
-        ("step_out", "step_out"),
-        ("pause", "pause"),
-        ("request_stack", "stack"),
-        ("request_locals", "locals"),
-        ("quit", "quit"),
-    ])
+    @pytest.mark.parametrize(
+        "method,expected",
+        [
+            ("continue_", "continue"),
+            ("step_over", "step_over"),
+            ("step_into", "step_into"),
+            ("step_out", "step_out"),
+            ("pause", "pause"),
+            ("request_stack", "stack"),
+            ("request_locals", "locals"),
+            ("quit", "quit"),
+        ],
+    )
     def test_command_wrappers(self, session, method, expected):
         fake = FakeProcess()
         session._proc = fake
@@ -558,9 +554,7 @@ class TestSessionCommands:
         fake = FakeProcess()
         session._proc = fake
         session.evaluate("a + b")
-        assert json.loads(fake.stdin.getvalue().strip()) == {
-            "cmd": "eval", "expr": "a + b"
-        }
+        assert json.loads(fake.stdin.getvalue().strip()) == {"cmd": "eval", "expr": "a + b"}
 
     def test_send_without_process_fails_cleanly(self, session):
         errors = []
@@ -569,8 +563,7 @@ class TestSessionCommands:
         assert session.last_error
         assert errors == []
 
-    def test_start_refuses_bad_backend(self, session, monkeypatch,
-                                       plugin_module, tmp_path):
+    def test_start_refuses_bad_backend(self, session, monkeypatch, plugin_module, tmp_path):
         """后端不可用 → 不启动进程，给出**用户可见**提示。"""
         errors = []
         session.failed.connect(errors.append)
@@ -599,9 +592,7 @@ class TestSessionCommands:
 # ============================================================
 class TestSessionProtocol:
     def test_ready_event_sets_running(self, session):
-        payload = session.handle_line(
-            json.dumps({"event": "ready", "file": "/a.py"})
-        )
+        payload = session.handle_line(json.dumps({"event": "ready", "file": "/a.py"}))
         assert payload["event"] == "ready"
         assert session.state == "running"
 
@@ -611,14 +602,18 @@ class TestSessionProtocol:
         session.break_hit.connect(lambda f, line: hits.append((f, line)))
         session.event_received.connect(events.append)
 
-        session.handle_line(json.dumps({
-            "event": "break",
-            "reason": "breakpoint",
-            "file": "C:/p/a.py",
-            "line": 7,
-            "locals": {"a": "1"},
-            "stack": [{"name": "add", "file": "C:/p/a.py", "line": 7}],
-        }))
+        session.handle_line(
+            json.dumps(
+                {
+                    "event": "break",
+                    "reason": "breakpoint",
+                    "file": "C:/p/a.py",
+                    "line": 7,
+                    "locals": {"a": "1"},
+                    "stack": [{"name": "add", "file": "C:/p/a.py", "line": 7}],
+                }
+            )
+        )
 
         assert hits == [("C:/p/a.py", 6)], "break_hit 必须给出 0 基行号"
         assert session.state == "paused"
@@ -627,20 +622,14 @@ class TestSessionProtocol:
 
     def test_output_event(self, session):
         outputs = []
-        session.output_received.connect(
-            lambda stream, text: outputs.append((stream, text))
-        )
-        session.handle_line(json.dumps({
-            "event": "output", "stream": "stdout", "text": "hello\n"
-        }))
+        session.output_received.connect(lambda stream, text: outputs.append((stream, text)))
+        session.handle_line(json.dumps({"event": "output", "stream": "stdout", "text": "hello\n"}))
         assert outputs == [("stdout", "hello\n")]
 
     def test_error_event_is_user_visible(self, session):
         errors = []
         session.failed.connect(errors.append)
-        session.handle_line(json.dumps({
-            "event": "error", "message": "未知命令: xxx"
-        }))
+        session.handle_line(json.dumps({"event": "error", "message": "未知命令: xxx"}))
         assert errors == ["未知命令: xxx"]
         assert session.last_error == "未知命令: xxx"
 
@@ -654,9 +643,7 @@ class TestSessionProtocol:
 
     def test_malformed_line_does_not_crash(self, session):
         outputs = []
-        session.output_received.connect(
-            lambda stream, text: outputs.append((stream, text))
-        )
+        session.output_received.connect(lambda stream, text: outputs.append((stream, text)))
         assert session.handle_line("这不是 JSON") is None
         assert session.handle_line("[1, 2, 3]") is None
         assert outputs and all(stream == "stderr" for stream, _ in outputs)
@@ -664,11 +651,15 @@ class TestSessionProtocol:
     def test_exception_event_marks_paused(self, session):
         errors = []
         session.failed.connect(errors.append)
-        session.handle_line(json.dumps({
-            "event": "exception",
-            "type": "ZeroDivisionError",
-            "message": "division by zero",
-        }))
+        session.handle_line(
+            json.dumps(
+                {
+                    "event": "exception",
+                    "type": "ZeroDivisionError",
+                    "message": "division by zero",
+                }
+            )
+        )
         assert session.state == "paused"
         assert errors and "ZeroDivisionError" in errors[0]
 
@@ -734,12 +725,11 @@ class TestSessionStop:
 # ============================================================
 def _capture_frame(marker=7, text="hi"):
     """返回自身帧，用于测试帧内省。"""
-    return sys._getframe()   # noqa: SLF001 - 测试取帧的标准做法
+    return sys._getframe()  # noqa: SLF001 - 测试取帧的标准做法
 
 
 class TestDriverInternals:
-    def test_emit_never_exits_the_host_process_in_tests(self, driver,
-                                                        monkeypatch):
+    def test_emit_never_exits_the_host_process_in_tests(self, driver, monkeypatch):
         """单测进程里 emit 写失败**不得** os._exit（否则会杀掉 pytest）。
 
         驱动脚本用"协议流断开 → os._exit(0)"做孤儿防护；该行为只在
@@ -757,7 +747,7 @@ class TestDriverInternals:
                 raise OSError("broken pipe")
 
         monkeypatch.setattr(driver, "_REAL_STDOUT", _Boom())
-        driver.emit({"event": "test"})   # 不得抛异常、不得退出进程
+        driver.emit({"event": "test"})  # 不得抛异常、不得退出进程
 
     def test_format_value(self, driver):
         assert driver.format_value(1) == "1"
@@ -798,15 +788,15 @@ class TestDriverInternals:
         missing = tmp_path / "missing.py"
 
         debugger = driver.JsonDebugger(queue.Queue())
-        applied = debugger.set_breaks({
-            str(script): [1, 999],
-            str(missing): [1],
-        })
+        applied = debugger.set_breaks(
+            {
+                str(script): [1, 999],
+                str(missing): [1],
+            }
+        )
 
         canonical = debugger.canonic(str(script))
-        assert applied == {canonical: [1]}, (
-            "只应记录真正生效的断点；实际 %r" % (applied,)
-        )
+        assert applied == {canonical: [1]}, "只应记录真正生效的断点；实际 %r" % (applied,)
         assert 999 not in debugger.breaks.get(canonical, [])
         assert debugger.canonic(str(missing)) not in debugger.breaks
 
@@ -815,10 +805,12 @@ class TestDriverInternals:
         script.write_text("a = 1\nb = 2\n", encoding="utf-8")
         debugger = driver.JsonDebugger(queue.Queue())
 
-        applied = debugger.set_breaks({
-            str(script): [1, 2, 999],
-            str(tmp_path / "missing.py"): [1],
-        })
+        applied = debugger.set_breaks(
+            {
+                str(script): [1, 2, 999],
+                str(tmp_path / "missing.py"): [1],
+            }
+        )
         canonical = debugger.canonic(str(script))
         assert applied.get(canonical) == [1, 2]
         assert len(applied) == 1, "不存在的文件不得进入生效列表"
@@ -928,8 +920,7 @@ class TestPluginGuards:
         text = api.status_text() + api.message_text()
         assert "只有 Python 文件" in text
 
-    def test_unsaved_file_is_rejected_when_save_fails(self, plugin_module,
-                                                     tmp_path):
+    def test_unsaved_file_is_rejected_when_save_fails(self, plugin_module, tmp_path):
         script = tmp_path / "demo.py"
         script.write_text("print(1)\n", encoding="utf-8")
         api = FakeApi()
@@ -951,8 +942,7 @@ class TestPluginGuards:
         assert plugin.debug_current() is False
         assert "请先保存文件" in api.status_text() + api.message_text()
 
-    def test_backend_failure_is_user_visible(self, plugin_module, monkeypatch,
-                                             tmp_path):
+    def test_backend_failure_is_user_visible(self, plugin_module, monkeypatch, tmp_path):
         script = tmp_path / "demo.py"
         script.write_text("print(1)\n", encoding="utf-8")
         api = FakeApi()
@@ -961,7 +951,8 @@ class TestPluginGuards:
         plugin = make_plugin(plugin_module, api)
 
         monkeypatch.setattr(
-            plugin_module, "check_backend",
+            plugin_module,
+            "check_backend",
             lambda **kw: (False, "调试后端不可用：未找到 Python 解释器"),
         )
         assert plugin.debug_current() is False
@@ -969,8 +960,7 @@ class TestPluginGuards:
         assert "调试后端不可用" in text
         assert any(level == "error" for level, _ in api.statuses)
 
-    def test_modified_file_is_autosaved_before_debug(self, plugin_module,
-                                                    monkeypatch, tmp_path):
+    def test_modified_file_is_autosaved_before_debug(self, plugin_module, monkeypatch, tmp_path):
         script = tmp_path / "demo.py"
         script.write_text("print(1)\n", encoding="utf-8")
         api = FakeApi()
@@ -980,9 +970,7 @@ class TestPluginGuards:
 
         plugin = make_plugin(plugin_module, api)
         monkeypatch.setattr(plugin_module, "DebugSession", FakeSession)
-        monkeypatch.setattr(
-            plugin_module, "check_backend", lambda **kw: (True, "")
-        )
+        monkeypatch.setattr(plugin_module, "check_backend", lambda **kw: (True, ""))
         monkeypatch.setattr(plugin, "show_panel", lambda: None)
 
         assert plugin.debug_current() is True
@@ -993,8 +981,7 @@ class TestPluginGuards:
 # 8. 插件层：调试控制与断点下发
 # ============================================================
 class TestPluginDebugFlow:
-    def _plugin_with_session(self, plugin_module, monkeypatch, tmp_path,
-                             breakpoints=None):
+    def _plugin_with_session(self, plugin_module, monkeypatch, tmp_path, breakpoints=None):
         script = tmp_path / "demo.py"
         script.write_text("print(1)\n", encoding="utf-8")
         api = FakeApi()
@@ -1004,14 +991,11 @@ class TestPluginDebugFlow:
         plugin = make_plugin(plugin_module, api)
 
         monkeypatch.setattr(plugin_module, "DebugSession", FakeSession)
-        monkeypatch.setattr(
-            plugin_module, "check_backend", lambda **kw: (True, "")
-        )
+        monkeypatch.setattr(plugin_module, "check_backend", lambda **kw: (True, ""))
         monkeypatch.setattr(plugin, "show_panel", lambda: None)
         return plugin, api, proxy, script
 
-    def test_start_pushes_breakpoints(self, plugin_module, monkeypatch,
-                                      tmp_path):
+    def test_start_pushes_breakpoints(self, plugin_module, monkeypatch, tmp_path):
         plugin, _api, _proxy, script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path, breakpoints=[1, 4]
         )
@@ -1020,8 +1004,7 @@ class TestPluginDebugFlow:
         assert session.started == [str(script)]
         assert session.breakpoint_updates[-1] == {str(script): [1, 4]}
 
-    def test_break_highlights_line_and_focuses(self, plugin_module, monkeypatch,
-                                               tmp_path):
+    def test_break_highlights_line_and_focuses(self, plugin_module, monkeypatch, tmp_path):
         plugin, _api, proxy, script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path, breakpoints=[2]
         )
@@ -1032,8 +1015,7 @@ class TestPluginDebugFlow:
         assert proxy.highlighted == [3]
         assert proxy.cleared >= 1, "高亮新行前应先清掉旧高亮"
 
-    def test_step_commands_reach_session(self, plugin_module, monkeypatch,
-                                         tmp_path):
+    def test_step_commands_reach_session(self, plugin_module, monkeypatch, tmp_path):
         plugin, api, _proxy, _script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path
         )
@@ -1044,9 +1026,7 @@ class TestPluginDebugFlow:
         assert plugin.debug_step_over() is True
         assert plugin.debug_step_into() is True
         assert plugin.debug_step_out() is True
-        assert session.commands == [
-            "continue", "step_over", "step_into", "step_out"
-        ]
+        assert session.commands == ["continue", "step_over", "step_into", "step_out"]
 
         assert plugin.show_locals() is True
         assert plugin.show_stack() is True
@@ -1058,8 +1038,7 @@ class TestPluginDebugFlow:
         assert plugin.debug_continue() is False
         assert "没有正在进行的调试会话" in api.status_text()
 
-    def test_finished_clears_highlight(self, plugin_module, monkeypatch,
-                                       tmp_path):
+    def test_finished_clears_highlight(self, plugin_module, monkeypatch, tmp_path):
         plugin, api, proxy, _script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path, breakpoints=[1]
         )
@@ -1070,8 +1049,7 @@ class TestPluginDebugFlow:
         assert plugin._session is None
         assert "调试结束" in api.status_text()
 
-    def test_stop_debug_calls_session_stop(self, plugin_module, monkeypatch,
-                                           tmp_path):
+    def test_stop_debug_calls_session_stop(self, plugin_module, monkeypatch, tmp_path):
         plugin, _api, _proxy, _script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path
         )
@@ -1081,8 +1059,7 @@ class TestPluginDebugFlow:
         assert "stop" in session.commands
         assert plugin._session is None
 
-    def test_breakpoint_change_is_pushed_live(self, plugin_module, monkeypatch,
-                                              tmp_path):
+    def test_breakpoint_change_is_pushed_live(self, plugin_module, monkeypatch, tmp_path):
         plugin, _api, proxy, script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path, breakpoints=[1]
         )
@@ -1115,8 +1092,7 @@ class TestPluginDebugFlow:
         assert plugin.run_current() is False
         assert "只有 Python 文件" in api.status_text() + api.message_text()
 
-    def test_on_deactivate_stops_session(self, plugin_module, monkeypatch,
-                                         tmp_path):
+    def test_on_deactivate_stops_session(self, plugin_module, monkeypatch, tmp_path):
         plugin, _api, _proxy, _script = self._plugin_with_session(
             plugin_module, monkeypatch, tmp_path
         )
@@ -1134,23 +1110,24 @@ class TestPanel:
     def test_show_paused_fills_tree(self, qapp, plugin_module):
         panel = plugin_module.DebuggerPanel(session=FakeSession())
         try:
-            panel.show_paused({
-                "reason": "breakpoint",
-                "file": "C:/p/a.py",
-                "line": 7,
-                "stack": [
-                    {"name": "add", "file": "C:/p/a.py", "line": 7},
-                    {"name": "<module>", "file": "C:/p/a.py", "line": 12},
-                ],
-                "locals": {"a": "1", "b": "2"},
-            })
+            panel.show_paused(
+                {
+                    "reason": "breakpoint",
+                    "file": "C:/p/a.py",
+                    "line": 7,
+                    "stack": [
+                        {"name": "add", "file": "C:/p/a.py", "line": 7},
+                        {"name": "<module>", "file": "C:/p/a.py", "line": 12},
+                    ],
+                    "locals": {"a": "1", "b": "2"},
+                }
+            )
             assert "命中断点" in panel.status_label.text()
-            assert panel.tree.topLevelItemCount() == 3   # 2 帧 + 局部变量
+            assert panel.tree.topLevelItemCount() == 3  # 2 帧 + 局部变量
             locals_item = panel.tree.topLevelItem(0)
             assert "局部变量" in locals_item.text(0)
             assert locals_item.childCount() == 2
-            names = {locals_item.child(i).text(0)
-                     for i in range(locals_item.childCount())}
+            names = {locals_item.child(i).text(0) for i in range(locals_item.childCount())}
             assert names == {"a", "b"}
         finally:
             panel.deleteLater()
@@ -1166,8 +1143,12 @@ class TestPanel:
             panel.locals_btn.click()
             panel.stack_btn.click()
             assert session.commands == [
-                "continue", "step_over", "step_into", "step_out",
-                "locals", "stack",
+                "continue",
+                "step_over",
+                "step_into",
+                "step_out",
+                "locals",
+                "stack",
             ]
         finally:
             panel.deleteLater()
@@ -1188,9 +1169,7 @@ class TestPanel:
             assert "hello" in panel.output_view.toPlainText()
             assert "world" in panel.output_view.toPlainText()
 
-            panel.show_result("stack", [
-                {"name": "f", "file": "a.py", "line": 3}
-            ])
+            panel.show_result("stack", [{"name": "f", "file": "a.py", "line": 3}])
             assert panel.tree.topLevelItemCount() == 1
 
             panel.show_result("eval", "42")
@@ -1207,9 +1186,7 @@ class _LineReader:
 
     def __init__(self, stream):
         self._queue = queue.Queue()
-        self._thread = threading.Thread(
-            target=self._run, args=(stream,), daemon=True
-        )
+        self._thread = threading.Thread(target=self._run, args=(stream,), daemon=True)
         self._thread.start()
 
     def _run(self, stream):
@@ -1244,15 +1221,13 @@ SOURCE = (
     "    total = a + b\n"
     "    return total\n"
     "\n"
-    "print(\"start\")\n"
+    'print("start")\n'
     "result = add(1, 2)\n"
-    "print(\"result\", result)\n"
+    'print("result", result)\n'
 )
 
 
-@pytest.mark.skipif(
-    not os.path.isfile(sys.executable), reason="需要可用的 Python 解释器"
-)
+@pytest.mark.skipif(not os.path.isfile(sys.executable), reason="需要可用的 Python 解释器")
 class TestRealDebugRun:
     """真实子进程联调：证明驱动**真的**能停、能单步、能退出。"""
 
@@ -1275,21 +1250,21 @@ class TestRealDebugRun:
         reader = _LineReader(proc.stdout)
         try:
             ready = reader.expect("ready")
-            assert os.path.normcase(ready["file"]) == os.path.normcase(
-                str(script)
-            )
+            assert os.path.normcase(ready["file"]) == os.path.normcase(str(script))
 
             # 第 2 行：total = a + b
-            self._send(proc, {
-                "cmd": "set_breakpoints",
-                "files": {str(script): [2]},
-            })
+            self._send(
+                proc,
+                {
+                    "cmd": "set_breakpoints",
+                    "files": {str(script): [2]},
+                },
+            )
             applied = reader.expect("breakpoints")
             canonical = os.path.normcase(os.path.abspath(str(script)))
-            assert any(
-                os.path.normcase(k) == canonical
-                for k in applied["files"]
-            ), f"断点未生效: {applied}"
+            assert any(os.path.normcase(k) == canonical for k in applied["files"]), (
+                f"断点未生效: {applied}"
+            )
 
             self._send(proc, {"cmd": "continue"})
             hit = reader.expect("break")
@@ -1334,18 +1309,14 @@ class TestRealDebugRun:
     def test_quit_terminates_process(self, tmp_path):
         script = tmp_path / "loop.py"
         script.write_text(
-            "import time\n"
-            "for i in range(100):\n"
-            "    time.sleep(0.05)\n",
+            "import time\nfor i in range(100):\n    time.sleep(0.05)\n",
             encoding="utf-8",
         )
         proc = self._spawn(script)
         reader = _LineReader(proc.stdout)
         try:
             reader.expect("ready")
-            self._send(proc, {
-                "cmd": "set_breakpoints", "files": {str(script): [2]}
-            })
+            self._send(proc, {"cmd": "set_breakpoints", "files": {str(script): [2]}})
             reader.expect("breakpoints")
             self._send(proc, {"cmd": "continue"})
             hit = reader.expect("break")

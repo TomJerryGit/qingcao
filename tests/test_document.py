@@ -51,10 +51,8 @@ class TestOpenClose:
             assert doc.filepath == os.path.abspath(tmp_py_file)
             assert doc.title == os.path.basename(tmp_py_file)
             assert not doc.is_modified
-            assert doc.encoding.lower() in (
-                'utf-8', 'utf-8-sig', 'ascii'
-            )
-            assert doc.state.name in ('CLEAN', 'READONLY')
+            assert doc.encoding.lower() in ("utf-8", "utf-8-sig", "ascii")
+            assert doc.state.name in ("CLEAN", "READONLY")
         finally:
             doc.close()
 
@@ -68,7 +66,7 @@ class TestOpenClose:
             # open 可能抛异常（被内部捕获）或返回 False
             try:
                 result = doc.open(fake_path)
-                assert result is False or doc.state.name == 'ERROR'
+                assert result is False or doc.state.name == "ERROR"
             except Exception:
                 # 抛异常也可接受
                 pass
@@ -112,7 +110,7 @@ class TestOpenClose:
         doc.open(tmp_py_file)
         doc.close()
         assert doc.provider is None
-        assert doc.state.name == 'CLOSED'
+        assert doc.state.name == "CLOSED"
 
 
 # ============================================================
@@ -132,7 +130,7 @@ class TestModifiedState:
 
             doc.mark_modified()
             assert doc.is_modified
-            assert doc.state.name == 'MODIFIED'
+            assert doc.state.name == "MODIFIED"
         finally:
             doc.close()
 
@@ -147,7 +145,7 @@ class TestModifiedState:
             doc.mark_saved()
 
             assert not doc.is_modified
-            assert doc.state.name in ('CLEAN', 'READONLY')
+            assert doc.state.name in ("CLEAN", "READONLY")
         finally:
             doc.close()
 
@@ -334,7 +332,7 @@ class TestBookmarks:
         doc = Document()
         doc.open_from_text("a\nb\nc\n")
         try:
-            assert doc.toggle_bookmark(1) is True   # 添加
+            assert doc.toggle_bookmark(1) is True  # 添加
             assert doc.has_bookmark(1)
 
             assert doc.toggle_bookmark(1) is False  # 移除
@@ -527,8 +525,11 @@ class TestCursorMemory:
         doc.open_from_text("a\n" * 100)
         try:
             doc.remember_cursor(
-                line=10, col=0, position=20,
-                first_visible_line=5, scroll_x=100,
+                line=10,
+                col=0,
+                position=20,
+                first_visible_line=5,
+                scroll_x=100,
             )
             first_line, scroll_x = doc.get_remembered_view()
             assert first_line == 5
@@ -565,12 +566,10 @@ class TestEncoding:
             original = doc.encoding
 
             received = []
-            doc.encoding_changed.connect(
-                lambda o, n: received.append((o, n))
-            )
+            doc.encoding_changed.connect(lambda o, n: received.append((o, n)))
 
-            doc.change_encoding('gbk')
-            assert doc.encoding == 'gbk'
+            doc.change_encoding("gbk")
+            assert doc.encoding == "gbk"
             assert len(received) > 0
         finally:
             doc.close()
@@ -590,11 +589,11 @@ class TestStatistics:
         doc.open_from_text("hello world\nfoo bar\n")
         try:
             stats = doc.get_statistics()
-            assert stats['lines'] >= 2
-            assert stats['words'] >= 4
-            assert stats['chars'] > 0
-            assert 'bookmarks' in stats
-            assert 'folded' in stats
+            assert stats["lines"] >= 2
+            assert stats["words"] >= 4
+            assert stats["chars"] > 0
+            assert "bookmarks" in stats
+            assert "folded" in stats
         finally:
             doc.close()
 
@@ -606,10 +605,10 @@ class TestStatistics:
         doc.open_from_text("test")
         try:
             info = doc.get_info()
-            assert info['title'] == '未命名'
-            assert 'encoding' in info
-            assert 'state' in info
-            assert 'language' in info
+            assert info["title"] == "未命名"
+            assert "encoding" in info
+            assert "state" in info
+            assert "language" in info
         finally:
             doc.close()
 
@@ -634,7 +633,7 @@ class TestSave:
             assert doc.filepath == os.path.abspath(target)
 
             # 验证磁盘内容
-            with open(target, encoding='utf-8') as f:
+            with open(target, encoding="utf-8") as f:
                 content = f.read()
             assert "initial content" in content
         finally:
@@ -801,7 +800,7 @@ class TestDocumentModel:
 
         # 验证磁盘内容
         for f in files:
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding="utf-8") as fp:
                 content = fp.read()
             assert "edited" in content
 
@@ -844,10 +843,10 @@ class TestDocumentCompare:
 
         try:
             result = compare_documents(doc_a, doc_b)
-            assert result['identical'] is True
-            assert result['similarity'] == 1.0
-            assert result['added_lines'] == 0
-            assert result['removed_lines'] == 0
+            assert result["identical"] is True
+            assert result["similarity"] == 1.0
+            assert result["added_lines"] == 0
+            assert result["removed_lines"] == 0
         finally:
             doc_a.close()
             doc_b.close()
@@ -864,10 +863,10 @@ class TestDocumentCompare:
 
         try:
             result = compare_documents(doc_a, doc_b)
-            assert result['identical'] is False
-            assert result['similarity'] < 1.0
-            assert result['added_lines'] >= 0
-            assert result['removed_lines'] >= 0
+            assert result["identical"] is False
+            assert result["similarity"] < 1.0
+            assert result["added_lines"] >= 0
+            assert result["removed_lines"] >= 0
         finally:
             doc_a.close()
             doc_b.close()
@@ -884,7 +883,7 @@ class TestDocumentCompare:
 
         try:
             result = compare_documents(doc_a, doc_b)
-            assert result['identical'] is True
+            assert result["identical"] is True
         finally:
             doc_a.close()
             doc_b.close()

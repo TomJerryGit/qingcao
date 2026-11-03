@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.15 P1：问题面板过滤/清除 + 实例上限设置 + 市场本地目录"""
+
 import os
 
 from PyQt5.QtCore import QSettings
@@ -20,6 +21,7 @@ def _close(win):
 
 def test_market_catalog_from_manifests():
     from ui.plugin_store import build_market_catalog
+
     catalog = build_market_catalog(os.path.join(ROOT, "plugins"))
     assert isinstance(catalog, dict)
     plugins = catalog.get("plugins") or []
@@ -35,15 +37,26 @@ def test_problems_filter_and_clear_sandbox(qapp):
     from core.problems import Problem, get_problem_manager
     from ui.main_window import MainWindow
     from ui.problems_panel import ProblemsPanel
+
     manager = get_problem_manager()
     manager.clear()
     fp = os.path.join(ROOT, "tests", "fixture_v215.py")
-    manager.set_file_problems(fp, [
-        Problem(filepath=fp, line=0, col=0, severity="info",
-                message="sandbox-msg", source="sandbox:dummy"),
-        Problem(filepath=fp, line=1, col=0, severity="error",
-                message="lsp-msg", source="lsp:pylsp"),
-    ])
+    manager.set_file_problems(
+        fp,
+        [
+            Problem(
+                filepath=fp,
+                line=0,
+                col=0,
+                severity="info",
+                message="sandbox-msg",
+                source="sandbox:dummy",
+            ),
+            Problem(
+                filepath=fp, line=1, col=0, severity="error", message="lsp-msg", source="lsp:pylsp"
+            ),
+        ],
+    )
     win = MainWindow()
     panel = ProblemsPanel(main_window=win)
     try:
@@ -111,7 +124,6 @@ def test_instance_cap_spinbox_and_apply(qapp):
 
 
 def test_fallback_uses_local_catalog():
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"),
-               encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
     assert "def build_market_catalog" in src
     assert "build_market_catalog(" in src.split("_load_fallback_registry", 1)[1]

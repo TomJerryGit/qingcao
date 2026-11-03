@@ -4,6 +4,7 @@
 目的：区分"功能缺失"与"默认不显示"。全新启动时面板是**延迟创建**的，
 只有被显式打开才会构造。本工具逐个打开并记录结果。
 """
+
 import io
 import os
 import sys
@@ -36,6 +37,7 @@ def main():
             QFontDatabase.addApplicationFont(p)
 
     from ui.main_window import MainWindow
+
     w = MainWindow()
     end = time.time() + 30
     while time.time() < end:
@@ -55,8 +57,7 @@ def main():
     log()
     log("启动时（全新状态）:")
     docks = w.findChildren(QDockWidget)
-    log("  停靠面板数量: %d -> %s"
-        % (len(docks), [d.windowTitle() for d in docks]))
+    log("  停靠面板数量: %d -> %s" % (len(docks), [d.windowTitle() for d in docks]))
     log("  工具栏可见: %s" % getattr(w, "toolbar", None) is not None)
     log("  状态栏可见: %s" % (getattr(w, "status_bar", None) is not None))
 
@@ -109,8 +110,7 @@ def main():
                 found.append(d.windowTitle())
         ok = bool(found)
         results.append((name, "OK 已显示" if ok else "未创建"))
-        log("  %-16s %s   （当前可见面板: %s）"
-            % (name, "OK 已显示" if ok else "未创建", found))
+        log("  %-16s %s   （当前可见面板: %s）" % (name, "OK 已显示" if ok else "未创建", found))
 
     log()
     log("=" * 74)
@@ -122,12 +122,11 @@ def main():
         log("    %-16s %s" % (name, s))
 
     log()
-    log("最终可见面板: %s"
-        % [d.windowTitle() for d in w.findChildren(QDockWidget)
-           if d.isVisible()])
+    log(
+        "最终可见面板: %s" % [d.windowTitle() for d in w.findChildren(QDockWidget) if d.isVisible()]
+    )
 
-    with io.open(os.path.join(ROOT, "panel_check.txt"), "w",
-                 encoding="utf-8") as f:
+    with io.open(os.path.join(ROOT, "panel_check.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(OUT))
     print("[panels] 已写出 panel_check.txt", flush=True)
     w.close()
@@ -139,9 +138,9 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception:
         import traceback
+
         log("验证失败:")
         log(traceback.format_exc())
-        with io.open(os.path.join(ROOT, "panel_check.txt"), "w",
-                     encoding="utf-8") as f:
+        with io.open(os.path.join(ROOT, "panel_check.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(OUT))
         sys.exit(1)

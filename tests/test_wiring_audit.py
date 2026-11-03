@@ -36,6 +36,7 @@
 
     python -m pytest tests/test_wiring_audit.py -v -p no:cacheprovider
 """
+
 import os
 import re
 
@@ -52,8 +53,7 @@ PRODUCTION_DIRS = ("core", "ui", "app", "infrastructure", "plugins")
 
 # 不参与"生产调用点"统计的目录
 NON_PRODUCTION = tuple(
-    os.path.join(ROOT, d)
-    for d in ("tests", "tools", "docs", "dist", "build", "_archive")
+    os.path.join(ROOT, d) for d in ("tests", "tools", "docs", "dist", "build", "_archive")
 )
 
 
@@ -73,11 +73,9 @@ def _iter_py(root_dirs, skip_non_production=True):
         if not os.path.isdir(base):
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames
-                           if d not in ("__pycache__", ".git")]
+            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git")]
             if skip_non_production and any(
-                os.path.normcase(dirpath).startswith(os.path.normcase(p))
-                for p in NON_PRODUCTION
+                os.path.normcase(dirpath).startswith(os.path.normcase(p)) for p in NON_PRODUCTION
             ):
                 continue
             for fn in filenames:
@@ -102,8 +100,7 @@ def _all_py_sources():
 def _definition_file(symbol):
     """找出定义 symbol 的文件（仅限生产代码）"""
     for path, src in _production_sources().items():
-        if re.search(r"^\s*(def|class)\s+%s\b" % re.escape(symbol),
-                     src, re.M):
+        if re.search(r"^\s*(def|class)\s+%s\b" % re.escape(symbol), src, re.M):
             return path
     return None
 
@@ -148,9 +145,10 @@ class TestKeyApiWiring:
         （原为 xfail；接线完成后摘掉标记，恢复为硬断言。）
         """
         hits = _call_sites("start_autosave")
-        detail = "\n".join(
-            "    %s:%d  %s" % (_rel(p), n, s) for p, n, s in hits
-        ) or "    （无任何调用点）"
+        detail = (
+            "\n".join("    %s:%d  %s" % (_rel(p), n, s) for p, n, s in hits)
+            or "    （无任何调用点）"
+        )
         assert hits, (
             "start_autosave 零生产调用点 → 崩溃恢复失效。\n"
             "    期望：ui/main_window.py 构造时调用 "
@@ -165,9 +163,7 @@ class TestKeyApiWiring:
         （原为 xfail；接线完成后摘掉标记，恢复为硬断言。）
         """
         hits = _call_sites("stop_autosave")
-        assert hits, (
-            "stop_autosave 零生产调用点（定时器启动后无人停止）"
-        )
+        assert hits, "stop_autosave 零生产调用点（定时器启动后无人停止）"
 
     def test_local_completer_is_wired(self):
         """P10: LocalCompleter 的补全/记录方法必须被生产代码调用"""
@@ -183,14 +179,10 @@ class TestKeyApiWiring:
     def test_local_completer_used_in_editor(self):
         """P10: 补全器必须接在编辑器路径上（而不只是统计面板读实例）"""
         hits = _call_sites("LocalCompleter", exclude_def=False)
-        editor_hits = [
-            (p, n, s) for p, n, s in hits
-            if "editor_view" in os.path.normcase(p)
-        ]
+        editor_hits = [(p, n, s) for p, n, s in hits if "editor_view" in os.path.normcase(p)]
         assert editor_hits, (
             "LocalCompleter 未出现在 ui/editor_view.py —— 补全未接进编辑器。\n"
-            "    当前引用：%s"
-            % [(_rel(p), n) for p, n, s in hits]
+            "    当前引用：%s" % [(_rel(p), n) for p, n, s in hits]
         )
 
     def test_lsp_request_definition_is_called(self):
@@ -204,14 +196,11 @@ class TestKeyApiWiring:
     def test_lsp_definition_signal_connected(self):
         """P6: definition_ready 信号必须被 connect（否则结果无人接收）"""
         hits = [
-            (p, n, s) for p, n, s in _call_sites(
-                "definition_ready", exclude_def=False)
+            (p, n, s)
+            for p, n, s in _call_sites("definition_ready", exclude_def=False)
             if "connect" in s
         ]
-        assert hits, (
-            "definition_ready 信号零 connect → 转到定义即使发出请求，"
-            "结果也无人处理。"
-        )
+        assert hits, "definition_ready 信号零 connect → 转到定义即使发出请求，结果也无人处理。"
 
     def test_toggle_lsp_has_production_call_site(self):
         """P6: EditorProxy.toggle_lsp 必须有生产入口（不能只在测试里调）
@@ -245,9 +234,7 @@ class TestKeyApiWiring:
         （原为 xfail；接线完成后摘掉标记，恢复为硬断言 —— 否则接线再被
          改坏时它只会变成 XPASS 而不报错，防线失效。）
         """
-        pattern = re.compile(
-            r"marker(Add|Delete)\s*\(\s*[^,)]+,\s*MARKER_BREAKPOINT\b"
-        )
+        pattern = re.compile(r"marker(Add|Delete)\s*\(\s*[^,)]+,\s*MARKER_BREAKPOINT\b")
         hits = []
         for path, src in _all_py_sources().items():
             for i, line in enumerate(src.splitlines(), 1):
@@ -268,8 +255,8 @@ class TestKeyApiWiring:
         （原为 xfail；接线完成后摘掉标记，恢复为硬断言。）
         """
         hits = [
-            (p, n, s) for p, n, s in _call_sites(
-                "external_change_detected", exclude_def=False)
+            (p, n, s)
+            for p, n, s in _call_sites("external_change_detected", exclude_def=False)
             if "connect" in s
         ]
         assert hits, (
@@ -452,26 +439,28 @@ class TestKeyApiWiring:
 #       core/project_config.py       (build.py:413)
 #       core/workspace.py            (build.py:417)
 #       core/keymap_profiles.py      (build.py:412)
-KNOWN_DEAD_MODULES = frozenset({
-    # ---- 已清零：仓库里不再有"完整实现但零引用"的模块 ----
-    #
-    # 最后两个的去向（2026-02 决策并执行）：
-    #
-    # `ui/collab_dialog.py` + `core/collab.py`  → **删除**
-    #   实时协作（P2P）实现是裸 TCP 监听 `0.0.0.0:52000`，
-    #   无加密、无认证、无 NAT 穿透 —— 等于"在局域网开放一个无密码
-    #   共享编辑端口"。要在不引入安全风险的前提下接线，需要加密、
-    #   认证、可达性方案与真实的双端联调环境，都不是当前阶段能做的。
-    #   保留一半（只删 UI 留协议层）会留下"看得见代码但用不了"的债，
-    #   因此整体删除。见 CHANGELOG 与 docs/product_decision_pending.md。
-    #
-    # `ui/snippet_market_dialog.py` + `core/snippet_market.py` → **改造后接线**
-    #   原"网络片段市场"指向 `api.github.com/repos/qingcao-editor/snippets`
-    #   —— 实测 HTTP 404，仓库不存在。改为**本地片段包库**
-    #   （默认 `<应用根>/data/snippet_packs`，可自选目录），
-    #   入口「工具 → 📚 代码片段库…」。零运维、零信任风险，
-    #   核心价值（复用别人写好的片段）不变。
-})
+KNOWN_DEAD_MODULES = frozenset(
+    {
+        # ---- 已清零：仓库里不再有"完整实现但零引用"的模块 ----
+        #
+        # 最后两个的去向（2026-02 决策并执行）：
+        #
+        # `ui/collab_dialog.py` + `core/collab.py`  → **删除**
+        #   实时协作（P2P）实现是裸 TCP 监听 `0.0.0.0:52000`，
+        #   无加密、无认证、无 NAT 穿透 —— 等于"在局域网开放一个无密码
+        #   共享编辑端口"。要在不引入安全风险的前提下接线，需要加密、
+        #   认证、可达性方案与真实的双端联调环境，都不是当前阶段能做的。
+        #   保留一半（只删 UI 留协议层）会留下"看得见代码但用不了"的债，
+        #   因此整体删除。见 CHANGELOG 与 docs/product_decision_pending.md。
+        #
+        # `ui/snippet_market_dialog.py` + `core/snippet_market.py` → **改造后接线**
+        #   原"网络片段市场"指向 `api.github.com/repos/qingcao-editor/snippets`
+        #   —— 实测 HTTP 404，仓库不存在。改为**本地片段包库**
+        #   （默认 `<应用根>/data/snippet_packs`，可自选目录），
+        #   入口「工具 → 📚 代码片段库…」。零运维、零信任风险，
+        #   核心价值（复用别人写好的片段）不变。
+    }
+)
 #
 # 说明（已从基线移除的条目 —— 它们**已经接线**，不再是孤立模块）：
 #   第一轮：core/formatter.py、core/exporter.py、ui/lsp_panel.py、
@@ -508,7 +497,7 @@ KNOWN_DEAD_MODULES = frozenset({
 # 注意（防呆）：`DEBT_LEDGER` 的键集合必须与 `KNOWN_DEAD_MODULES` 完全一致，
 # 由 `test_ledger_matches_baseline` 强制 —— 避免出现"基线里有、台账里没有"
 # 的幽灵条目（那正是本次要消灭的"豁免式基线"）。
-DEBT_ACTION_WIRE = "wire"      # 接线（功能保留，补上入口）
+DEBT_ACTION_WIRE = "wire"  # 接线（功能保留，补上入口）
 DEBT_ACTION_DELETE = "delete"  # 删除（确认不再需要）
 
 DEBT_LEDGER = {
@@ -533,27 +522,54 @@ DEBT_LEDGER = {
 DEBT_CEILING_HISTORY = [
     # (日期, 上限, 说明)
     ("2026-02-20", 17, "初次建立台账（此前基线 frozenset 无递减约束）"),
-    ("2026-02-20", 12, "本轮接线 5 个：formatter/exporter/lsp_panel/"
-                       "problems_panel/undo_history_panel"),
-    ("2026-02-20", 10, "再接线 3 个：keymap_profiles（VSCode/Sublime/Vim "
-                       "快捷键方案）、profiler + profiler_panel（性能剖析）"),
-    ("2026-02-20", 8, "删除 2 个确认无用的：benchmark（生产无用途，测试应改用 "
-                      "pytest-benchmark）、refactor_session（配套 UI 早已删除）。"
-                      "删除同时清理了 build.py 与 QingCaoEditor.spec 的 "
-                      "hiddenimports，避免打包时静默跳过不存在的模块。"),
-    ("2026-02-20", 6, "批次 A 接线 2 个：code_templates（从模板新建 + 修 "
-                      "format_template 参数冲突/占位符残留）、"
-                      "snapshot_manager_dialog（会话快照 + 修相对路径/未保存保护）"),
-    ("2026-02-20", 5, "批次 C 接线 1 个：key_sequence_manager（多键序列，"
-                      "修事件过滤器导致崩溃 + 焦点判断失效两个缺陷）"),
-    ("2026-02-20", 2, "批次 B 接线 3 个：workspace + project_config + "
-                      "task_panel（统一「项目根」语义）。"
-                      "剩余 2 个需产品立项，已转入 docs/product_decision_pending.md"),
-    ("2026-02-20", 0, "批次 D 清零：snippet_market 改造为**本地片段包库**后接线"
-                      "（网络市场 API 实测 404；改本地后零运维零信任风险），"
-                      "collab 整体删除（裸 TCP 无认证/无加密，接线即引入"
-                      "安全风险）。至此仓库不再有"
-                      "「完整实现但零引用」的模块。"),
+    (
+        "2026-02-20",
+        12,
+        "本轮接线 5 个：formatter/exporter/lsp_panel/problems_panel/undo_history_panel",
+    ),
+    (
+        "2026-02-20",
+        10,
+        "再接线 3 个：keymap_profiles（VSCode/Sublime/Vim "
+        "快捷键方案）、profiler + profiler_panel（性能剖析）",
+    ),
+    (
+        "2026-02-20",
+        8,
+        "删除 2 个确认无用的：benchmark（生产无用途，测试应改用 "
+        "pytest-benchmark）、refactor_session（配套 UI 早已删除）。"
+        "删除同时清理了 build.py 与 QingCaoEditor.spec 的 "
+        "hiddenimports，避免打包时静默跳过不存在的模块。",
+    ),
+    (
+        "2026-02-20",
+        6,
+        "批次 A 接线 2 个：code_templates（从模板新建 + 修 "
+        "format_template 参数冲突/占位符残留）、"
+        "snapshot_manager_dialog（会话快照 + 修相对路径/未保存保护）",
+    ),
+    (
+        "2026-02-20",
+        5,
+        "批次 C 接线 1 个：key_sequence_manager（多键序列，"
+        "修事件过滤器导致崩溃 + 焦点判断失效两个缺陷）",
+    ),
+    (
+        "2026-02-20",
+        2,
+        "批次 B 接线 3 个：workspace + project_config + "
+        "task_panel（统一「项目根」语义）。"
+        "剩余 2 个需产品立项，已转入 docs/product_decision_pending.md",
+    ),
+    (
+        "2026-02-20",
+        0,
+        "批次 D 清零：snippet_market 改造为**本地片段包库**后接线"
+        "（网络市场 API 实测 404；改本地后零运维零信任风险），"
+        "collab 整体删除（裸 TCP 无认证/无加密，接线即引入"
+        "安全风险）。至此仓库不再有"
+        "「完整实现但零引用」的模块。",
+    ),
 ]
 
 # 当前上限 = 历史最低值（棘轮只允许往下走）
@@ -568,9 +584,7 @@ DEBT_CEILING = min(c for _d, c, _n in DEBT_CEILING_HISTORY)
 # 因此不需要豁免 —— 保持豁免清单为空可以让检测保持严格。
 EXEMPT_MODULES = frozenset()
 
-_IMPORT_PAT = re.compile(
-    r"^\s*(?:from\s+([\w\.]+)\s+import\b|import\s+([\w\.]+))", re.M
-)
+_IMPORT_PAT = re.compile(r"^\s*(?:from\s+([\w\.]+)\s+import\b|import\s+([\w\.]+))", re.M)
 
 
 def _module_import_names(rel_path):
@@ -594,14 +608,11 @@ def _imported_modules():
         if not os.path.isdir(base):
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames
-                           if d not in ("__pycache__", ".git")]
+            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git")]
             for fn in filenames:
                 if not fn.endswith(".py"):
                     continue
-                if rel == "tests" and not (
-                    fn.startswith("test_") or fn == "conftest.py"
-                ):
+                if rel == "tests" and not (fn.startswith("test_") or fn == "conftest.py"):
                     continue
                 src = _read(os.path.join(dirpath, fn))
                 for m in _IMPORT_PAT.finditer(src):
@@ -609,8 +620,7 @@ def _imported_modules():
                     if mod:
                         imported.add(mod)
     imported.update(
-        m.group(1) or m.group(2)
-        for m in _IMPORT_PAT.finditer(_read(os.path.join(ROOT, "main.py")))
+        m.group(1) or m.group(2) for m in _IMPORT_PAT.finditer(_read(os.path.join(ROOT, "main.py")))
     )
     return imported
 
@@ -652,17 +662,16 @@ class TestDeadModules:
             "若确为有意保留，请把它加入 KNOWN_DEAD_MODULES 并说明原因；"
             "否则应接线或删除。\n"
             "（当前死模块总数=%d，基线=%d）"
-            % ("\n".join("    " + m for m in new_dead),
-               len(dead), len(KNOWN_DEAD_MODULES))
+            % ("\n".join("    " + m for m in new_dead), len(dead), len(KNOWN_DEAD_MODULES))
         )
 
     def test_baseline_entries_still_exist(self):
         """基线里的模块若已被删除，应同步更新基线（防止基线腐化）"""
-        missing = [m for m in sorted(KNOWN_DEAD_MODULES)
-                   if not os.path.isfile(os.path.join(ROOT, m))]
-        assert not missing, (
-            "KNOWN_DEAD_MODULES 中的文件已不存在，请更新基线：\n%s"
-            % "\n".join("    " + m for m in missing)
+        missing = [
+            m for m in sorted(KNOWN_DEAD_MODULES) if not os.path.isfile(os.path.join(ROOT, m))
+        ]
+        assert not missing, "KNOWN_DEAD_MODULES 中的文件已不存在，请更新基线：\n%s" % "\n".join(
+            "    " + m for m in missing
         )
 
     def test_refactored_modules_have_callers(self):
@@ -681,13 +690,11 @@ class TestDeadModules:
                 problems.append("%s 不存在" % rel)
                 continue
             hits = _call_sites(symbol, exclude_def=False)
-            external = [h for h in hits
-                        if os.path.normcase(h[0]) != os.path.normcase(path)]
+            external = [h for h in hits if os.path.normcase(h[0]) != os.path.normcase(path)]
             if not external:
                 problems.append("%s 的 %s 无外部引用" % (rel, symbol))
-        assert not problems, (
-            "以下核心模块/符号没有任何外部引用（退化为死代码）：\n%s"
-            % "\n".join("    " + p for p in problems)
+        assert not problems, "以下核心模块/符号没有任何外部引用（退化为死代码）：\n%s" % "\n".join(
+            "    " + p for p in problems
         )
 
     # ========================================================
@@ -716,14 +723,12 @@ class TestDeadModules:
         valid = {DEBT_ACTION_WIRE, DEBT_ACTION_DELETE}
         bad = []
         for mod, info in sorted(DEBT_LEDGER.items()):
-            missing = [k for k in ("owner", "action", "due", "note")
-                       if not info.get(k)]
+            missing = [k for k in ("owner", "action", "due", "note") if not info.get(k)]
             if missing:
                 bad.append("%s 缺少字段 %s" % (mod, missing))
                 continue
             if info["action"] not in valid:
-                bad.append("%s 的 action=%r 非法（应为 %s）"
-                           % (mod, info["action"], sorted(valid)))
+                bad.append("%s 的 action=%r 非法（应为 %s）" % (mod, info["action"], sorted(valid)))
         assert not bad, (
             "技术债台账条目不可执行（缺 owner/动作/期限 或 动作非法）：\n%s"
             % "\n".join("    " + b for b in bad)
@@ -751,8 +756,7 @@ class TestDeadModules:
             "★ 孤立模块数**回升**了：当前 %d 个 > 棘轮上限 %d 个。\n"
             "  P0-11 要求该数字只能下降。请接线或删除若干模块；\n"
             "  若确实需要放宽上限，必须在 DEBT_CEILING_HISTORY 追加一条并写明原因。\n"
-            "  当前孤立模块：%s"
-            % (len(dead), ceiling, sorted(dead))
+            "  当前孤立模块：%s" % (len(dead), ceiling, sorted(dead))
         )
 
     def test_ceiling_history_is_monotonic(self):
@@ -763,15 +767,18 @@ class TestDeadModules:
         """
         counts = [c for _d, c, _n in DEBT_CEILING_HISTORY]
         assert counts, "DEBT_CEILING_HISTORY 不能为空"
-        bad = [(i, counts[i - 1], counts[i])
-               for i in range(1, len(counts)) if counts[i] > counts[i - 1]]
+        bad = [
+            (i, counts[i - 1], counts[i])
+            for i in range(1, len(counts))
+            if counts[i] > counts[i - 1]
+        ]
         assert not bad, (
             "DEBT_CEILING_HISTORY 出现上限回升（棘轮被回填）：%s\n"
             "  棘轮只允许下降。若确需放宽，请在该条目的说明里写清原因。" % (bad,)
         )
-        assert min(counts) == DEBT_CEILING, (
-            "DEBT_CEILING 应等于历史最低值 %d，实际 %d"
-            % (min(counts), DEBT_CEILING)
+        assert min(counts) == DEBT_CEILING, "DEBT_CEILING 应等于历史最低值 %d，实际 %d" % (
+            min(counts),
+            DEBT_CEILING,
         )
 
     def test_debt_volume_report(self):
@@ -789,19 +796,19 @@ class TestDeadModules:
                     total_lines += sum(1 for _ in fh)
             except OSError:
                 pass
-        wire = sum(1 for i in DEBT_LEDGER.values()
-                   if i["action"] == DEBT_ACTION_WIRE)
-        delete = sum(1 for i in DEBT_LEDGER.values()
-                     if i["action"] == DEBT_ACTION_DELETE)
-        print("\n[技术债体量] 孤立模块 %d 个 / %d 行；棘轮上限 %d"
-              % (len(dead), total_lines, DEBT_CEILING))
-        print("             处置计划：接线 %d 个，删除 %d 个"
-              % (wire, delete))
+        wire = sum(1 for i in DEBT_LEDGER.values() if i["action"] == DEBT_ACTION_WIRE)
+        delete = sum(1 for i in DEBT_LEDGER.values() if i["action"] == DEBT_ACTION_DELETE)
+        print(
+            "\n[技术债体量] 孤立模块 %d 个 / %d 行；棘轮上限 %d"
+            % (len(dead), total_lines, DEBT_CEILING)
+        )
+        print("             处置计划：接线 %d 个，删除 %d 个" % (wire, delete))
         for mod in sorted(dead):
             info = DEBT_LEDGER.get(mod, {})
-            print("               %-40s %-6s owner=%-9s due=%s"
-                  % (mod, info.get("action", "未登记"),
-                     info.get("owner", "-"), info.get("due", "-")))
+            print(
+                "               %-40s %-6s owner=%-9s due=%s"
+                % (mod, info.get("action", "未登记"), info.get("owner", "-"), info.get("due", "-"))
+            )
 
 
 # ============================================================
@@ -811,8 +818,8 @@ def _ensure_fonts():
     """注入字体：offscreen 下缺字体可能导致 segfault"""
     try:
         from PyQt5.QtGui import QFontDatabase
-        for p in (r"C:\Windows\Fonts\consola.ttf",
-                  r"C:\Windows\Fonts\msyh.ttc"):
+
+        for p in (r"C:\Windows\Fonts\consola.ttf", r"C:\Windows\Fonts\msyh.ttc"):
             if os.path.isfile(p):
                 QFontDatabase.addApplicationFont(p)
     except Exception:
@@ -835,18 +842,27 @@ def _make_editor_for_file(name):
 class TestEndToEndSmoke:
     """真实执行，不只看静态代码"""
 
-    @pytest.mark.parametrize("filename", [
-        "sample.json", "sample.md", "sample.py", "sample.js",
-        "sample.yaml", "sample.html", "sample.css", "sample.sql",
-        "sample.xml", "sample.sh", "sample.diff",
-    ])
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "sample.json",
+            "sample.md",
+            "sample.py",
+            "sample.js",
+            "sample.yaml",
+            "sample.html",
+            "sample.css",
+            "sample.sql",
+            "sample.xml",
+            "sample.sh",
+            "sample.diff",
+        ],
+    )
     def test_lexer_assigned_for_common_extensions(self, qapp, filename):
         """P5: 打开常见扩展名文件必须有高亮（lexer 非 None）"""
         w = _make_editor_for_file(filename)
         try:
-            assert w.lexer() is not None, (
-                "%s 没有词法器（零高亮）—— 语法高亮映射未覆盖" % filename
-            )
+            assert w.lexer() is not None, "%s 没有词法器（零高亮）—— 语法高亮映射未覆盖" % filename
         finally:
             try:
                 w.close()
@@ -880,8 +896,7 @@ class TestEndToEndSmoke:
         from app.session import SessionManager
 
         asd = str(tmp_path / "autosave")
-        mgr = SessionManager(
-            filepath=str(tmp_path / "session.json"), enabled=True)
+        mgr = SessionManager(filepath=str(tmp_path / "session.json"), enabled=True)
         mgr.autosave_dir = asd
 
         class FakeSc:
@@ -922,8 +937,7 @@ class TestEndToEndSmoke:
         """P1: start_autosave() 后定时器必须处于活动状态"""
         from app.session import SessionManager
 
-        mgr = SessionManager(
-            filepath=str(tmp_path / "session.json"), enabled=True)
+        mgr = SessionManager(filepath=str(tmp_path / "session.json"), enabled=True)
         assert not mgr._autosave_timer.isActive(), "初始应为未启动"
         mgr.start_autosave()
         assert mgr._autosave_timer.isActive(), (
@@ -940,6 +954,7 @@ class TestEndToEndSmoke:
         """
         _ensure_fonts()
         from ui.main_window import MainWindow
+
         win = MainWindow()
         try:
             assert win.session is not None, "MainWindow 未创建 SessionManager"
@@ -971,8 +986,7 @@ class TestEndToEndSmoke:
 
         draft_dir = Document._draft_dir()
         assert os.path.isabs(draft_dir), (
-            "草稿目录必须是绝对路径（相对路径会随工作目录漂移）：%r"
-            % draft_dir
+            "草稿目录必须是绝对路径（相对路径会随工作目录漂移）：%r" % draft_dir
         )
 
         main_src = _read(os.path.join(ROOT, "main.py"))
@@ -981,9 +995,7 @@ class TestEndToEndSmoke:
             "Document._draft_dir() —— 两处各自定义目录正是路径漂移"
             "的根因，请改为引用同一来源"
         )
-        assert "drafts_dir" in main_src, (
-            "main.py 算出 drafts_dir 后未纳入 makedirs 清单"
-        )
+        assert "drafts_dir" in main_src, "main.py 算出 drafts_dir 后未纳入 makedirs 清单"
 
     def test_panel_object_names_unique(self, qapp):
         """所有面板 objectName 必须唯一（防重复注册）"""
@@ -999,13 +1011,10 @@ class TestEndToEndSmoke:
                     win._ensure_panel(name)
                 except Exception:
                     pass
-            names = [d.objectName() for d in win.findChildren(QDockWidget)
-                     if d.objectName()]
+            names = [d.objectName() for d in win.findChildren(QDockWidget) if d.objectName()]
             dups = sorted({n for n in names if names.count(n) > 1})
             assert not dups, "面板 objectName 重复：%s" % dups
-            assert "DirectoryTreeDock" in names, (
-                "默认面板目录树未构造（objectName 缺失）"
-            )
+            assert "DirectoryTreeDock" in names, "默认面板目录树未构造（objectName 缺失）"
         finally:
             try:
                 win.close()
@@ -1037,15 +1046,16 @@ class TestEndToEndSmoke:
             import os as _os
 
             import app.session as _sess
+
             if _os.path.exists(_sess.SESSION_FILE):
                 _os.remove(_sess.SESSION_FILE)
         except Exception:
             pass
         try:
             from PyQt5.QtCore import QSettings as _QS
+
             _s = _QS("QingCao", "Editor")
-            for _k in ("window_state", "window_geometry",
-                       "show_directory_tree"):
+            for _k in ("window_state", "window_geometry", "show_directory_tree"):
                 _s.remove(_k)
             _s.sync()
         except Exception:
@@ -1057,13 +1067,12 @@ class TestEndToEndSmoke:
             visible = set()
             while time.time() < deadline:
                 qapp.processEvents()
-                visible = {d.objectName() for d in win.findChildren(QDockWidget)
-                           if d.isVisible()}
+                visible = {d.objectName() for d in win.findChildren(QDockWidget) if d.isVisible()}
                 if "DirectoryTreeDock" in visible:
                     break
                 time.sleep(0.02)
-            assert "DirectoryTreeDock" in visible, (
-                "项目目录树默认不可见，可见面板=%s" % sorted(visible)
+            assert "DirectoryTreeDock" in visible, "项目目录树默认不可见，可见面板=%s" % sorted(
+                visible
             )
         finally:
             try:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """验证欢迎页随主题变色（此前硬编码深色，与浅色主题冲突）"""
+
 import os
 import sys
 
@@ -49,6 +50,7 @@ for name in themes:
     btn_ss = ""
     try:
         from PyQt5.QtWidgets import QPushButton
+
         for b in w.quick_actions.findChildren(QPushButton):
             if b.objectName() == "quick_action_button":
                 btn_ss = b.styleSheet()
@@ -61,19 +63,21 @@ for name in themes:
         return color.lower() in ss.lower()
 
     print()
-    print("  【%s】window_bg=%s  panel_bg=%s  success=%s"
-          % (name, c.window_bg, c.panel_bg, c.success))
+    print(
+        "  【%s】window_bg=%s  panel_bg=%s  success=%s" % (name, c.window_bg, c.panel_bg, c.success)
+    )
     print("    自身背景用 window_bg      : %s" % has(own, c.window_bg))
     print("    content 用 window_bg     : %s" % has(content_ss, c.window_bg))
     print("    头部标题用 success        : %s" % has(header_ss, c.success))
-    print("    快捷按钮用 panel_fg/panel_bg: %s"
-          % (has(btn_ss, c.panel_fg) or has(btn_ss, c.menu_bg)))
+    print(
+        "    快捷按钮用 panel_fg/panel_bg: %s" % (has(btn_ss, c.panel_fg) or has(btn_ss, c.menu_bg))
+    )
     print("    技巧卡片用 panel_bg       : %s" % has(tip_ss, c.panel_bg))
     # 关键：绝不能出现暗色主题的 #1e1e1e（浅色主题下）
-    print("    残留暗色 #1e1e1e         : %s"
-          % (has(own + content_ss + tip_ss, "#1e1e1e")))
-    print("    残留暗色 #2d2d2d         : %s"
-          % (has(own + content_ss + tip_ss + btn_ss, "#2d2d2d")))
+    print("    残留暗色 #1e1e1e         : %s" % (has(own + content_ss + tip_ss, "#1e1e1e")))
+    print(
+        "    残留暗色 #2d2d2d         : %s" % (has(own + content_ss + tip_ss + btn_ss, "#2d2d2d"))
+    )
 
 print()
 print("=" * 70)

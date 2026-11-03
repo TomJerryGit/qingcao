@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """插件脚手架 - 一键生成插件骨架"""
+
 import json
 import os
 import sys
@@ -70,7 +71,7 @@ class Plugin(PluginBase):
 '''
 
 
-TEMPLATE_README = '''# {display_name}
+TEMPLATE_README = """# {display_name}
 
 {description}
 
@@ -91,12 +92,12 @@ TEMPLATE_README = '''# {display_name}
 - 修改 `__init__.py` 中的 `on_activate` 方法实现功能
 - 修改 `plugin.json` 中的元数据
 - 需要更多权限时，在 `plugin.json` 的 `permissions` 字段添加
-'''
+"""
 
 
 def create_plugin(name, target_dir="plugins"):
     """创建插件骨架"""
-    display_name = name.replace('_', ' ').title()
+    display_name = name.replace("_", " ").title()
 
     plugin_dir = os.path.join(target_dir, name)
     if os.path.exists(plugin_dir):
@@ -108,7 +109,7 @@ def create_plugin(name, target_dir="plugins"):
     # plugin.json
     manifest = dict(TEMPLATE_MANIFEST)
     for k, v in manifest.items():
-        if isinstance(v, str) and '{' in v:
+        if isinstance(v, str) and "{" in v:
             manifest[k] = v.format(
                 name=name,
                 display_name=display_name,
@@ -116,33 +117,34 @@ def create_plugin(name, target_dir="plugins"):
                 author="your-name",
                 email="your@email.com",
             )
-    with open(os.path.join(plugin_dir, 'plugin.json'),
-              'w', encoding='utf-8') as f:
+    with open(os.path.join(plugin_dir, "plugin.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
     # __init__.py
-    with open(os.path.join(plugin_dir, '__init__.py'),
-              'w', encoding='utf-8') as f:
-        f.write(TEMPLATE_INIT.format(
-            name=name,
-            display_name=display_name,
-            description="由脚手架生成的插件",
-            author="your-name",
-        ))
+    with open(os.path.join(plugin_dir, "__init__.py"), "w", encoding="utf-8") as f:
+        f.write(
+            TEMPLATE_INIT.format(
+                name=name,
+                display_name=display_name,
+                description="由脚手架生成的插件",
+                author="your-name",
+            )
+        )
 
     # README.md
-    with open(os.path.join(plugin_dir, 'README.md'),
-              'w', encoding='utf-8') as f:
-        f.write(TEMPLATE_README.format(
-            display_name=display_name,
-            description="由脚手架生成的插件",
-        ))
+    with open(os.path.join(plugin_dir, "README.md"), "w", encoding="utf-8") as f:
+        f.write(
+            TEMPLATE_README.format(
+                display_name=display_name,
+                description="由脚手架生成的插件",
+            )
+        )
 
     print("[OK] 插件已创建: " + plugin_dir)
     print()
     print("下一步：")
-    print("  1. 编辑 " + os.path.join(plugin_dir, 'plugin.json'))
-    print("  2. 编辑 " + os.path.join(plugin_dir, '__init__.py'))
+    print("  1. 编辑 " + os.path.join(plugin_dir, "plugin.json"))
+    print("  2. 编辑 " + os.path.join(plugin_dir, "__init__.py"))
     print("  3. 重启编辑器加载插件")
     return True
 
@@ -159,7 +161,7 @@ def main():
         return 1
 
     # 清理
-    name = "".join(c if c.isalnum() or c == '_' else '_' for c in name)
+    name = "".join(c if c.isalnum() or c == "_" else "_" for c in name)
 
     if create_plugin(name):
         return 0

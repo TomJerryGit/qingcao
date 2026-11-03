@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """声明式语言包（Notepad++ UDL 等价物）测试"""
+
 import json
 
 import pytest
@@ -21,8 +22,7 @@ def _pack_data(**over):
 
 def _write(tmp_path, name="mylang.qingcao-lang.json", **over):
     p = tmp_path / name
-    p.write_text(json.dumps(_pack_data(**over), ensure_ascii=False),
-                 encoding="utf-8")
+    p.write_text(json.dumps(_pack_data(**over), ensure_ascii=False), encoding="utf-8")
     return p
 
 
@@ -93,8 +93,8 @@ def test_generic_lexer_styles(qapp):
     def style_at(pos):
         return sc.SendScintilla(QsciScintilla.SCI_GETSTYLEAT, pos)
 
-    assert style_at(0) == STYLE_KEYWORD      # 'i' of if
-    assert style_at(7) == STYLE_NUMBER       # '1' of 12
-    assert style_at(10) == STYLE_COMMENT     # '/'
-    assert style_at(19) == STYLE_STRING      # '"abc"'
+    assert style_at(0) == STYLE_KEYWORD  # 'i' of if
+    assert style_at(7) == STYLE_NUMBER  # '1' of 12
+    assert style_at(10) == STYLE_COMMENT  # '/'
+    assert style_at(19) == STYLE_STRING  # '"abc"'
     sc.deleteLater()

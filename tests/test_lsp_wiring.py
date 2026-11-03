@@ -17,6 +17,7 @@
 - **运行时断言**：用 stub 的 LspClient / 假的 EditorProxy 真的把
   ``toggle_lsp`` 跑一遍，验证参数、返回值与用户可见提示。
 """
+
 import ast
 import os
 
@@ -34,6 +35,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def read_source(relpath):
     if str(relpath).replace("\\", "/").endswith("ui/main_window.py"):
         from ui_source_utils import read_main_ui_source
+
         return read_main_ui_source()
     with open(os.path.join(ROOT, relpath), encoding="utf-8") as f:
         return f.read()
@@ -143,6 +145,7 @@ def window(qapp):
     """真实的 MainWindow（并确保 LSP 开关处于默认关闭状态）。"""
     try:
         from app.preferences import get_preferences
+
         get_preferences().set("lsp_enabled", False, notify=False)
     except Exception:
         pass
@@ -172,9 +175,9 @@ class TestStaticWiring:
         """核心缺陷 1：lsp_client.start() 必须传 command。"""
         source = read_source("core/editor.py")
         starts = [
-            node for node in calls_to(source, "start")
-            if isinstance(node.func.value, ast.Attribute)
-            and node.func.value.attr == "lsp_client"
+            node
+            for node in calls_to(source, "start")
+            if isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "lsp_client"
         ]
         assert starts, "core/editor.py 里找不到 lsp_client.start(...) 调用"
 
@@ -182,14 +185,12 @@ class TestStaticWiring:
             assert call.args, (
                 "core/editor.py 第 %d 行：lsp_client.start() 没有传 "
                 "command —— LspClient.start(command) 是必填位置参数，"
-                "这会 TypeError 并被 except 吞掉，LSP 永远起不来"
-                % call.lineno
+                "这会 TypeError 并被 except 吞掉，LSP 永远起不来" % call.lineno
             )
 
-        assert any(
-            kw.arg == "working_dir"
-            for call in starts for kw in call.keywords
-        ), "lsp_client.start() 必须传 working_dir"
+        assert any(kw.arg == "working_dir" for call in starts for kw in call.keywords), (
+            "lsp_client.start() 必须传 working_dir"
+        )
 
     def test_py_only_restriction_removed(self):
         """核心缺陷 2：toggle_lsp 里不得再硬编码只支持 .py/.pyw。
@@ -204,34 +205,27 @@ class TestStaticWiring:
 
         literals = string_literals(func)
         assert ".py" not in literals, (
-            "toggle_lsp 里仍然硬编码了 Python 扩展名（应为 "
-            "LSP_LANGUAGE_BY_EXT 派生的判断）"
+            "toggle_lsp 里仍然硬编码了 Python 扩展名（应为 LSP_LANGUAGE_BY_EXT 派生的判断）"
         )
         assert ".pyw" not in literals
 
         names = called_names(func)
         assert "lsp_language_for_file" in names, (
-            "toggle_lsp 必须改用 LSP_LANGUAGE_BY_EXT 派生的判断函数，"
-            "实际调用了: %s" % sorted(names)
+            "toggle_lsp 必须改用 LSP_LANGUAGE_BY_EXT 派生的判断函数，实际调用了: %s" % sorted(names)
         )
 
     def test_request_definition_has_production_call_site(self):
         """核心缺陷 3：request_definition 必须被生产代码调用。"""
         source = read_source("core/editor.py")
         calls = calls_to(source, "request_definition")
-        assert calls, (
-            "core/editor.py 里没有 request_definition 的调用点 "
-            "（此前是零调用方的死方法）"
-        )
+        assert calls, "core/editor.py 里没有 request_definition 的调用点 （此前是零调用方的死方法）"
 
     def test_toggle_lsp_has_production_call_site(self):
         """核心缺陷 3：toggle_lsp 必须被主窗口调用（且带参数）。"""
         source = read_source("ui/main_window.py")
         calls = calls_to(source, "toggle_lsp")
         assert calls, "ui/main_window.py 里没有 toggle_lsp 的生产调用点"
-        assert all(call.args for call in calls), (
-            "toggle_lsp(...) 必须显式传 enable"
-        )
+        assert all(call.args for call in calls), "toggle_lsp(...) 必须显式传 enable"
 
     def test_lsp_menu_action_wired(self):
         """可勾选菜单项必须真的连到 _toggle_lsp。"""
@@ -265,9 +259,7 @@ class TestToggleLsp:
         recorder = _make_recording_client_class()
         monkeypatch.setattr(editor_mod, "LspClient", recorder)
         # pylsp 未必装在测试机上；只验证"取到命令并传进去"
-        monkeypatch.setattr(
-            editor_mod, "lsp_command_available", lambda cmd: True
-        )
+        monkeypatch.setattr(editor_mod, "lsp_command_available", lambda cmd: True)
 
         assert proxy.toggle_lsp(True) is True
 
@@ -281,22 +273,19 @@ class TestToggleLsp:
         )
         assert command, "command 不得为空"
         assert working_dir == str(tmp_path), (
-            "start() 必须传文件所在目录作为 working_dir，实际 %r"
-            % (working_dir,)
+            "start() 必须传文件所在目录作为 working_dir，实际 %r" % (working_dir,)
         )
 
         opens = [c for c in client.calls if c[0] == "did_open"]
         assert opens, "did_open 没有被调用"
-        assert opens[0][2] == "python", (
-            "did_open 的 languageId 应为 python，实际 %r" % (opens[0][2],)
+        assert opens[0][2] == "python", "did_open 的 languageId 应为 python，实际 %r" % (
+            opens[0][2],
         )
 
         assert proxy.lsp_active is True
         assert proxy.lsp_client is client
 
-    def test_non_python_file_now_supported(
-        self, tmp_path, monkeypatch, make_proxy
-    ):
+    def test_non_python_file_now_supported(self, tmp_path, monkeypatch, make_proxy):
         """核心缺陷 2 的运行时证明：.js 也能走通启动路径。"""
         import core.editor as editor_mod
         from core.lsp_client import LspServerRegistry
@@ -307,9 +296,7 @@ class TestToggleLsp:
 
         recorder = _make_recording_client_class()
         monkeypatch.setattr(editor_mod, "LspClient", recorder)
-        monkeypatch.setattr(
-            editor_mod, "lsp_command_available", lambda cmd: True
-        )
+        monkeypatch.setattr(editor_mod, "lsp_command_available", lambda cmd: True)
 
         assert proxy.toggle_lsp(True) is True
         command = recorder.instances[-1].calls[0][1]
@@ -340,9 +327,7 @@ class TestToggleLsp:
         assert proxy.toggle_lsp(True) is False
         assert messages and "保存" in messages[0]
 
-    def test_supported_ext_without_server_reports_reason(
-        self, tmp_path, make_proxy
-    ):
+    def test_supported_ext_without_server_reports_reason(self, tmp_path, make_proxy):
         """.json 在 LSP_LANGUAGE_BY_EXT 里有，但注册表没有对应服务器。"""
         target = tmp_path / "data.json"
         target.write_text("{}\n", encoding="utf-8")
@@ -358,9 +343,7 @@ class TestToggleLsp:
         assert messages and "语言服务器" in messages[0]
         assert statuses == ["no_server"]
 
-    def test_missing_server_message_is_actionable(
-        self, tmp_path, monkeypatch, make_proxy
-    ):
+    def test_missing_server_message_is_actionable(self, tmp_path, monkeypatch, make_proxy):
         """失败提示必须具体到"装什么"（P6 要求 ④）。"""
         import core.editor as editor_mod
 
@@ -370,9 +353,7 @@ class TestToggleLsp:
 
         recorder = _make_recording_client_class()
         monkeypatch.setattr(editor_mod, "LspClient", recorder)
-        monkeypatch.setattr(
-            editor_mod, "lsp_command_available", lambda cmd: False
-        )
+        monkeypatch.setattr(editor_mod, "lsp_command_available", lambda cmd: False)
 
         messages = []
         proxy.lsp_error.connect(messages.append)
@@ -382,9 +363,7 @@ class TestToggleLsp:
         assert proxy.toggle_lsp(True) is False
         text = " ".join(messages)
         assert "pylsp" in text, "提示里必须点名缺失的可执行文件: %r" % text
-        assert "pip install python-lsp-server" in text, (
-            "提示里必须给出可复制的安装命令: %r" % text
-        )
+        assert "pip install python-lsp-server" in text, "提示里必须给出可复制的安装命令: %r" % text
         assert statuses == ["not_found"]
         assert recorder.instances == [], "服务器不可用时不应创建 LspClient"
 
@@ -397,9 +376,7 @@ class TestToggleLsp:
 
         recorder = _make_recording_client_class()
         monkeypatch.setattr(editor_mod, "LspClient", recorder)
-        monkeypatch.setattr(
-            editor_mod, "lsp_command_available", lambda cmd: True
-        )
+        monkeypatch.setattr(editor_mod, "lsp_command_available", lambda cmd: True)
 
         assert proxy.toggle_lsp(True) is True
         assert proxy.toggle_lsp(False) is True
@@ -443,14 +420,17 @@ class TestGotoDefinition:
         sc.setText(target_text)
         doc.meta.filepath = os.path.abspath("demo.py")
 
-        proxy._on_lsp_definition([{
-            "uri": "file:///" + os.path.abspath("demo.py").replace("\\", "/"),
-            "range": {"start": {"line": 3, "character": 0}},
-        }])
+        proxy._on_lsp_definition(
+            [
+                {
+                    "uri": "file:///" + os.path.abspath("demo.py").replace("\\", "/"),
+                    "range": {"start": {"line": 3, "character": 0}},
+                }
+            ]
+        )
 
         assert sc.getCursorPosition()[0] == 3, (
-            "同文件内的定义没有跳转（期望第 3 行，实际第 %d 行）"
-            % sc.getCursorPosition()[0]
+            "同文件内的定义没有跳转（期望第 3 行，实际第 %d 行）" % sc.getCursorPosition()[0]
         )
 
     def test_definition_in_other_file_emits_request(self, make_proxy):
@@ -458,14 +438,16 @@ class TestGotoDefinition:
         doc.meta.filepath = os.path.abspath("a.py")
 
         requests = []
-        proxy.definition_requested.connect(
-            lambda path, line, ch: requests.append((path, line, ch))
-        )
+        proxy.definition_requested.connect(lambda path, line, ch: requests.append((path, line, ch)))
 
-        proxy._on_lsp_definition([{
-            "uri": "file:///" + os.path.abspath("b.py").replace("\\", "/"),
-            "range": {"start": {"line": 7, "character": 2}},
-        }])
+        proxy._on_lsp_definition(
+            [
+                {
+                    "uri": "file:///" + os.path.abspath("b.py").replace("\\", "/"),
+                    "range": {"start": {"line": 7, "character": 2}},
+                }
+            ]
+        )
 
         assert len(requests) == 1
         assert requests[0][0].endswith("b.py")
@@ -491,7 +473,7 @@ class TestLspClientStartGuard:
         errors = []
         client.error_occurred.connect(errors.append)
 
-        client.start([])   # 修复前 command[0] 会 IndexError
+        client.start([])  # 修复前 command[0] 会 IndexError
 
         assert client.state == LspState.ERROR
         assert errors, "空命令必须通过 error_occurred 报告"
@@ -512,9 +494,7 @@ class TestMainWindowLspSwitch:
         assert action is not None, "工具菜单缺少 LSP 开关"
         assert action.isCheckable()
         assert not action.isChecked(), "LSP 默认必须关闭"
-        assert action.shortcut().isEmpty(), (
-            "LSP 开关不应占用快捷键，避免与用户/插件冲突"
-        )
+        assert action.shortcut().isEmpty(), "LSP 开关不应占用快捷键，避免与用户/插件冲突"
 
     def test_checking_menu_item_reaches_proxy(self, window, monkeypatch):
         """勾选菜单项必须真的调到 EditorProxy.toggle_lsp。"""
@@ -527,9 +507,7 @@ class TestMainWindowLspSwitch:
                 calls.append(enable)
                 return True
 
-        monkeypatch.setattr(
-            window.tabs, "current_proxy", lambda: FakeProxy()
-        )
+        monkeypatch.setattr(window.tabs, "current_proxy", lambda: FakeProxy())
 
         window.lsp_action.setChecked(True)
         assert calls == [True], "勾选 LSP 菜单没有调用 toggle_lsp"
@@ -544,9 +522,7 @@ class TestMainWindowLspSwitch:
             def toggle_lsp(self, enable):
                 return False
 
-        monkeypatch.setattr(
-            window.tabs, "current_proxy", lambda: FailingProxy()
-        )
+        monkeypatch.setattr(window.tabs, "current_proxy", lambda: FailingProxy())
 
         window.lsp_action.setChecked(True)
         assert not window.lsp_action.isChecked(), (
@@ -596,12 +572,8 @@ class TestMainWindowLspSwitch:
         from core.editor import resolve_datetime_format
 
         # 默认 date_format 自带时间 → 不得重复追加
-        assert resolve_datetime_format(
-            "%Y-%m-%d %H:%M:%S", "%H:%M:%S"
-        ) == "%Y-%m-%d %H:%M:%S"
+        assert resolve_datetime_format("%Y-%m-%d %H:%M:%S", "%H:%M:%S") == "%Y-%m-%d %H:%M:%S"
         # 纯日期 → 追加 time_format
-        assert resolve_datetime_format(
-            "%Y-%m-%d", "%H:%M:%S"
-        ) == "%Y-%m-%d %H:%M:%S"
+        assert resolve_datetime_format("%Y-%m-%d", "%H:%M:%S") == "%Y-%m-%d %H:%M:%S"
         # 兜底
         assert resolve_datetime_format(None, None) == "%Y-%m-%d %H:%M:%S"

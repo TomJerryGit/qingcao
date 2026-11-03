@@ -39,21 +39,19 @@ def test_conflict_prompt_and_reload(qapp, tmp_path):
     from PyQt5.QtWidgets import QMessageBox
 
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         path, editor = _open(win, tmp_path)
         doc_cls = type(editor.document)
         reload = _FakeReload()
         win.tabs._reload_file = reload
-        with patch.object(doc_cls, "is_modified",
-                          property(lambda self: True)):
-            with patch.object(QMessageBox, "question",
-                              return_value=QMessageBox.No):
+        with patch.object(doc_cls, "is_modified", property(lambda self: True)):
+            with patch.object(QMessageBox, "question", return_value=QMessageBox.No):
                 win._on_remote_file_saved(path, 1.0, 999999)
             assert reload.calls == []
             assert win._last_remote_conflict["path"] == path
-            with patch.object(QMessageBox, "question",
-                              return_value=QMessageBox.Yes):
+            with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
                 win._on_remote_file_saved(path, 1.0, 999999)
         assert reload.calls and reload.calls[0][0] == path
         assert win._last_remote_conflict is None
@@ -63,14 +61,14 @@ def test_conflict_prompt_and_reload(qapp, tmp_path):
 
 def test_no_conflict_auto_reload(qapp, tmp_path):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         path, editor = _open(win, tmp_path, "auto.txt")
         reload = _FakeReload()
         win.tabs._reload_file = reload
         doc_cls = type(editor.document)
-        with patch.object(doc_cls, "is_modified",
-                          property(lambda self: False)):
+        with patch.object(doc_cls, "is_modified", property(lambda self: False)):
             win._on_remote_file_saved(path, 1.0, 999999)
         assert reload.calls and reload.calls[0][0] == path
     finally:
@@ -80,18 +78,17 @@ def test_no_conflict_auto_reload(qapp, tmp_path):
 def test_duplicate_open_event_suppressed(qapp, tmp_path):
     import infrastructure.instance_broadcast as ib
     from ui.main_window import MainWindow
+
     win = MainWindow()
     calls = []
     try:
         path, _editor = _open(win, tmp_path, "dup.txt")
         win._known_open_paths = {path}
-        with patch.object(ib, "notify_file_event",
-                          side_effect=lambda k, p: calls.append((k, p))):
+        with patch.object(ib, "notify_file_event", side_effect=lambda k, p: calls.append((k, p))):
             win._on_local_tab_opened(0)
         assert calls == []
         win._known_open_paths = set()
-        with patch.object(ib, "notify_file_event",
-                          side_effect=lambda k, p: calls.append((k, p))):
+        with patch.object(ib, "notify_file_event", side_effect=lambda k, p: calls.append((k, p))):
             win._on_local_tab_opened(0)
         assert calls and calls[0][0] == "file_opened"
     finally:

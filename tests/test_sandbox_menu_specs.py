@@ -20,16 +20,20 @@ class _BrokenPlugin:
 
 def test_collect_menu_specs_normalizes_and_sorts():
     from infrastructure.plugin_sandbox_manager import collect_menu_specs
+
     plugins = {
-        "spell": _FakePlugin([
-            {"id": "ignore_all", "label": "忽略全部",
-             "path": "工具/拼写检查"},
-            {"label": "no-id"},
-            "bad",
-        ]),
-        "json": _FakePlugin([
-            {"id": "format", "label": "格式化", "path": "工具/JSON"},
-        ]),
+        "spell": _FakePlugin(
+            [
+                {"id": "ignore_all", "label": "忽略全部", "path": "工具/拼写检查"},
+                {"label": "no-id"},
+                "bad",
+            ]
+        ),
+        "json": _FakePlugin(
+            [
+                {"id": "format", "label": "格式化", "path": "工具/JSON"},
+            ]
+        ),
         "broken": _BrokenPlugin(),
     }
     specs = collect_menu_specs(plugins)
@@ -43,12 +47,14 @@ def test_collect_menu_specs_normalizes_and_sorts():
 
 def test_collect_menu_specs_empty_and_none():
     from infrastructure.plugin_sandbox_manager import collect_menu_specs
+
     assert collect_menu_specs({}) == []
     assert collect_menu_specs(None) == []
 
 
 def test_main_window_has_data_layer():
     import os
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     src = read_main_ui_source()
     assert "_sandbox_menu_specs" in src

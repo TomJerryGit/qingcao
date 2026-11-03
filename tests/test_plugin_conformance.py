@@ -20,6 +20,7 @@
     python -m pytest tests/test_plugin_conformance.py -q
     # 插件清单单项失败会指出插件名，方便插件作者排查
 """
+
 import ast
 import json
 import os
@@ -46,8 +47,8 @@ def contract(name):
 
 def _api(win, perms=None, name="conformance"):
     from app.plugins import PluginAPI
-    return PluginAPI(win, permissions=list(perms or ALL_PERMS),
-                     plugin_name=name)
+
+    return PluginAPI(win, permissions=list(perms or ALL_PERMS), plugin_name=name)
 
 
 def _close(win):
@@ -67,40 +68,37 @@ def _close(win):
 @contract("completion")
 def _c_completion(api, win, tmp_path):
     api.register_completion_provider(
-        lambda prefix, language="", filepath="":
-            ["conf_word"] if prefix == "co" else [])
-    assert "conf_word" in win.collect_plugin_completions(
-        "co", language="python", filepath="x.py")
+        lambda prefix, language="", filepath="": ["conf_word"] if prefix == "co" else []
+    )
+    assert "conf_word" in win.collect_plugin_completions("co", language="python", filepath="x.py")
     api.cleanup()
-    assert win.collect_plugin_completions(
-        "co", language="python", filepath="x.py") == []
+    assert win.collect_plugin_completions("co", language="python", filepath="x.py") == []
 
 
 @contract("diagnostics")
 def _c_diagnostics(api, win, tmp_path):
     from core.problems import get_problem_manager
+
     fp = str(tmp_path / "conf.py")
     n = api.publish_diagnostics(
-        [{"line": 0, "col": 0, "severity": "error", "message": "conf"}],
-        filepath=fp)
+        [{"line": 0, "col": 0, "severity": "error", "message": "conf"}], filepath=fp
+    )
     assert n == 1
-    assert any(p.source == "conformance"
-               for p in get_problem_manager().get_for_file(fp))
+    assert any(p.source == "conformance" for p in get_problem_manager().get_for_file(fp))
     api.cleanup()
-    assert not any(p.source == "conformance"
-                   for p in get_problem_manager().get_for_file(fp))
+    assert not any(p.source == "conformance" for p in get_problem_manager().get_for_file(fp))
 
 
 @contract("background")
 def _c_background(api, win, tmp_path):
     import time
+
     got = {}
-    api.run_background(lambda: 7,
-                       on_done=lambda r: got.update(value=r),
-                       name="conformance")
+    api.run_background(lambda: 7, on_done=lambda r: got.update(value=r), name="conformance")
     deadline = time.time() + 5
     while time.time() < deadline and "value" not in got:
         from PyQt5.QtWidgets import QApplication
+
         QApplication.processEvents()
         time.sleep(0.005)
     assert got.get("value") == 7
@@ -108,10 +106,8 @@ def _c_background(api, win, tmp_path):
 
 @contract("hover")
 def _c_hover(api, win, tmp_path):
-    api.register_hover_provider(
-        lambda line, col, filepath="", language="": "conf-hover")
-    assert "conf-hover" in win.collect_plugin_hover(
-        "x.py", 0, 0, language="python")
+    api.register_hover_provider(lambda line, col, filepath="", language="": "conf-hover")
+    assert "conf-hover" in win.collect_plugin_hover("x.py", 0, 0, language="python")
     api.cleanup()
     assert win.collect_plugin_hover("x.py", 0, 0, language="python") == ""
 
@@ -120,9 +116,14 @@ def _c_hover(api, win, tmp_path):
 def _c_code_action(api, win, tmp_path):
     called = {"n": 0}
     api.register_code_action_provider(
-        lambda line, col, filepath="", language="": [{
-            "title": "conf-fix", "kind": "quickfix",
-            "callback": lambda: called.__setitem__("n", 1)}])
+        lambda line, col, filepath="", language="": [
+            {
+                "title": "conf-fix",
+                "kind": "quickfix",
+                "callback": lambda: called.__setitem__("n", 1),
+            }
+        ]
+    )
     actions = win.collect_code_actions("x.py", 0, 0, language="python")
     assert [a["title"] for a in actions] == ["conf-fix"]
     actions[0]["callback"]()
@@ -132,13 +133,11 @@ def _c_code_action(api, win, tmp_path):
 @contract("editor-context-menu")
 def _c_context_menu(api, win, tmp_path):
     api.add_editor_context_menu("conf-action", lambda: None)
-    assert any(e.get("label") == "conf-action"
-               for e in win.collect_editor_context_actions())
+    assert any(e.get("label") == "conf-action" for e in win.collect_editor_context_actions())
     api.cleanup()
     # 只断言"本插件注册的项被清理"：内置插件（如 json_formatter）的
     # 右键菜单项是合法存在，CI 上插件激活时序不同才暴露原断言过严。
-    assert not any(e.get("label") == "conf-action"
-                   for e in win.collect_editor_context_actions())
+    assert not any(e.get("label") == "conf-action" for e in win.collect_editor_context_actions())
 
 
 @contract("status-item")
@@ -158,10 +157,21 @@ def _c_decoration(api, win, tmp_path):
 
 @contract("settings-schema")
 def _c_settings_schema(api, win, tmp_path):
-    assert api.register_settings_schema([
-        {"key": "conf_int", "label": "整数", "type": "int",
-         "default": 5, "min": 0, "max": 9},
-    ]) is True
+    assert (
+        api.register_settings_schema(
+            [
+                {
+                    "key": "conf_int",
+                    "label": "整数",
+                    "type": "int",
+                    "default": 5,
+                    "min": 0,
+                    "max": 9,
+                },
+            ]
+        )
+        is True
+    )
     assert api.get_config("conf_int", None) == 5
     assert "conformance" in win._plugin_settings_schemas
 
@@ -169,9 +179,11 @@ def _c_settings_schema(api, win, tmp_path):
 @contract("symbol-provider")
 def _c_symbol_provider(api, win, tmp_path):
     api.register_symbol_provider(
-        lambda text, filepath="", language="":
-            [{"name": "conf_sym", "type": "function", "line": 0}],
-        language_ids=["tlang"])
+        lambda text, filepath="", language="": [
+            {"name": "conf_sym", "type": "function", "line": 0}
+        ],
+        language_ids=["tlang"],
+    )
     items = win.collect_plugin_symbols("x", "a.tlang", "tlang")
     assert [i["name"] for i in items] == ["conf_sym"]
     api.cleanup()
@@ -213,8 +225,7 @@ def _plugin_dirs():
     out = []
     for name in sorted(os.listdir(PLUGIN_DIR)):
         path = os.path.join(PLUGIN_DIR, name)
-        if os.path.isdir(path) and os.path.isfile(
-                os.path.join(path, "plugin.json")):
+        if os.path.isdir(path) and os.path.isfile(os.path.join(path, "plugin.json")):
             out.append((name, path))
     return out
 
@@ -235,23 +246,19 @@ def test_plugin_manifest_conformance():
             failures.append("%s: manifest 无法解析 (%s)" % (name, e))
             continue
 
-        for key in ("name", "display_name", "version",
-                    "permissions", "api_version"):
+        for key in ("name", "display_name", "version", "permissions", "api_version"):
             if key not in data:
                 failures.append("%s: 缺少字段 %s" % (name, key))
 
-        bad_perms = [p for p in data.get("permissions", [])
-                     if p not in ALL_PERMISSIONS]
+        bad_perms = [p for p in data.get("permissions", []) if p not in ALL_PERMISSIONS]
         if bad_perms:
             failures.append("%s: 未知权限 %s" % (name, bad_perms))
 
         try:
-            parts = [int(x) for x in
-                     str(data.get("api_version", "0")).split(".")]
+            parts = [int(x) for x in str(data.get("api_version", "0")).split(".")]
             assert len(parts) >= 2
         except Exception:
-            failures.append("%s: api_version 不可解析 %r"
-                            % (name, data.get("api_version")))
+            failures.append("%s: api_version 不可解析 %r" % (name, data.get("api_version")))
 
         # 入口模块**不 import**（插件模块顶层会创建 QObject/定时器，
         # 在无 QApplication 或测试环境下执行会引入 Qt 副作用）——
@@ -264,15 +271,16 @@ def test_plugin_manifest_conformance():
             with open(entry, encoding="utf-8") as f:
                 tree = ast.parse(f.read(), filename=entry)
             plugin_cls = next(
-                (n for n in tree.body
-                 if isinstance(n, ast.ClassDef) and n.name == "Plugin"),
-                None)
+                (n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Plugin"), None
+            )
             if plugin_cls is None:
                 failures.append("%s: 入口缺少 Plugin 类" % name)
                 continue
-            methods = {n.name for n in plugin_cls.body
-                       if isinstance(n, (ast.FunctionDef,
-                                         ast.AsyncFunctionDef))}
+            methods = {
+                n.name
+                for n in plugin_cls.body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
             for hook in ("on_activate", "on_deactivate"):
                 if hook not in methods:
                     failures.append("%s: Plugin 缺少 %s" % (name, hook))
@@ -293,10 +301,15 @@ def test_api_surface_has_extension_points(qapp):
     from app.plugins import PluginAPI
 
     expected = [
-        "register_completion_provider", "publish_diagnostics",
-        "clear_diagnostics", "run_background",
-        "register_hover_provider", "register_code_action_provider",
-        "add_editor_context_menu", "add_status_item", "add_decoration",
+        "register_completion_provider",
+        "publish_diagnostics",
+        "clear_diagnostics",
+        "run_background",
+        "register_hover_provider",
+        "register_code_action_provider",
+        "add_editor_context_menu",
+        "add_status_item",
+        "add_decoration",
         "register_settings_schema",
     ]
     missing = [name for name in expected if not hasattr(PluginAPI, name)]
@@ -310,13 +323,25 @@ def test_api_surface_has_extension_points(qapp):
 # json_formatter / builtin_plugin_migrations 覆盖；此处确保"新扩展点不会
 # 只落在文档里"，每个内置插件都必须真正调用迁移 API。
 _REQUIRED_SETTINGS_PLUGINS = [
-    "ai_assistant", "demo", "git_deep", "json_formatter", "logtail",
-    "markdown_preview", "my_plugin", "python_debugger", "todo_panel",
+    "ai_assistant",
+    "demo",
+    "git_deep",
+    "json_formatter",
+    "logtail",
+    "markdown_preview",
+    "my_plugin",
+    "python_debugger",
+    "todo_panel",
     "wordcount",
 ]
 _REQUIRED_STATUS_PLUGINS = [
-    "ai_assistant", "demo", "git_deep", "logtail",
-    "python_debugger", "todo_panel", "wordcount",
+    "ai_assistant",
+    "demo",
+    "git_deep",
+    "logtail",
+    "python_debugger",
+    "todo_panel",
+    "wordcount",
 ]
 
 
@@ -356,20 +381,26 @@ def test_api_capabilities_and_event_catalog(qapp):
     """插件必须能探测宿主能力与可订阅事件（而不是盲试）"""
     from app.plugins import PluginAPI
 
-    api = PluginAPI(None, permissions=["editor_read"],
-                    plugin_name="cap_probe")
+    api = PluginAPI(None, permissions=["editor_read"], plugin_name="cap_probe")
     caps = api.get_api_capabilities()
     assert caps["api_version"], "缺少 api_version"
     points = caps["extension_points"]
-    for name in ("completion", "diagnostics", "background", "hover",
-                 "code_action", "editor_context_menu", "status_item",
-                 "decoration", "settings_schema"):
+    for name in (
+        "completion",
+        "diagnostics",
+        "background",
+        "hover",
+        "code_action",
+        "editor_context_menu",
+        "status_item",
+        "decoration",
+        "settings_schema",
+    ):
         assert points.get(name) is True, "能力清单缺少扩展点 %s" % name
 
     events = api.list_events()
     assert len(events) >= 15, "事件目录过少: %r" % (events,)
-    for name in ("file_opened", "file_saved", "tab_changed",
-                 "theme_changed", "macro_started"):
+    for name in ("file_opened", "file_saved", "tab_changed", "theme_changed", "macro_started"):
         assert name in events, "事件目录缺少 %s" % name
     assert caps["events"] == events
     assert "editor_read" in caps["permissions"]

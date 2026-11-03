@@ -3,6 +3,7 @@
 
 用法: python tools/bench_plugins.py [--json OUT]
 """
+
 import argparse
 import importlib.util
 import io
@@ -20,9 +21,15 @@ if ROOT not in sys.path:
 
 def warmup():
     """预热宿主公共模块，避免把宿主首次导入算进插件耗时"""
-    for mod in ("PyQt5.QtWidgets", "PyQt5.QtGui", "app.plugins",
-                "core.ai_client", "core.ollama_client",
-                "core.problems", "infrastructure.theme_loader"):
+    for mod in (
+        "PyQt5.QtWidgets",
+        "PyQt5.QtGui",
+        "app.plugins",
+        "core.ai_client",
+        "core.ollama_client",
+        "core.problems",
+        "infrastructure.theme_loader",
+    ):
         try:
             __import__(mod)
         except Exception:
@@ -39,7 +46,8 @@ def bench(with_warmup=True):
         if not os.path.exists(path):
             continue
         spec = importlib.util.spec_from_file_location(
-            "qc_bench_plugin_%s" % name.replace("-", "_"), path)
+            "qc_bench_plugin_%s" % name.replace("-", "_"), path
+        )
         mod = importlib.util.module_from_spec(spec)
         t0 = time.perf_counter()
         try:
@@ -48,13 +56,17 @@ def bench(with_warmup=True):
         except Exception as e:
             err = "%s: %s" % (type(e).__name__, e)
         dt = (time.perf_counter() - t0) * 1000.0
-        rows.append({"plugin": name, "import_ms": round(dt, 1),
-                     "warmup": bool(with_warmup),
-                     "init_bytes": os.path.getsize(path), "error": err})
+        rows.append(
+            {
+                "plugin": name,
+                "import_ms": round(dt, 1),
+                "warmup": bool(with_warmup),
+                "init_bytes": os.path.getsize(path),
+                "error": err,
+            }
+        )
     rows.sort(key=lambda r: r["import_ms"], reverse=True)
     return rows
-
-
 
 
 def _measure_subprocess():
@@ -67,7 +79,11 @@ def _measure_subprocess():
     try:
         subprocess.run(
             [sys.executable, os.path.abspath(__file__), "--json", path],
-            check=True, capture_output=True, text=True, timeout=600)
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
         with io.open(path, encoding="utf-8") as f:
             return json.load(f)
     finally:
@@ -90,8 +106,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", default="")
     ap.add_argument("--no-warmup", action="store_true")
-    ap.add_argument("--check", action="store_true",
-                    help="性能预算检查（超预算则退出码 1）")
+    ap.add_argument("--check", action="store_true", help="性能预算检查（超预算则退出码 1）")
     ap.add_argument("--factor", type=float, default=2.0)
     args = ap.parse_args()
     if args.check:
@@ -103,9 +118,15 @@ def main():
         rows = bench(with_warmup=not args.no_warmup)
     print("%-22s %10s %10s" % ("plugin", "import_ms", "bytes"))
     for r in rows:
-        print("%-22s %10.1f %10d %s" % (
-            r["plugin"], r["import_ms"], r["init_bytes"],
-            ("ERR " + r["error"][:60]) if r["error"] else ""))
+        print(
+            "%-22s %10.1f %10d %s"
+            % (
+                r["plugin"],
+                r["import_ms"],
+                r["init_bytes"],
+                ("ERR " + r["error"][:60]) if r["error"] else "",
+            )
+        )
     budget = {"ai_assistant": 200.0, "python_debugger": 120.0}
     default_budget = 60.0
     over = []
@@ -116,14 +137,14 @@ def main():
                 over.append((r["plugin"], r["import_ms"], limit))
         if over:
             for name, ms, limit in over:
-                print("[bench] over budget: %s %.1fms > %.0fms"
-                      % (name, ms, limit))
+                print("[bench] over budget: %s %.1fms > %.0fms" % (name, ms, limit))
             return 1
         print("[bench] budget check passed")
     out = args.json or os.path.join(ROOT, "data", "plugin_bench.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     io.open(out, "w", encoding="utf-8", newline="\n").write(
-        json.dumps(rows, ensure_ascii=False, indent=2))
+        json.dumps(rows, ensure_ascii=False, indent=2)
+    )
     print("[bench] %s" % out)
     return 0
 

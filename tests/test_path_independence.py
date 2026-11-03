@@ -17,6 +17,7 @@
 
     python -m pytest tests/test_path_independence.py -v
 """
+
 import os
 import sys
 
@@ -27,8 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 
-@pytest.mark.parametrize("cwd", ["C:\\", "D:\\", os.path.expanduser("~"),
-                                 ROOT])
+@pytest.mark.parametrize("cwd", ["C:\\", "D:\\", os.path.expanduser("~"), ROOT])
 def test_resolve_plugin_dir_is_cwd_independent(cwd):
     """插件目录解析结果不随工作目录变化"""
     if not os.path.isdir(cwd):
@@ -45,8 +45,7 @@ def test_resolve_plugin_dir_is_cwd_independent(cwd):
     assert os.path.isabs(resolved), "应返回绝对路径，实际 %r" % resolved
     assert os.path.isdir(resolved), "解析出的目录应存在: %r" % resolved
     # 必须能找到真实的插件目录
-    assert os.path.isfile(os.path.join(resolved, "ai_assistant",
-                                       "plugin.json")), (
+    assert os.path.isfile(os.path.join(resolved, "ai_assistant", "plugin.json")), (
         "插件目录内容不正确: %s" % resolved
     )
 
@@ -54,6 +53,7 @@ def test_resolve_plugin_dir_is_cwd_independent(cwd):
 def test_app_root_dir_matches_repo():
     """源码运行时 app_root_dir 应等于仓库根目录"""
     from infrastructure.plugin_loader import app_root_dir
+
     assert os.path.normcase(app_root_dir()) == os.path.normcase(ROOT)
 
 
@@ -66,9 +66,12 @@ def test_data_dirs_are_absolute(cwd):
     try:
         os.chdir(cwd)
         # 重新导入以获得在新 cwd 下的求值
-        for mod in ("core.crash_stats", "app.session",
-                    "infrastructure.icon_manager",
-                    "infrastructure.sound_manager"):
+        for mod in (
+            "core.crash_stats",
+            "app.session",
+            "infrastructure.icon_manager",
+            "infrastructure.sound_manager",
+        ):
             sys.modules.pop(mod, None)
         import app.session as ss
         import core.crash_stats as cs
@@ -77,15 +80,14 @@ def test_data_dirs_are_absolute(cwd):
     finally:
         os.chdir(old)
 
-    for label, val in (("CRASH_DIR", cs.CRASH_DIR),
-                       ("AUTOSAVE_DIR", ss.AUTOSAVE_DIR),
-                       ("DEFAULT_ICON_DIR", im.DEFAULT_ICON_DIR),
-                       ("DEFAULT_SOUND_DIR", sm.DEFAULT_SOUND_DIR)):
-        assert os.path.isabs(val), (
-            "%s 应为绝对路径（与工作目录无关），实际 %r" % (label, val)
-        )
-        assert os.path.normcase(val).startswith(
-            os.path.normcase(ROOT)), (
+    for label, val in (
+        ("CRASH_DIR", cs.CRASH_DIR),
+        ("AUTOSAVE_DIR", ss.AUTOSAVE_DIR),
+        ("DEFAULT_ICON_DIR", im.DEFAULT_ICON_DIR),
+        ("DEFAULT_SOUND_DIR", sm.DEFAULT_SOUND_DIR),
+    ):
+        assert os.path.isabs(val), "%s 应为绝对路径（与工作目录无关），实际 %r" % (label, val)
+        assert os.path.normcase(val).startswith(os.path.normcase(ROOT)), (
             "%s 应位于应用根目录下，实际 %r" % (label, val)
         )
 
@@ -93,11 +95,10 @@ def test_data_dirs_are_absolute(cwd):
 def test_plugin_manager_resolves_absolute(qapp):
     """PluginManager 持有的 plugin_dir 必须是绝对路径"""
     from app.plugin_manager import PluginManager
+
     pm = PluginManager(main_window=None, plugin_dir="plugins")
     try:
-        assert os.path.isabs(pm.plugin_dir), (
-            "plugin_dir 应为绝对路径，实际 %r" % pm.plugin_dir
-        )
+        assert os.path.isabs(pm.plugin_dir), "plugin_dir 应为绝对路径，实际 %r" % pm.plugin_dir
         assert os.path.isdir(pm.plugin_dir)
     finally:
         pass
@@ -114,8 +115,7 @@ def test_config_manager_lists_plugins_from_any_cwd(cwd):
     try:
         os.chdir(cwd)
         pdir = resolve_plugin_dir("plugins")
-        names = sorted(d for d in os.listdir(pdir)
-                       if os.path.isdir(os.path.join(pdir, d)))
+        names = sorted(d for d in os.listdir(pdir) if os.path.isdir(os.path.join(pdir, d)))
     finally:
         os.chdir(old)
 

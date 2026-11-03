@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """C-2：独立顶层对话框主题覆盖测试"""
+
 from PyQt5.QtWidgets import QApplication, QDialog, QMenu
 
 
@@ -8,6 +9,7 @@ QSS = "QDialog { background-color: #ffffff; color: #000000; }"
 
 def test_apply_theme_to_existing_toplevel(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     dlg = QDialog()
     try:
@@ -28,6 +30,7 @@ def test_apply_theme_to_existing_toplevel(qapp):
 
 def test_theme_filter_styles_new_dialog(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     dlg = QDialog()
     try:
@@ -49,6 +52,7 @@ def test_theme_filter_styles_new_dialog(qapp):
 
 def test_menu_not_styled(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     menu = QMenu()
     try:

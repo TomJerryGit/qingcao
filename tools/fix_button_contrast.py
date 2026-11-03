@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """计算按钮/状态栏背景色需要多深，才能让白字达到 4.5:1"""
+
 import colorsys
 import sys
 
@@ -9,7 +10,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 def hex2rgb(s):
     s = s.lstrip("#")
-    return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+    return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def rgb2hex(t):
@@ -20,6 +21,7 @@ def lum(rgb):
     def ch(c):
         c = c / 255.0
         return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
     r, g, b = (ch(x) for x in rgb)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -42,11 +44,12 @@ for name, cur in (("button_bg / statusbar_bg", "#4a8f5e"),):
         r, g, b = colorsys.hls_to_rgb(h, nl, s)
         cand = (r * 255, g * 255, b * 255)
         if ratio(cand, WHITE) >= 4.5:
-            print("  建议 %s  白字对比度 %.2f:1  (明度 %.3f -> %.3f)"
-                  % (rgb2hex(cand), ratio(cand, WHITE), l, nl))
+            print(
+                "  建议 %s  白字对比度 %.2f:1  (明度 %.3f -> %.3f)"
+                % (rgb2hex(cand), ratio(cand, WHITE), l, nl)
+            )
             # 同时看黑字对比度
-            print("        同色配深字 #2c3e2f: %.2f:1"
-                  % ratio(cand, hex2rgb("#2c3e2f")))
+            print("        同色配深字 #2c3e2f: %.2f:1" % ratio(cand, hex2rgb("#2c3e2f")))
             break
     print()
     # 另一方案：保持背景，改用深色文字

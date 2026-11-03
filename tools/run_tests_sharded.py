@@ -6,6 +6,7 @@
     python tools/run_tests_sharded.py --shards 3
     python tools/run_tests_sharded.py --localize       # 崩溃后逐文件定位
 """
+
 import argparse
 import glob
 import os
@@ -38,12 +39,22 @@ def _env():
 
 def run_files(files, timeout=None):
     """运行给定测试文件；返回 (returncode, output, crashed)"""
-    cmd = [sys.executable, "-X", "faulthandler", "-m", "pytest"] + files + [
-        "-q", "-p", "no:cacheprovider"]
+    cmd = (
+        [sys.executable, "-X", "faulthandler", "-m", "pytest"]
+        + files
+        + ["-q", "-p", "no:cacheprovider"]
+    )
     try:
-        proc = subprocess.run(cmd, cwd=ROOT, env=_env(), timeout=timeout,
-                              capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            env=_env(),
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         rc = proc.returncode
         out = (proc.stdout or "") + (proc.stderr or "")
     except subprocess.TimeoutExpired:
@@ -64,8 +75,10 @@ def run_shard(files, retries, name, log_dir):
         last_out = out
         with open(log, "w", encoding="utf-8", newline="\n") as f:
             f.write(out)
-        print("[shard %s] attempt %d/%d rc=%s crash=%s files=%d"
-              % (name, attempt, retries, rc, crashed, len(files)))
+        print(
+            "[shard %s] attempt %d/%d rc=%s crash=%s files=%d"
+            % (name, attempt, retries, rc, crashed, len(files))
+        )
         if rc in (0, 5):
             return True, rc, crashed, attempt
     return False, rc, crashed, retries
@@ -81,13 +94,15 @@ def localize(files, log_dir):
             tag = "skip (no tests)"
         else:
             tag = "CRASH" if crashed else ("FAIL" if rc != 0 else "ok")
-        print("[localize] %-60s %s (rc=%s)" % (os.path.basename(f),
-                                               tag, rc))
+        print("[localize] %-60s %s (rc=%s)" % (os.path.basename(f), tag, rc))
         if rc not in (0, 5):
             bad.append((f, rc, crashed))
-            with open(os.path.join(log_dir, "crashed_%s.log"
-                                   % os.path.basename(f)), "w",
-                      encoding="utf-8", newline="\n") as fh:
+            with open(
+                os.path.join(log_dir, "crashed_%s.log" % os.path.basename(f)),
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as fh:
                 fh.write(out)
     return bad
 
@@ -103,16 +118,14 @@ def pick_shards(cpu_count=None, cap=4):
         shards = cap
     return max(2, min(int(cap), shards))
 
+
 def main():
     ap = argparse.ArgumentParser(description="分片测试 + 重试 + 崩溃定位")
     ap.add_argument("--shards", type=int, default=2)
-    ap.add_argument("--auto-shards", action="store_true",
-                    help="按 CPU 数自动选择分片数（2~4）")
+    ap.add_argument("--auto-shards", action="store_true", help="按 CPU 数自动选择分片数（2~4）")
     ap.add_argument("--retries", type=int, default=1)
-    ap.add_argument("--localize", action="store_true",
-                    help="失败/崩溃后逐文件定位")
-    ap.add_argument("--parallel", action="store_true",
-                    help="并行执行各分片")
+    ap.add_argument("--localize", action="store_true", help="失败/崩溃后逐文件定位")
+    ap.add_argument("--parallel", action="store_true", help="并行执行各分片")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--log-dir", default=LOG_DIR)
     args = ap.parse_args()
@@ -128,30 +141,30 @@ def main():
     failed = []
     if args.parallel and len(shards) > 1:
         from concurrent.futures import ThreadPoolExecutor
+
         results = {}
-        with ThreadPoolExecutor(
-                max_workers=max(1, args.workers)) as ex:
+        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             futures = {
-                ex.submit(run_shard, shard, max(1, args.retries),
-                          "part%d" % (i + 1), args.log_dir): i
-                for i, shard in enumerate(shards)}
+                ex.submit(
+                    run_shard, shard, max(1, args.retries), "part%d" % (i + 1), args.log_dir
+                ): i
+                for i, shard in enumerate(shards)
+            }
             for fut, i in futures.items():
                 results[i] = fut.result()
         for i in sorted(results):
             ok, rc, crashed, attempts = results[i]
             if not ok:
                 failed.append((i + 1, shards[i], rc, crashed))
-                print("[shard part%d] FAILED rc=%s crashed=%s"
-                      % (i + 1, rc, crashed))
+                print("[shard part%d] FAILED rc=%s crashed=%s" % (i + 1, rc, crashed))
     else:
         for idx, shard in enumerate(shards, 1):
             ok, rc, crashed, attempts = run_shard(
-                shard, max(1, args.retries), "part%d" % idx,
-                args.log_dir)
+                shard, max(1, args.retries), "part%d" % idx, args.log_dir
+            )
             if not ok:
                 failed.append((idx, shard, rc, crashed))
-                print("[shard part%d] FAILED rc=%s crashed=%s"
-                      % (idx, rc, crashed))
+                print("[shard part%d] FAILED rc=%s crashed=%s" % (idx, rc, crashed))
     if not failed:
         print("[sharded] 全部 %d 片通过 ✅" % len(shards))
         return 0
@@ -161,8 +174,7 @@ def main():
             print("[sharded] 定位 part%d ..." % idx)
             bad = localize(shard, args.log_dir)
             for f, frc, fcrash in bad:
-                print("   %-60s rc=%s crash=%s"
-                      % (os.path.basename(f), frc, fcrash))
+                print("   %-60s rc=%s crash=%s" % (os.path.basename(f), frc, fcrash))
     return 1
 
 

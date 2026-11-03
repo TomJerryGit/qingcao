@@ -4,6 +4,7 @@
 场景：UTF-8 文件里含中文。用户只是"换一种解释看看"（切到 GBK），
 然后按 Ctrl+S。文件会不会被永久破坏？
 """
+
 import os
 import sys
 import tempfile
@@ -104,7 +105,7 @@ proxy2 = EditorProxy(sc2, Document())
 proxy2.open_file(p2)
 proxy2.document.change_encoding("gbk", reload=True)
 shown = sc2.text()
-proxy2.document.close()          # 不保存，直接关闭
+proxy2.document.close()  # 不保存，直接关闭
 proxy3 = EditorProxy(QsciScintilla(), Document())
 proxy3.sc.setUtf8(True)
 proxy3.open_file(p2)

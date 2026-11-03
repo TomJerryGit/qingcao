@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """插件子进程沙箱 RPC（B-1/B-2）测试"""
+
 import time
 
 
-PLUGIN = '''# -*- coding: utf-8 -*-
+PLUGIN = """# -*- coding: utf-8 -*-
 import os
 import time
 
@@ -24,9 +25,9 @@ class Plugin:
 
     def crash(self):
         os._exit(3)
-'''
+"""
 
-CRASH = '''# -*- coding: utf-8 -*-
+CRASH = """# -*- coding: utf-8 -*-
 import os
 
 
@@ -36,27 +37,26 @@ class Plugin:
 
     def symbols(self, text, filepath="", language=""):
         os._exit(3)
-'''
+"""
 
 
 def _make_plugin(tmp_path, code=PLUGIN, name="sandbox_demo"):
     d = tmp_path / name
     d.mkdir(parents=True, exist_ok=True)
     (d / "__init__.py").write_text(code, encoding="utf-8")
-    (d / "plugin.json").write_text('{"name": "%s"}' % name,
-                                   encoding="utf-8")
+    (d / "plugin.json").write_text('{"name": "%s"}' % name, encoding="utf-8")
     return str(d)
 
 
 def test_rpc_symbols_and_describe(tmp_path):
     from infrastructure.plugin_sandbox_rpc import SandboxProcess
+
     p = SandboxProcess(_make_plugin(tmp_path), timeout=5)
     try:
         assert p.is_alive()
         desc = p.describe()
         assert desc["name"] == "sandbox_demo"
-        syms = p.call("symbols", {"text": "x", "filepath": "",
-                                  "language": ""})
+        syms = p.call("symbols", {"text": "x", "filepath": "", "language": ""})
         assert syms and syms[0]["name"] == "sym1"
         assert p.call("completion", {"prefix": "a"}) == ["a_x"]
     finally:
@@ -65,6 +65,7 @@ def test_rpc_symbols_and_describe(tmp_path):
 
 def test_timeout_is_isolated(tmp_path):
     from infrastructure.plugin_sandbox_rpc import SandboxProcess, SandboxTimeout
+
     p = SandboxProcess(_make_plugin(tmp_path), timeout=5)
     try:
         t0 = time.monotonic()
@@ -81,6 +82,7 @@ def test_timeout_is_isolated(tmp_path):
 
 def test_forbidden_method_rejected(tmp_path):
     from infrastructure.plugin_sandbox_rpc import SandboxError, SandboxProcess
+
     p = SandboxProcess(_make_plugin(tmp_path), timeout=5)
     try:
         try:
@@ -94,6 +96,7 @@ def test_forbidden_method_rejected(tmp_path):
 
 def test_crash_and_restart(tmp_path):
     from infrastructure.plugin_sandbox_rpc import SandboxError, SandboxProcess
+
     d = _make_plugin(tmp_path, CRASH, name="crash_demo")
     p = SandboxProcess(d, timeout=3)
     try:

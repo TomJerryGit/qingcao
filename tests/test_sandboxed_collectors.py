@@ -27,6 +27,7 @@ class _FakeSandbox:
 
 def test_sandboxed_symbols_merged_into_collector(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         fake = _FakeSandbox()
@@ -41,6 +42,7 @@ def test_sandboxed_symbols_merged_into_collector(qapp):
 
 def test_close_sandboxed_plugins_closes_all(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         a, b = _FakeSandbox(), _FakeSandbox()
@@ -54,6 +56,7 @@ def test_close_sandboxed_plugins_closes_all(qapp):
 
 def test_discovery_defaults_empty_without_manifest_flag(qapp):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     try:
         # 仓库里 spell_check 是沙箱试点（manifest sandbox:true），

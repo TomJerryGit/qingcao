@@ -64,10 +64,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-STATIC_CHECKS = []   # [(name, fn)]
-QT_CHECKS = []       # [(name, fn)]
-RESULTS = []         # [(ok, name, detail)]
-SKIPPED = []         # [(name, reason)]
+STATIC_CHECKS = []  # [(name, fn)]
+QT_CHECKS = []  # [(name, fn)]
+RESULTS = []  # [(ok, name, detail)]
+SKIPPED = []  # [(name, reason)]
 
 
 class _SkipCheck(Exception):
@@ -78,6 +78,7 @@ def static_check(name):
     def deco(fn):
         STATIC_CHECKS.append((name, fn))
         return fn
+
     return deco
 
 
@@ -85,6 +86,7 @@ def qt_check(name):
     def deco(fn):
         QT_CHECKS.append((name, fn))
         return fn
+
     return deco
 
 
@@ -97,10 +99,7 @@ def _run(name, fn):
     except AssertionError as e:
         RESULTS.append((False, name, "断言失败: %s" % e))
     except Exception as e:
-        RESULTS.append((
-            False, name,
-            "%s: %s\n%s" % (type(e).__name__, e, traceback.format_exc())
-        ))
+        RESULTS.append((False, name, "%s: %s\n%s" % (type(e).__name__, e, traceback.format_exc())))
 
 
 def read(path):
@@ -149,8 +148,7 @@ def _strip_comments_and_docstrings(src):
     out = []
     try:
         for tok in tokenize.generate_tokens(io.StringIO(src).readline):
-            if tok.type in (tokenize.COMMENT, tokenize.NL,
-                            tokenize.NEWLINE, tokenize.STRING):
+            if tok.type in (tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.STRING):
                 continue
             out.append(tok.string)
     except Exception:
@@ -167,13 +165,16 @@ def _s_macro_kwarg():
     tree = parse("ui/main_window.py")
     found = []
     for node in ast.walk(tree):
-        if (isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "MacroRecorder"):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "MacroRecorder"
+        ):
             found.append([k.arg for k in node.keywords])
     assert found, "未找到 MacroRecorder(...) 构造调用"
-    assert any("undo_manager_provider" in kwargs for kwargs in found), \
+    assert any("undo_manager_provider" in kwargs for kwargs in found), (
         "MacroRecorder 调用未传 undo_manager_provider: %r" % (found,)
+    )
     return "构造调用 keywords=%r" % (found,)
 
 
@@ -208,13 +209,12 @@ def _s_replace_options():
     fn = find_func(tree, "_on_global_replace")
     assert fn is not None, "未找到 _on_global_replace"
     args = [a.arg for a in fn.args.args]
-    assert args[:4] == ["self", "pattern", "replace_text", "file_results"], \
-        "参数列表异常: %r" % (args,)
-    assert len(args) >= 5 and args[4] == "options", \
-        "缺少第 4 个业务参数 options: %r" % (args,)
+    assert args[:4] == ["self", "pattern", "replace_text", "file_results"], "参数列表异常: %r" % (
+        args,
+    )
+    assert len(args) >= 5 and args[4] == "options", "缺少第 4 个业务参数 options: %r" % (args,)
     body = ast.get_source_segment(src, fn) or ""
-    assert "SearchEngine(provider, options)" in body, \
-        "重新搜索时未复用 options"
+    assert "SearchEngine(provider, options)" in body, "重新搜索时未复用 options"
     assert "options.is_regex" in body, "替换时未使用 options.is_regex"
     # ⚠️ 判据修正（Lead 实测）：直接对源码文本做正则会被**注释/docstring
     #   里的旧代码引用**误伤 —— 本方法的 docstring 为了讲清缺陷，写了一句
@@ -222,8 +222,9 @@ def _s_replace_options():
     #   于是朴素的 search() 恒为真、断言永远失败（假阳性）。
     #   这里先把 docstring 与注释剥掉，只检查**真实代码**。
     code_only = _strip_comments_and_docstrings(body)
-    assert not _re_mod.search(r"SearchOptions\(pattern=pattern\)", code_only), \
+    assert not _re_mod.search(r"SearchOptions\(pattern=pattern\)", code_only), (
         "仍在自建 SearchOptions(pattern=pattern)（P0-3 未修）"
+    )
     return "签名 args=%r，搜索/替换复用同一 SearchOptions" % (args,)
 
 
@@ -253,24 +254,24 @@ def _s_draft_wired():
     for node in ast.walk(fn):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
             calls.setdefault(node.func.attr, []).append(node)
-    assert "check_and_recover_drafts" in calls, \
+    assert "check_and_recover_drafts" in calls, (
         "deferred_init 未调用 check_and_recover_drafts（P0-2 未接线）"
+    )
     assert "find_recoverable_drafts" in calls, "未先读取草稿列表"
 
     call = calls["check_and_recover_drafts"][0]
     kwargs = {k.arg for k in call.keywords}
-    assert "parent" in kwargs, \
-        "调用未传 parent（应带 parent=window 以弹出可见确认框）: %r" % (kwargs,)
-    assert "drafts" in kwargs, \
-        "调用未传 drafts（读取端与恢复端必须用同一份列表）: %r" % (kwargs,)
+    assert "parent" in kwargs, "调用未传 parent（应带 parent=window 以弹出可见确认框）: %r" % (
+        kwargs,
+    )
+    assert "drafts" in kwargs, "调用未传 drafts（读取端与恢复端必须用同一份列表）: %r" % (kwargs,)
     return "已调用 find_recoverable_drafts + check_and_recover_drafts(parent=..., drafts=...)"
 
 
 @static_check("P0-2 静态：main.py 定义补渲染 / 可见提示两个模块级函数")
 def _s_draft_helpers():
     tree = parse("main.py")
-    names = {n.name for n in ast.walk(tree)
-             if isinstance(n, ast.FunctionDef)}
+    names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     assert "_render_recovered_drafts" in names, "缺少 _render_recovered_drafts"
     assert "_notify_draft_recovery" in names, "缺少 _notify_draft_recovery"
     return "两个 helper 均在模块级定义"
@@ -289,20 +290,16 @@ def _s_draft_helpers_called():
 @static_check("P0-8 静态：app/tabs.py 区分 char_count / byte_count")
 def _s_tabs_counts():
     src = read("app/tabs.py")
-    assert "info['byte_count'] = widget.SendScintilla" in src, \
-        "byte_count 未取 Scintilla 字节长度"
-    assert "info['char_count'] = len(widget.text())" in src, \
-        "char_count 未使用解码后的字符长度"
-    assert "info['char_count'] = widget.SendScintilla" not in src, \
-        "char_count 仍直接取字节数"
+    assert "info['byte_count'] = widget.SendScintilla" in src, "byte_count 未取 Scintilla 字节长度"
+    assert "info['char_count'] = len(widget.text())" in src, "char_count 未使用解码后的字符长度"
+    assert "info['char_count'] = widget.SendScintilla" not in src, "char_count 仍直接取字节数"
     return "char_count=len(text()), byte_count=SCI_GETLENGTH"
 
 
 @static_check("P0-8 静态：ui/perf_monitor.py 不再把 sc.length() 当字符数")
 def _s_perf_counts():
     src = read("ui/perf_monitor.py")
-    assert "total_chars += w.proxy.sc.length()" not in src, \
-        "仍在把字节长度累加为总字符"
+    assert "total_chars += w.proxy.sc.length()" not in src, "仍在把字节长度累加为总字符"
     assert "_count_chars" in src, "缺少 _count_chars 辅助函数"
     return "改用 _count_chars(sc)（字符 + 字节双口径）"
 
@@ -312,6 +309,7 @@ def _s_perf_counts():
 # ============================================================
 def _import_main_window():
     from ui.main_window import MainWindow
+
     return MainWindow
 
 
@@ -325,6 +323,7 @@ def _import_main():
     saved_hook = sys.excepthook
     try:
         import importlib
+
         mod = importlib.import_module("main")
     finally:
         sys.excepthook = saved_hook
@@ -338,6 +337,7 @@ def _call_global_replace(MainWindow, pattern, repl, file_results, options):
     真正的 MainWindow 会创建 LSP / 插件 / 各类面板，这里只需它用到的属性：
     `tabs.count()` 与 `status_bar.showMessage`。方法体本身是生产代码。
     """
+
     class FakeStatusBar:
         def __init__(self):
             self.messages = []
@@ -413,8 +413,10 @@ def _d_macro_record():
     assert errors, "无 undo_manager 时未发出 error_occurred"
     rec2.stop()
 
-    return ("tab1 录到 %d 条、tab2 录到 %d 条；stop 后均解绑；"
-            "无编辑器时发出 error_occurred" % (n1, n2))
+    return "tab1 录到 %d 条、tab2 录到 %d 条；stop 后均解绑；无编辑器时发出 error_occurred" % (
+        n1,
+        n2,
+    )
 
 
 @qt_check("P0-3 动态：面板 build_options() 遵守勾选 + 信号携带选项对象")
@@ -443,26 +445,26 @@ def _d_panel_options():
         seen = {}
 
         def _slot(pattern, repl, files, options):
-            seen['pattern'] = pattern
-            seen['repl'] = repl
-            seen['files'] = files
-            seen['options'] = options
+            seen["pattern"] = pattern
+            seen["repl"] = repl
+            seen["files"] = files
+            seen["options"] = options
 
         panel.replace_requested.connect(_slot)
         panel.replace_requested.emit("a.c", "X", {}, opts)
-        assert seen.get('options') is opts, \
-            "replace_requested 未把 SearchOptions 传出去: %r" % (seen,)
+        assert seen.get("options") is opts, "replace_requested 未把 SearchOptions 传出去: %r" % (
+            seen,
+        )
 
         # 替换端必须复用"产生结果那次搜索"的选项
         panel.current_options = opts
-        assert panel._options_for_replace() is opts, \
-            "_options_for_replace 未复用搜索时的选项"
+        assert panel._options_for_replace() is opts, "_options_for_replace 未复用搜索时的选项"
         panel.pattern_edit.setText("changed")
-        assert panel._options_for_replace() is not opts, \
+        assert panel._options_for_replace() is not opts, (
             "模式变化后仍复用旧选项（会拿旧匹配去替换）"
+        )
 
-        return ("build_options 全项正确；信号 4 参数携带 options；"
-                "替换复用搜索选项")
+        return "build_options 全项正确；信号 4 参数携带 options；替换复用搜索选项"
     finally:
         panel.deleteLater()
         host.deleteLater()
@@ -482,16 +484,13 @@ def _d_replace_regex():
 
         # 正则 a\.c 只匹配字面量 "a.c"。
         # 修复前按默认字面量处理 → 去找字面量 `a\.c` → 0 处替换 → 文件不变。
-        options = SearchOptions(pattern=r"a\.c", is_regex=True,
-                                case_sensitive=False, threads=1)
+        options = SearchOptions(pattern=r"a\.c", is_regex=True, case_sensitive=False, threads=1)
         # 面板实际发出的就是 options.pattern
-        _call_global_replace(MainWindow, options.pattern, "ZZZ",
-                             {path: []}, options)
+        _call_global_replace(MainWindow, options.pattern, "ZZZ", {path: []}, options)
 
         with open(path, encoding="utf-8") as f:
             got = f.read()
-        assert got == "foo FOO ZZZ\n", \
-            "正则替换结果 = %r（期望 'foo FOO ZZZ\\n'）" % got
+        assert got == "foo FOO ZZZ\n", "正则替换结果 = %r（期望 'foo FOO ZZZ\\n'）" % got
         return "正则 a\\.c → ZZZ，文件内容=%r" % got
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -510,19 +509,17 @@ def _d_replace_case():
         def run(case_sensitive):
             with open(path, "w", encoding="utf-8") as f:
                 f.write("foo FOO\n")
-            options = SearchOptions(pattern="foo", is_regex=False,
-                                    case_sensitive=case_sensitive,
-                                    threads=1)
+            options = SearchOptions(
+                pattern="foo", is_regex=False, case_sensitive=case_sensitive, threads=1
+            )
             _call_global_replace(MainWindow, "foo", "BAR", {path: []}, options)
             with open(path, encoding="utf-8") as f:
                 return f.read()
 
         strict = run(True)
         loose = run(False)
-        assert strict == "BAR FOO\n", \
-            "case_sensitive=True 结果 = %r（应只替换小写 foo）" % strict
-        assert loose == "BAR BAR\n", \
-            "case_sensitive=False 结果 = %r（应两处都替换）" % loose
+        assert strict == "BAR FOO\n", "case_sensitive=True 结果 = %r（应只替换小写 foo）" % strict
+        assert loose == "BAR BAR\n", "case_sensitive=False 结果 = %r（应两处都替换）" % loose
         return "区分大小写: %r；不区分: %r" % (strict, loose)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -550,6 +547,7 @@ def _d_draft_recover():
     # 把草稿目录指到临时目录，避免污染真实 backup/drafts
     Document._draft_dir = staticmethod(lambda: tmp)
     try:
+
         def write_draft(name, original, text):
             p = os.path.join(tmp, name)
             with open(p, "w", encoding="utf-8") as f:
@@ -562,33 +560,32 @@ def _d_draft_recover():
             return p
 
         write_draft("untitled_0.draft", "", "草稿内容-未命名-ABC")
-        write_draft("deadbeef.draft", os.path.join(tmp, "已删除.py"),
-                    "草稿内容-已删除-XYZ")
+        write_draft("deadbeef.draft", os.path.join(tmp, "已删除.py"), "草稿内容-已删除-XYZ")
 
         class FakeWindow:
             pass
 
         win = FakeWindow()
-        win.tabs = QTabWidget()          # 真实标签容器
+        win.tabs = QTabWidget()  # 真实标签容器
 
         sess = SessionManager()
         sess.bind_window(win)
 
         drafts = sess.find_recoverable_drafts()
-        assert len(drafts) == 2, \
-            "find_recoverable_drafts 找到 %d 项（期望 2）" % len(drafts)
-        texts = sorted(d['text'] for d in drafts)
-        assert texts == ["草稿内容-已删除-XYZ", "草稿内容-未命名-ABC"], \
-            "草稿正文解析异常: %r" % (texts,)
+        assert len(drafts) == 2, "find_recoverable_drafts 找到 %d 项（期望 2）" % len(drafts)
+        texts = sorted(d["text"] for d in drafts)
+        assert texts == ["草稿内容-已删除-XYZ", "草稿内容-未命名-ABC"], "草稿正文解析异常: %r" % (
+            texts,
+        )
 
         # main.py::deferred_init 实际执行的入口
         restored = sess.check_and_recover_drafts(parent=None, drafts=drafts)
-        assert restored == 2, \
-            "check_and_recover_drafts 返回 %d（期望 2）" % restored
+        assert restored == 2, "check_and_recover_drafts 返回 %d（期望 2）" % restored
         titles = [win.tabs.tabText(i) for i in range(win.tabs.count())]
         assert len(titles) == 2, "标签数 = %d（期望 2）" % len(titles)
-        assert all("[未保存]" in t for t in titles), \
-            "恢复标签标题缺少 [未保存] 标记: %r" % (titles,)
+        assert all("[未保存]" in t for t in titles), "恢复标签标题缺少 [未保存] 标记: %r" % (
+            titles,
+        )
 
         return "读取 2 项草稿 → 恢复 %d 项，标题=%r" % (restored, titles)
     finally:
@@ -617,14 +614,12 @@ def _d_render_recovered():
     qtab.addTab(editor, "未命名 [未保存]")
 
     # 先证明"缺口"真实存在：此时编辑器缓冲区是空的
-    assert editor.text() == "", \
-        "前置条件不成立：编辑器里已有内容 %r" % editor.text()
+    assert editor.text() == "", "前置条件不成立：编辑器里已有内容 %r" % editor.text()
 
     window = types.SimpleNamespace(tabs=qtab)
     fixed = main_mod._render_recovered_drafts(window)
     assert fixed == 1, "_render_recovered_drafts 修复 %d 个标签（期望 1）" % fixed
-    assert text in editor.text(), \
-        "补渲染后编辑器内容 = %r（未包含草稿正文）" % editor.text()
+    assert text in editor.text(), "补渲染后编辑器内容 = %r（未包含草稿正文）" % editor.text()
     assert editor.proxy.is_modified is True, "补渲染后未标记为已修改"
     return "空白标签已渲染出 %d 字，并标记为已修改" % len(editor.text())
 
@@ -643,21 +638,24 @@ def _d_char_counts():
 
     now = editor.text()
     assert "中文abc" in now, "setText 未生效: %r" % now
-    expect_chars = len(now)                       # 真实字符数
+    expect_chars = len(now)  # 真实字符数
     # 字节数由控件自己报告（生产代码用的就是这个值）
     expect_bytes = editor.SendScintilla(editor.SCI_GETLENGTH)
-    assert expect_bytes > expect_chars, \
-        "前置条件不成立：应为多字节文本（chars=%d bytes=%d）" % (
-            expect_chars, expect_bytes)
+    assert expect_bytes > expect_chars, "前置条件不成立：应为多字节文本（chars=%d bytes=%d）" % (
+        expect_chars,
+        expect_bytes,
+    )
 
     # ---- ui/perf_monitor.py ----
     chars, nbytes = PerfMonitor._count_chars(editor)
-    assert chars == expect_chars, \
-        "PerfMonitor._count_chars 字符数 = %d（期望 %d）" % (
-            chars, expect_chars)
-    assert nbytes == expect_bytes, \
-        "PerfMonitor._count_chars 字节数 = %d（期望 %d）" % (
-            nbytes, expect_bytes)
+    assert chars == expect_chars, "PerfMonitor._count_chars 字符数 = %d（期望 %d）" % (
+        chars,
+        expect_chars,
+    )
+    assert nbytes == expect_bytes, "PerfMonitor._count_chars 字节数 = %d（期望 %d）" % (
+        nbytes,
+        expect_bytes,
+    )
 
     # ---- app/tabs.py::get_tab_info（用最小宿主执行真实方法体）----
     class FakeHost:
@@ -680,14 +678,20 @@ def _d_char_counts():
 
     info = TabManager.get_tab_info(FakeHost(), 0)
     assert info is not None, "get_tab_info 返回 None"
-    assert info['char_count'] == expect_chars, \
-        "get_tab_info char_count = %r（期望 %d；修复前是字节数 %d）" % (
-            info['char_count'], expect_chars, expect_bytes)
-    assert info['byte_count'] == expect_bytes, \
-        "get_tab_info byte_count = %r（期望 %d）" % (
-            info['byte_count'], expect_bytes)
+    assert info["char_count"] == expect_chars, (
+        "get_tab_info char_count = %r（期望 %d；修复前是字节数 %d）"
+        % (info["char_count"], expect_chars, expect_bytes)
+    )
+    assert info["byte_count"] == expect_bytes, "get_tab_info byte_count = %r（期望 %d）" % (
+        info["byte_count"],
+        expect_bytes,
+    )
     return "PerfMonitor=(%d 字符/%d 字节)；get_tab_info char=%d byte=%d" % (
-        chars, nbytes, info['char_count'], info['byte_count'])
+        chars,
+        nbytes,
+        info["char_count"],
+        info["byte_count"],
+    )
 
 
 # ============================================================
@@ -701,14 +705,15 @@ def report_p0_7():
     print("[信息] P0-7（core/editor.py 双重 didSave）:")
     print("       原始文本出现次数              = %d（含注释里的说明文字）" % raw)
     if stripped is None:
-        print("       tokenize 去注释失败：无法判定真实调用次数，"
-              "请肉眼确认 760-780 行。")
+        print("       tokenize 去注释失败：无法判定真实调用次数，请肉眼确认 760-780 行。")
         return
     real = stripped.count("_notify_lsp_saved ( filepath )")
     print("       去掉注释后的**真实调用**次数  = %d" % real)
     if real == 1:
-        print("       → 当前工作区只有 1 次真实调用：多出来的一次来自修复说明"
-              "注释里的反引号文本，P0-7 疑似**误报**。删除前请先确认！")
+        print(
+            "       → 当前工作区只有 1 次真实调用：多出来的一次来自修复说明"
+            "注释里的反引号文本，P0-7 疑似**误报**。删除前请先确认！"
+        )
     elif real > 1:
         print("       → 存在 %d 次真实调用，确实重复。" % real)
 
@@ -729,11 +734,11 @@ def main():
         _run(name, fn)
 
     print("")
-    print("---- 动态验证（QT_QPA_PLATFORM=%s）----"
-          % os.environ.get("QT_QPA_PLATFORM"))
+    print("---- 动态验证（QT_QPA_PLATFORM=%s）----" % os.environ.get("QT_QPA_PLATFORM"))
     qt_ok = True
     try:
         from PyQt5.QtWidgets import QApplication
+
         app = QApplication.instance() or QApplication([])
         assert app is not None
     except Exception as e:

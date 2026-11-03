@@ -17,6 +17,7 @@
 输出：
     feature_inventory.txt
 """
+
 import io
 import os
 import sys
@@ -53,8 +54,10 @@ def main():
             QFontDatabase.addApplicationFont(p)
 
     from ui.main_window import MainWindow
+
     w = MainWindow()
     import time
+
     end = time.time() + 30
     while time.time() < end:
         app.processEvents()
@@ -113,8 +116,7 @@ def main():
     log("2) 工具栏动作")
     log("=" * 74)
     for tb in w.findChildren(QToolBar):
-        acts = [a.text().replace("&", "") for a in tb.actions()
-                if not a.isSeparator() and a.text()]
+        acts = [a.text().replace("&", "") for a in tb.actions() if not a.isSeparator() and a.text()]
         log("  [%s] %d 项: %s" % (tb.windowTitle(), len(acts), acts))
 
     # ---- 3. 停靠面板 ----
@@ -177,8 +179,7 @@ def main():
         if inst is None:
             log("  %-18s 未激活" % name)
             continue
-        ms = [m for m in dir(inst)
-              if not m.startswith("_") and callable(getattr(inst, m, None))]
+        ms = [m for m in dir(inst) if not m.startswith("_") and callable(getattr(inst, m, None))]
         log("  %-18s 公开方法 %d 个: %s" % (name, len(ms), ms[:10]))
 
     log()
@@ -186,8 +187,7 @@ def main():
     log("完成")
     log("=" * 74)
 
-    with io.open(os.path.join(ROOT, "feature_inventory.txt"), "w",
-                 encoding="utf-8") as f:
+    with io.open(os.path.join(ROOT, "feature_inventory.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(OUT))
     print("[inventory] 已写出 feature_inventory.txt", flush=True)
     w.close()
@@ -196,13 +196,14 @@ def main():
 
 if __name__ == "__main__":
     import time  # noqa: E402
+
     try:
         sys.exit(main())
     except Exception:
         import traceback
+
         log("清单生成失败:")
         log(traceback.format_exc())
-        with io.open(os.path.join(ROOT, "feature_inventory.txt"), "w",
-                     encoding="utf-8") as f:
+        with io.open(os.path.join(ROOT, "feature_inventory.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(OUT))
         sys.exit(1)

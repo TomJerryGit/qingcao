@@ -6,6 +6,7 @@ v1 的静态 import 闭包把两类误判为不可达：
   * 构建/发布脚本（build.py / release.py 等，本就不是运行时入口）
 本版把它们分开，只把"既非动态加载、也非构建脚本"的模块算作真孤立。
 """
+
 import io
 import os
 import re
@@ -15,8 +16,16 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.chdir(r"D:\QingCaoEditor")
 
-SKIP = ("dist", "build", "__pycache__", ".git", "_archive", "tests", "tools",
-        "1.0 QingCaoEditor_Others")
+SKIP = (
+    "dist",
+    "build",
+    "__pycache__",
+    ".git",
+    "_archive",
+    "tests",
+    "tools",
+    "1.0 QingCaoEditor_Others",
+)
 
 src = {}
 for root, dirs, fs in os.walk("."):
@@ -24,8 +33,7 @@ for root, dirs, fs in os.walk("."):
     for f in fs:
         if f.endswith(".py"):
             p = os.path.relpath(os.path.join(root, f)).replace("\\", "/")
-            src[p] = io.open(os.path.join(root, f),
-                             encoding="utf-8", errors="replace").read()
+            src[p] = io.open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
 
 
 def to_mod(path):
@@ -94,9 +102,15 @@ while queue:
 
 # --- 分类 ---
 BUILD_SCRIPTS = {
-    "build.py", "build_installer.py", "build_linux.py", "build_macos.py",
-    "release.py", "archive_scripts.py", "fix_batch_final.py",
-    "fix_fix_b1b.py", "__init__.py",
+    "build.py",
+    "build_installer.py",
+    "build_linux.py",
+    "build_macos.py",
+    "release.py",
+    "archive_scripts.py",
+    "fix_batch_final.py",
+    "fix_fix_b1b.py",
+    "__init__.py",
 }
 
 unreach = sorted(set(src) - reach)

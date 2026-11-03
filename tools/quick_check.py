@@ -13,7 +13,7 @@ os.chdir(ROOT)
 
 # 修复：控制台可能是 GBK 代码页，直接 print "✓" 会 UnicodeEncodeError。
 try:
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
 
@@ -36,10 +36,10 @@ sc = QsciScintilla()
 proxy = EditorProxy(sc, doc)
 
 # 验证属性
-assert hasattr(proxy, 'prov'), "proxy.prov 不存在"
-assert hasattr(proxy, 'filepath'), "proxy.filepath 不存在"
-assert hasattr(proxy, 'encoding'), "proxy.encoding 不存在"
-assert hasattr(doc, 'enc'), "doc.enc 不存在"
+assert hasattr(proxy, "prov"), "proxy.prov 不存在"
+assert hasattr(proxy, "filepath"), "proxy.filepath 不存在"
+assert hasattr(proxy, "encoding"), "proxy.encoding 不存在"
+assert hasattr(doc, "enc"), "doc.enc 不存在"
 
 print("✓ proxy.prov       =", proxy.prov)
 print("✓ proxy.filepath   =", proxy.filepath)
@@ -52,6 +52,7 @@ print("全部检查通过 ✓")
 # 验证增强大纲可导入
 try:
     from ui.outline_panel import OutlinePanel
+
     print("✓ ui.outline_panel.OutlinePanel 导入成功")
 except ImportError as e:
     print("✗ 导入失败:", e)

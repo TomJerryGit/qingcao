@@ -48,12 +48,12 @@ class FakeScintilla:
         elif cmd == self.SCI_INSERTTEXT:
             pos, data = args
             if isinstance(data, bytes):
-                data = data.decode('utf-8', errors='replace')
+                data = data.decode("utf-8", errors="replace")
             self.text = self.text[:pos] + data + self.text[pos:]
             return len(data)
         elif cmd == self.SCI_DELETERANGE:
             pos, length = args
-            self.text = self.text[:pos] + self.text[pos + length:]
+            self.text = self.text[:pos] + self.text[pos + length :]
             return length
         return 0
 
@@ -173,7 +173,7 @@ class TestMerge:
 
         # 合并后的命令包含 "Hi"
         cmd = mgr.undo_stack[0]
-        assert "Hi" in (cmd.text if hasattr(cmd, 'text') else '')
+        assert "Hi" in (cmd.text if hasattr(cmd, "text") else "")
 
 
 # ============================================================
@@ -197,7 +197,7 @@ class TestGroup:
         assert mgr.get_undo_count() == 1
 
         group = mgr.undo_stack[0]
-        assert hasattr(group, 'cmds')
+        assert hasattr(group, "cmds")
         assert len(group.cmds) == 3
 
     def test_group_undo_atomic(self, qapp):

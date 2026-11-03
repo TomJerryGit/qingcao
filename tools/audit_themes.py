@@ -13,6 +13,7 @@
 输出：
     控制台报告
 """
+
 import io
 import json
 import os
@@ -72,16 +73,16 @@ def parse_color(s):
     if not isinstance(s, str):
         return None
     s = s.strip().lstrip("#")
-    if len(s) == 8:          # AARRGGBB
+    if len(s) == 8:  # AARRGGBB
         s = s[2:]
-    elif len(s) == 4:        # ARGB
+    elif len(s) == 4:  # ARGB
         s = s[1:]
     if len(s) == 3:
         s = "".join(c * 2 for c in s)
     if len(s) != 6:
         return None
     try:
-        return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+        return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
     except ValueError:
         return None
 
@@ -90,6 +91,7 @@ def rel_luminance(rgb):
     def ch(c):
         c = c / 255.0
         return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
     r, g, b = (ch(x) for x in rgb)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -110,8 +112,7 @@ def color_distance(a, b):
 
 
 def main():
-    files = sorted(f for f in os.listdir(THEMES_DIR)
-                   if f.endswith(".json"))
+    files = sorted(f for f in os.listdir(THEMES_DIR) if f.endswith(".json"))
     if not files:
         print("未找到主题文件")
         return 1
@@ -130,9 +131,10 @@ def main():
     print("主题文件: %d 个" % len(files))
     for f, d in themes.items():
         c = d.get("colors", {})
-        print("  %-24s %-8s 颜色键=%d  字体=%s %s"
-              % (f, d.get("type", "?"), len(c),
-                 d.get("font_family", "?"), d.get("font_size", "?")))
+        print(
+            "  %-24s %-8s 颜色键=%d  字体=%s %s"
+            % (f, d.get("type", "?"), len(c), d.get("font_family", "?"), d.get("font_size", "?"))
+        )
 
     # ---------- 键一致性 ----------
     print()
@@ -190,9 +192,10 @@ def main():
             mark = "OK  " if ok else "不达标"
             if not ok:
                 fails.append((f, label, fg_k, bg_k, ratio, need))
-            print("    %-8s %-22s %5.2f:1  (需 %.1f)  %s=(%s) %s=(%s)"
-                  % (mark, label, ratio, need, fg_k, c.get(fg_k),
-                     bg_k, c.get(bg_k)))
+            print(
+                "    %-8s %-22s %5.2f:1  (需 %.1f)  %s=(%s) %s=(%s)"
+                % (mark, label, ratio, need, fg_k, c.get(fg_k), bg_k, c.get(bg_k))
+            )
 
     print()
     print("=" * 72)
@@ -200,8 +203,7 @@ def main():
     print("=" * 72)
     if fails:
         for f, label, fg_k, bg_k, ratio, need in sorted(fails):
-            print("  %-24s %-20s %.2f:1 (需 %.1f)  %s / %s"
-                  % (f, label, ratio, need, fg_k, bg_k))
+            print("  %-24s %-20s %.2f:1 (需 %.1f)  %s / %s" % (f, label, ratio, need, fg_k, bg_k))
         print()
         print("  共 %d 项不达标" % len(fails))
     else:
@@ -228,8 +230,7 @@ def main():
             dist = color_distance(col, bg)
             # 经验阈值：< 60 基本看不出差别
             note = "可辨" if dist >= 60 else "差异偏小 <<<"
-            print("    %-18s %-10s 与背景距离=%5.1f  %s"
-                  % (k, c.get(k), dist, note))
+            print("    %-18s %-10s 与背景距离=%5.1f  %s" % (k, c.get(k), dist, note))
 
     # ---------- 护眼主题专项 ----------
     print()
@@ -249,29 +250,29 @@ def main():
         bg = parse_color(c.get("background"))
         print("  文件: %s" % f)
         print("  声明类型: %s（护眼主题应为 light 或柔和浅色）" % d.get("type"))
-        print("  背景: %s  foreground: %s" % (c.get("background"),
-                                              c.get("foreground")))
+        print("  背景: %s  foreground: %s" % (c.get("background"), c.get("foreground")))
         if bg:
             r, g, b = bg
-            print("  背景 RGB: (%d, %d, %d)  亮度=%.1f%%"
-                  % (r, g, b, rel_luminance(bg) * 100))
+            print("  背景 RGB: (%d, %d, %d)  亮度=%.1f%%" % (r, g, b, rel_luminance(bg) * 100))
             # 护眼配色常识：偏绿、低饱和、亮度不宜过低或过高
             if g <= r or g <= b:
                 print("    [提示] 绿色分量不是最高 —— 护眼主题通常偏绿")
             else:
                 print("    OK 绿色分量最高，符合护眼倾向")
             if rel_luminance(bg) < 0.5:
-                print("    [提示] 背景偏暗（亮度 %.0f%%），护眼浅色主题"
-                      "通常亮度 > 50%%" % (rel_luminance(bg) * 100))
+                print(
+                    "    [提示] 背景偏暗（亮度 %.0f%%），护眼浅色主题"
+                    "通常亮度 > 50%%" % (rel_luminance(bg) * 100)
+                )
         # 正文对比度
         fgc = parse_color(c.get("foreground"))
         if fgc and bg:
             ratio = contrast(fgc, bg)
-            print("  正文对比度: %.2f:1  %s"
-                  % (ratio, "OK" if ratio >= 4.5 else "不达标 <<<"))
+            print("  正文对比度: %.2f:1  %s" % (ratio, "OK" if ratio >= 4.5 else "不达标 <<<"))
             if ratio > 12:
-                print("    [提示] 对比度过高（%.1f:1），长时间阅读易疲劳；"
-                      "护眼主题建议 7~12:1" % ratio)
+                print(
+                    "    [提示] 对比度过高（%.1f:1），长时间阅读易疲劳；护眼主题建议 7~12:1" % ratio
+                )
             elif 7 <= ratio <= 12:
                 print("    OK 对比度处于护眼舒适区间（7~12:1）")
 

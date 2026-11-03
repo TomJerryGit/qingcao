@@ -11,8 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _load(path, name):
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(ROOT, path))
+    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, path))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -27,6 +26,7 @@ def test_large_file_thresholds(tmp_path):
         is_huge_file,
         is_large_file,
     )
+
     small = tmp_path / "small.txt"
     small.write_text("x", encoding="utf-8")
     assert file_size(str(small)) == 1
@@ -46,6 +46,7 @@ def test_large_file_thresholds(tmp_path):
 
 def test_live_diag_limit_configurable(monkeypatch):
     from core.large_file import live_diagnostics_limit_bytes
+
     monkeypatch.setenv("QINGCAO_LIVE_DIAGNOSTICS_MAX_MB", "8")
     assert live_diagnostics_limit_bytes() == 8 * 1024 * 1024
     monkeypatch.setenv("QINGCAO_LIVE_DIAGNOSTICS_MAX_MB", "1")
@@ -56,6 +57,7 @@ def test_apply_large_file_mode_real_widget(qapp):
     from PyQt5.Qsci import QsciScintilla
 
     from core.large_file import apply_large_file_mode
+
     sc = QsciScintilla()
     try:
         assert apply_large_file_mode(sc, huge=True) is True
@@ -66,15 +68,12 @@ def test_apply_large_file_mode_real_widget(qapp):
 
 
 def test_wiring_and_bench():
-    tabs = open(os.path.join(ROOT, "app", "tabs.py"),
-                encoding="utf-8").read()
+    tabs = open(os.path.join(ROOT, "app", "tabs.py"), encoding="utf-8").read()
     assert "apply_large_file_mode" in tabs
     win = read_main_ui_source()
     assert "_live_diag_limit" in win
-    bench = open(os.path.join(ROOT, "tools", "bench_optimization.py"),
-                 encoding="utf-8").read()
+    bench = open(os.path.join(ROOT, "tools", "bench_optimization.py"), encoding="utf-8").read()
     assert "open_50mb" in bench
     assert "_wait_loaded" in bench
-    editor = open(os.path.join(ROOT, "core", "editor.py"),
-                  encoding="utf-8").read()
+    editor = open(os.path.join(ROOT, "core", "editor.py"), encoding="utf-8").read()
     assert "_SYNC_LOAD_LIMIT = 64 * 1024 * 1024" in editor

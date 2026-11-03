@@ -5,6 +5,7 @@
 从不 truncate。把 55 890 字节的文件删到 12 字节后保存，文件仍是
 55 890 字节（新内容 + 旧尾部），重开编辑器会看到"删掉的内容又回来了"。
 """
+
 import os
 
 import pytest
@@ -13,16 +14,17 @@ import pytest
 @pytest.fixture()
 def provider_cls():
     from core.content_provider import LocalFileProvider
+
     return LocalFileProvider
 
 
-def _write(path, text, encoding='utf-8'):
-    with open(path, 'w', encoding=encoding, newline='') as f:
+def _write(path, text, encoding="utf-8"):
+    with open(path, "w", encoding=encoding, newline="") as f:
         f.write(text)
 
 
 def _read_bytes(path):
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         return f.read()
 
 
@@ -36,7 +38,7 @@ class TestSaveTruncates:
         p = tmp_path / "demo.py"
         original = "".join("print('line %d')\n" % i for i in range(3000))
         _write(str(p), original)
-        assert os.path.getsize(str(p)) == len(original.encode('utf-8'))
+        assert os.path.getsize(str(p)) == len(original.encode("utf-8"))
 
         doc = Document()
         try:
@@ -47,9 +49,7 @@ class TestSaveTruncates:
             doc.close()
 
         raw = _read_bytes(str(p))
-        assert raw == b"print('hi')\n", (
-            "保存后文件残留旧字节：实际 %d 字节" % len(raw)
-        )
+        assert raw == b"print('hi')\n", "保存后文件残留旧字节：实际 %d 字节" % len(raw)
 
     def test_shrink_then_grow_then_shrink(self, qapp, tmp_path):
         """反复变短/变长都必须正确"""
@@ -66,7 +66,7 @@ class TestSaveTruncates:
                 assert doc.save() is True
             finally:
                 doc.close()
-            assert _read_bytes(str(p)) == text.encode('utf-8')
+            assert _read_bytes(str(p)) == text.encode("utf-8")
 
     def test_provider_save_truncates(self, provider_cls, tmp_path):
         """直接使用 provider：写短块后 save 必须截断"""

@@ -30,10 +30,10 @@ import pytest
 # 1. 热重载 × 菜单注册
 # ============================================================
 class TestHotReloadMenus:
-
     @staticmethod
     def _host():
         from PyQt5.QtWidgets import QMainWindow
+
         return QMainWindow()
 
     @staticmethod
@@ -42,10 +42,7 @@ class TestHotReloadMenus:
             if act.text().startswith(top) and act.menu():
                 for s in act.menu().actions():
                     if s.text() == sub and s.menu():
-                        return len([
-                            a for a in s.menu().actions()
-                            if a.text() == leaf
-                        ])
+                        return len([a for a in s.menu().actions() if a.text() == leaf])
         return 0
 
     def test_menu_item_survives_one_hot_reload(self, qapp):
@@ -93,7 +90,7 @@ class TestHotReloadMenus:
         from app.plugins import PluginAPI
 
         win = self._host()
-        win.addToolBar(QToolBar("t", win))     # 保证已存在工具栏
+        win.addToolBar(QToolBar("t", win))  # 保证已存在工具栏
 
         api1 = PluginAPI(win, permissions=[], plugin_name="demo")
         api1.add_toolbar_action("按钮", lambda: None)
@@ -111,9 +108,7 @@ class TestHotReloadMenus:
         api2.add_toolbar_action("按钮", lambda: None)
         qapp.sendPostedEvents(None, QEvent.DeferredDelete)
 
-        assert count_buttons() == 1, (
-            f"热重载后工具栏按钮数量={count_buttons()}（期望 1）"
-        )
+        assert count_buttons() == 1, f"热重载后工具栏按钮数量={count_buttons()}（期望 1）"
 
     def test_shortcut_action_survives_one_hot_reload(self, qapp):
         from PyQt5.QtCore import QEvent
@@ -132,18 +127,14 @@ class TestHotReloadMenus:
         qapp.sendPostedEvents(None, QEvent.DeferredDelete)
 
         # 不允许出现两个同快捷键动作（重复注册）
-        same = [a for a in win.actions()
-                if a.shortcut().toString() == "Ctrl+Alt+M"]
-        assert len(same) == 1, (
-            f"热重载后存在 {len(same)} 个相同快捷键的动作（期望 1）"
-        )
+        same = [a for a in win.actions() if a.shortcut().toString() == "Ctrl+Alt+M"]
+        assert len(same) == 1, f"热重载后存在 {len(same)} 个相同快捷键的动作（期望 1）"
 
 
 # ============================================================
 # 2. 热重载 × 事件订阅
 # ============================================================
 class TestPluginEventSubscription:
-
     def test_unsubscribe_supports_every_subscribable_event(self, qapp):
         """app/plugins.py:817-836 的 unsubscribe 只覆盖 6 个事件，
         而 subscribe（772-815）支持 15 个。对 tab_changed /
@@ -157,11 +148,21 @@ class TestPluginEventSubscription:
         api = PluginAPI(win, permissions=[], plugin_name="demo")
 
         events = [
-            "file_opened", "file_saved", "file_closed", "file_modified",
-            "editor_changed", "cursor_moved", "selection_changed",
-            "tab_changed", "tab_added", "tab_removed",
-            "project_opened", "project_closed",
-            "macro_started", "macro_stopped", "theme_changed",
+            "file_opened",
+            "file_saved",
+            "file_closed",
+            "file_modified",
+            "editor_changed",
+            "cursor_moved",
+            "selection_changed",
+            "tab_changed",
+            "tab_added",
+            "tab_removed",
+            "project_opened",
+            "project_closed",
+            "macro_started",
+            "macro_stopped",
+            "theme_changed",
         ]
 
         def cb(*_a, **_k):
@@ -203,4 +204,5 @@ class TestPluginEventSubscription:
 
 if __name__ == "__main__":
     import pytest as _pytest
+
     raise SystemExit(_pytest.main([__file__, "-v"]))

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.19 M1：mmap 增量保存（等长补丁/journal/回退/恢复）"""
+
 import io
 import os
 
@@ -9,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _mod():
     import core.mmap_save as m
+
     return m
 
 
@@ -22,10 +24,10 @@ def test_can_incremental_conditions(tmp_path, monkeypatch):
     monkeypatch.setenv("QINGCAO_MMAP_SAVE_MIN_MB", "0")
     m = _mod()
     old = b"aaa\nbbb\nccc\n"
-    new = b"aaa\nBXB\nccc\n"   # 等长、换行位置一致
+    new = b"aaa\nBXB\nccc\n"  # 等长、换行位置一致
     assert m.can_incremental_save(old, new) is True
-    assert m.can_incremental_save(old, b"aaa\nbb\nccc\n") is False   # 长度不同
-    assert m.can_incremental_save(old, b"aaa\nbbbccc\n") is False   # 换行位置不同
+    assert m.can_incremental_save(old, b"aaa\nbb\nccc\n") is False  # 长度不同
+    assert m.can_incremental_save(old, b"aaa\nbbbccc\n") is False  # 换行位置不同
 
 
 def test_patch_and_journal_success(tmp_path, monkeypatch):
@@ -43,6 +45,7 @@ def test_patch_and_journal_success(tmp_path, monkeypatch):
     assert len(old) == len(new)
 
     calls = {"dirty": 0}
+
     def _clear():
         calls["dirty"] += 1
 
@@ -80,7 +83,7 @@ def test_failure_restores_original(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_apply_patch", boom)
     ok = m.maybe_incremental_save(str(path), new, None)
     assert ok is None
-    assert path.read_bytes() == old            # 已从 journal 恢复
+    assert path.read_bytes() == old  # 已从 journal 恢复
     assert os.listdir(tmp_path / "journal") == []
 
 
@@ -92,16 +95,14 @@ def test_recover_pending_journal(tmp_path, monkeypatch):
     original = b"original content\n"
     target.write_bytes(b"half written")
     monkeypatch.setenv("QINGCAO_EDIT_JOURNAL_DIR", str(jdir))
-    jpath = m._write_journal(str(target), original,
-                             [(0, len(original))])
+    jpath = m._write_journal(str(target), original, [(0, len(original))])
     assert m.recover_pending_journals(str(tmp_path)) == 1
     assert target.read_bytes() == original
     assert not os.path.exists(jpath)
 
 
 def test_document_and_main_wiring_static():
-    doc = io.open(os.path.join(ROOT, "core", "document.py"),
-                  encoding="utf-8").read()
+    doc = io.open(os.path.join(ROOT, "core", "document.py"), encoding="utf-8").read()
     assert "maybe_incremental_save" in doc
     main = io.open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
     assert "recover_pending_journals" in main

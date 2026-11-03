@@ -5,6 +5,7 @@
 输出到 docs/theme_baseline/。用法:
     python tools/theme_e2e_screenshots.py [--out DIR]
 """
+
 import argparse
 import io
 import os
@@ -26,6 +27,7 @@ def pump(app, seconds):
 
 def find_plugin_dock(win):
     from PyQt5.QtWidgets import QDockWidget
+
     for d in win.findChildren(QDockWidget):
         title = d.windowTitle() or ""
         cls = type(d.widget()).__name__ if d.widget() else ""
@@ -36,16 +38,14 @@ def find_plugin_dock(win):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(ROOT, "docs",
-                                                  "theme_baseline"))
-    ap.add_argument("--themes", default="dark_night,light_clean,"
-                                        "eye_protect,high_contrast")
-    ap.add_argument("--check", action="store_true",
-                    help="与 docs/theme_baseline 基线对比（CI）")
+    ap.add_argument("--out", default=os.path.join(ROOT, "docs", "theme_baseline"))
+    ap.add_argument("--themes", default="dark_night,light_clean,eye_protect,high_contrast")
+    ap.add_argument("--check", action="store_true", help="与 docs/theme_baseline 基线对比（CI）")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
     if args.check:
         import tempfile
+
         args.out = tempfile.mkdtemp(prefix="qc_theme_check_")
     os.makedirs(args.out, exist_ok=True)
 
@@ -86,6 +86,7 @@ def main():
         return 0
 
     from PyQt5.QtGui import QImage
+
     problems = []
     reports = {}
     for path in written:
@@ -97,9 +98,10 @@ def main():
         a = QImage(path)
         b = QImage(base)
         if a.width() != b.width() or a.height() != b.height():
-            problems.append("%s 尺寸不一致 %dx%d vs %dx%d"
-                            % (name, a.width(), a.height(),
-                               b.width(), b.height()))
+            problems.append(
+                "%s 尺寸不一致 %dx%d vs %dx%d"
+                % (name, a.width(), a.height(), b.width(), b.height())
+            )
             continue
         total = 0
         n = 0
@@ -107,23 +109,24 @@ def main():
             for x in range(0, a.width(), 16):
                 c1 = a.pixelColor(x, y)
                 c2 = b.pixelColor(x, y)
-                total += (abs(c1.red() - c2.red())
-                          + abs(c1.green() - c2.green())
-                          + abs(c1.blue() - c2.blue()))
+                total += (
+                    abs(c1.red() - c2.red())
+                    + abs(c1.green() - c2.green())
+                    + abs(c1.blue() - c2.blue())
+                )
                 n += 1
         mean = total / max(1, n)
         reports[name] = round(mean, 2)
         limit = 24.0 if name.startswith("panel_") else 80.0
         if mean > limit:
-            problems.append("%s 像素差异过大: %.1f (阈值 %.0f)"
-                            % (name, mean, limit))
+            problems.append("%s 像素差异过大: %.1f (阈值 %.0f)" % (name, mean, limit))
     print("[theme-e2e] diffs:", reports)
     if args.json:
         import json as _json
-        io.open(args.json, "w", encoding="utf-8",
-                newline="\n").write(_json.dumps(
-            {"diffs": reports, "problems": problems},
-            ensure_ascii=False, indent=2))
+
+        io.open(args.json, "w", encoding="utf-8", newline="\n").write(
+            _json.dumps({"diffs": reports, "problems": problems}, ensure_ascii=False, indent=2)
+        )
     if problems:
         for p in problems:
             print("[theme-e2e] FAIL:", p)

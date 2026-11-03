@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """P3：发布说明自动附加包体积/SHA 报告"""
+
 import importlib.util
 import os
 
@@ -34,14 +35,14 @@ def test_build_payload_fields():
     assert p["tag_name"] == "v9.9.9"
     assert p["draft"] is False and p["prerelease"] is False
 
+
 def test_compose_body_size_delta(tmp_path):
     m = _load()
     zip_path = tmp_path / "pkg.zip"
     zip_path.write_bytes(b"x" * (2 * 1048576))
     sha_path = tmp_path / "pkg.zip.sha256.txt"
     sha_path.write_text("abc  pkg.zip\n", encoding="ascii")
-    out = m.compose_body("body", str(zip_path), str(sha_path),
-                         prev_size=1048576)
+    out = m.compose_body("body", str(zip_path), str(sha_path), prev_size=1048576)
     assert "较上一版" in out
     assert "+1.00 MB" in out and "+100.0%" in out
     first = m.compose_body("body", str(zip_path), str(sha_path))
@@ -50,6 +51,7 @@ def test_compose_body_size_delta(tmp_path):
 
 def test_extract_changelog_summary(tmp_path):
     import shutil
+
     m = _load()
     old_root = m.ROOT
     try:
@@ -57,7 +59,8 @@ def test_extract_changelog_summary(tmp_path):
         (tmp_path / "CHANGELOG.md").write_text(
             "## [2.0.0] - 2026-01-01\n\n- 变更 A\n- 变更 B\n\n"
             "## [1.0.0] - 2025-01-01\n\n- 旧变更\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         s = m.extract_changelog_summary("2.0.0")
         assert "变更 A" in s and "变更 B" in s
         assert "旧变更" not in s

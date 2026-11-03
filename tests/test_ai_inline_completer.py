@@ -12,6 +12,7 @@
 
     python -m pytest tests/test_ai_inline_completer.py -v
 """
+
 import os
 import sys
 import time
@@ -31,10 +32,8 @@ class FakeClient:
         self.fail = fail
         self.calls = []
 
-    def chat_stream(self, prompt="", system="", callback=None,
-                    use_history=False, max_tokens=None):
-        self.calls.append({"prompt": prompt, "system": system,
-                           "max_tokens": max_tokens})
+    def chat_stream(self, prompt="", system="", callback=None, use_history=False, max_tokens=None):
+        self.calls.append({"prompt": prompt, "system": system, "max_tokens": max_tokens})
         if self.delay:
             time.sleep(self.delay)
         if self.fail:
@@ -46,6 +45,7 @@ class FakeClient:
 
 def _editor(text="def f(x):\n    y = x * 2\n    "):
     from PyQt5.Qsci import QsciScintilla
+
     sc = QsciScintilla()
     sc.setUtf8(True)
     sc.setText(text)
@@ -67,14 +67,17 @@ def _wait(qapp, pred, timeout=5.0):
 # 开关与触发门槛
 # =========================================================
 
+
 class TestEnableAndGating:
     def test_disabled_by_default(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         c = AIInlineCompleter(_editor(), FakeClient())
         assert c.enabled is False
 
     def test_request_returns_false_when_disabled(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         c = AIInlineCompleter(_editor(), client)
         assert c.request_now() is False
@@ -82,6 +85,7 @@ class TestEnableAndGating:
 
     def test_set_enabled_clears_suggestion(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         c = AIInlineCompleter(_editor(), FakeClient())
         c.set_enabled(True)
         c._suggestion = "旧建议"
@@ -90,6 +94,7 @@ class TestEnableAndGating:
 
     def test_no_request_when_no_client(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         c = AIInlineCompleter(_editor(), None)
         c.set_enabled(True)
         assert c.request_now() is False
@@ -97,17 +102,19 @@ class TestEnableAndGating:
     def test_requires_min_prefix_chars(self, qapp):
         """光标列数太少时不该浪费一次请求"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         sc = _editor()
         c = AIInlineCompleter(sc, client)
         c.set_enabled(True)
-        sc.setCursorPosition(2, 1)          # 只有 1 列
+        sc.setCursorPosition(2, 1)  # 只有 1 列
         assert c.request_now(force=True) is False
         assert client.calls == []
 
     def test_min_interval_throttles(self, qapp):
         """连按快捷键不应打爆额度（force=False 时受最小间隔限制）"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         sc = _editor()
         c = AIInlineCompleter(sc, client)
@@ -121,6 +128,7 @@ class TestEnableAndGating:
 
     def test_force_bypasses_interval(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         sc = _editor()
         c = AIInlineCompleter(sc, client)
@@ -135,9 +143,11 @@ class TestEnableAndGating:
 # 结果与显示
 # =========================================================
 
+
 class TestSuggestion:
     def test_suggestion_received(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient("return x + 1"))
         c.set_enabled(True)
@@ -148,6 +158,7 @@ class TestSuggestion:
 
     def test_context_includes_previous_lines(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         sc = _editor()
         c = AIInlineCompleter(sc, client)
@@ -162,6 +173,7 @@ class TestSuggestion:
         """补全只输出一行，不该用大预算"""
         from core.ai_client import TOKEN_TIERS
         from ui.ai_inline_completer import AIInlineCompleter
+
         client = FakeClient()
         sc = _editor()
         c = AIInlineCompleter(sc, client)
@@ -173,18 +185,18 @@ class TestSuggestion:
 
     def test_cleaning_strips_code_fence_and_multiline(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         fence = "`" * 3
         # 无语言标记
         assert AIInlineCompleter._clean(fence + "\nreturn 1\n" + fence) == "return 1"
         # 带语言标记 —— 最容易出错的形态：
         # 若先把 ``` 全 replace 掉再取首行，会返回 "python"
-        assert AIInlineCompleter._clean(
-            fence + "python\nreturn 1\n" + fence) == "return 1"
-        assert AIInlineCompleter._clean(
-            fence + "javascript\nconst a = 1\n" + fence) == "const a = 1"
+        assert AIInlineCompleter._clean(fence + "python\nreturn 1\n" + fence) == "return 1"
+        assert (
+            AIInlineCompleter._clean(fence + "javascript\nconst a = 1\n" + fence) == "const a = 1"
+        )
         # 围栏内先有空行
-        assert AIInlineCompleter._clean(
-            fence + "\n\n\nreturn 9\n" + fence) == "return 9"
+        assert AIInlineCompleter._clean(fence + "\n\n\nreturn 9\n" + fence) == "return 9"
         # 前缀与多行
         assert AIInlineCompleter._clean("继续：return 1") == "return 1"
         assert AIInlineCompleter._clean("补全：return 1") == "return 1"
@@ -197,8 +209,18 @@ class TestSuggestion:
 
     def test_language_tag_detection(self):
         from ui.ai_inline_completer import is_language_tag
-        for tag in ("python", "javascript", "c++", "c#", "go", "rust",
-                    "typescript", "PYTHON", " bash "):
+
+        for tag in (
+            "python",
+            "javascript",
+            "c++",
+            "c#",
+            "go",
+            "rust",
+            "typescript",
+            "PYTHON",
+            " bash ",
+        ):
             assert is_language_tag(tag) is True, tag
         # 真正的代码行不能被误判成语言标记
         for code in ("return 1", "x = 1", "def f():", "", "   "):
@@ -206,6 +228,7 @@ class TestSuggestion:
 
     def test_result_only_first_line_shown(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient("return 1\n第二行"))
         c.set_enabled(True)
@@ -219,9 +242,11 @@ class TestSuggestion:
 # 接受 / 清除 / 取消
 # =========================================================
 
+
 class TestAcceptClearCancel:
     def test_accept_inserts_at_cursor(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient("return x + 1"))
         c.set_enabled(True)
@@ -234,6 +259,7 @@ class TestAcceptClearCancel:
 
     def test_accept_without_suggestion_is_noop(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient())
         before = sc.text()
@@ -243,6 +269,7 @@ class TestAcceptClearCancel:
     def test_insert_is_undoable(self, qapp):
         """插入必须走 Scintilla（可 Ctrl+Z 撤销），不能直接改 Python 字符串"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         sc.SendScintilla(sc.SCI_EMPTYUNDOBUFFER)
         c = AIInlineCompleter(sc, FakeClient("XYZ"))
@@ -258,6 +285,7 @@ class TestAcceptClearCancel:
 
     def test_clear_removes_annotation(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient())
         c.set_enabled(True)
@@ -270,6 +298,7 @@ class TestAcceptClearCancel:
     def test_cancel_invalidates_inflight(self, qapp):
         """取消后，迟到的响应必须被丢弃（序号机制）"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient("迟到的建议", delay=0.3))
         c.set_enabled(True)
@@ -284,6 +313,7 @@ class TestAcceptClearCancel:
     def test_failure_does_not_raise_or_show(self, qapp):
         """补全失败应静默（不该在编辑器里弹错误）"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient(fail=True))
         c.set_enabled(True)
@@ -295,6 +325,7 @@ class TestAcceptClearCancel:
     def test_busy_reset_after_completion(self, qapp):
         """_busy 必须复位，否则后续请求全被拒（原实现的跨线程 bug 症状）"""
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient())
         c.set_enabled(True)
@@ -308,9 +339,11 @@ class TestAcceptClearCancel:
 # 编辑器适配
 # =========================================================
 
+
 class TestEditorResolution:
     def test_accepts_plain_scintilla(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         sc = _editor()
         c = AIInlineCompleter(sc, FakeClient())
         assert c.editor is sc
@@ -329,8 +362,9 @@ class TestEditorResolution:
 
     def test_none_editor_is_tolerated(self, qapp):
         from ui.ai_inline_completer import AIInlineCompleter
+
         c = AIInlineCompleter(None, FakeClient())
         c.set_enabled(True)
         assert c.request_now() is False
-        c.clear_suggestion()          # 不应抛异常
+        c.clear_suggestion()  # 不应抛异常
         assert c.accept_suggestion() is False

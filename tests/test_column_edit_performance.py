@@ -19,6 +19,7 @@
 **缩放比**：规模翻 4 倍时，耗时不应超过 ~8 倍。
 线性算法约 4 倍，二次方算法约 16 倍 —— 两者区分度很大。
 """
+
 import os
 import sys
 import time
@@ -52,8 +53,9 @@ def _make_editor(tmp_path, n_rows, name):
     from core.editor import EditorProxy
 
     p = tmp_path / name
-    p.write_text("".join("row %07d abcdefghij\n" % k for k in range(n_rows)),
-                 encoding="utf-8", newline="")
+    p.write_text(
+        "".join("row %07d abcdefghij\n" % k for k in range(n_rows)), encoding="utf-8", newline=""
+    )
     sc = QsciScintilla()
     sc.setUtf8(True)
     doc = Document()
@@ -152,7 +154,7 @@ def test_batch_column_edit_multibyte_positions(qapp, tmp_path):
         # 每行多插入 1 个字符（200 行），而 `sc.text()` 还包含 200 个换行符。
         # 注意 `before_len` 只统计行内字符、不含 "\n"。
         n_lines = len(lines)
-        expected_len = before_len + n_lines + n_lines   # 行内 + 换行 + 插入
+        expected_len = before_len + n_lines + n_lines  # 行内 + 换行 + 插入
         assert len(sc.text()) == expected_len, (
             "插入后长度 %d，期望 %d（原 %d + %d 换行 + %d 插入）"
             % (len(sc.text()), expected_len, before_len, n_lines, n_lines)
@@ -161,8 +163,10 @@ def test_batch_column_edit_multibyte_positions(qapp, tmp_path):
         proxy.undo()
         for i in range(200):
             got = sc.text(i).replace("\r\n", "\n").rstrip("\n")
-            assert got == lines[i], (
-                "撤销后第 %d 行未还原: %r（期望 %r）" % (i, got[:40], lines[i][:40])
+            assert got == lines[i], "撤销后第 %d 行未还原: %r（期望 %r）" % (
+                i,
+                got[:40],
+                lines[i][:40],
             )
     finally:
         try:
@@ -259,10 +263,7 @@ def test_column_edit_100k_under_budget(qapp, tmp_path):
         r, elapsed = _time_column_edit(proxy, n)
         assert r.ok, r.reason
         assert len(r.lines) == n
-        assert elapsed < 60.0, (
-            "10 万行列编辑耗时 %.1fs（预算 60s）—— 已降级为不可用"
-            % elapsed
-        )
+        assert elapsed < 60.0, "10 万行列编辑耗时 %.1fs（预算 60s）—— 已降级为不可用" % elapsed
         # 抽查正确性
         assert proxy.sc.text(0).startswith("roXYw 0000000")
         assert proxy.sc.text(n - 1).startswith("roXYw %07d" % (n - 1))

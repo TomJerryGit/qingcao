@@ -8,6 +8,7 @@
     * sound_manager.py（1600+ 行）全仓零调用；
     * _build_docks 启动时同步构造全部 9 个面板。
 """
+
 import gettext
 import io
 import json
@@ -18,8 +19,8 @@ import pytest
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOCALE = os.path.join(ROOT, 'locale')
-LANGS = ('zh_CN', 'en_US', 'ja_JP', 'ko_KR')
+LOCALE = os.path.join(ROOT, "locale")
+LANGS = ("zh_CN", "en_US", "ja_JP", "ko_KR")
 
 
 # ============================================================
@@ -28,28 +29,29 @@ LANGS = ('zh_CN', 'en_US', 'ja_JP', 'ko_KR')
 class TestLocaleFiles:
     @pytest.mark.parametrize("lang", LANGS)
     def test_po_exists_and_is_utf8(self, lang):
-        po = os.path.join(LOCALE, lang, 'LC_MESSAGES', 'qingcao.po')
+        po = os.path.join(LOCALE, lang, "LC_MESSAGES", "qingcao.po")
         assert os.path.exists(po), "缺少 %s" % po
-        raw = open(po, 'rb').read()
-        text = raw.decode('utf-8')          # 不抛异常即通过
-        assert 'charset=UTF-8' in text.replace(' ', '')
+        raw = open(po, "rb").read()
+        text = raw.decode("utf-8")  # 不抛异常即通过
+        assert "charset=UTF-8" in text.replace(" ", "")
 
     @pytest.mark.parametrize("lang", LANGS)
     def test_mo_exists(self, lang):
-        mo = os.path.join(LOCALE, lang, 'LC_MESSAGES', 'qingcao.mo')
-        assert os.path.exists(mo), (
-            "缺少 %s —— gettext 只会加载 .mo，缺它则国际化不生效" % mo
-        )
+        mo = os.path.join(LOCALE, lang, "LC_MESSAGES", "qingcao.mo")
+        assert os.path.exists(mo), "缺少 %s —— gettext 只会加载 .mo，缺它则国际化不生效" % mo
 
-    @pytest.mark.parametrize("lang,expect", [
-        ('zh_CN', '保存'),
-        ('en_US', 'Save'),
-        ('ja_JP', '保存'),
-        ('ko_KR', '저장'),
-    ])
+    @pytest.mark.parametrize(
+        "lang,expect",
+        [
+            ("zh_CN", "保存"),
+            ("en_US", "Save"),
+            ("ja_JP", "保存"),
+            ("ko_KR", "저장"),
+        ],
+    )
     def test_gettext_returns_translation(self, lang, expect):
-        tr = gettext.translation('qingcao', LOCALE, languages=[lang])
-        got = tr.gettext('Save')
+        tr = gettext.translation("qingcao", LOCALE, languages=[lang])
+        got = tr.gettext("Save")
         assert isinstance(got, str)
         assert got == expect
 
@@ -58,10 +60,10 @@ class TestLocaleFiles:
         sizes = set()
         for lang in LANGS:
             text = io.open(
-                os.path.join(LOCALE, lang, 'LC_MESSAGES', 'qingcao.po'),
-                encoding='utf-8',
+                os.path.join(LOCALE, lang, "LC_MESSAGES", "qingcao.po"),
+                encoding="utf-8",
             ).read()
-            sizes.add(len(re.findall(r'^msgid ', text, re.M)))
+            sizes.add(len(re.findall(r"^msgid ", text, re.M)))
         assert len(sizes) == 1, "各语言词条数不一致: %s" % sizes
 
 
@@ -93,16 +95,17 @@ class TestI18nManager:
           2. 向导不再提供语言单选，且 `get_language()` 如实返回 zh_CN。
         """
         src = io.open(
-            os.path.join(ROOT, 'ui', 'first_run_wizard.py'),
-            encoding='utf-8',
+            os.path.join(ROOT, "ui", "first_run_wizard.py"),
+            encoding="utf-8",
         ).read()
         # 不得出现乱码占位标签
         assert '("???", "ko_KR")' not in src
         assert '"???"' not in src
         # 语言选择已移除，页面如实说明"仅中文"
-        assert '仅提供简体中文' in src or '仅支持简体中文' in src
+        assert "仅提供简体中文" in src or "仅支持简体中文" in src
         from ui.first_run_wizard import LanguagePage
-        assert LanguagePage().get_language() == 'zh_CN'
+
+        assert LanguagePage().get_language() == "zh_CN"
 
 
 # ============================================================
@@ -112,28 +115,26 @@ class TestHotReload:
     def test_no_longer_only_prints(self):
         """原先只有一句 print，现在必须真的重载"""
         src = io.open(
-            os.path.join(ROOT, 'infrastructure', 'plugin_loader.py'),
-            encoding='utf-8',
+            os.path.join(ROOT, "infrastructure", "plugin_loader.py"),
+            encoding="utf-8",
         ).read()
-        assert 'def _detect_changed_plugins' in src
-        assert 'self.reload_plugin(name)' in src
+        assert "def _detect_changed_plugins" in src
+        assert "self.reload_plugin(name)" in src
 
     def test_loader_accepts_hot_reload_flag(self, qapp):
         from infrastructure.plugin_loader import PluginLoader
 
-        loader = PluginLoader(plugin_dir='plugins',
-                              enable_watcher=True,
-                              hot_reload_enabled=False)
+        loader = PluginLoader(plugin_dir="plugins", enable_watcher=True, hot_reload_enabled=False)
         assert loader.enable_watcher is True
         assert loader.hot_reload_enabled is False
 
     def test_per_plugin_opt_out(self, qapp):
         from infrastructure.plugin_loader import PluginLoader
 
-        loader = PluginLoader(plugin_dir='plugins')
+        loader = PluginLoader(plugin_dir="plugins")
 
         class _Meta:
-            raw = {'hot_reload': False}
+            raw = {"hot_reload": False}
 
         class _Spec:
             meta = _Meta()
@@ -152,13 +153,12 @@ class TestHotReload:
         """必须递归监控插件源码，否则改 __init__.py 不会触发"""
         from app.plugin_manager import PluginManager
 
-        pm = PluginManager(main_window=None, plugin_dir='plugins',
-                           auto_confirm_dangerous=True)
+        pm = PluginManager(main_window=None, plugin_dir="plugins", auto_confirm_dangerous=True)
         pm.load_all(auto_activate=True)
         try:
             assert len(pm.loader._watch_paths) > 10
             assert any(
-                p.endswith('__init__.py') or p.endswith('plugin.json')
+                p.endswith("__init__.py") or p.endswith("plugin.json")
                 for p in pm.loader._watch_paths
             )
         finally:
@@ -167,13 +167,13 @@ class TestHotReload:
     def test_manifest_raw_is_kept(self, qapp):
         from infrastructure.plugin_loader import PluginLoader
 
-        loader = PluginLoader(plugin_dir='plugins')
+        loader = PluginLoader(plugin_dir="plugins")
         specs = loader.discover()
         assert specs
         for spec in specs:
             assert isinstance(spec.meta.raw, dict)
             # raw 里应包含清单的原始字段
-            assert 'name' in spec.meta.raw
+            assert "name" in spec.meta.raw
 
 
 # ============================================================
@@ -183,7 +183,7 @@ class TestSoundWiring:
     def test_preference_defaults_off(self, qapp):
         from app.preferences import Preferences
 
-        assert Preferences().get('sound_effects') is False
+        assert Preferences().get("sound_effects") is False
 
     def test_off_by_default_blocks_play(self, qapp):
         from infrastructure.sound_manager import SoundEvent, play_sound
@@ -195,14 +195,14 @@ class TestSoundWiring:
         from infrastructure import sound_manager as sm
 
         prefs = Preferences()
-        old = prefs.get('sound_effects')
-        prefs.set('sound_effects', True)
+        old = prefs.get("sound_effects")
+        prefs.set("sound_effects", True)
         try:
             # QtMultimedia 在 CI/offscreen 下可能不可用，回退到
             # 系统提示音后仍应返回 True
             assert sm.play_sound(sm.SoundEvent.FILE_SAVE, force=True) is True
         finally:
-            prefs.set('sound_effects', old)
+            prefs.set("sound_effects", old)
 
     def test_sound_manager_is_singleton(self, qapp):
         from infrastructure.sound_manager import get_sound_manager
@@ -211,9 +211,9 @@ class TestSoundWiring:
 
     def test_main_window_calls_sound(self):
         """主窗口/文件操作里必须真的调用 play_sound"""
-        for rel in ('ui/mixins/file_ops_mixin.py', 'ui/main_window.py'):
-            src = io.open(os.path.join(ROOT, rel), encoding='utf-8').read()
-            assert 'play_sound' in src, "%s 未接入音效" % rel
+        for rel in ("ui/mixins/file_ops_mixin.py", "ui/main_window.py"):
+            src = io.open(os.path.join(ROOT, rel), encoding="utf-8").read()
+            assert "play_sound" in src, "%s 未接入音效" % rel
 
 
 # ============================================================
@@ -240,20 +240,17 @@ class TestLazyPanels:
         win = mw.MainWindow()
         try:
             expected = set(win._default_panels_for_screen())
-            assert win._panels_built == expected, (
-                "启动时应恰好构造默认面板，实际: %s 期望: %s"
-                % (win._panels_built, expected)
+            assert win._panels_built == expected, "启动时应恰好构造默认面板，实际: %s 期望: %s" % (
+                win._panels_built,
+                expected,
             )
             assert expected, "默认面板不能为空（否则界面开箱全空）"
-            assert 'dir_tree' in expected, "目录树必须默认打开"
+            assert "dir_tree" in expected, "目录树必须默认打开"
             # 未列入默认的仍不应被构造
-            for name in ('outline', 'outline_enhanced',
-                         'minimap', 'console', 'search_bar'):
+            for name in ("outline", "outline_enhanced", "minimap", "console", "search_bar"):
                 if name in expected:
                     continue
-                assert name not in win._panels_built, (
-                    "%s 不应在启动时构造" % name
-                )
+                assert name not in win._panels_built, "%s 不应在启动时构造" % name
         finally:
             win.close()
 
@@ -273,6 +270,7 @@ class TestLazyPanels:
         # `实际可见: set()`（全量顺序相关的历史 flaky）。
         try:
             import app.session as _sess_mod
+
             _sf = getattr(_sess_mod, "SESSION_FILE", "")
             if _sf and os.path.exists(_sf):
                 os.remove(_sf)
@@ -280,10 +278,10 @@ class TestLazyPanels:
             pass
 
         NAME_OF_PANEL = {
-            'dir_tree': 'DirectoryTreeDock',
-            'gsearch': 'GlobalSearchPanel',
-            'plugins_panel': 'PluginsPanel',
-            'perf_monitor': 'PerfMonitor',
+            "dir_tree": "DirectoryTreeDock",
+            "gsearch": "GlobalSearchPanel",
+            "plugins_panel": "PluginsPanel",
+            "perf_monitor": "PerfMonitor",
         }
 
         win = mw.MainWindow()
@@ -291,27 +289,21 @@ class TestLazyPanels:
         try:
             # 等布局完成（offscreen 下 dock 映射需要事件循环）
             import time
+
             deadline = time.time() + 2.0
             while time.time() < deadline:
                 qapp.processEvents()
                 if "DirectoryTreeDock" in {
-                    d.objectName() for d in win.findChildren(QDockWidget)
-                    if d.isVisible()
+                    d.objectName() for d in win.findChildren(QDockWidget) if d.isVisible()
                 }:
                     break
                 time.sleep(0.02)
-            names = {d.objectName() for d in win.findChildren(QDockWidget)
-                     if d.isVisible()}
-            assert "DirectoryTreeDock" in names, (
-                "项目目录树应默认可见，实际可见: %s" % names
-            )
-            expected = {NAME_OF_PANEL[p]
-                        for p in win._default_panels_for_screen()
-                        if p in NAME_OF_PANEL}
-            assert expected <= names, (
-                "默认面板应全部可见：期望 %s，实际 %s"
-                % (expected, names)
-            )
+            names = {d.objectName() for d in win.findChildren(QDockWidget) if d.isVisible()}
+            assert "DirectoryTreeDock" in names, "项目目录树应默认可见，实际可见: %s" % names
+            expected = {
+                NAME_OF_PANEL[p] for p in win._default_panels_for_screen() if p in NAME_OF_PANEL
+            }
+            assert expected <= names, "默认面板应全部可见：期望 %s，实际 %s" % (expected, names)
         finally:
             win.close()
 
@@ -320,11 +312,11 @@ class TestLazyPanels:
 
         win = mw.MainWindow()
         try:
-            assert win._ensure_panel('outline') is True
+            assert win._ensure_panel("outline") is True
             assert win.outline is not None
-            assert 'outline' in win._panels_built
+            assert "outline" in win._panels_built
 
-            assert win._ensure_panel('perf_monitor') is True
+            assert win._ensure_panel("perf_monitor") is True
             assert win.perf_monitor is not None
         finally:
             win.close()
@@ -336,25 +328,26 @@ class TestLazyPanels:
         win = mw.MainWindow()
         try:
             expected = {
-                'outline': 'OutlinePanel',
-                'outline_enhanced': 'OutlineEnhancedDock',
-                'dir_tree': 'DirectoryTreeDock',
-                'minimap': 'MinimapDock',
-                'gsearch': 'GlobalSearchPanel',
-                'console': 'PythonConsole',
-                'plugins_panel': 'PluginsPanel',
-                'perf_monitor': 'PerfMonitor',
-                'search_bar': 'SearchBar',
+                "outline": "OutlinePanel",
+                "outline_enhanced": "OutlineEnhancedDock",
+                "dir_tree": "DirectoryTreeDock",
+                "minimap": "MinimapDock",
+                "gsearch": "GlobalSearchPanel",
+                "console": "PythonConsole",
+                "plugins_panel": "PluginsPanel",
+                "perf_monitor": "PerfMonitor",
+                "search_bar": "SearchBar",
             }
             for name, oname in expected.items():
                 assert win._ensure_panel(name) is True, name
                 obj = getattr(win, name, None)
-                if name in ('dir_tree', 'minimap'):
+                if name in ("dir_tree", "minimap"):
                     obj = getattr(win, f"{name}_dock", None)
                 assert obj is not None, name
-                assert obj.objectName() == oname, (
-                    "%s 的 objectName 应为 %s，实际 %r"
-                    % (name, oname, obj.objectName())
+                assert obj.objectName() == oname, "%s 的 objectName 应为 %s，实际 %r" % (
+                    name,
+                    oname,
+                    obj.objectName(),
                 )
         finally:
             win.close()
@@ -365,9 +358,7 @@ class TestLazyPanels:
         win = mw.MainWindow()
         try:
             for name in win._LAZY_PANELS:
-                assert win._ensure_panel(name) is True, (
-                    "面板 %s 构造失败" % name
-                )
+                assert win._ensure_panel(name) is True, "面板 %s 构造失败" % name
         finally:
             win.close()
 
@@ -376,6 +367,6 @@ class TestLazyPanels:
 
         win = mw.MainWindow()
         try:
-            assert win._ensure_panel('not_a_panel') is False
+            assert win._ensure_panel("not_a_panel") is False
         finally:
             win.close()

@@ -30,6 +30,7 @@ def _close(win):
 
 def _set_pref(win, enabled):
     from PyQt5.QtCore import QSettings
+
     s = QSettings("QingCao", "Editor")
     s.setValue("sandbox_live_diagnostics", enabled)
     s.sync()
@@ -39,6 +40,7 @@ def test_live_diagnostics_disabled_by_default(qapp, tmp_path):
     from PyQt5.QtCore import QSettings
 
     from ui.main_window import MainWindow
+
     _set_pref(None, False)
     win = MainWindow()
     try:
@@ -55,6 +57,7 @@ def test_live_diagnostics_disabled_by_default(qapp, tmp_path):
 
 def test_live_diagnostics_enabled_runs_after_debounce(qapp, tmp_path):
     from ui.main_window import MainWindow
+
     _set_pref(None, True)
     win = MainWindow()
     fake = _FakeSandbox()

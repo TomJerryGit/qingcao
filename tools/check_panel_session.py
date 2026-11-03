@@ -6,6 +6,7 @@
   * 会话记录了面板，但 `_restore_docks` 只遍历已存在的 dock，
     未构造的面板永远无法恢复
 """
+
 import io
 import json
 import os
@@ -48,8 +49,7 @@ def new_window():
     while time.time() < end:
         app.processEvents()
         pm = getattr(w, "plugin_manager", None)
-        if pm and len(getattr(getattr(pm, "loader", None),
-                              "specs", None) or {}) >= 10:
+        if pm and len(getattr(getattr(pm, "loader", None), "specs", None) or {}) >= 10:
             break
         time.sleep(0.05)
     settle(w, 1.5)
@@ -57,8 +57,9 @@ def new_window():
 
 
 def visible_names(w):
-    return sorted(d.objectName() or d.windowTitle()
-                  for d in w.findChildren(QDockWidget) if d.isVisible())
+    return sorted(
+        d.objectName() or d.windowTitle() for d in w.findChildren(QDockWidget) if d.isVisible()
+    )
 
 
 log("=" * 70)
@@ -72,21 +73,20 @@ log()
 log("场景1 全新用户（无 session.json）")
 w = new_window()
 log("  默认可见面板: %s" % visible_names(w))
-log("  期望包含: DirectoryTreeDock / GlobalSearchPanel / "
-    "PluginsPanel / PerfMonitor")
+log("  期望包含: DirectoryTreeDock / GlobalSearchPanel / PluginsPanel / PerfMonitor")
 
 # ---------- 场景 2：保存布局 ----------
 log()
 log("场景2 调整布局后保存")
-w._ensure_panel('outline')
-w._show_panel('outline')
-w._show_panel('minimap')
+w._ensure_panel("outline")
+w._show_panel("outline")
+w._show_panel("minimap")
 settle(w, 0.5)
 before = visible_names(w)
 log("  保存前可见: %s" % before)
 try:
     w.session.save_now()
-    if hasattr(w.session, 'flush'):
+    if hasattr(w.session, "flush"):
         w.session.flush()
 except Exception as e:
     log("  save_now 异常: %s" % e)
@@ -131,7 +131,6 @@ w2.close()
 
 log()
 log("=" * 70)
-with io.open(os.path.join(os.getcwd(), "panel_session_check.txt"), "w",
-             encoding="utf-8") as f:
+with io.open(os.path.join(os.getcwd(), "panel_session_check.txt"), "w", encoding="utf-8") as f:
     f.write("\n".join(OUT))
 print("[check] 已写出 panel_session_check.txt")

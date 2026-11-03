@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """验证跨模块分析中的关键结论（实测，不靠读代码）"""
+
 import os
 import sys
 
@@ -42,7 +43,7 @@ try:
     m = _re.search(r"self\.macro\s*=\s*([^\n]+)", t)
     print("    main_window 构造语句: %s" % (m.group(1).strip() if m else "未找到"))
 
-    rec = MacroRecorder()          # 与 main_window 一致的构造
+    rec = MacroRecorder()  # 与 main_window 一致的构造
     print("    MacroRecorder().undo_manager = %r" % rec.undo_manager)
     hook = getattr(rec, "_register_hook", None)
     if hook:
@@ -74,7 +75,7 @@ try:
     import re as _re
 
     for m in _re.finditer(r"_notify_lsp_saved\(filepath\)", t):
-        line = t[:m.start()].count("\n") + 1
+        line = t[: m.start()].count("\n") + 1
         print("      行 %d" % line)
     print("    → 结论：%s" % ("重复发送" if n >= 2 else "仅一次"))
 except Exception as e:
@@ -88,17 +89,24 @@ print("[3] 全局替换丢选项（子调查称 main_window.py:2646 默认 is_re
 try:
     t = open("ui/main_window.py", encoding="utf-8").read()
     i = t.find("def _on_global_replace")
-    seg = t[i:i + 1500] if i > 0 else ""
+    seg = t[i : i + 1500] if i > 0 else ""
     has_opts = "SearchOptions(" in seg
     import re as _re
 
     m = _re.search(r"SearchOptions\(([^)]*)\)", seg)
-    print("    _on_global_replace 中的构造: SearchOptions(%s)" % (
-        m.group(1).strip() if m else "未找到"))
-    print("    面板侧是否带选项:", "is_regex" in open(
-        "ui/global_search_panel.py", encoding="utf-8").read())
-    print("    → 结论：全局替换未携带面板的正则/大小写/整词选项"
-          if m and "is_regex" not in (m.group(1) or "") else "    → 已携带选项")
+    print(
+        "    _on_global_replace 中的构造: SearchOptions(%s)"
+        % (m.group(1).strip() if m else "未找到")
+    )
+    print(
+        "    面板侧是否带选项:",
+        "is_regex" in open("ui/global_search_panel.py", encoding="utf-8").read(),
+    )
+    print(
+        "    → 结论：全局替换未携带面板的正则/大小写/整词选项"
+        if m and "is_regex" not in (m.group(1) or "")
+        else "    → 已携带选项"
+    )
 except Exception as e:
     print("    异常: %s" % e)
 
@@ -111,8 +119,8 @@ try:
     t1 = open("ui/main_window.py", encoding="utf-8").read()
     t2 = open("ui/editor_view.py", encoding="utf-8").read()
     for name, t in (("main_window.py", t1), ("editor_view.py", t2)):
-        for m in __import__("re").finditer(r'.*Ctrl\+Space.*', t):
-            line = t[:m.start()].count("\n") + 1
+        for m in __import__("re").finditer(r".*Ctrl\+Space.*", t):
+            line = t[: m.start()].count("\n") + 1
             print("    %-16s 行 %-5d %s" % (name, line, m.group(0).strip()[:70]))
 except Exception as e:
     print("    异常: %s" % e)
@@ -127,20 +135,21 @@ try:
 
     hits = []
     for root, dirs, fs in os.walk("."):
-        dirs[:] = [d for d in dirs if d not in
-                   ("dist", "build", "__pycache__", ".git", "_archive",
-                    "tests", "tools")]
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in ("dist", "build", "__pycache__", ".git", "_archive", "tests", "tools")
+        ]
         for f in fs:
             if not f.endswith(".py"):
                 continue
             p = os.path.join(root, f)
             tt = open(p, encoding="utf-8", errors="replace").read()
             for m in _re.finditer(r"check_and_recover_drafts", tt):
-                ln = tt[:m.start()].count("\n") + 1
+                ln = tt[: m.start()].count("\n") + 1
                 hits.append("%s:%d" % (p.replace(".\\", ""), ln))
     print("    引用点: %s" % (hits or "无"))
-    print("    → 结论：%s" % ("只定义、无调用（草稿只写不读）"
-                             if len(hits) <= 1 else "有调用点"))
+    print("    → 结论：%s" % ("只定义、无调用（草稿只写不读）" if len(hits) <= 1 else "有调用点"))
 except Exception as e:
     print("    异常: %s" % e)
 
@@ -166,16 +175,15 @@ try:
     proxy = EditorProxy(sc, Document())
     proxy.open_file(p)
     sc.SendScintilla(sc.SCI_INSERTTEXT, len(sc.text()), b"two\n")
-    same_before = (proxy.document.provider.read_text().replace("\r\n", "\n")
-                   == sc.text().replace("\r\n", "\n"))
+    same_before = proxy.document.provider.read_text().replace("\r\n", "\n") == sc.text().replace(
+        "\r\n", "\n"
+    )
     proxy.undo()
     buf = sc.text().replace("\r\n", "\n")
     prov = proxy.document.provider.read_text().replace("\r\n", "\n")
     print("    编辑后一致 = %s" % same_before)
-    print("    撤销后 缓冲区=%r provider=%r 一致=%s" % (
-        buf, prov, buf == prov))
-    print("    → 结论：%s" % ("撤销后 provider 滞后（双源不一致）"
-                             if buf != prov else "一致"))
+    print("    撤销后 缓冲区=%r provider=%r 一致=%s" % (buf, prov, buf == prov))
+    print("    → 结论：%s" % ("撤销后 provider 滞后（双源不一致）" if buf != prov else "一致"))
 except Exception as e:
     print("    异常: %s: %s" % (type(e).__name__, e))
 

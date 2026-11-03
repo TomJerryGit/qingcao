@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """对比内置主题定义 vs themes/*.json，找出缺失/不一致的键"""
+
 import io
 import json
 import os
@@ -40,15 +41,19 @@ for fname in sorted(os.listdir("themes")):
         continue
     bc = builtin.colors
     # 数据类字段
-    fields = set(bc.__dataclass_fields__.keys()) if hasattr(
-        bc, "__dataclass_fields__") else set(vars(bc))
+    fields = (
+        set(bc.__dataclass_fields__.keys())
+        if hasattr(bc, "__dataclass_fields__")
+        else set(vars(bc))
+    )
 
     # JSON 有但内置未显式设置的键
     explicit = set()
     src = io.open("infrastructure/theme_loader.py", encoding="utf-8").read()
     # 粗略提取该方法体内出现的键名
-    m = re.search(r"def %s\(\)\s*->\s*Theme:(.*?)(?=\n    @staticmethod|\nclass )"
-                  % name, src, re.S)
+    m = re.search(
+        r"def %s\(\)\s*->\s*Theme:(.*?)(?=\n    @staticmethod|\nclass )" % name, src, re.S
+    )
     if m:
         explicit = set(re.findall(r"(\w+)\s*=", m.group(1)))
     explicit &= fields
@@ -57,8 +62,7 @@ for fname in sorted(os.listdir("themes")):
     print("  JSON 键数: %d   内置显式设置: %d" % (len(json_colors), len(explicit)))
     print("  内置**未设置**（会回退到默认值）的键: %d 个" % len(missing))
     for k in missing:
-        print("      %-26s JSON=%-10s 实际默认=%s"
-              % (k, json_colors[k], getattr(bc, k, "?")))
+        print("      %-26s JSON=%-10s 实际默认=%s" % (k, json_colors[k], getattr(bc, k, "?")))
 
     # type 是否一致
     jt = data.get("type")

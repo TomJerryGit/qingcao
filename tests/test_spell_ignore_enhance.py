@@ -47,9 +47,13 @@ class _FakeApi:
 def test_ignore_flagged_words_appends_and_clears(tmp_path):
     import importlib.util
     import os
-    path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "plugins", "spell_check",
-        "__init__.py")
+
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "plugins",
+        "spell_check",
+        "__init__.py",
+    )
     spec = importlib.util.spec_from_file_location("sp_ignore_mod", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -76,9 +80,13 @@ def test_ignore_flagged_words_appends_and_clears(tmp_path):
 def test_ignore_when_no_issues(tmp_path):
     import importlib.util
     import os
-    path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "plugins", "spell_check",
-        "__init__.py")
+
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "plugins",
+        "spell_check",
+        "__init__.py",
+    )
     spec = importlib.util.spec_from_file_location("sp_ignore_mod2", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

@@ -187,7 +187,7 @@ class TestCommands:
 
         # 序列化
         data = CommandSerializer.serialize(cmds)
-        assert data['count'] == 3
+        assert data["count"] == 3
 
         # 反序列化
         restored = CommandSerializer.deserialize(data)
@@ -310,6 +310,6 @@ class TestFullWorkflow:
 
         # 验证磁盘上的内容
         for f in files:
-            with open(f, encoding='utf-8') as fp:
+            with open(f, encoding="utf-8") as fp:
                 content = fp.read()
             assert "edited" in content

@@ -6,6 +6,7 @@
   * 全仓（生产代码）中既没有 `import <mod>`，
     也没有任何一处出现该模块里的**公开类名**
 """
+
 import io
 import os
 import re
@@ -23,16 +24,13 @@ for root, dirs, fs in os.walk("."):
     for f in fs:
         if f.endswith(".py"):
             p = os.path.relpath(os.path.join(root, f)).replace("\\", "/")
-            proc[p] = io.open(
-                os.path.join(root, f), encoding="utf-8", errors="replace"
-            ).read()
+            proc[p] = io.open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
 
 allt = "\n".join(proc.values())
 
 rows = []
 for p, t in sorted(proc.items()):
-    if not (p.startswith("core/") or p.startswith("ui/") or
-            p.startswith("plugins/")):
+    if not (p.startswith("core/") or p.startswith("ui/") or p.startswith("plugins/")):
         continue
     nlines = t.count("\n")
     if nlines < 80:

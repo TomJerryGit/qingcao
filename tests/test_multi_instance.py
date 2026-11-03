@@ -31,24 +31,21 @@ def test_instance_settings_dir():
     main = _load("qc_main_mi2", "main.py")
     base = os.path.join("X", "data")
     assert main.instance_settings_dir(base, 123, False) == base
-    assert main.instance_settings_dir(base, 123, True) == \
-        os.path.join(base, "instances", "123")
+    assert main.instance_settings_dir(base, 123, True) == os.path.join(base, "instances", "123")
 
 
 def test_instance_session_file():
     session = _load("qc_session_mi", "app/session.py")
-    assert session.instance_session_file("R", False, 1) == \
-        os.path.join("R", "session.json")
-    assert session.instance_session_file("R", True, 7) == \
-        os.path.join("R", "session_w7.json")
+    assert session.instance_session_file("R", False, 1) == os.path.join("R", "session.json")
+    assert session.instance_session_file("R", True, 7) == os.path.join("R", "session_w7.json")
 
 
 def test_cleanup_stale_instance_dirs(tmp_path):
     import importlib.util
     import os
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    spec = importlib.util.spec_from_file_location(
-        "qc_main_cl", os.path.join(root, "main.py"))
+    spec = importlib.util.spec_from_file_location("qc_main_cl", os.path.join(root, "main.py"))
     main = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(main)
     inst = tmp_path / "instances"
@@ -64,6 +61,7 @@ def test_cleanup_stale_instance_dirs(tmp_path):
 
 def test_remote_open_shows_status():
     import os
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     src = read_main_ui_source()
     assert "其它实例已打开" in src
@@ -72,9 +70,9 @@ def test_remote_open_shows_status():
 def test_count_alive_instance_dirs(tmp_path):
     import importlib.util
     import os
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    spec = importlib.util.spec_from_file_location(
-        "qc_main_cap", os.path.join(root, "main.py"))
+    spec = importlib.util.spec_from_file_location("qc_main_cap", os.path.join(root, "main.py"))
     main = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(main)
     inst = tmp_path / "instances"
@@ -87,9 +85,9 @@ def test_count_alive_instance_dirs(tmp_path):
 
 def test_single_instance_focus_wired():
     import os
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_src = open(os.path.join(root, "main.py"),
-                    encoding="utf-8").read()
+    main_src = open(os.path.join(root, "main.py"), encoding="utf-8").read()
     win_src = read_main_ui_source()
     assert "try_focus_existing" in main_src
     assert "MAX_NEW_WINDOW_INSTANCES" in main_src

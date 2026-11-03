@@ -17,6 +17,7 @@
     python tools/clean_repo.py --apply    # 实际删除
     python tools/clean_repo.py --apply --keep-archive  # 保留归档脚本
 """
+
 import fnmatch
 import os
 import sys
@@ -25,27 +26,32 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 需要保留的目录（不要在里面删东西）
-PROTECTED_DIRS = {'.git', '.github', 'node_modules'}
+PROTECTED_DIRS = {".git", ".github", "node_modules"}
 
 # 文件名模式（相对仓库根）
-BACKUP_PATTERNS = ['*.bak', '*.bak.*', '*.orig', '*.rej']
+BACKUP_PATTERNS = ["*.bak", "*.bak.*", "*.orig", "*.rej"]
 
 # 根目录下的一次性脚本
 ROOT_JUNK_PATTERNS = [
-    'fix_*.py',
-    'python fix_*.py',
-    'findstr',
-    'msg.txt',
-    '.qingcao-tasks.json',
-    '.coverage',
-    'archive_scripts.py',
+    "fix_*.py",
+    "python fix_*.py",
+    "findstr",
+    "msg.txt",
+    ".qingcao-tasks.json",
+    ".coverage",
+    "archive_scripts.py",
 ]
 
 # 即使在根目录也不该删的（显式白名单，防误删）
 NEVER_DELETE = {
-    'version.py', 'main.py', 'release.py', 'build.py',
-    'build_installer.py', 'build_linux.py', 'build_macos.py',
-    'archive_scripts.py',   # 虽然是历史脚本，但被 README 引用为归档工具
+    "version.py",
+    "main.py",
+    "release.py",
+    "build.py",
+    "build_installer.py",
+    "build_linux.py",
+    "build_macos.py",
+    "archive_scripts.py",  # 虽然是历史脚本，但被 README 引用为归档工具
 }
 
 
@@ -87,7 +93,7 @@ def collect(keep_archive: bool = True):
 
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
-    apply_changes = '--apply' in argv
+    apply_changes = "--apply" in argv
 
     backups, junk = collect()
 
@@ -116,8 +122,9 @@ def main(argv=None):
 
     if not apply_changes:
         print()
-        print("[clean_repo] 这是预演（dry-run）。"
-              "确认无误后执行: python tools/clean_repo.py --apply")
+        print(
+            "[clean_repo] 这是预演（dry-run）。确认无误后执行: python tools/clean_repo.py --apply"
+        )
         return 0
 
     removed = 0
@@ -137,10 +144,11 @@ def main(argv=None):
 
     print()
     print("[clean_repo] 已删除 %d 个文件，失败 %d 个" % (removed, failed))
-    print("[clean_repo] 提示：清理后请运行 "
-          "`python -m pytest tests` 与 `python -m ruff check .` 复核")
+    print(
+        "[clean_repo] 提示：清理后请运行 `python -m pytest tests` 与 `python -m ruff check .` 复核"
+    )
     return 0 if failed == 0 else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

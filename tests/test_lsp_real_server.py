@@ -21,6 +21,7 @@ python-lsp-server (pylsp)** 验证语义层：
     pip install python-lsp-server
     python -m pytest tests/test_lsp_real_server.py -v
 """
+
 import os
 import sys
 import time
@@ -31,10 +32,11 @@ import pytest
 def _pylsp_available():
     """pylsp 是否可用（按模块探测，不依赖 PATH）"""
     import importlib.util
-    if importlib.util.find_spec('pylsp') is None:
+
+    if importlib.util.find_spec("pylsp") is None:
         return False
     # 真实联调需要真正的语言特性，jedi 负责补全
-    return importlib.util.find_spec('jedi') is not None
+    return importlib.util.find_spec("jedi") is not None
 
 
 # 需要真实 python-lsp-server，且每个用例会 spawn 一个 pylsp 进程
@@ -43,7 +45,7 @@ def _pylsp_available():
 pytestmark = [
     pytest.mark.realserver,
     pytest.mark.skipif(
-    not _pylsp_available(),
+        not _pylsp_available(),
         reason="未安装 python-lsp-server，跳过真实服务器联调",
     ),
 ]
@@ -71,7 +73,7 @@ def _start_pylsp(client):
     注意用 `sys.executable -m pylsp`：无论控制台脚本是否在 PATH 上
     都能启动，也避免 Windows 下 `pylsp.exe` 的路径差异。
     """
-    client.start([sys.executable, '-m', 'pylsp'])
+    client.start([sys.executable, "-m", "pylsp"])
 
 
 class TestRealServerHandshake:
@@ -87,16 +89,12 @@ class TestRealServerHandshake:
 
         _start_pylsp(client)
         try:
-            client.initialize(
-                LspClient.path_to_uri(str(workspace))
-            )
-            qtbot.waitUntil(
-                lambda: client.is_initialized, timeout=30000
-            )
+            client.initialize(LspClient.path_to_uri(str(workspace)))
+            qtbot.waitUntil(lambda: client.is_initialized, timeout=30000)
             # 必须在 stop() 之前捕获：stop() 会把 is_initialized 重置
             was_initialized = client.is_initialized
             caps = dict(client.capabilities or {})
-            server_info = dict(getattr(client, 'server_info', {}) or {})
+            server_info = dict(getattr(client, "server_info", {}) or {})
         finally:
             client.stop()
 
@@ -104,24 +102,20 @@ class TestRealServerHandshake:
         assert infos, "未收到 initialized 信号"
         # 真实服务器应返回 capabilities
         assert caps, "未收到服务端 capabilities"
-        assert 'textDocumentSync' in caps or 'completionProvider' in caps, (
+        assert "textDocumentSync" in caps or "completionProvider" in caps, (
             "capabilities 内容异常：%r" % list(caps.keys())[:10]
         )
 
-    def test_server_reports_completion_capability(self, qapp, qtbot,
-                                                  workspace):
+    def test_server_reports_completion_capability(self, qapp, qtbot, workspace):
         from core.lsp_client import LspClient
 
         client = LspClient()
         _start_pylsp(client)
         try:
             client.initialize(LspClient.path_to_uri(str(workspace)))
-            qtbot.waitUntil(
-                lambda: client.is_initialized, timeout=30000
-            )
-            assert client.supports('completionProvider'), (
-                "pylsp 未声明补全能力，capabilities=%r"
-                % list((client.capabilities or {}).keys())
+            qtbot.waitUntil(lambda: client.is_initialized, timeout=30000)
+            assert client.supports("completionProvider"), (
+                "pylsp 未声明补全能力，capabilities=%r" % list((client.capabilities or {}).keys())
             )
         finally:
             client.stop()
@@ -143,13 +137,11 @@ class TestRealDiagnostics:
     这样测试不会因为 pylsp 的诊断策略变化而假失败。
     """
 
-    def test_diagnostics_notification_arrives_with_valid_shape(
-        self, qapp, qtbot, workspace
-    ):
+    def test_diagnostics_notification_arrives_with_valid_shape(self, qapp, qtbot, workspace):
         from core.lsp_client import LspClient
 
         path = workspace / "diag.py"
-        path.write_text(BROKEN, encoding='utf-8')
+        path.write_text(BROKEN, encoding="utf-8")
         uri = LspClient.path_to_uri(str(path))
 
         client = LspClient()
@@ -161,36 +153,28 @@ class TestRealDiagnostics:
         _start_pylsp(client)
         try:
             client.initialize(LspClient.path_to_uri(str(workspace)))
-            qtbot.waitUntil(
-                lambda: client.is_initialized, timeout=30000
-            )
+            qtbot.waitUntil(lambda: client.is_initialized, timeout=30000)
             client.did_open(uri, "python", BROKEN)
-            qtbot.waitUntil(
-                lambda: any(u == uri for u, _ in got), timeout=30000
-            )
+            qtbot.waitUntil(lambda: any(u == uri for u, _ in got), timeout=30000)
         finally:
             client.stop()
 
         assert got, "未收到 publishDiagnostics 通知；errors=%s" % errors
         assert got[-1][1] == got[-1][1], "诊断不是列表"
-        assert isinstance(got[-1][1], list), (
-            "诊断应为列表：%r" % type(got[-1][1])
-        )
+        assert isinstance(got[-1][1], list), "诊断应为列表：%r" % type(got[-1][1])
 
         # 结构校验：每条诊断都必须有 range（EditorProxy 依赖它）
         for diag in got[-1][1]:
-            assert 'range' in diag, "诊断缺少 range：%r" % diag
-            assert 'start' in diag['range'], "range 缺少 start：%r" % diag
-            assert 'line' in diag['range']['start']
+            assert "range" in diag, "诊断缺少 range：%r" % diag
+            assert "start" in diag["range"], "range 缺少 start：%r" % diag
+            assert "line" in diag["range"]["start"]
 
-    def test_diagnostics_resent_after_did_change(
-        self, qapp, qtbot, workspace
-    ):
+    def test_diagnostics_resent_after_did_change(self, qapp, qtbot, workspace):
         """didChange 后服务器必须再次推送诊断（P0-2 核心语义）"""
         from core.lsp_client import LspClient
 
         path = workspace / "changing.py"
-        path.write_text(BROKEN, encoding='utf-8')
+        path.write_text(BROKEN, encoding="utf-8")
         uri = LspClient.path_to_uri(str(path))
 
         client = LspClient()
@@ -204,21 +188,15 @@ class TestRealDiagnostics:
         _start_pylsp(client)
         try:
             client.initialize(LspClient.path_to_uri(str(workspace)))
-            qtbot.waitUntil(
-                lambda: client.is_initialized, timeout=30000
-            )
+            qtbot.waitUntil(lambda: client.is_initialized, timeout=30000)
 
             client.did_open(uri, "python", BROKEN)
-            qtbot.waitUntil(
-                lambda: len(notifications) >= 1, timeout=30000
-            )
+            qtbot.waitUntil(lambda: len(notifications) >= 1, timeout=30000)
             after_open = len(notifications)
 
             # didChange：修复前这里会抛 TypeError，服务器不会回应
             client.did_change(uri, FIXED)
-            qtbot.waitUntil(
-                lambda: len(notifications) > after_open, timeout=30000
-            )
+            qtbot.waitUntil(lambda: len(notifications) > after_open, timeout=30000)
 
             version = client._doc_versions.get(uri)
         finally:
@@ -229,10 +207,9 @@ class TestRealDiagnostics:
         )
         assert version == 2, "版本号未递增：%r" % version
         assert len(notifications) > after_open, (
-            "didChange 后服务器未再次推送诊断 —— 说明它没处理这次变更。"
-            "errors=%s" % errors
+            "didChange 后服务器未再次推送诊断 —— 说明它没处理这次变更。errors=%s" % errors
         )
-        assert 'undefined_name_abc' in FIXED
+        assert "undefined_name_abc" in FIXED
 
 
 class TestRealCompletion:
@@ -241,7 +218,7 @@ class TestRealCompletion:
         from core.lsp_client import LspClient
 
         path = workspace / "complete.py"
-        path.write_text(COMPLETION_DOC, encoding='utf-8')
+        path.write_text(COMPLETION_DOC, encoding="utf-8")
         uri = LspClient.path_to_uri(str(path))
 
         client = LspClient()
@@ -251,9 +228,7 @@ class TestRealCompletion:
         _start_pylsp(client)
         try:
             client.initialize(LspClient.path_to_uri(str(workspace)))
-            qtbot.waitUntil(
-                lambda: client.is_initialized, timeout=30000
-            )
+            qtbot.waitUntil(lambda: client.is_initialized, timeout=30000)
             client.did_open(uri, "python", COMPLETION_DOC)
 
             # 在 "os." 之后（第 2 行第 3 列）请求补全
@@ -270,7 +245,7 @@ class TestRealCompletion:
         # 每项应能被 EditorProxy._on_lsp_completion 消费
         first = result[0]
         assert isinstance(first, dict), "补全项应为 dict：%r" % first
-        assert 'label' in first, "补全项缺少 label：%r" % first
+        assert "label" in first, "补全项缺少 label：%r" % first
 
 
 class TestRegistryDetectsRealInstall:
@@ -278,15 +253,15 @@ class TestRegistryDetectsRealInstall:
         """LspServerRegistry 对 python 语言的命令应指向可用程序"""
         from core.lsp_client import LspServerRegistry
 
-        cmd = LspServerRegistry.get_command('python')
+        cmd = LspServerRegistry.get_command("python")
         assert cmd, "注册表未给出 python 的命令"
 
         # pylsp 可能没有控制台脚本，因此用 `python -m pylsp` 兜底判断
         import importlib.util
         import shutil
+
         available = (
-            shutil.which(cmd[0]) is not None
-            or importlib.util.find_spec('pylsp') is not None
+            shutil.which(cmd[0]) is not None or importlib.util.find_spec("pylsp") is not None
         )
         assert available, "python 语言服务器不可用：%r" % cmd
 
@@ -297,6 +272,4 @@ class TestRegistryDetectsRealInstall:
         info = LspInstaller().detect_all()
         assert isinstance(info, dict)
         # python 已安装（本测试的前提）
-        assert info.get('python') is True, (
-            "检测结果未识别到已安装的 python 服务器：%r" % info
-        )
+        assert info.get("python") is True, "检测结果未识别到已安装的 python 服务器：%r" % info

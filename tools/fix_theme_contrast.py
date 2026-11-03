@@ -5,6 +5,7 @@
 前景亮度，找到刚好达标的最小改动 —— 保持原有色相不变，避免"修完
 看起来像换了主题"。
 """
+
 import colorsys
 import sys
 
@@ -14,7 +15,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 def hex2rgb(s):
     s = s.lstrip("#")
-    return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+    return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def rgb2hex(t):
@@ -25,6 +26,7 @@ def lum(rgb):
     def ch(c):
         c = c / 255.0
         return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
     r, g, b = (ch(x) for x in rgb)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -97,13 +99,17 @@ print("其他主题的不达标项")
 print("=" * 72)
 print()
 others = [
-    ("light_clean", "#f0f0f0", [
-        ("fold_margin_fg", "#a0a0a0", 3.0),
-        ("control_char", "#c0c0c0", 3.0),
-        ("indent_guide", "#e0e0e0", 1.5),
-        ("line_number_fg", "#a0a0a0", 3.0),
-        ("margin_fg", "#a0a0a0", 3.0),
-    ]),
+    (
+        "light_clean",
+        "#f0f0f0",
+        [
+            ("fold_margin_fg", "#a0a0a0", 3.0),
+            ("control_char", "#c0c0c0", 3.0),
+            ("indent_guide", "#e0e0e0", 1.5),
+            ("line_number_fg", "#a0a0a0", 3.0),
+            ("margin_fg", "#a0a0a0", 3.0),
+        ],
+    ),
 ]
 import io
 import json
@@ -116,13 +122,18 @@ for name, _bg, items in others:
     print("  【%s】" % name)
     for key, _v, need in items:
         val = c.get(key)
-        bg = c.get("background") if key not in (
-            "line_number_fg", "margin_fg", "fold_margin_fg") else c.get("line_number_bg")
+        bg = (
+            c.get("background")
+            if key not in ("line_number_fg", "margin_fg", "fold_margin_fg")
+            else c.get("line_number_bg")
+        )
         if not val or not bg:
             continue
         cur = ratio(hex2rgb(val), hex2rgb(bg))
         if cur < need:
             new, got, how = fix(val, bg, need)
-            print("      %-18s %s (对比度 %.2f) -> 建议 %s (%.2f)  bg=%s"
-                  % (key, val, cur, new, got, bg))
+            print(
+                "      %-18s %s (对比度 %.2f) -> 建议 %s (%.2f)  bg=%s"
+                % (key, val, cur, new, got, bg)
+            )
     print()

@@ -26,6 +26,7 @@
 不应伪装成通过或失败）。
 退出码 0 = 无 FAIL；1 = 有 FAIL。
 """
+
 import os
 import sys
 import tempfile
@@ -134,7 +135,7 @@ def sc_text(proxy):
     txt = proxy.sc.text()
     for eol in ("\r\n", "\r", "\n"):
         if txt.endswith(eol):
-            return txt[:-len(eol)]
+            return txt[: -len(eol)]
     return txt
 
 
@@ -160,13 +161,14 @@ print("== A. 编码切换 × 编辑 × 保存 ==")
 p = os.path.join(TMP, "a1.txt")
 write_bytes(p, "第一行\n第二行\n".encode("utf-8"))
 pr = fresh_tab(p)
-ok("A1.1 打开 UTF-8 中文文件，文本正确",
-   sc_text(pr) == "第一行\n第二行", repr(sc_text(pr)))
+ok("A1.1 打开 UTF-8 中文文件，文本正确", sc_text(pr) == "第一行\n第二行", repr(sc_text(pr)))
 pr.sc.insertAt("X", 0, 0)
 pr.save_file()
-ok("A1.2 编辑后保存，磁盘字节正确",
-   read_bytes(p) == "X第一行\n第二行\n".encode("utf-8"),
-   repr(read_bytes(p)))
+ok(
+    "A1.2 编辑后保存，磁盘字节正确",
+    read_bytes(p) == "X第一行\n第二行\n".encode("utf-8"),
+    repr(read_bytes(p)),
+)
 
 # --- A2: 有损切换被取消 → 文件不变 ---
 p = os.path.join(TMP, "a2.txt")
@@ -174,36 +176,41 @@ orig = "中文内容测试\n".encode("utf-8")
 write_bytes(p, orig)
 pr = fresh_tab(p)
 DIALOGS.clear()
-_DLG_REPLY["value"] = QMessageBox.No          # 用户点"否"
+_DLG_REPLY["value"] = QMessageBox.No  # 用户点"否"
 win._on_encoding_changed("gbk")
-ok("A2.1 有损切换弹出警告",
-   any("切换编码会改变文件内容" in (ti or "") or
-       "切换编码会改变文件内容" in (t or "") for ti, t in DIALOGS),
-   str([ti for ti, _ in DIALOGS]))
-ok("A2.2 取消后编码未变",
-   (pr.document.meta.encoding or "").lower() not in ("gbk",),
-   pr.document.meta.encoding)
+ok(
+    "A2.1 有损切换弹出警告",
+    any(
+        "切换编码会改变文件内容" in (ti or "") or "切换编码会改变文件内容" in (t or "")
+        for ti, t in DIALOGS
+    ),
+    str([ti for ti, _ in DIALOGS]),
+)
+ok(
+    "A2.2 取消后编码未变",
+    (pr.document.meta.encoding or "").lower() not in ("gbk",),
+    pr.document.meta.encoding,
+)
 pr.save_file()
-ok("A2.3 取消后保存，磁盘字节未变", read_bytes(p) == orig,
-   repr(read_bytes(p)))
+ok("A2.3 取消后保存，磁盘字节未变", read_bytes(p) == orig, repr(read_bytes(p)))
 
 # --- A3: 接受有损切换但不保存 → 关闭重开原样 ---
 p = os.path.join(TMP, "a3.txt")
 orig = "中文内容测试\n".encode("utf-8")
 write_bytes(p, orig)
 pr = fresh_tab(p)
-_DLG_REPLY["value"] = QMessageBox.Yes         # 用户点"是"（只看一眼）
+_DLG_REPLY["value"] = QMessageBox.Yes  # 用户点"是"（只看一眼）
 win._on_encoding_changed("gbk")
 lossy_shown = sc_text(pr)
 status_msg = win.status_bar.currentMessage()
 meta_enc = pr.document.meta.encoding
-pr = fresh_tab(p)                              # 关闭重开（不保存）
-ok("A3.1 有损切换后界面确实显示乱码（符合预期）",
-   lossy_shown != "中文内容测试",
-   "text=%r enc=%r status=%r"
-   % (lossy_shown[:20], meta_enc, (status_msg or "")[:30]))
-ok("A3.2 重开后文本恢复正确",
-   sc_text(pr) == "中文内容测试", repr(sc_text(pr)))
+pr = fresh_tab(p)  # 关闭重开（不保存）
+ok(
+    "A3.1 有损切换后界面确实显示乱码（符合预期）",
+    lossy_shown != "中文内容测试",
+    "text=%r enc=%r status=%r" % (lossy_shown[:20], meta_enc, (status_msg or "")[:30]),
+)
+ok("A3.2 重开后文本恢复正确", sc_text(pr) == "中文内容测试", repr(sc_text(pr)))
 ok("A3.3 磁盘字节完全未变", read_bytes(p) == orig, "")
 
 # --- A4: 接受有损切换**并保存** → 记录后果（UI 已警告） ---
@@ -212,12 +219,11 @@ write_bytes(p, orig)
 pr = fresh_tab(p)
 _DLG_REPLY["value"] = QMessageBox.Yes
 win._on_encoding_changed("gbk")
-pr.sc.insertAt("", 0, 0)          # 触发脏标记
+pr.sc.insertAt("", 0, 0)  # 触发脏标记
 pr.save_file()
 after = read_bytes(p)
 info("A4 有损切换后保存的实际后果：原 %r → 新 %r" % (orig, after))
-ok("A4.1 保存前确有警告（用户是被明确告知的）",
-   True, "见 A2.1 —— 同一条 fail-closed 路径")
+ok("A4.1 保存前确有警告（用户是被明确告知的）", True, "见 A2.1 —— 同一条 fail-closed 路径")
 try:
     after.decode("gbk")
     ok("A4.2 有损保存后文件仍是合法 GBK 字节", True, "")
@@ -228,50 +234,44 @@ except Exception as e:
 p = os.path.join(TMP, "a5.txt")
 write_bytes(p, "中文转码\n".encode("gbk"))
 pr = fresh_tab(p)
-ok("A5.1 GBK 文件打开文本正确",
-   sc_text(pr) == "中文转码", repr(sc_text(pr)))
-conv_ok = pr.document.change_encoding(
-    "utf-8", reload=False, mode="convert"
-)
+ok("A5.1 GBK 文件打开文本正确", sc_text(pr) == "中文转码", repr(sc_text(pr)))
+conv_ok = pr.document.change_encoding("utf-8", reload=False, mode="convert")
 pr.save_file()
 ok("A5.2 convert 模式返回 True", bool(conv_ok), str(conv_ok))
-ok("A5.3 磁盘已变为 UTF-8 字节",
-   read_bytes(p) == "中文转码\n".encode("utf-8"),
-   repr(read_bytes(p)))
-ok("A5.4 文本语义不变（UTF-8 读回一致）",
-   read_bytes(p).decode("utf-8") == "中文转码\n", "")
+ok("A5.3 磁盘已变为 UTF-8 字节", read_bytes(p) == "中文转码\n".encode("utf-8"), repr(read_bytes(p)))
+ok("A5.4 文本语义不变（UTF-8 读回一致）", read_bytes(p).decode("utf-8") == "中文转码\n", "")
 
 # --- A6: UTF-16 LE（带 BOM）编辑保存，BOM 保留 ---
 p = os.path.join(TMP, "a6.txt")
 body = "UTF16 内容\n第二行\n"
 write_bytes(p, b"\xff\xfe" + body.encode("utf-16-le"))
 pr = fresh_tab(p)
-ok("A6.1 UTF-16 LE 打开无 BOM 字符",
-   not sc_text(pr).startswith("\ufeff"), repr(sc_text(pr)[:6]))
-ok("A6.2 UTF-16 LE 文本正确", sc_text(pr) == body.rstrip("\n"),
-   repr(sc_text(pr)))
+ok("A6.1 UTF-16 LE 打开无 BOM 字符", not sc_text(pr).startswith("\ufeff"), repr(sc_text(pr)[:6]))
+ok("A6.2 UTF-16 LE 文本正确", sc_text(pr) == body.rstrip("\n"), repr(sc_text(pr)))
 pr.sc.insertAt("Z", 0, 0)
 pr.save_file()
 data = read_bytes(p)
-ok("A6.3 保存后仍有 UTF-16 LE BOM", data.startswith(b"\xff\xfe"),
-   repr(data[:4]))
-ok("A6.4 保存后内容正确（BOM 外的部分）",
-   data[2:].decode("utf-16-le") == "Z" + body,
-   repr(data[2:].decode("utf-16-le")))
+ok("A6.3 保存后仍有 UTF-16 LE BOM", data.startswith(b"\xff\xfe"), repr(data[:4]))
+ok(
+    "A6.4 保存后内容正确（BOM 外的部分）",
+    data[2:].decode("utf-16-le") == "Z" + body,
+    repr(data[2:].decode("utf-16-le")),
+)
 
 # --- A7: UTF-8 BOM 编辑保存，BOM 保留 ---
 p = os.path.join(TMP, "a7.txt")
 write_bytes(p, b"\xef\xbb\xbf" + "带BOM\n".encode("utf-8"))
 pr = fresh_tab(p)
-ok("A7.1 UTF-8 BOM 文件打开无 BOM 字符",
-   not sc_text(pr).startswith("\ufeff"), repr(sc_text(pr)[:6]))
+ok(
+    "A7.1 UTF-8 BOM 文件打开无 BOM 字符",
+    not sc_text(pr).startswith("\ufeff"),
+    repr(sc_text(pr)[:6]),
+)
 pr.sc.insertAt("Q", 0, 0)
 pr.save_file()
 data = read_bytes(p)
-ok("A7.2 保存后仍有 UTF-8 BOM", data.startswith(b"\xef\xbb\xbf"),
-   repr(data[:5]))
-ok("A7.3 保存后内容正确",
-   data[3:].decode("utf-8") == "Q带BOM\n", repr(data[3:]))
+ok("A7.2 保存后仍有 UTF-8 BOM", data.startswith(b"\xef\xbb\xbf"), repr(data[:5]))
+ok("A7.3 保存后内容正确", data[3:].decode("utf-8") == "Q带BOM\n", repr(data[3:]))
 
 # ================================================================
 # B. 混合换行
@@ -286,21 +286,19 @@ pr = fresh_tab(p)
 lines = pr.sc.lines()
 txt = sc_text(pr)
 norm = txt.replace("\r\n", "\n").replace("\r", "\n")
-ok("B1.1 混合换行文件行数正确（4 行 + 末尾空行 = 5）",
-   lines == 5, "lines=%d" % lines)
+ok("B1.1 混合换行文件行数正确（4 行 + 末尾空行 = 5）", lines == 5, "lines=%d" % lines)
 # ⚠ 实测行为：QScintilla 的 `text()` **保留原始 CR 字符**
 #   （`'line1\r\nline2\nline3\rline4\r'`），它按 CRLF/CR 都算换行，
 #   所以行数与显示正确。这里断言的是"内容正确"，不是"文本里没有 CR"。
-ok("B1.2 混合换行内容正确（归一后）",
-   norm == "line1\nline2\nline3\nline4", repr(txt))
-ok("B1.3 编辑器保留了每行的原始行尾符号",
-   txt.count("\r\n") == 1
-   and txt.count("\n") - txt.count("\r\n") == 1
-   and txt.count("\r") - txt.count("\r\n") == 1,
-   "CRLF=%d 单独LF=%d 单独CR=%d"
-   % (txt.count("\r\n"),
-      txt.count("\n") - txt.count("\r\n"),
-      txt.count("\r") - txt.count("\r\n")))
+ok("B1.2 混合换行内容正确（归一后）", norm == "line1\nline2\nline3\nline4", repr(txt))
+ok(
+    "B1.3 编辑器保留了每行的原始行尾符号",
+    txt.count("\r\n") == 1
+    and txt.count("\n") - txt.count("\r\n") == 1
+    and txt.count("\r") - txt.count("\r\n") == 1,
+    "CRLF=%d 单独LF=%d 单独CR=%d"
+    % (txt.count("\r\n"), txt.count("\n") - txt.count("\r\n"), txt.count("\r") - txt.count("\r\n")),
+)
 
 # B2: 编辑一行后保存（未显式切 EOL）
 pr.sc.insertAt("EDIT ", 0, 0)
@@ -308,13 +306,17 @@ pr.save_file()
 data = read_bytes(p)
 info("B2 混合换行文件编辑后保存的实际字节：%r" % data)
 lines_after = data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-ok("B2.1 编辑生效（首行有 EDIT）", data.startswith(b"EDIT line1"),
-   repr(data[:14]))
-ok("B2.2 保存后行数不变（归一比较）",
-   lines_after.count(b"\n") == 4, "换行数=%d" % lines_after.count(b"\n"))
-ok("B2.3 未编辑内容未丢失",
-   all(x in lines_after for x in (b"line2", b"line3", b"line4")),
-   repr(lines_after))
+ok("B2.1 编辑生效（首行有 EDIT）", data.startswith(b"EDIT line1"), repr(data[:14]))
+ok(
+    "B2.2 保存后行数不变（归一比较）",
+    lines_after.count(b"\n") == 4,
+    "换行数=%d" % lines_after.count(b"\n"),
+)
+ok(
+    "B2.3 未编辑内容未丢失",
+    all(x in lines_after for x in (b"line2", b"line3", b"line4")),
+    repr(lines_after),
+)
 
 # B3: 显式切 CRLF 后保存 → 全 CRLF
 p = os.path.join(TMP, "b3.txt")
@@ -323,16 +325,14 @@ pr = fresh_tab(p)
 win._on_eol_changed("\r\n")
 pr.save_file()
 data = read_bytes(p)
-ok("B3.1 显式切 CRLF 后保存，全部为 CRLF",
-   data == b"one\r\ntwo\r\nthree\r\n", repr(data))
+ok("B3.1 显式切 CRLF 后保存，全部为 CRLF", data == b"one\r\ntwo\r\nthree\r\n", repr(data))
 ok("B3.2 没有出现 CRCRLF", b"\r\r" not in data, "")
 
 # B4: 再切回 LF
 win._on_eol_changed("\n")
 pr.save_file()
 data = read_bytes(p)
-ok("B4.1 切回 LF 后保存，全部为 LF", data == b"one\ntwo\nthree\n",
-   repr(data))
+ok("B4.1 切回 LF 后保存，全部为 LF", data == b"one\ntwo\nthree\n", repr(data))
 
 # B5: 混合换行 + 列编辑批量插入 → 保存 → 重开
 p = os.path.join(TMP, "b5.txt")
@@ -351,49 +351,62 @@ try:
     # 注意：`pad` 是**填充方式字符串**（PAD_NONE/PAD_ZERO/PAD_SPACE），
     # 不是整数宽度；`lines` 是显式行号列表（None 时退化为光标/选区）。
     cfg = ColumnEditConfig(
-        mode=MODE_NUMBER, start=1, step=1, radix=10, pad=PAD_ZERO,
-        prefix="", lines=[0, 1, 2], column=0,
+        mode=MODE_NUMBER,
+        start=1,
+        step=1,
+        radix=10,
+        pad=PAD_ZERO,
+        prefix="",
+        lines=[0, 1, 2],
+        column=0,
     )
     res = apply_column_edit(pr, cfg)
     col_ok = bool(getattr(res, "ok", False))
-    info("B5 列编辑结果：ok=%r reason=%r entries=%d"
-         % (getattr(res, "ok", None), getattr(res, "reason", ""),
-            len(getattr(res, "entries", []) or [])))
+    info(
+        "B5 列编辑结果：ok=%r reason=%r entries=%d"
+        % (
+            getattr(res, "ok", None),
+            getattr(res, "reason", ""),
+            len(getattr(res, "entries", []) or []),
+        )
+    )
 except Exception as e:
-    info("B5 列编辑调用失败（不影响其它用例）: %s: %s"
-         % (type(e).__name__, e))
+    info("B5 列编辑调用失败（不影响其它用例）: %s: %s" % (type(e).__name__, e))
 
 pr.save_file()
 data = read_bytes(p)
 info("B5 保存后字节：%r" % data)
-ok("B5.1 列编辑后保存的行数不变",
-   data.replace(b"\r\n", b"\n").replace(b"\r", b"\n").count(b"\n") == 3,
-   "换行数=%d" % data.replace(b"\r\n", b"\n").replace(
-       b"\r", b"\n").count(b"\n"))
+ok(
+    "B5.1 列编辑后保存的行数不变",
+    data.replace(b"\r\n", b"\n").replace(b"\r", b"\n").count(b"\n") == 3,
+    "换行数=%d" % data.replace(b"\r\n", b"\n").replace(b"\r", b"\n").count(b"\n"),
+)
 pr = fresh_tab(p)
 ok("B5.2 重开后行数一致", pr.sc.lines() == 4, "lines=%d" % pr.sc.lines())
 if col_ok:
     # 编号是 1..3（PAD_ZERO 按"最大数字宽度"补零，1 位数宽 → 不补零）
-    ok("B5.3 重开后能看到编号且列位置正确",
-       all(tok in sc_text(pr) for tok in ("1aaa", "2bbb", "3ccc")),
-       repr(sc_text(pr)[:50]))
+    ok(
+        "B5.3 重开后能看到编号且列位置正确",
+        all(tok in sc_text(pr) for tok in ("1aaa", "2bbb", "3ccc")),
+        repr(sc_text(pr)[:50]),
+    )
 
 # B6: 纯 CR 文件
 p = os.path.join(TMP, "b6.txt")
 write_bytes(p, b"x\ry\rz\r")
 pr = fresh_tab(p)
-ok("B6.1 纯 CR 文件行数正确", pr.sc.lines() == 4,
-   "lines=%d" % pr.sc.lines())
+ok("B6.1 纯 CR 文件行数正确", pr.sc.lines() == 4, "lines=%d" % pr.sc.lines())
 # 同上：编辑器 text() 保留 CR，断言"归一后内容正确"
-ok("B6.2 纯 CR 文本内容正确（归一后）",
-   sc_text(pr).replace("\r", "\n") == "x\ny\nz", repr(sc_text(pr)))
+ok(
+    "B6.2 纯 CR 文本内容正确（归一后）",
+    sc_text(pr).replace("\r", "\n") == "x\ny\nz",
+    repr(sc_text(pr)),
+)
 pr.sc.insertAt("W", 0, 0)
 pr.save_file()
 data = read_bytes(p)
-ok("B6.3 纯 CR 文件保存后内容未损坏",
-   data.replace(b"\r", b"\n") == b"Wx\ny\nz\n", repr(data))
-ok("B6.4 纯 CR 文件的 CR 行尾被保留",
-   data.count(b"\r") == 3 and b"\n" not in data, repr(data))
+ok("B6.3 纯 CR 文件保存后内容未损坏", data.replace(b"\r", b"\n") == b"Wx\ny\nz\n", repr(data))
+ok("B6.4 纯 CR 文件的 CR 行尾被保留", data.count(b"\r") == 3 and b"\n" not in data, repr(data))
 
 # ================================================================
 # C. 组合场景
@@ -407,36 +420,39 @@ body = "甲\r\n乙\r\n"
 write_bytes(p, b"\xff\xfe" + body.encode("utf-16-le"))
 pr = fresh_tab(p)
 # 编辑器 text() 保留 CR（实测行为），断言归一后的内容
-ok("C1.1 UTF-16 + CRLF 打开正确（归一后）",
-   sc_text(pr).replace("\r\n", "\n").replace("\r", "\n") == "甲\n乙",
-   repr(sc_text(pr)))
-pr.sc.insertAt("丙", 1, 0)        # 第二行开头插入
+ok(
+    "C1.1 UTF-16 + CRLF 打开正确（归一后）",
+    sc_text(pr).replace("\r\n", "\n").replace("\r", "\n") == "甲\n乙",
+    repr(sc_text(pr)),
+)
+pr.sc.insertAt("丙", 1, 0)  # 第二行开头插入
 win._on_eol_changed("\n")
 pr.save_file()
 data = read_bytes(p)
-ok("C1.2 保存后仍是 UTF-16 LE（BOM）", data.startswith(b"\xff\xfe"),
-   repr(data[:4]))
+ok("C1.2 保存后仍是 UTF-16 LE（BOM）", data.startswith(b"\xff\xfe"), repr(data[:4]))
 decoded = data[2:].decode("utf-16-le")
 ok("C1.3 EOL 已转为 LF", "\r" not in decoded, repr(decoded))
-ok("C1.4 编码转换没有破坏内容",
-   decoded.count("甲") == 1 and decoded.count("丙") == 1
-   and decoded.count("乙") == 1, repr(decoded))
+ok(
+    "C1.4 编码转换没有破坏内容",
+    decoded.count("甲") == 1 and decoded.count("丙") == 1 and decoded.count("乙") == 1,
+    repr(decoded),
+)
 
 # C2: GBK + CRLF → 转 UTF-8 + 切 LF → 保存
 p = os.path.join(TMP, "c2.txt")
 write_bytes(p, "中文\r\n第二行\r\n".encode("gbk"))
 pr = fresh_tab(p)
-ok("C2.1 GBK+CRLF 打开正确（归一后）",
-   sc_text(pr).replace("\r\n", "\n").replace("\r", "\n") == "中文\n第二行",
-   repr(sc_text(pr)))
+ok(
+    "C2.1 GBK+CRLF 打开正确（归一后）",
+    sc_text(pr).replace("\r\n", "\n").replace("\r", "\n") == "中文\n第二行",
+    repr(sc_text(pr)),
+)
 pr.document.change_encoding("utf-8", reload=False, mode="convert")
 win._on_eol_changed("\n")
 pr.save_file()
 data = read_bytes(p)
-ok("C2.2 保存后为 UTF-8 字节",
-   data == "中文\n第二行\n".encode("utf-8"), repr(data))
-ok("C2.3 无 BOM（转换不应凭空加 BOM）",
-   not data.startswith(b"\xef\xbb\xbf"), repr(data[:4]))
+ok("C2.2 保存后为 UTF-8 字节", data == "中文\n第二行\n".encode("utf-8"), repr(data))
+ok("C2.3 无 BOM（转换不应凭空加 BOM）", not data.startswith(b"\xef\xbb\xbf"), repr(data[:4]))
 
 # C3: 大文件（2MB）+ 切 EOL + 编辑 + 保存
 if not QUICK:
@@ -448,18 +464,19 @@ if not QUICK:
     t0 = time.time()
     pr = fresh_tab(p)
     t_open = time.time() - t0
-    ok("C3.1 打开 2MB 文件行数正确", pr.sc.lines() == n + 1,
-       "lines=%d (%.1f MB)" % (pr.sc.lines(), size_mb))
+    ok(
+        "C3.1 打开 2MB 文件行数正确",
+        pr.sc.lines() == n + 1,
+        "lines=%d (%.1f MB)" % (pr.sc.lines(), size_mb),
+    )
     t0 = time.time()
     win._on_eol_changed("\r\n")
     pr.save_file()
     t_conv = time.time() - t0
     data = read_bytes(p)
-    ok("C3.2 大文件切 CRLF 后保存成功",
-       data.count(b"\r\n") == n, "CRLF=%d" % data.count(b"\r\n"))
+    ok("C3.2 大文件切 CRLF 后保存成功", data.count(b"\r\n") == n, "CRLF=%d" % data.count(b"\r\n"))
     ok("C3.3 大文件没有出现 CRCRLF", b"\r\r" not in data, "")
-    info("C3 耗时：打开 %.2fs，切 EOL+保存 %.2fs（%d 行）"
-         % (t_open, t_conv, n))
+    info("C3 耗时：打开 %.2fs，切 EOL+保存 %.2fs（%d 行）" % (t_open, t_conv, n))
 else:
     info("C3 已跳过（--quick）")
 
@@ -484,10 +501,13 @@ for i, (label, raw) in enumerate(CASES, 1):
     p = os.path.join(TMP, "d%d.bin" % i)
     write_bytes(p, raw)
     pr = fresh_tab(p)
-    pr.save_file()          # 打开后**不编辑**直接保存
+    pr.save_file()  # 打开后**不编辑**直接保存
     same = read_bytes(p) == raw
-    ok("D1.%d 打开后立即保存字节不变（%s）" % (i, label), same,
-       "" if same else "原=%r 新=%r" % (raw[:16], read_bytes(p)[:16]))
+    ok(
+        "D1.%d 打开后立即保存字节不变（%s）" % (i, label),
+        same,
+        "" if same else "原=%r 新=%r" % (raw[:16], read_bytes(p)[:16]),
+    )
 
 # D2: 编辑后撤销全部 → 保存 → 字节一致
 #
@@ -502,15 +522,13 @@ write_bytes(p, raw)
 pr = fresh_tab(p)
 pr.sc.insertAt("ZZZ", 0, 0)
 app.processEvents()
-info("D2 插入后 can_undo=%r text=%r"
-     % (pr.undo_manager.can_undo(), pr.sc.text()))
+info("D2 插入后 can_undo=%r text=%r" % (pr.undo_manager.can_undo(), pr.sc.text()))
 pr.undo()
 app.processEvents()
 info("D2 proxy.undo() 后 text=%r" % (pr.sc.text(),))
 pr.save_file()
 info("D2 编辑+撤销后保存字节：%r（原 %r）" % (read_bytes(p), raw))
-ok("D2.1 编辑并撤销后保存不改变内容",
-   read_bytes(p) == raw, repr(read_bytes(p)))
+ok("D2.1 编辑并撤销后保存不改变内容", read_bytes(p) == raw, repr(read_bytes(p)))
 
 # D3: 保存后 Scintilla 行数与 provider 行数一致
 p = os.path.join(TMP, "d3.txt")
@@ -519,8 +537,7 @@ pr = fresh_tab(p)
 sc_n = pr.sc.lines()
 prov = pr.document.provider.read_text()
 prov_n = prov.count("\n") + (0 if prov.endswith("\n") else 1)
-ok("D3.1 编辑器行数与 provider 行数一致",
-   sc_n == prov_n + 1, "sc=%d prov=%d" % (sc_n, prov_n))
+ok("D3.1 编辑器行数与 provider 行数一致", sc_n == prov_n + 1, "sc=%d prov=%d" % (sc_n, prov_n))
 
 # ================================================================
 # 汇总
@@ -536,6 +553,7 @@ if FAIL:
 
 try:
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
 except Exception:
     pass

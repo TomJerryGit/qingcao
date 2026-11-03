@@ -12,6 +12,7 @@
 
 另外验证权限门控：没有 editor_read 权限时必须抛 PermissionError。
 """
+
 import threading
 import time
 
@@ -20,6 +21,7 @@ import pytest
 
 def _api(win, permissions=("editor_read",), name="test_plugin"):
     from app.plugins import PluginAPI
+
     return PluginAPI(win, permissions=list(permissions), plugin_name=name)
 
 
@@ -36,14 +38,13 @@ def test_completion_provider_merged_and_unregistered(qapp, tmp_path):
             called["n"] += 1
             return ["plugword"] if prefix == "pl" else []
 
-        assert api.register_completion_provider(
-            provider, language_ids=["python"]) is True
+        assert api.register_completion_provider(provider, language_ids=["python"]) is True
 
         # 语言匹配规则（单元级）：python 命中、js 不命中
         assert "plugword" in win.collect_plugin_completions(
-            "pl", language="python", filepath="x.py")
-        assert win.collect_plugin_completions(
-            "pl", language="javascript", filepath="x.js") == []
+            "pl", language="python", filepath="x.py"
+        )
+        assert win.collect_plugin_completions("pl", language="javascript", filepath="x.js") == []
 
         # 用真实 .py 文件打开，让 _completion_language() 能识别 python
         py_file = tmp_path / "x.py"
@@ -74,14 +75,18 @@ def test_publish_diagnostics_merges_and_clears(qapp):
         manager = get_problem_manager()
         fp = "C:/qc_test/diag_target.py"
         # 预置一条"别的来源"的诊断，验证不会被本插件清掉
-        manager.set_file_problems(fp, [Problem(
-            filepath=fp, line=9, col=0, severity="warning",
-            message="from LSP", source="lsp")])
+        manager.set_file_problems(
+            fp,
+            [
+                Problem(
+                    filepath=fp, line=9, col=0, severity="warning", message="from LSP", source="lsp"
+                )
+            ],
+        )
 
         api = _api(win, name="diag_plugin")
         n = api.publish_diagnostics(
-            [{"line": 2, "col": 1, "severity": "error",
-              "message": "boom", "code": "E001"}],
+            [{"line": 2, "col": 1, "severity": "error", "message": "boom", "code": "E001"}],
             filepath=fp,
         )
         assert n == 1
@@ -132,9 +137,7 @@ def test_run_background_callbacks_on_main_thread(qapp):
 
         # 异常路径：on_error 收到异常文本
         err = {}
-        api.run_background(lambda: 1 / 0,
-                           on_error=lambda msg: err.update(msg=msg),
-                           name="unit-err")
+        api.run_background(lambda: 1 / 0, on_error=lambda msg: err.update(msg=msg), name="unit-err")
         deadline = time.time() + 5
         while time.time() < deadline and "msg" not in err:
             qapp.processEvents()
@@ -169,18 +172,17 @@ def test_hover_provider_collected_and_filtered(qapp):
     win = MainWindow()
     try:
         api = _api(win, name="hover_plugin")
-        assert api.register_hover_provider(
-            lambda line, col, filepath="", language="":
-                "行 %d 的提示" % line,
-            language_ids=["python"],
-        ) is True
-        assert "行 3" in win.collect_plugin_hover(
-            "x.py", 3, 0, language="python")
-        assert win.collect_plugin_hover(
-            "x.js", 3, 0, language="javascript") == ""
+        assert (
+            api.register_hover_provider(
+                lambda line, col, filepath="", language="": "行 %d 的提示" % line,
+                language_ids=["python"],
+            )
+            is True
+        )
+        assert "行 3" in win.collect_plugin_hover("x.py", 3, 0, language="python")
+        assert win.collect_plugin_hover("x.js", 3, 0, language="javascript") == ""
         api.cleanup()
-        assert win.collect_plugin_hover(
-            "x.py", 3, 0, language="python") == ""
+        assert win.collect_plugin_hover("x.py", 3, 0, language="python") == ""
     finally:
         _close_without_session(win)
 
@@ -191,20 +193,25 @@ def test_context_menu_code_action_and_status_item(qapp):
 
     win = MainWindow()
     try:
-        api = _api(win, permissions=("editor_read", "editor_write", "dialog"),
-                   name="ui_plugin")
+        api = _api(win, permissions=("editor_read", "editor_write", "dialog"), name="ui_plugin")
         fired = {"ctx": 0, "code": 0}
-        assert api.add_editor_context_menu(
-            "插件动作", lambda: fired.__setitem__("ctx", 1)) is True
+        assert api.add_editor_context_menu("插件动作", lambda: fired.__setitem__("ctx", 1)) is True
         assert len(win.collect_editor_context_actions()) == 1
 
-        assert api.register_code_action_provider(
-            lambda line, col, filepath="", language="": [{
-                "title": "修复它", "kind": "quickfix",
-                "callback": lambda: fired.__setitem__("code", 1),
-            }], language_ids=["python"]) is True
-        actions = win.collect_code_actions(
-            "x.py", 1, 0, language="python")
+        assert (
+            api.register_code_action_provider(
+                lambda line, col, filepath="", language="": [
+                    {
+                        "title": "修复它",
+                        "kind": "quickfix",
+                        "callback": lambda: fired.__setitem__("code", 1),
+                    }
+                ],
+                language_ids=["python"],
+            )
+            is True
+        )
+        actions = win.collect_code_actions("x.py", 1, 0, language="python")
         assert len(actions) == 1 and actions[0]["title"] == "修复它"
         actions[0]["callback"]()
         assert fired["code"] == 1
@@ -224,19 +231,28 @@ def test_decoration_and_settings_schema(qapp, tmp_path):
 
     win = MainWindow()
     try:
-        api = _api(win, permissions=("editor_read", "editor_write", "dialog"),
-                   name="deco_plugin")
+        api = _api(win, permissions=("editor_read", "editor_write", "dialog"), name="deco_plugin")
         py_file = tmp_path / "d.py"
         py_file.write_text("a = 1\nb = 2\n", encoding="utf-8")
         win.tabs.open_file(str(py_file))
         assert api.add_decoration(0, 1, "#FF0000") is True
 
-        assert api.register_settings_schema([
-            {"key": "timeout", "label": "超时", "type": "int",
-             "default": 30, "min": 1, "max": 600},
-            {"key": "enabled", "label": "启用", "type": "bool",
-             "default": True},
-        ]) is True
+        assert (
+            api.register_settings_schema(
+                [
+                    {
+                        "key": "timeout",
+                        "label": "超时",
+                        "type": "int",
+                        "default": 30,
+                        "min": 1,
+                        "max": 600,
+                    },
+                    {"key": "enabled", "label": "启用", "type": "bool", "default": True},
+                ]
+            )
+            is True
+        )
         assert api.get_config("timeout", None) == 30
         assert api.get_config("enabled", None) is True
         api.cleanup()

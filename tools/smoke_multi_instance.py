@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """P1：多实例无头冒烟 —— 两个进程验证保存广播"""
+
 import os
 import subprocess
 import sys
@@ -28,10 +29,17 @@ def main() -> int:
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["PYTHONIOENCODING"] = "utf-8"
-    hub = subprocess.Popen([sys.executable, PROBE, "hub", name, path],
-                           cwd=ROOT, env=env, stdin=subprocess.PIPE,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           text=True, encoding="utf-8", errors="replace")
+    hub = subprocess.Popen(
+        [sys.executable, PROBE, "hub", name, path],
+        cwd=ROOT,
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     client = None
     try:
         line, _ = _read_expect(hub.stdout, "HUB")
@@ -39,12 +47,16 @@ def main() -> int:
             print("[smoke] hub 启动失败")
             return 1
         print("[smoke] hub ready")
-        client = subprocess.Popen([sys.executable, PROBE, "client", name,
-                                   path],
-                                  cwd=ROOT, env=env,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True,
-                                  encoding="utf-8", errors="replace")
+        client = subprocess.Popen(
+            [sys.executable, PROBE, "client", name, path],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         line, _ = _read_expect(client.stdout, "CLIENT")
         if not line:
             print("[smoke] client 连接失败")

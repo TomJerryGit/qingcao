@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.15：沙箱诊断按文件聚合"""
+
 from unittest.mock import patch
 
 import pytest
@@ -43,8 +44,11 @@ class FakeTabs:
 
 class FakeSp:
     def diagnostics(self, text):
-        return [{"line": 1, "col": 0, "severity": "info",
-                 "message": "d:%d" % len(text)}] if text else []
+        return (
+            [{"line": 1, "col": 0, "severity": "info", "message": "d:%d" % len(text)}]
+            if text
+            else []
+        )
 
 
 class FakeManager:
@@ -71,14 +75,13 @@ def _close(win):
 def test_aggregate_all_files(qapp):
     win = MainWindow()
     mgr = FakeManager()
-    tabs = FakeTabs([FakeEditor("a.py", "x" * 3),
-                     FakeEditor("b.py", "y" * 5)])
+    tabs = FakeTabs([FakeEditor("a.py", "x" * 3), FakeEditor("b.py", "y" * 5)])
     try:
-        with patch.object(win, "_get_sandboxed_plugins",
-                          return_value={"dummy": FakeSp()}), \
-             patch.object(win, "tabs", tabs), \
-             patch("core.problems.get_problem_manager",
-                   return_value=mgr):
+        with patch.object(
+            win, "_get_sandboxed_plugins", return_value={"dummy": FakeSp()}
+        ), patch.object(win, "tabs", tabs), patch(
+            "core.problems.get_problem_manager", return_value=mgr
+        ):
             total = win.run_sandboxed_diagnostics(all_files=True)
         assert total == 2
         assert set(mgr.files) == {"a.py", "b.py"}
@@ -93,11 +96,11 @@ def test_live_only_current_file(qapp):
     win = MainWindow()
     tabs = FakeTabs([FakeEditor("a.py", "x"), FakeEditor("b.py", "yy")])
     try:
-        with patch.object(win, "_get_sandboxed_plugins",
-                          return_value={"dummy": FakeSp()}), \
-             patch.object(win, "tabs", tabs), patch.object(win, "run_sandboxed_diagnostics",
-                          return_value=7) as m, patch.object(win, "_sandbox_live_enabled",
-                          return_value=True):
+        with patch.object(
+            win, "_get_sandboxed_plugins", return_value={"dummy": FakeSp()}
+        ), patch.object(win, "tabs", tabs), patch.object(
+            win, "run_sandboxed_diagnostics", return_value=7
+        ) as m, patch.object(win, "_sandbox_live_enabled", return_value=True):
             win._run_live_sandbox_diagnostics()
         m.assert_called_once_with(all_files=False)
     finally:

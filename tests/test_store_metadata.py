@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """商店元数据展示：update_url / changelog（P1 尾巴）"""
+
 import ast
 import os
 
@@ -11,8 +12,7 @@ STORE = os.path.join(ROOT, "ui", "plugin_store.py")
 def test_plugin_info_has_changelog_and_update_url():
     from ui.plugin_store import PluginInfo
 
-    info = PluginInfo(name="p", changelog="修复了 X",
-                      update_url="https://example.com/upd.json")
+    info = PluginInfo(name="p", changelog="修复了 X", update_url="https://example.com/upd.json")
     assert info.changelog == "修复了 X"
     assert info.update_url.startswith("https://")
 

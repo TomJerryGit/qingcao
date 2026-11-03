@@ -12,6 +12,7 @@
 
     python -m pytest tests/test_ai_enhancements.py -v
 """
+
 import os
 import sys
 import threading
@@ -28,6 +29,7 @@ from core.ai_cache import AIResultCache  # noqa: E402
 # =========================================================
 # ② 结果缓存
 # =========================================================
+
 
 class FakeClient:
     def __init__(self, **kw):
@@ -58,22 +60,27 @@ class TestCacheKey:
         k2 = AIResultCache.make_key(c, "P", "S", 1024)
         assert k1 == k2
 
-    @pytest.mark.parametrize("field,value", [
-        ("model", "gpt-4o-mini"),
-        ("provider", "ollama"),
-        ("base_url", "https://y/v1"),
-        ("temperature", 0.9),
-    ])
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("model", "gpt-4o-mini"),
+            ("provider", "ollama"),
+            ("base_url", "https://y/v1"),
+            ("temperature", 0.9),
+        ],
+    )
     def test_differs_when_client_field_differs(self, field, value):
         base = FakeClient()
         other = FakeClient(**{field: value})
-        assert (AIResultCache.make_key(base, "P", "S", 1024)
-                != AIResultCache.make_key(other, "P", "S", 1024)), field
+        assert AIResultCache.make_key(base, "P", "S", 1024) != AIResultCache.make_key(
+            other, "P", "S", 1024
+        ), field
 
     def test_differs_on_max_tokens(self):
         c = FakeClient()
-        assert (AIResultCache.make_key(c, "P", "S", 1024)
-                != AIResultCache.make_key(c, "P", "S", 2048))
+        assert AIResultCache.make_key(c, "P", "S", 1024) != AIResultCache.make_key(
+            c, "P", "S", 2048
+        )
 
     def test_differs_on_system_and_prompt(self):
         c = FakeClient()
@@ -109,8 +116,8 @@ class TestCacheBehaviour:
         cache = AIResultCache(max_entries=2)
         cache.put("a", "1")
         cache.put("b", "2")
-        cache.get("a")              # 让 a 变"新"
-        cache.put("c", "3")         # 应淘汰 b
+        cache.get("a")  # 让 a 变"新"
+        cache.put("c", "3")  # 应淘汰 b
         assert cache.get("a") == "1"
         assert cache.get("b") is None
         assert cache.get("c") == "3"
@@ -142,7 +149,7 @@ class TestCacheBehaviour:
                 for i in range(60):
                     cache.put("%s-%d" % (tag, i), "v%d" % i)
                     cache.get("%s-%d" % (tag, i - 1))
-            except Exception as e:      # pragma: no cover
+            except Exception as e:  # pragma: no cover
                 errors.append(e)
 
         ts = [threading.Thread(target=worker, args=(t,)) for t in "abcd"]
@@ -155,6 +162,7 @@ class TestCacheBehaviour:
 
     def test_shared_singleton(self):
         from core.ai_cache import get_result_cache
+
         assert get_result_cache() is get_result_cache()
 
 
@@ -162,11 +170,12 @@ class TestCacheBehaviour:
 # ① 推理状态显示
 # =========================================================
 
+
 class TestWaitingStatus:
     def _dlg(self):
         from plugins.ai_assistant import AIResultDialog
-        return AIResultDialog(title="t", main_window=None,
-                              enable_insert=True, parent=None)
+
+        return AIResultDialog(title="t", main_window=None, enable_insert=True, parent=None)
 
     def test_thinking_phase_mentions_elapsed(self, qapp):
         dlg = self._dlg()
@@ -223,10 +232,12 @@ class TestWaitingStatus:
 # ③ 会话窗口
 # =========================================================
 
+
 class TestSessionWindow:
     def _plugin(self):
         from app.plugins import PluginBase
         from plugins.ai_assistant import Plugin
+
         inst = Plugin.__new__(Plugin)
         PluginBase.__init__(inst)
         inst._menus = []
@@ -288,6 +299,7 @@ class TestSessionWindow:
 
     def test_session_window_default_on(self, qapp):
         from plugins.ai_assistant import Plugin
+
         inst = self._plugin()
         assert inst._session_window_enabled() is True
 
@@ -296,6 +308,7 @@ class TestSessionWindow:
         from PyQt5.QtCore import QSettings
 
         from plugins.ai_assistant import Plugin
+
         inst = self._plugin()
         QSettings("QingCao", "AI").setValue("session_window", False)
         try:
@@ -309,25 +322,27 @@ class TestSessionWindow:
 # ③b 按文件归档会话
 # =========================================================
 
+
 class TestPerFileSessions:
     """多文件交替提问时，上下文必须各自独立"""
 
     def _dlg(self):
         from plugins.ai_assistant import AIResultDialog
-        d = AIResultDialog(title="t", main_window=None,
-                           enable_insert=True, parent=None)
+
+        d = AIResultDialog(title="t", main_window=None, enable_insert=True, parent=None)
         d._client = FakeClient()
         return d
 
     def test_session_key_normalises_path_case(self):
         from plugins.ai_assistant import AIResultDialog
+
         # Windows 下同一文件的不同大小写写法必须归到同一会话，
         # 否则同会话片段会被误判成"别的会话"而丢进后台缓冲
-        assert (AIResultDialog.session_key(r"D:\P\A.py")
-                == AIResultDialog.session_key(r"d:\p\a.py"))
+        assert AIResultDialog.session_key(r"D:\P\A.py") == AIResultDialog.session_key(r"d:\p\a.py")
 
     def test_session_key_for_unsaved(self):
         from plugins.ai_assistant import AIResultDialog
+
         assert AIResultDialog.session_key("") == "(未命名)"
         assert AIResultDialog.session_key("   ") == "(未命名)"
 
@@ -338,8 +353,10 @@ class TestPerFileSessions:
 
         dlg.switch_to_file(a, "解释")
         dlg._result_text += "A 结果"
-        client._history = [{"role": "user", "content": "问A"},
-                           {"role": "assistant", "content": "答A"}]
+        client._history = [
+            {"role": "user", "content": "问A"},
+            {"role": "assistant", "content": "答A"},
+        ]
 
         dlg.switch_to_file(b, "重构")
         assert client._history == [], "B 是新会话，历史必须为空"
@@ -386,12 +403,13 @@ class TestPerFileSessions:
         dlg.switch_to_file(a, "x")
         # 生产路径就是用 session_key 归一化后记录来源
         from plugins.ai_assistant import AIResultDialog
+
         dlg._chunk_session_key = AIResultDialog.session_key(a)
         dlg._on_chunk("来自A")
         assert "来自A" in dlg._result_text, "同会话片段应立即显示"
 
         dlg.switch_to_file(b)
-        dlg._on_chunk("A的后半段")          # 仍属于 A
+        dlg._on_chunk("A的后半段")  # 仍属于 A
         assert "A的后半段" not in dlg._result_text, "不能污染 B 的窗口"
 
         dlg.switch_to_file(a)
@@ -424,10 +442,12 @@ class TestPerFileSessions:
 # ④ 命令面板
 # =========================================================
 
+
 class TestCommandRegistration:
     def test_registers_expected_commands(self, qapp):
         from app.plugins import PluginBase
         from plugins.ai_assistant import Plugin
+
         inst = Plugin.__new__(Plugin)
         PluginBase.__init__(inst)
         inst._menus = []
@@ -446,9 +466,17 @@ class TestCommandRegistration:
         inst.api = api
         inst._register_commands()
 
-        for expected in ("ai.explain", "ai.refactor", "ai.fix",
-                         "ai.comment", "ai.docstring", "ai.tests",
-                         "ai.optimize", "ai.review", "ai.summary"):
+        for expected in (
+            "ai.explain",
+            "ai.refactor",
+            "ai.fix",
+            "ai.comment",
+            "ai.docstring",
+            "ai.tests",
+            "ai.optimize",
+            "ai.review",
+            "ai.summary",
+        ):
             assert expected in api.cmds, expected
         # 编程式快速问答 + 缓存管理
         assert "ai.quick_explain" in api.cmds
@@ -460,6 +488,7 @@ class TestCommandRegistration:
     def test_all_commands_have_ai_prefix_in_description(self, qapp):
         from app.plugins import PluginBase
         from plugins.ai_assistant import Plugin
+
         inst = Plugin.__new__(Plugin)
         PluginBase.__init__(inst)
         inst._menus = []
@@ -486,6 +515,7 @@ class TestCacheManagementCommands:
         from app.plugins import PluginBase
         from core.ai_cache import get_result_cache
         from plugins.ai_assistant import Plugin
+
         cache = get_result_cache()
         cache.put("k", "v")
         inst = Plugin.__new__(Plugin)
@@ -513,6 +543,7 @@ class TestCacheManagementCommands:
     def test_cache_stats_command(self, qapp):
         from app.plugins import PluginBase
         from plugins.ai_assistant import Plugin
+
         inst = Plugin.__new__(Plugin)
         PluginBase.__init__(inst)
         inst._menus = []

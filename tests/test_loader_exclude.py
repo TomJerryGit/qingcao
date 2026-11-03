@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """B-3c：加载器导入级排除测试（沙箱插件不被主进程 import）"""
+
 import json
 import os
 
@@ -9,14 +10,24 @@ def _mk_plugin(root, name, write_marker=False):
     d.mkdir(parents=True, exist_ok=True)
     code = "class Plugin:\n    NAME = %r\n    VERSION = '1.0.0'\n" % name
     if write_marker:
-        code += ("\nimport os\nwith open(os.path.join(os.path.dirname("
-                 "__file__), 'IMPORTED'), 'w') as f:\n"
-                 "    f.write('x')\n")
+        code += (
+            "\nimport os\nwith open(os.path.join(os.path.dirname("
+            "__file__), 'IMPORTED'), 'w') as f:\n"
+            "    f.write('x')\n"
+        )
     (d / "__init__.py").write_text(code, encoding="utf-8")
-    (d / "plugin.json").write_text(json.dumps({
-        "name": name, "display_name": name, "version": "1.0.0",
-        "permissions": ["editor_read"], "api_version": "2.0.0",
-    }), encoding="utf-8")
+    (d / "plugin.json").write_text(
+        json.dumps(
+            {
+                "name": name,
+                "display_name": name,
+                "version": "1.0.0",
+                "permissions": ["editor_read"],
+                "api_version": "2.0.0",
+            }
+        ),
+        encoding="utf-8",
+    )
     return d
 
 

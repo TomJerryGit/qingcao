@@ -22,6 +22,7 @@
 同时锁住同族风险：`QMenuBar.insertMenu()` 返回的是 **QAction**（不是
 QMenu），以及 `_add_action(slot=None)` 会 `connect(None)` 抛 TypeError。
 """
+
 import os
 import sys
 
@@ -37,6 +38,7 @@ if ROOT not in sys.path:
 def qapp():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
     yield app
 
@@ -52,6 +54,7 @@ def test_empty_action_manager_is_falsy(qapp):
     "真值判定现在安全了，可以简化 plugins.py 的写法"。
     """
     from app.actions import ActionManager
+
     mgr = ActionManager()
     assert len(mgr) == 0
     assert not mgr, (
@@ -93,7 +96,7 @@ def test_register_command_works_on_empty_action_manager(qapp):
     api = PluginAPI(win, permissions=["dialog"], plugin_name="probe_plugin")
     api.register_command("do_thing", lambda: None, description="做点事")
 
-    keys = list(getattr(win.act_mgr, 'actions', {}) or {})
+    keys = list(getattr(win.act_mgr, "actions", {}) or {})
     assert "plugin.probe_plugin.do_thing" in keys, (
         "空 ActionManager 上注册插件命令失败 —— 又回到了"
         "「首次运行命令面板为空」的缺陷。已注册键：%r" % (keys,)
@@ -115,10 +118,9 @@ def test_registered_command_is_reachable_by_classification(qapp):
     win.act_mgr = ActionManager()
     api = PluginAPI(win, permissions=[], plugin_name="p2")
     for name in ("a", "b", "c"):
-        api.register_command(name, (lambda n: (lambda: None))(name))
+        api.register_command(name, (lambda n: lambda: None)(name))
 
-    plugin_names = [k for k in win.act_mgr.actions
-                    if str(k).startswith("plugin.")]
+    plugin_names = [k for k in win.act_mgr.actions if str(k).startswith("plugin.")]
     assert len(plugin_names) == 3, plugin_names
 
 

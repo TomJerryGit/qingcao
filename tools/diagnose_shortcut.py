@@ -21,10 +21,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 SKIP_DIRS = {
-    '__pycache__', '.git', '.github', '.venv', 'venv',
-    'env', '.env', 'build', 'dist', 'node_modules',
-    'backup', 'data', 'logs', '_archive',
-    '1.0 QingCaoEditor_Others', '_archived_tools',
+    "__pycache__",
+    ".git",
+    ".github",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "build",
+    "dist",
+    "node_modules",
+    "backup",
+    "data",
+    "logs",
+    "_archive",
+    "1.0 QingCaoEditor_Others",
+    "_archived_tools",
 }
 
 
@@ -47,19 +59,19 @@ def find_py_files():
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
-            if fn.endswith('.py') and '.bak' not in fn:
+            if fn.endswith(".py") and ".bak" not in fn:
                 result.append(Path(dirpath) / fn)
     return result
 
 
 def normalize(seq: str) -> str:
     """标准化快捷键字符串（大小写、排序）"""
-    parts = [p.strip() for p in re.split(r'\+', seq)]
+    parts = [p.strip() for p in re.split(r"\+", seq)]
     mods = sorted(
         [p.capitalize() for p in parts[:-1]],
     )
-    key = parts[-1].upper() if parts else ''
-    return '+'.join(mods + [key])
+    key = parts[-1].upper() if parts else ""
+    return "+".join(mods + [key])
 
 
 def main():
@@ -82,7 +94,7 @@ def main():
 
     for f in py_files:
         try:
-            with open(f, encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding="utf-8", errors="replace") as fh:
                 lines = fh.readlines()
         except Exception:
             continue
@@ -90,29 +102,28 @@ def main():
         for lineno, line in enumerate(lines, 1):
             # 跳过注释
             stripped = line.strip()
-            if stripped.startswith('#'):
+            if stripped.startswith("#"):
                 continue
 
             for pattern in PATTERNS:
                 for m in pattern.finditer(line):
                     seq = m.group(1)
                     # 跳过明显不是快捷键的（比如 "Ctrl" 单独出现）
-                    if seq in ('Ctrl', 'Alt', 'Shift', 'Meta'):
+                    if seq in ("Ctrl", "Alt", "Shift", "Meta"):
                         continue
 
                     norm = normalize(seq)
-                    shortcuts[norm].append({
-                        'file': f,
-                        'line': lineno,
-                        'raw': seq,
-                        'context': line.strip()[:80],
-                    })
+                    shortcuts[norm].append(
+                        {
+                            "file": f,
+                            "line": lineno,
+                            "raw": seq,
+                            "context": line.strip()[:80],
+                        }
+                    )
 
     # 找出冲突
-    conflicts = {
-        seq: refs for seq, refs in shortcuts.items()
-        if len(refs) > 1
-    }
+    conflicts = {seq: refs for seq, refs in shortcuts.items() if len(refs) > 1}
 
     if not conflicts:
         print("[OK] 未发现快捷键冲突")
@@ -122,10 +133,7 @@ def main():
     print()
 
     # 按冲突数量排序
-    sorted_conflicts = sorted(
-        conflicts.items(),
-        key=lambda x: -len(x[1])
-    )
+    sorted_conflicts = sorted(conflicts.items(), key=lambda x: -len(x[1]))
 
     for seq, refs in sorted_conflicts:
         if target and normalize(target) != seq:
@@ -135,7 +143,7 @@ def main():
         print(f"  {seq}  (共 {len(refs)} 处定义)")
         print("=" * 60)
         for ref in refs:
-            rel = ref['file'].relative_to(ROOT)
+            rel = ref["file"].relative_to(ROOT)
             print(f"  {rel}:{ref['line']}")
             print(f"      {ref['context']}")
         print()
@@ -143,7 +151,7 @@ def main():
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
@@ -151,5 +159,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\n脚本异常: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

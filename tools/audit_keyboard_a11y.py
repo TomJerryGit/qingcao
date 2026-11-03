@@ -3,6 +3,7 @@
 
 用法: python tools/audit_keyboard_a11y.py [--json OUT] [--strict]
 """
+
 import argparse
 import io
 import json
@@ -92,6 +93,7 @@ def main():
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
     from ui.accessibility import apply_accessible_names
     from ui.main_window import MainWindow
@@ -109,20 +111,25 @@ def main():
             pass
         win.close()
 
-    print("[a11y] 菜单项 %d，有快捷键 %d（%.1f%%）"
-          % (report["menu_actions"], report["with_shortcut"],
-             report["shortcut_ratio"] * 100))
-    print("[a11y] 可聚焦控件 %d，缺少可访问名称 %d"
-          % (report["focusable_widgets"], report["unnamed_focusable"]))
+    print(
+        "[a11y] 菜单项 %d，有快捷键 %d（%.1f%%）"
+        % (report["menu_actions"], report["with_shortcut"], report["shortcut_ratio"] * 100)
+    )
+    print(
+        "[a11y] 可聚焦控件 %d，缺少可访问名称 %d"
+        % (report["focusable_widgets"], report["unnamed_focusable"])
+    )
     if report["without_shortcut"]:
-        print("[a11y] 无快捷键菜单示例:",
-              ", ".join(report["without_shortcut"][:10]))
+        print("[a11y] 无快捷键菜单示例:", ", ".join(report["without_shortcut"][:10]))
     if args.json:
         io.open(args.json, "w", encoding="utf-8", newline="\n").write(
-            json.dumps(report, ensure_ascii=False, indent=2))
-    ok = (report["menu_actions"] >= 10
-          and report["shortcut_ratio"] >= 0.30
-          and report["unnamed_focusable"] <= report["focusable_widgets"] * 0.5)
+            json.dumps(report, ensure_ascii=False, indent=2)
+        )
+    ok = (
+        report["menu_actions"] >= 10
+        and report["shortcut_ratio"] >= 0.30
+        and report["unnamed_focusable"] <= report["focusable_widgets"] * 0.5
+    )
     print("[a11y]", "审计通过" if ok else "审计未达标")
     if args.strict and not ok:
         return 1

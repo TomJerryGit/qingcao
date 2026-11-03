@@ -130,6 +130,7 @@ def env_info():
 
     try:
         from PyQt5.QtCore import PYQT_VERSION_STR, QT_VERSION_STR
+
         emit("| Qt | %s |" % QT_VERSION_STR)
         emit("| PyQt5 | %s |" % PYQT_VERSION_STR)
     except Exception as e:
@@ -137,6 +138,7 @@ def env_info():
 
     try:
         from PyQt5.Qsci import QSCINTILLA_VERSION_STR
+
         emit("| QScintilla | %s |" % QSCINTILLA_VERSION_STR)
     except Exception as e:
         emit("| QScintilla | 不可用: %s |" % e)
@@ -170,20 +172,21 @@ def bench_startup():
     make_qapp()
 
     emit("### 1.1 import ui.main_window")
-    ok, _, _ = guard("import", lambda: __import__(
-        "ui.main_window", fromlist=["MainWindow"]))
+    ok, _, _ = guard("import", lambda: __import__("ui.main_window", fromlist=["MainWindow"]))
     if not ok:
         return
 
     t_import = None
+
     def _imp():
         import importlib
 
         import ui.main_window as mw
+
         importlib.reload(mw)
+
     t_import, _ = med(_imp, runs=3, warmup=0)
-    emit("- import `ui.main_window`（reload 热态）中位数: **%s ms**"
-         % fmt_ms(t_import))
+    emit("- import `ui.main_window`（reload 热态）中位数: **%s ms**" % fmt_ms(t_import))
 
     emit()
     emit("### 1.2 MainWindow() 构造成本（cProfile cumtime top 15）")
@@ -216,9 +219,14 @@ def bench_startup():
     built = getattr(win2, "_panels_built", None)
     emit("- `_panels_built` = `%r`" % (built,))
     if built is not None:
-        emit("- 判定: **%s**"
-             % ("惰性生效（空集）" if len(built) == 0
-                else "惰性未完全生效，已构造: %r" % (sorted(built),)))
+        emit(
+            "- 判定: **%s**"
+            % (
+                "惰性生效（空集）"
+                if len(built) == 0
+                else "惰性未完全生效，已构造: %r" % (sorted(built),)
+            )
+        )
     for name in getattr(MainWindow, "_LAZY_PANELS", ()):
         emit("- `%s` = %r" % (name, getattr(win2, name, "<缺失>")))
 
@@ -250,15 +258,13 @@ def make_python_file(path, target_bytes, matches_every=37):
     chunks = []
     size = 0
     i = 0
-    head = ("# -*- coding: utf-8 -*-\n"
-            "import os\nimport sys\n\n"
-            "NEEDLE = 'quick brown fox'\n\n")
+    head = "# -*- coding: utf-8 -*-\nimport os\nimport sys\n\nNEEDLE = 'quick brown fox'\n\n"
     chunks.append(head)
     size += len(head)
     while size < target_bytes:
         body = (
             "def function_%d(a, b, c):\n"
-            "    \"\"\"docstring for function_%d\"\"\"\n"
+            '    """docstring for function_%d"""\n'
             "    value = a + b * c\n"
             "    if value > 10 and value < 1000:\n"
             "        return 'quick brown fox %d'\n"
@@ -300,9 +306,10 @@ def bench_bigfile(size_mb):
         try:
             m, s = med(fn, runs=runs)
             samples = ", ".join(fmt_ms(x) for x in s)
-            emit("| %s | **%s** | %s | %s | %s |" % (
-                name, fmt_ms(m), samples,
-                "**是**" if m > 0.5 else "否", note))
+            emit(
+                "| %s | **%s** | %s | %s | %s |"
+                % (name, fmt_ms(m), samples, "**是**" if m > 0.5 else "否", note)
+            )
             return m
         except Exception as e:
             emit("| %s | ERROR | - | - | %s |" % (name, repr(e)[:120]))
@@ -315,6 +322,7 @@ def bench_bigfile(size_mb):
         p = LocalFileProvider()
         p.open(path)
         p.close()
+
     row("打开(provider)", op_open_provider)
 
     sc = QsciScintilla()
@@ -323,75 +331,85 @@ def bench_bigfile(size_mb):
 
     def op_settext():
         sc.setText(text)
-    row("打开(Scintilla setText 全文)", op_settext, runs=3,
-        note="O(N) 文本灌入 + 词法分析")
+
+    row("打开(Scintilla setText 全文)", op_settext, runs=3, note="O(N) 文本灌入 + 词法分析")
 
     def op_text_copy():
         _ = sc.text()
-    row("`sc.text()` 单次全文拷贝", op_text_copy, runs=5,
-        note="P1 重复计算基线")
+
+    row("`sc.text()` 单次全文拷贝", op_text_copy, runs=5, note="P1 重复计算基线")
 
     # ---- provider.read_text() —— 是否缓存 ----
     prov = LocalFileProvider()
     prov.open(path)
     row("`provider.read_text()` 第 1 次", lambda: prov.read_text(), runs=1)
-    row("`provider.read_text()` 第 2 次（是否缓存）",
-        lambda: prov.read_text(), runs=3,
-        note="若与第 1 次同量级 => **无缓存**")
+    row(
+        "`provider.read_text()` 第 2 次（是否缓存）",
+        lambda: prov.read_text(),
+        runs=3,
+        note="若与第 1 次同量级 => **无缓存**",
+    )
 
     # ---- 搜索 ----
     from core.search import SearchEngine, SearchOptions
+
     opts = SearchOptions(pattern="quick brown fox", is_regex=False)
 
     def op_search_full():
         e = SearchEngine(prov, opts)
         e.search()
+
     m_search = row("搜索(新建 engine，含 read_text)", op_search_full, runs=3)
 
     def op_search_warm():
         e = SearchEngine(prov, opts)
         e.search()
-    row("搜索(第 2 次)", op_search_warm, runs=3,
-        note="新 engine => 无跨次缓存")
+
+    row("搜索(第 2 次)", op_search_warm, runs=3, note="新 engine => 无跨次缓存")
 
     # ---- 替换（O(M*N) 重点） ----
     def op_replace():
         from core.search import ReplaceEngine
+
         e = SearchEngine(prov, opts)
         r = e.search()
         ReplaceEngine(prov).replace_all(r, "REPLACED", is_regex=False)
-    row("全部替换(ReplaceEngine.replace_all)", op_replace, runs=1,
-        note="O(M*N) 字符串重建，见 F1")
+
+    row("全部替换(ReplaceEngine.replace_all)", op_replace, runs=1, note="O(M*N) 字符串重建，见 F1")
 
     prov.close()
 
     # ---- 大纲解析 ----
     def op_outline():
         from ui.outline_panel import SymbolParser
+
         p = SymbolParser()
         p.parse(text, "python", path)
+
     row("大纲解析(全量)", op_outline, runs=3)
 
     # ---- 代码度量（O(F*N) 重点） ----
     def op_metrics():
         from core.code_metrics import analyze_file
+
         analyze_file(path)
-    row("代码度量 analyze_file", op_metrics, runs=1,
-        note="含 O(F*N)，见 F5")
+
+    row("代码度量 analyze_file", op_metrics, runs=1, note="含 O(F*N)，见 F5")
     try:
         from core.code_metrics import analyze_python, calculate_complexity
+
         row("  └ analyze_python", lambda: analyze_python(text), runs=1)
-        row("  └ calculate_complexity",
-            lambda: calculate_complexity(text), runs=3)
+        row("  └ calculate_complexity", lambda: calculate_complexity(text), runs=3)
     except Exception as e:
         emit("|   └ 拆分计时 | ERROR | - | - | %s |" % repr(e)[:80])
 
     # ---- 代码坏味（死代码，仅留档） ----
     def op_smell():
         from core.code_smell import get_smells
+
         get_smells(text, "python")
-    row("代码坏味 get_smells", op_smell, runs=1,
-        note="**运行时无调用点**，仅留档，见 F17")
+
+    row("代码坏味 get_smells", op_smell, runs=1, note="**运行时无调用点**，仅留档，见 F17")
 
     # ---- 字数统计 ----
     import re as _re
@@ -403,8 +421,8 @@ def bench_bigfile(size_mb):
         _ = text.count("\n") + 1
         _ = len([l for l in text.split("\n") if l.strip()])
         return chars
-    row("字数统计(单次，插件每秒跑一次)", op_wordcount, runs=3,
-        note="见 F9：隐藏面板也每秒执行")
+
+    row("字数统计(单次，插件每秒跑一次)", op_wordcount, runs=3, note="见 F9：隐藏面板也每秒执行")
 
     # ---- 高亮全部 ----
     from core.search import SearchOptions as SO
@@ -413,6 +431,7 @@ def bench_bigfile(size_mb):
         opts2 = SO(pattern="quick brown fox", is_regex=True)
         e = SearchEngine(prov_dummy(), opts2)
         return e.search()
+
     try:
         prov2 = LocalFileProvider()
         prov2.open(path)
@@ -420,8 +439,7 @@ def bench_bigfile(size_mb):
         def prov_dummy():
             return prov2
 
-        row("高亮全部(highlight_all 等价：regex 全文扫描)",
-            op_highlight, runs=3, note="见 F3")
+        row("高亮全部(highlight_all 等价：regex 全文扫描)", op_highlight, runs=3, note="见 F3")
         prov2.close()
     except Exception as e:
         emit("| 高亮全部 | ERROR | - | - | %s |" % repr(e)[:80])
@@ -431,20 +449,23 @@ def bench_bigfile(size_mb):
         sc.setFolding(QsciScintilla.BoxedFoldStyle)
         for i in range(0, min(nlines, 20000), 500):
             sc.SendScintilla(sc.SCI_TOGGLEFOLD, i)
+
     row("折叠(全部折叠)", op_fold, runs=1)
 
     # ---- Minimap ----
     def op_minimap():
         from ui.minimap import Minimap
+
         mm = Minimap()
         mm.set_editor(sc)
         mm.deleteLater()
-    row("Minimap set_editor(全文拷贝+共享 lexer)", op_minimap, runs=3,
-        note="见 F6")
+
+    row("Minimap set_editor(全文拷贝+共享 lexer)", op_minimap, runs=3, note="见 F6")
 
     # ---- 行索引 ----
     def op_line_index_build():
         from core.search import SearchEngine
+
         e = SearchEngine(prov3(), SO(pattern="x"))
         e._ensure_line_index()
 
@@ -459,10 +480,12 @@ def bench_bigfile(size_mb):
     # ---- document.build_line_index（逐字符 Python 循环） ----
     def op_doc_line_index():
         from core.document import Document
+
         d = Document()
         d.provider = prov4()
         d._invalidate_line_index()
         d.build_line_index()
+
     try:
         prov4 = LocalFileProvider()
         prov4.open(path)
@@ -470,12 +493,10 @@ def bench_bigfile(size_mb):
         def prov4():
             return prov4
 
-        row("document.build_line_index（逐字符循环）",
-            op_doc_line_index, runs=1, note="见 F13")
+        row("document.build_line_index（逐字符循环）", op_doc_line_index, runs=1, note="见 F13")
         prov4.close()
     except Exception as e:
-        emit("| document.build_line_index | ERROR | - | - | %s |"
-             % repr(e)[:80])
+        emit("| document.build_line_index | ERROR | - | - | %s |" % repr(e)[:80])
 
     sc.deleteLater()
     emit()
@@ -497,6 +518,7 @@ REDOS_CASES = [
 
 def _worker(pattern, subject, q):
     import re
+
     try:
         rx = re.compile(pattern)
         t0 = time.perf_counter()
@@ -514,6 +536,7 @@ def bench_redos(timeout=10.0):
     emit("|---|---|---|---|")
 
     import multiprocessing as mp
+
     ctx = mp.get_context("spawn")
 
     for pattern, subject in REDOS_CASES:
@@ -524,20 +547,24 @@ def bench_redos(timeout=10.0):
         if p.is_alive():
             p.terminate()
             p.join()
-            emit("| `%s` | %s×%d | **卡死/超时** | >%.0f |"
-                 % (pattern, subject[0], len(subject), timeout))
+            emit(
+                "| `%s` | %s×%d | **卡死/超时** | >%.0f |"
+                % (pattern, subject[0], len(subject), timeout)
+            )
         else:
             try:
                 kind, val = q.get_nowait()
                 if kind == "ok":
-                    emit("| `%s` | %s×%d | 完成 | %.4f |"
-                         % (pattern, subject[0], len(subject), val))
+                    emit(
+                        "| `%s` | %s×%d | 完成 | %.4f |" % (pattern, subject[0], len(subject), val)
+                    )
                 else:
-                    emit("| `%s` | %s×%d | 编译错误 | %s |"
-                         % (pattern, subject[0], len(subject), val))
+                    emit(
+                        "| `%s` | %s×%d | 编译错误 | %s |"
+                        % (pattern, subject[0], len(subject), val)
+                    )
             except Exception:
-                emit("| `%s` | %s×%d | 进程异常退出 | - |"
-                     % (pattern, subject[0], len(subject)))
+                emit("| `%s` | %s×%d | 进程异常退出 | - |" % (pattern, subject[0], len(subject)))
 
     emit()
     emit("### 3.1 应用内路径：timeout_seconds 是否生效")
@@ -609,18 +636,21 @@ def bench_memory(size_mb=10):
         p = LocalFileProvider()
         p.open(path)
         prov_holder["p"] = p
+
     step("provider.open (mmap)", _open)
 
     def _readtext():
         prov_holder["text"] = prov_holder["p"].read_text()
+
     step("provider.read_text() 首次", _readtext)
 
     def _readtext2():
         prov_holder["text2"] = prov_holder["p"].read_text()
-    step("provider.read_text() 第二次（无缓存 => 再涨一份）", _readtext2,
-         release=False)
+
+    step("provider.read_text() 第二次（无缓存 => 再涨一份）", _readtext2, release=False)
 
     from PyQt5.Qsci import QsciLexerPython, QsciScintilla
+
     sc_holder = {}
 
     def _sc():
@@ -628,36 +658,43 @@ def bench_memory(size_mb=10):
         sc.setUtf8(True)
         sc.setText(prov_holder["text"])
         sc_holder["sc"] = sc
+
     step("QsciScintilla.setText(全文)", _sc)
 
     def _minimap():
         from ui.minimap import Minimap
+
         mm = Minimap()
         mm.set_editor(sc_holder["sc"])
         sc_holder["mm"] = mm
+
     step("Minimap.set_editor（第二份完整文档）", _minimap)
 
     def _search():
         from core.search import SearchEngine, SearchOptions
+
         opt = SearchOptions(pattern="quick brown fox")
         e = SearchEngine(prov_holder["p"], opt)
         res = e.search()
         sc_holder["res"] = res
         sc_holder["eng"] = e
+
     step("SearchEngine.search（matches + _text_cache）", _search)
 
     # 释放后是否回落
     def _release():
         sc_holder.pop("eng", None)
         sc_holder.pop("res", None)
+
     before = rss_mb()
     _release()
     step("释放 engine/result 后", lambda: None)
     emit()
-    emit("- 提示：若「第二次 read_text」增量 ≈ 文件大小，即证实 "
-         "`LocalFileProvider.read_text()` **无缓存**（F2）。")
-    emit("- 提示：Minimap 那一步增量 ≈ 文件大小，证实 Minimap "
-         "持有**第二份完整文档**（F6）。")
+    emit(
+        "- 提示：若「第二次 read_text」增量 ≈ 文件大小，即证实 "
+        "`LocalFileProvider.read_text()` **无缓存**（F2）。"
+    )
+    emit("- 提示：Minimap 那一步增量 ≈ 文件大小，证实 Minimap 持有**第二份完整文档**（F6）。")
 
 
 # ============================================================
@@ -688,8 +725,7 @@ def main():
 
     if only:
         if only not in sections:
-            emit("未知 --only 值: %s（可选: %s）"
-                 % (only, ", ".join(sections)))
+            emit("未知 --only 值: %s（可选: %s）" % (only, ", ".join(sections)))
             return 1
         guard(only, sections[only])
     else:

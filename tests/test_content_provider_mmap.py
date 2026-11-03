@@ -1,4 +1,5 @@
 """content_provider._save_dirty_blocks mmap 释放测试（P1-A4）"""
+
 import os
 
 import pytest
@@ -14,7 +15,7 @@ class TestSaveDirtyBlocksReleasesMmap:
 
         # 创建测试文件
         path = tmp_path / "test.txt"
-        path.write_text("hello world\n" * 100, encoding='utf-8')
+        path.write_text("hello world\n" * 100, encoding="utf-8")
 
         provider = LocalFileProvider()
         try:
@@ -28,7 +29,7 @@ class TestSaveDirtyBlocksReleasesMmap:
             assert ok is True
 
             # 验证磁盘内容
-            with open(str(path), 'rb') as f:
+            with open(str(path), "rb") as f:
                 content = f.read()
             assert content.startswith(b"MODIFIED")
 
@@ -43,7 +44,7 @@ class TestSaveDirtyBlocksReleasesMmap:
             pytest.skip("LocalFileProvider 不可用")
 
         path = tmp_path / "test.txt"
-        path.write_text("line1\nline2\nline3\n", encoding='utf-8')
+        path.write_text("line1\nline2\nline3\n", encoding="utf-8")
 
         provider = LocalFileProvider()
         try:

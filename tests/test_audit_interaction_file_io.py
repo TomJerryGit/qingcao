@@ -41,7 +41,6 @@ def _make_editor(qapp, path):
 # 1. 行尾符 × 保存
 # ============================================================
 class TestEolVsSave:
-
     def test_eol_switch_is_written_to_disk(self, qapp, tmp_path):
         """ui/mixins/status_bar_mixin.py:191-205 -> Document.set_eol
         (core/document.py:620-623) 只设置 meta.eol + mark_modified()；
@@ -62,8 +61,7 @@ class TestEolVsSave:
 
         data = p.read_bytes()
         assert data == b"a\r\nb\r\n", (
-            "INV-E1 违反：切换行尾符后保存，磁盘上仍是 LF。"
-            f" 实际字节={data!r}"
+            f"INV-E1 违反：切换行尾符后保存，磁盘上仍是 LF。 实际字节={data!r}"
         )
 
     def test_eol_roundtrip_after_reopen(self, qapp, tmp_path):
@@ -86,8 +84,7 @@ class TestEolVsSave:
         assert proxy2.open_file(str(p)) is True
 
         assert proxy2.document.meta.eol == "\r\n", (
-            "重新打开后行尾显示为 "
-            f"{proxy2.document.meta.eol!r}，切换结果未持久化。"
+            f"重新打开后行尾显示为 {proxy2.document.meta.eol!r}，切换结果未持久化。"
         )
 
 
@@ -95,7 +92,6 @@ class TestEolVsSave:
 # 2. 编码 × 保存
 # ============================================================
 class TestEncodingVsEditor:
-
     def test_encoding_switch_refreshes_editor_text(self, qapp, tmp_path):
         """ui/mixins/status_bar_mixin.py:177-188 -> Document.change_encoding
         (core/document.py:593-615) 重载了 provider，但没有任何代码
@@ -128,9 +124,7 @@ class TestEncodingVsEditor:
             "INV-E2 违反：切换编码只重载了 provider，编辑器未刷新。"
             f" 编辑器={sc.text()!r} provider={proxy.document.get_text()!r}"
         )
-        assert sc.text() == "中文内容\n", (
-            f"切换编码后编辑器应为正确文本，实际 {sc.text()!r}"
-        )
+        assert sc.text() == "中文内容\n", f"切换编码后编辑器应为正确文本，实际 {sc.text()!r}"
 
     def test_encoding_switch_then_save_does_not_corrupt(self, qapp, tmp_path):
         """切换编码后保存，磁盘字节必须等于正确文本按新编码的结果。"""
@@ -165,7 +159,6 @@ class TestEncodingVsEditor:
 # 3. 另存为 × LSP
 # ============================================================
 class TestSaveAsVsLsp:
-
     def test_save_as_updates_lsp_uri(self, qapp, tmp_path):
         """ui/mixins/file_ops_mixin.py:230 走 Document.save(path)，
         它更新了 document.filepath（core/document.py:403-407），
@@ -194,8 +187,7 @@ class TestSaveAsVsLsp:
             "request_completion 用新路径服务器不认识 -> 补全失效。"
         )
 
-    def test_lsp_did_save_uses_stale_uri_after_save_as(
-            self, qapp, tmp_path):
+    def test_lsp_did_save_uses_stale_uri_after_save_as(self, qapp, tmp_path):
         """另存为后 _notify_lsp_saved 仍用旧 URI
         （core/editor.py:770-780 里 `self._lsp_uri or ...` 优先取旧值）。
         """
@@ -211,13 +203,13 @@ class TestSaveAsVsLsp:
 
         class _FakeLsp:
             def did_save(self, uri, text=None):
-                sent['did_save'] = uri
+                sent["did_save"] = uri
 
             def did_change(self, uri, text):
-                sent['did_change'] = uri
+                sent["did_change"] = uri
 
             def did_close(self, uri):
-                sent['did_close'] = uri
+                sent["did_close"] = uri
 
         proxy.lsp_active = True
         proxy.lsp_client = _FakeLsp()
@@ -227,7 +219,7 @@ class TestSaveAsVsLsp:
         assert proxy.document.save(str(dst)) is True
         proxy._notify_lsp_saved()
 
-        assert sent.get('did_save') == LspClient.path_to_uri(str(dst)), (
+        assert sent.get("did_save") == LspClient.path_to_uri(str(dst)), (
             "另存为后 didSave 仍发往旧 URI "
             f"{sent.get('did_save')!r}，实际文件已是 "
             f"{proxy.document.filepath!r}"
@@ -238,7 +230,6 @@ class TestSaveAsVsLsp:
 # 4. 诊断 × URI（跨标签状态泄漏）
 # ============================================================
 class TestDiagnosticsUriIsolation:
-
     def test_diagnostics_for_foreign_uri_are_ignored(self, qapp, tmp_path):
         """core/editor.py:1951 的 _on_lsp_diagnostics(uri, diagnostics)
         完全没有比较 uri 与 self._lsp_uri，任何来源的诊断都会被画到
@@ -249,17 +240,20 @@ class TestDiagnosticsUriIsolation:
         sc, proxy = _make_editor(qapp, p)
 
         from core.lsp_client import LspClient
+
         proxy._lsp_uri = LspClient.path_to_uri(proxy.document.filepath)
         proxy.lsp_active = True
 
         foreign_uri = LspClient.path_to_uri(str(tmp_path / "other.py"))
         assert foreign_uri != proxy._lsp_uri, "前置条件：URI 应不同"
 
-        diag = [{
-            "range": {"start": {"line": 0, "character": 0},
-                      "end": {"line": 0, "character": 1}},
-            "message": "foreign", "severity": 1,
-        }]
+        diag = [
+            {
+                "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}},
+                "message": "foreign",
+                "severity": 1,
+            }
+        ]
         proxy._on_lsp_diagnostics(foreign_uri, diag)
 
         # INDICATOR_LSP_ERROR == 2；SCI_INDICATORVALUEAT = 2082
@@ -275,4 +269,5 @@ class TestDiagnosticsUriIsolation:
 
 if __name__ == "__main__":
     import pytest as _pytest
+
     raise SystemExit(_pytest.main([__file__, "-v"]))

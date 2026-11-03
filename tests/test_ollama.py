@@ -9,6 +9,7 @@
 设计原则：**不要求本机运行 Ollama**。需要真实服务的用例在检测不到
 服务时 skip，避免在 CI 上产生假失败。
 """
+
 import os
 import sys
 
@@ -39,6 +40,7 @@ def _service_up() -> bool:
 # =========================================================
 # OllamaClient
 # =========================================================
+
 
 class TestOllamaClientOffline:
     """连不上时必须优雅降级，绝不抛异常"""
@@ -85,16 +87,18 @@ class TestOllamaClientHelpers:
         assert OllamaClient.format_size(512) == "512 B"
         assert OllamaClient.format_size(1024) == "1.0 KB"
         assert OllamaClient.format_size(1536) == "1.5 KB"
-        assert OllamaClient.format_size(1024 ** 2) == "1.0 MB"
-        assert OllamaClient.format_size(1024 ** 3) == "1.0 GB"
+        assert OllamaClient.format_size(1024**2) == "1.0 MB"
+        assert OllamaClient.format_size(1024**3) == "1.0 GB"
         # 非法输入不应抛异常
         assert OllamaClient.format_size(None) == "-"
         assert OllamaClient.format_size("abc") == "-"
 
     def test_openai_base_url(self):
         assert OllamaClient().openai_base_url() == "http://localhost:11434/v1"
-        assert (OllamaClient("http://192.168.1.9:11434/")
-                .openai_base_url() == "http://192.168.1.9:11434/v1")
+        assert (
+            OllamaClient("http://192.168.1.9:11434/").openai_base_url()
+            == "http://192.168.1.9:11434/v1"
+        )
 
     def test_host_normalised(self):
         # 结尾斜杠会被去掉，避免拼出 //api/tags
@@ -116,8 +120,15 @@ class TestOllamaClientLive:
         assert ok is True
         for m in models:
             # 每个必备字段都要存在，UI 依赖它们
-            for key in ("name", "size", "size_text", "modified_at",
-                        "family", "parameter_size", "quantization"):
+            for key in (
+                "name",
+                "size",
+                "size_text",
+                "modified_at",
+                "family",
+                "parameter_size",
+                "quantization",
+            ):
                 assert key in m, "缺少字段 %s" % key
             assert m["name"]
 
@@ -131,11 +142,13 @@ class TestOllamaClientLive:
 # OllamaPanel（离屏）
 # =========================================================
 
+
 class TestOllamaPanel:
     """面板必须能离线构造，并在离线时给出提示"""
 
     def test_panel_constructs_offline(self, qtbot):
         from plugins.ai_assistant import OllamaPanel
+
         panel = OllamaPanel(plugin=None, auto_refresh=False)
         qtbot.addWidget(panel)
         assert panel.model_list is not None
@@ -146,6 +159,7 @@ class TestOllamaPanel:
 
     def test_panel_status_summary_offline(self):
         from plugins.ai_assistant import OllamaPanel
+
         panel = OllamaPanel(plugin=None, auto_refresh=False)
         panel._client = OllamaClient("http://127.0.0.1:59997")
         panel._stop_threads(50)
@@ -153,9 +167,10 @@ class TestOllamaPanel:
 
     def test_stop_threads_is_safe_when_idle(self):
         from plugins.ai_assistant import OllamaPanel
+
         panel = OllamaPanel(plugin=None, auto_refresh=False)
         panel._stop_threads(50)
-        panel._stop_threads(50)      # 幂等
+        panel._stop_threads(50)  # 幂等
         panel.close()
 
 
@@ -163,6 +178,7 @@ class TestOllamaPanel:
 class TestOllamaPanelLive:
     def test_panel_populates_models(self, qtbot):
         from plugins.ai_assistant import OllamaPanel
+
         panel = OllamaPanel(plugin=None, auto_refresh=False)
         qtbot.addWidget(panel)
         ok, models = panel._client.list_models()
@@ -177,6 +193,7 @@ class TestOllamaPanelLive:
 
     def test_status_summary_online(self):
         from plugins.ai_assistant import OllamaPanel
+
         panel = OllamaPanel(plugin=None, auto_refresh=False)
         panel._stop_threads(50)
         summary = panel.status_summary()

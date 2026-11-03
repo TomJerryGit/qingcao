@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """列出主窗口已占用的快捷键，用于挑选无冲突的新键"""
+
 import io
 import os
 import re
@@ -25,10 +26,22 @@ for k in sorted(keys):
 
 # 候选新键
 candidates = [
-    "Ctrl+Alt+H", "Ctrl+Alt+F", "Ctrl+Alt+S", "Ctrl+Alt+N",
-    "Ctrl+Shift+H", "Ctrl+Shift+R", "Alt+F12", "Ctrl+F12",
-    "Ctrl+Alt+K", "Ctrl+Alt+J", "Ctrl+Alt+P", "Ctrl+Shift+I",
-    "Ctrl+Shift+K", "Ctrl+Alt+O", "Ctrl+Alt+U", "Ctrl+Alt+Y",
+    "Ctrl+Alt+H",
+    "Ctrl+Alt+F",
+    "Ctrl+Alt+S",
+    "Ctrl+Alt+N",
+    "Ctrl+Shift+H",
+    "Ctrl+Shift+R",
+    "Alt+F12",
+    "Ctrl+F12",
+    "Ctrl+Alt+K",
+    "Ctrl+Alt+J",
+    "Ctrl+Alt+P",
+    "Ctrl+Shift+I",
+    "Ctrl+Shift+K",
+    "Ctrl+Alt+O",
+    "Ctrl+Alt+U",
+    "Ctrl+Alt+Y",
 ]
 print()
 print("候选键占用情况：")

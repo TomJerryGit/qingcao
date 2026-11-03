@@ -24,14 +24,14 @@ def test_toolbar_icon_mode_toggle(qapp):
 
         win._set_toolbar_icon_mode(True)
         assert win.toolbar.toolButtonStyle() == Qt.ToolButtonIconOnly
-        with_icon = [a for a in win.toolbar.actions()
-                     if not a.isSeparator() and not a.icon().isNull()]
+        with_icon = [
+            a for a in win.toolbar.actions() if not a.isSeparator() and not a.icon().isNull()
+        ]
         assert len(with_icon) >= 3, [a.text() for a in win.toolbar.actions()]
 
         win._set_toolbar_icon_mode(False)
         assert win.toolbar.toolButtonStyle() == Qt.ToolButtonTextOnly
-        restored = [a.text() for a in win.toolbar.actions()
-                    if not a.isSeparator() and a.text()]
+        restored = [a.text() for a in win.toolbar.actions() if not a.isSeparator() and a.text()]
         assert restored, "关闭图标模式后文字未恢复"
     finally:
         try:

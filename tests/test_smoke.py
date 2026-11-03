@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for QingCao editor."""
+
 import os
 import sys
 import unittest
@@ -35,6 +36,7 @@ class TestImports(unittest.TestCase):
 class TestCommands(unittest.TestCase):
     def test_insert_to_dict(self):
         from core.commands import InsertCmd
+
         cmd = InsertCmd(10, "hello")
         d = cmd.to_dict()
         self.assertEqual(d["type"], "insert")
@@ -42,6 +44,7 @@ class TestCommands(unittest.TestCase):
 
     def test_delete_to_dict(self):
         from core.commands import DeleteCmd
+
         cmd = DeleteCmd(5, 3, b"abc")
         d = cmd.to_dict()
         self.assertEqual(d["type"], "delete")
@@ -49,6 +52,7 @@ class TestCommands(unittest.TestCase):
 
     def test_replace_to_dict(self):
         from core.commands import ReplaceCmd
+
         cmd = ReplaceCmd(0, 5, "old", "new")
         d = cmd.to_dict()
         self.assertEqual(d["type"], "replace")
@@ -57,12 +61,14 @@ class TestCommands(unittest.TestCase):
 class TestPreferences(unittest.TestCase):
     def test_default_font_size(self):
         from app.preferences import Preferences
+
         prefs = Preferences()
         self.assertIsInstance(prefs.font_size, int)
         self.assertGreater(prefs.font_size, 0)
 
     def test_set_get(self):
         from app.preferences import Preferences
+
         prefs = Preferences()
         original = prefs.font_size
         prefs.font_size = 16

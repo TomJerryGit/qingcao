@@ -8,6 +8,7 @@
     * api.win 是公开属性，可直达全权限主 API；
     * get_plugin_data_dir()/save_plugin_config() 是免权限写盘后门。
 """
+
 import pytest
 
 
@@ -43,8 +44,7 @@ class TestHostWindowGated:
         from app.plugins import PERMISSION_DIALOG, PluginAPI
 
         sentinel = object()
-        api = PluginAPI(sentinel, permissions=[PERMISSION_DIALOG],
-                        plugin_name="p")
+        api = PluginAPI(sentinel, permissions=[PERMISSION_DIALOG], plugin_name="p")
         assert api.get_main_window() is sentinel
 
     def test_win_attribute_is_deprecated_but_works(self, qapp):
@@ -81,6 +81,7 @@ class TestDocumentedPermissionsExist:
             PERMISSION_DEBUGGER,
             PERMISSION_LSP,
         )
+
         assert PERMISSION_LSP in ALL_PERMISSIONS
         assert PERMISSION_DEBUGGER in ALL_PERMISSIONS
 
@@ -89,9 +90,15 @@ class TestDocumentedPermissionsExist:
         from infrastructure.plugin_loader import ALLOWED_PERMISSIONS
 
         # plugin.json 里能声明的权限必须都能被 API 识别
-        missing = set(ALLOWED_PERMISSIONS) - set(ALL_PERMISSIONS) - {
-            "settings", "themes", "plugins",
-        }
+        missing = (
+            set(ALLOWED_PERMISSIONS)
+            - set(ALL_PERMISSIONS)
+            - {
+                "settings",
+                "themes",
+                "plugins",
+            }
+        )
         assert missing == set(), "未在 PluginAPI 中定义的权限: %s" % missing
 
 
@@ -101,8 +108,7 @@ class TestPermissionConfirmationWired:
     def test_load_all_invokes_permission_check(self, qapp, monkeypatch):
         from app.plugin_manager import PluginManager
 
-        pm = PluginManager(main_window=None, plugin_dir="plugins",
-                           auto_confirm_dangerous=True)
+        pm = PluginManager(main_window=None, plugin_dir="plugins", auto_confirm_dangerous=True)
         checked = []
         original = pm._check_and_confirm_permissions
 
@@ -110,7 +116,7 @@ class TestPermissionConfirmationWired:
             checked.append(name)
             return original(name, display_name, permissions)
 
-        monkeypatch.setattr(pm, '_check_and_confirm_permissions', spy)
+        monkeypatch.setattr(pm, "_check_and_confirm_permissions", spy)
         pm.load_all(auto_activate=True)
 
         assert checked, "PluginManager.load_all 没有调用权限确认"
@@ -121,8 +127,7 @@ class TestPermissionConfirmationWired:
         """P1-2: manager 创建的 loader 必须开监控"""
         from app.plugin_manager import PluginManager
 
-        pm = PluginManager(main_window=None, plugin_dir="plugins",
-                           auto_confirm_dangerous=True)
+        pm = PluginManager(main_window=None, plugin_dir="plugins", auto_confirm_dangerous=True)
         assert pm.loader.enable_watcher is True
         assert pm.loader.hot_reload_enabled is True
 
@@ -130,9 +135,15 @@ class TestPermissionConfirmationWired:
 class TestBuiltinPluginsDeclareDialog:
     """内置面板类插件必须声明它们用到的 dialog 权限"""
 
-    @pytest.mark.parametrize("plugin", [
-        "logtail", "markdown_preview", "todo_panel", "wordcount",
-    ])
+    @pytest.mark.parametrize(
+        "plugin",
+        [
+            "logtail",
+            "markdown_preview",
+            "todo_panel",
+            "wordcount",
+        ],
+    )
     def test_dialog_declared(self, plugin):
         import json
         import os

@@ -52,12 +52,13 @@ def read_settings_directly():
     """直接从 QSettings 读（不依赖 PyQt5 app 实例）"""
     try:
         from PyQt5.QtCore import QSettings
+
         settings = QSettings("QingCao", "AI")
         return {
-            'provider': settings.value("provider", "", type=str),
-            'api_key': settings.value("api_key", "", type=str),
-            'model': settings.value("model", "", type=str),
-            'base_url': settings.value("base_url", "", type=str),
+            "provider": settings.value("provider", "", type=str),
+            "api_key": settings.value("api_key", "", type=str),
+            "model": settings.value("model", "", type=str),
+            "base_url": settings.value("base_url", "", type=str),
         }
     except Exception as e:
         print_fail(f"读取 QSettings 失败: {e}")
@@ -73,7 +74,7 @@ def test_request(base_url, model, api_key):
     # 见 core/ai_client.py:
     #   self.base_url = base_url.rstrip('/') if base_url else ""
     #   url = self.base_url + "/chat/completions"
-    normalized_base = base_url.rstrip('/') if base_url else ""
+    normalized_base = base_url.rstrip("/") if base_url else ""
     actual_url = normalized_base + "/chat/completions"
 
     print_info(f"模拟请求 URL: {actual_url}")
@@ -92,18 +93,14 @@ def test_request(base_url, model, api_key):
     }
 
     try:
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(
-            actual_url, data=data, headers=headers, method='POST'
-        )
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(actual_url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
-            body = resp.read().decode('utf-8')
+            body = resp.read().decode("utf-8")
             print_ok(f"HTTP {resp.status}")
             try:
                 parsed = json.loads(body)
-                content = parsed.get('choices', [{}])[0].get(
-                    'message', {}
-                ).get('content', '')
+                content = parsed.get("choices", [{}])[0].get("message", {}).get("content", "")
                 print_ok(f"响应内容: {content[:80]}")
                 return True
             except Exception:
@@ -112,7 +109,7 @@ def test_request(base_url, model, api_key):
     except urllib.error.HTTPError as e:
         print_fail(f"HTTP {e.code}")
         try:
-            body = e.read().decode('utf-8')
+            body = e.read().decode("utf-8")
             print_fail(f"响应体: {body[:300]}")
         except Exception:
             pass
@@ -132,21 +129,21 @@ def main():
         return 1
 
     for k, v in cfg.items():
-        if k == 'api_key':
-            display = ('*' * len(v)) if v else '(空)'
+        if k == "api_key":
+            display = ("*" * len(v)) if v else "(空)"
         else:
-            display = v if v else '(空)'
+            display = v if v else "(空)"
         print(f"  {k:12s} = {display!r}")
 
     # ---- 2. 分析配置 ----
     print_header("2. 配置分析")
 
-    provider = cfg.get('provider', '')
-    base_url = cfg.get('base_url', '')
-    model = cfg.get('model', '')
-    api_key = cfg.get('api_key', '')
+    provider = cfg.get("provider", "")
+    base_url = cfg.get("base_url", "")
+    model = cfg.get("model", "")
+    api_key = cfg.get("api_key", "")
 
-    if provider != 'ollama':
+    if provider != "ollama":
         print_warn(f"当前 provider 不是 ollama（是 {provider!r}）")
         print_info("如果只是想测 Ollama，可先跳过本节")
 
@@ -158,11 +155,10 @@ def main():
         print_info(f"Ollama 默认 base_url: {default_for_ollama}")
     else:
         # 关键检查
-        if not base_url.endswith('/v1'):
-            if base_url.endswith('/v1/'):
-                print_fail("base_url 以 /v1/ 结尾（尾部斜杠），"
-                           "拼接后会变成 /v1//chat/completions")
-            elif '/v1' not in base_url:
+        if not base_url.endswith("/v1"):
+            if base_url.endswith("/v1/"):
+                print_fail("base_url 以 /v1/ 结尾（尾部斜杠），拼接后会变成 /v1//chat/completions")
+            elif "/v1" not in base_url:
                 print_fail(f"base_url 中缺少 /v1: {base_url!r}")
                 print_info("应改为: http://localhost:11434/v1")
             else:
@@ -210,5 +206,5 @@ def main():
     return 0 if success else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

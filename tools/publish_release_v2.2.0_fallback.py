@@ -14,6 +14,7 @@
 为什么用它而不是 CI：v2.2.0 的 tag 已推送，但私有仓库 Actions 结果
 无法在未认证环境确认；本脚本上传的是**本地已真实桌面冒烟验证过**的包。
 """
+
 import argparse
 import hashlib
 import os
@@ -31,9 +32,9 @@ SHA_FILE = ZIP + ".sha256.txt"
 
 def run(cmd, check=False, capture=True):
     print("  $ " + " ".join(cmd))
-    r = subprocess.run(cmd, capture_output=capture, text=True,
-                       encoding="utf-8", errors="replace",
-                       cwd=ROOT)
+    r = subprocess.run(
+        cmd, capture_output=capture, text=True, encoding="utf-8", errors="replace", cwd=ROOT
+    )
     if capture and r.stdout:
         for line in r.stdout.strip().splitlines()[:8]:
             print("    " + line)
@@ -64,17 +65,18 @@ def main():
             raise SystemExit("SHA256 与记录不一致，拒绝上传")
 
     print("=== 2. gh 认证 / Release 状态 ===")
-    auth = subprocess.run([GH, "auth", "status"], capture_output=True,
-                          text=True)
+    auth = subprocess.run([GH, "auth", "status"], capture_output=True, text=True)
     if auth.returncode != 0:
-        raise SystemExit(
-            "gh 未登录。请先运行： gh auth login\n"
-            "（或设置 GH_TOKEN 后重试）")
+        raise SystemExit("gh 未登录。请先运行： gh auth login\n（或设置 GH_TOKEN 后重试）")
     print("  gh 已认证")
 
-    view = subprocess.run([GH, "release", "view", TAG, "-R", REPO],
-                          capture_output=True, text=True, encoding="utf-8",
-                          errors="replace")
+    view = subprocess.run(
+        [GH, "release", "view", TAG, "-R", REPO],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     exists = view.returncode == 0
     print("  Release %s 已存在: %s" % (TAG, exists))
     if exists:
@@ -90,15 +92,23 @@ def main():
 
     if exists:
         print("=== 3. 追加/覆盖资产 ===")
-        run([GH, "release", "upload", TAG] + files + ["--clobber"],
-            check=True)
+        run([GH, "release", "upload", TAG] + files + ["--clobber"], check=True)
     else:
         print("=== 3. 创建 Release 并上传 ===")
         notes = os.path.join(ROOT, "docs", "release_notes_v2.2.0.md")
-        cmd = [GH, "release", "create", TAG, "-R", REPO,
-               "--verify-tag",
-               "--title", "青草编辑器 v2.2.0",
-               "--notes-file", notes] + files
+        cmd = [
+            GH,
+            "release",
+            "create",
+            TAG,
+            "-R",
+            REPO,
+            "--verify-tag",
+            "--title",
+            "青草编辑器 v2.2.0",
+            "--notes-file",
+            notes,
+        ] + files
         run(cmd, check=True)
 
     print("=== 4. 复核 ===")

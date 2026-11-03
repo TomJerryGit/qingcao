@@ -93,12 +93,8 @@ def _isolate_qsettings(tmp_path_factory):
     ini_dir = str(tmp_path_factory.mktemp("qsettings"))
 
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(
-        QSettings.IniFormat, QSettings.UserScope, ini_dir
-    )
-    QSettings.setPath(
-        QSettings.IniFormat, QSettings.SystemScope, ini_dir
-    )
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, ini_dir)
+    QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope, ini_dir)
 
     # 强制两参构造走 IniFormat（见上方说明）
     #
@@ -110,6 +106,7 @@ def _isolate_qsettings(tmp_path_factory):
     # （实测：tests/test_preferences_wiring.py 里 `settings.setValue(...)`
     #  写入注册表，而 main._pref 通过 Preferences 读临时 ini → 断言失败）。
     from PyQt5 import QtCore as _qtcore
+
     _real_qsettings = _qtcore.QSettings
 
     class _ForcedIniQSettings(_real_qsettings):
@@ -122,18 +119,15 @@ def _isolate_qsettings(tmp_path_factory):
         """
 
         def __init__(self, *args, **kwargs):
-            if (len(args) == 2
-                    and isinstance(args[0], str)
-                    and isinstance(args[1], str)):
-                args = (_real_qsettings.IniFormat,
-                        _real_qsettings.UserScope,
-                        args[0], args[1])
+            if len(args) == 2 and isinstance(args[0], str) and isinstance(args[1], str):
+                args = (_real_qsettings.IniFormat, _real_qsettings.UserScope, args[0], args[1])
             super().__init__(*args, **kwargs)
 
     _qtcore.QSettings = _ForcedIniQSettings
 
     import app.preferences as _prefs_mod
-    _prefs_orig = getattr(_prefs_mod, 'QSettings', None)
+
+    _prefs_orig = getattr(_prefs_mod, "QSettings", None)
     _prefs_mod.QSettings = _ForcedIniQSettings
 
     yield
@@ -156,7 +150,7 @@ def qapp():
     from PyQt5.QtWidgets import QApplication
 
     # 设置 offscreen 以避免 CI 环境无显示器的问题
-    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     app = QApplication.instance()
     if app is None:
@@ -192,7 +186,7 @@ def tmp_py_file(tmp_path):
         "class Foo:\n"
         "    def bar(self):\n"
         "        pass\n",
-        encoding="utf-8"
+        encoding="utf-8",
     )
     return str(p)
 
@@ -233,9 +227,9 @@ def preferences(qapp, tmp_path):
 
     # 清掉上一个用例可能残留的值（同一会话共享一个临时 ini）
     # 注意 ORG_NAME / APP_NAME 是**模块级常量**，不是 Preferences 的类属性
-    settings = QSettings(QSettings.IniFormat, QSettings.UserScope,
-                         _prefs_module.ORG_NAME,
-                         _prefs_module.APP_NAME)
+    settings = QSettings(
+        QSettings.IniFormat, QSettings.UserScope, _prefs_module.ORG_NAME, _prefs_module.APP_NAME
+    )
     settings.clear()
     settings.sync()
 
@@ -248,6 +242,7 @@ def action_manager(qapp):
     """隔离的 ActionManager 实例"""
     try:
         from app.actions import ActionManager
+
         mgr = ActionManager()
         yield mgr
     except ImportError:
@@ -259,6 +254,7 @@ def event_bus(qapp):
     """隔离的 EventBus 实例"""
     try:
         from app.event_bus import EventBus
+
         bus = EventBus(debug=False)
         yield bus
     except ImportError:
@@ -273,6 +269,7 @@ def document(qapp):
     """空的 Document 实例"""
     try:
         from core.document import Document
+
         doc = Document()
         yield doc
         try:
@@ -288,6 +285,7 @@ def memory_provider(qapp):
     """内存 Provider"""
     try:
         from core.content_provider import MemoryProvider
+
         provider = MemoryProvider()
         yield provider
         try:
@@ -296,6 +294,7 @@ def memory_provider(qapp):
             pass
     except ImportError:
         yield None
+
 
 # ============================================================
 # 环境敏感用例隔离（真实子进程 / QProcess 握手）
@@ -315,16 +314,13 @@ _QC_RUN_ISOLATED = _os.environ.get("QC_RUN_ISOLATED") == "1"
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers",
-        "isolated: 环境敏感用例（真实子进程等），默认跳过")
+    config.addinivalue_line("markers", "isolated: 环境敏感用例（真实子进程等），默认跳过")
 
 
 def pytest_collection_modifyitems(config, items):
     if _QC_RUN_ISOLATED:
         return
-    skip = _pytest.mark.skip(
-        reason="环境敏感用例（真实子进程握手）；QC_RUN_ISOLATED=1 显式运行")
+    skip = _pytest.mark.skip(reason="环境敏感用例（真实子进程握手）；QC_RUN_ISOLATED=1 显式运行")
     for item in items:
         if item.get_closest_marker("isolated") is not None:
             item.add_marker(skip)
@@ -343,6 +339,7 @@ def _isolated_qsettings(tmp_path_factory):
         return
     base = tmp_path_factory.mktemp("qsettings")
     import os as _os
+
     _os.environ["QINGCAO_SESSION_FILE"] = str(base / "session.json")
     _os.environ["QINGCAO_SESSION_BACKUP_DIR"] = str(base / "backups")
     _sandbox_dir = base / "sandbox_plugins"
@@ -350,10 +347,8 @@ def _isolated_qsettings(tmp_path_factory):
     _os.environ["QINGCAO_SANDBOX_PLUGIN_DIR"] = str(_sandbox_dir)
     old_format = QSettings.defaultFormat()
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
-                      str(base))
-    QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope,
-                      str(base))
+    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(base))
+    QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope, str(base))
     try:
         yield
     finally:

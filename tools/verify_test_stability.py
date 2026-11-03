@@ -6,6 +6,7 @@
     python tools/verify_test_stability.py --runs 3
     python tools/verify_test_stability.py --runs 2 --quick  # 只跑核心子集
 """
+
 import argparse
 import os
 import subprocess
@@ -27,28 +28,30 @@ QUICK_SUBSET = [
 def main():
     ap = argparse.ArgumentParser(description="测试稳定性检查")
     ap.add_argument("--runs", type=int, default=2)
-    ap.add_argument("--quick", action="store_true",
-                    help="只跑核心子集（更快）")
+    ap.add_argument("--quick", action="store_true", help="只跑核心子集（更快）")
     args = ap.parse_args()
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["PYTHONIOENCODING"] = "utf-8"
     targets = list(QUICK_SUBSET) if args.quick else ["tests"]
-    cmd = [sys.executable, "-m", "pytest"] + targets + [
-        "-q", "-p", "no:cacheprovider"]
+    cmd = [sys.executable, "-m", "pytest"] + targets + ["-q", "-p", "no:cacheprovider"]
     print("[stability] 运行 %d 轮: %s" % (args.runs, " ".join(targets)))
     results = []
     for i in range(1, args.runs + 1):
         print("[stability] 第 %d/%d 轮 ..." % (i, args.runs))
-        proc = subprocess.run(cmd, cwd=ROOT, env=env,
-                              capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+        proc = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         tail = (proc.stdout or "").strip().splitlines()[-1:] or [""]
         summary = tail[0][:120]
         crash = proc.returncode not in (0, 1) or proc.returncode < 0
-        print("   rc=%s %s %s" % (proc.returncode,
-                                  "CRASH" if crash else "",
-                                  summary))
+        print("   rc=%s %s %s" % (proc.returncode, "CRASH" if crash else "", summary))
         results.append((proc.returncode, crash, summary))
     bad = [r for r in results if r[1] or r[0] != 0]
     if bad:

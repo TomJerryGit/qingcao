@@ -15,6 +15,7 @@ def test_accessible_names(qapp):
     from PyQt5.QtWidgets import QLineEdit, QPushButton, QWidget
 
     from ui.accessibility import apply_accessible_names
+
     root = QWidget()
     btn = QPushButton("保存", root)
     edit = QLineEdit(root)
@@ -30,6 +31,7 @@ def test_font_scale_and_restore(qapp):
     from PyQt5.QtWidgets import QPushButton, QWidget
 
     from ui.accessibility import apply_font_scale
+
     root = QWidget()
     btn = QPushButton("x", root)
     base = btn.font().pointSizeF()
@@ -44,6 +46,7 @@ def test_font_scale_and_restore(qapp):
 
 def test_focus_ring_qss():
     from ui.accessibility import focus_ring_qss
+
     qss = focus_ring_qss()
     assert "palette(highlight)" in qss
     assert ":focus" in qss
@@ -53,10 +56,15 @@ def test_keyboard_audit_strict_pass():
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     out = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "tools",
-                                      "audit_keyboard_a11y.py"), "--strict"],
-        cwd=ROOT, env=env, capture_output=True, text=True,
-        encoding="utf-8", errors="replace", timeout=300)
+        [sys.executable, os.path.join(ROOT, "tools", "audit_keyboard_a11y.py"), "--strict"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "审计通过" in out.stdout
 
@@ -66,11 +74,8 @@ def test_a11y_wiring_and_docs():
     assert "apply_accessibility_settings" in main
     win = read_main_ui_source()
     assert "focus_ring_qss" in win
-    prefs = open(os.path.join(ROOT, "ui", "preferences_panel.py"),
-                 encoding="utf-8").read()
+    prefs = open(os.path.join(ROOT, "ui", "preferences_panel.py"), encoding="utf-8").read()
     assert "ui_scale_spin" in prefs
-    assert os.path.exists(os.path.join(
-        ROOT, "docs", "manual_validation_v2.17_a11y.md"))
-    yml = open(os.path.join(ROOT, ".github", "workflows", "test.yml"),
-               encoding="utf-8").read()
+    assert os.path.exists(os.path.join(ROOT, "docs", "manual_validation_v2.17_a11y.md"))
+    yml = open(os.path.join(ROOT, ".github", "workflows", "test.yml"), encoding="utf-8").read()
     assert "audit_keyboard_a11y.py --strict" in yml

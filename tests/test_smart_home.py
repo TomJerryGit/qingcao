@@ -5,7 +5,7 @@ def _calc_indent_bytes(line_text):
     """复刻 _smart_home 里的计算逻辑"""
     stripped = line_text.lstrip()
     indent = len(line_text) - len(stripped)
-    return indent, len(line_text[:indent].encode('utf-8'))
+    return indent, len(line_text[:indent].encode("utf-8"))
 
 
 class TestIndentBytes:

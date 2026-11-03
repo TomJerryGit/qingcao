@@ -22,6 +22,7 @@
 
     python -m pytest tests/test_ai_client.py -v
 """
+
 import json
 import os
 import sys
@@ -37,6 +38,7 @@ from core import ai_client as AI  # noqa: E402
 # =========================================================
 # 测试替身
 # =========================================================
+
 
 class FakeResponse:
     """最小化的 requests.Response 替身"""
@@ -78,15 +80,15 @@ class Recorder:
 
     def make(self):
         """返回可安全 setattr 到类上的普通函数"""
-        def _fake(self, url, headers, json_data=None,
-                  stream=False, timeout=None):
+
+        def _fake(self, url, headers, json_data=None, stream=False, timeout=None):
             self_rec.calls += 1
             self_rec.url = url
             self_rec.headers = dict(headers or {})
-            self_rec.payload = (dict(json_data)
-                                if isinstance(json_data, dict) else json_data)
+            self_rec.payload = dict(json_data) if isinstance(json_data, dict) else json_data
             self_rec.stream = stream
             return self_rec.response
+
         self_rec = self
         return _fake
 
@@ -94,10 +96,12 @@ class Recorder:
 @pytest.fixture
 def patch_http(monkeypatch):
     """返回一个函数：安装 mock 并拿到 Recorder"""
+
     def _install(response):
         rec = Recorder(response)
-        monkeypatch.setattr(AI.AIClient, '_make_request', rec.make())
+        monkeypatch.setattr(AI.AIClient, "_make_request", rec.make())
         return rec
+
     return _install
 
 
@@ -105,27 +109,33 @@ def openai_sse(*texts):
     """构造 OpenAI 风格的 SSE 行"""
     lines = []
     for t in texts:
-        lines.append(('data: ' + json.dumps(
-            {"choices": [{"delta": {"content": t}}]})).encode())
-    lines.append(b'data: [DONE]')
+        lines.append(("data: " + json.dumps({"choices": [{"delta": {"content": t}}]})).encode())
+    lines.append(b"data: [DONE]")
     return lines
 
 
 def anthropic_sse(*texts):
     """构造 Anthropic 风格的 SSE 行"""
     lines = [
-        b'event: message_start',
+        b"event: message_start",
         b'data: {"type":"message_start","message":{"id":"msg_1"}}',
-        b'',
+        b"",
     ]
     for t in texts:
-        lines.append(b'event: content_block_delta')
-        lines.append(('data: ' + json.dumps({
-            "type": "content_block_delta",
-            "index": 0,
-            "delta": {"type": "text_delta", "text": t},
-        })).encode())
-    lines.append(b'event: message_stop')
+        lines.append(b"event: content_block_delta")
+        lines.append(
+            (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": t},
+                    }
+                )
+            ).encode()
+        )
+    lines.append(b"event: message_stop")
     lines.append(b'data: {"type":"message_stop"}')
     return lines
 
@@ -133,6 +143,7 @@ def anthropic_sse(*texts):
 # =========================================================
 # OpenAI 兼容族
 # =========================================================
+
 
 class TestOpenAIStream:
     def test_stream_emits_incremental_chunks(self, patch_http):
@@ -153,8 +164,7 @@ class TestOpenAIStream:
 
     def test_stream_payload_shape(self, patch_http):
         rec = patch_http(FakeResponse(lines=openai_sse("x")))
-        AI.OpenAIClient(api_key="k", provider="openai").chat_stream(
-            "hi", system="sys")
+        AI.OpenAIClient(api_key="k", provider="openai").chat_stream("hi", system="sys")
         p = rec.payload
         assert p.get("stream") is True
         assert p["messages"][0] == {"role": "system", "content": "sys"}
@@ -168,13 +178,13 @@ class TestOpenAIStream:
         assert c.chat_stream("hi") == "a"
 
     def test_stream_ignores_non_data_lines(self, patch_http):
-        lines = [b'', b': keep-alive', b'event: ping'] + openai_sse("ok")
+        lines = [b"", b": keep-alive", b"event: ping"] + openai_sse("ok")
         rec = patch_http(FakeResponse(lines=lines))
         c = AI.OpenAIClient(api_key="k", provider="openai")
         assert c.chat_stream("hi") == "ok"
 
     def test_stream_tolerates_malformed_json(self, patch_http):
-        lines = [b'data: {not json'] + openai_sse("ok")
+        lines = [b"data: {not json"] + openai_sse("ok")
         rec = patch_http(FakeResponse(lines=lines))
         c = AI.OpenAIClient(api_key="k", provider="openai")
         assert c.chat_stream("hi") == "ok"
@@ -198,6 +208,7 @@ class TestOpenAIStream:
 # Anthropic Claude
 # =========================================================
 
+
 class TestClaudeStream:
     """此前 Claude 没有 chat_stream，这里锁死该回归"""
 
@@ -218,8 +229,7 @@ class TestClaudeStream:
     def test_claude_uses_messages_endpoint(self, patch_http):
         rec = patch_http(FakeResponse(lines=anthropic_sse("x")))
         AI.ClaudeClient(api_key="k").chat_stream("hi")
-        assert rec.url.endswith("/messages"), (
-            "Anthropic 端点是 /messages，不是 /chat/completions")
+        assert rec.url.endswith("/messages"), "Anthropic 端点是 /messages，不是 /chat/completions"
         assert "/chat/completions" not in rec.url
 
     def test_claude_uses_x_api_key_and_version(self, patch_http):
@@ -227,8 +237,7 @@ class TestClaudeStream:
         AI.ClaudeClient(api_key="sk-ant-1").chat_stream("hi")
         assert rec.headers.get("x-api-key") == "sk-ant-1"
         assert rec.headers.get("anthropic-version")
-        assert "Authorization" not in rec.headers, (
-            "Anthropic 不用 Bearer 头")
+        assert "Authorization" not in rec.headers, "Anthropic 不用 Bearer 头"
 
     def test_claude_system_is_top_level(self, patch_http):
         rec = patch_http(FakeResponse(lines=anthropic_sse("x")))
@@ -241,18 +250,26 @@ class TestClaudeStream:
     def test_claude_ignores_non_text_events(self, patch_http):
         """ping / message_start 等事件不应产生内容"""
         lines = [
-            b'event: ping', b'data: {"type":"ping"}',
-            b'event: content_block_start',
+            b"event: ping",
+            b'data: {"type":"ping"}',
+            b"event: content_block_start",
             b'data: {"type":"content_block_start","content_block":{"type":"text"}}',
         ] + anthropic_sse("real")
         rec = patch_http(FakeResponse(lines=lines))
         assert AI.ClaudeClient(api_key="k").chat_stream("hi") == "real"
 
     def test_claude_raises_on_error_event(self, patch_http):
-        lines = [('data: ' + json.dumps({
-            "type": "error",
-            "error": {"type": "overloaded_error", "message": "过载"},
-        })).encode()]
+        lines = [
+            (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "error",
+                        "error": {"type": "overloaded_error", "message": "过载"},
+                    }
+                )
+            ).encode()
+        ]
         patch_http(FakeResponse(lines=lines))
         with pytest.raises(AI.AIClientError) as ei:
             AI.ClaudeClient(api_key="k").chat_stream("hi")
@@ -261,9 +278,15 @@ class TestClaudeStream:
     def test_claude_ignores_non_text_delta(self, patch_http):
         """thinking 等非 text_delta 不应混入结果"""
         lines = [
-            ('data: ' + json.dumps({"type": "content_block_delta",
-                                    "delta": {"type": "thinking_delta",
-                                              "thinking": "内部思考"}})).encode(),
+            (
+                "data: "
+                + json.dumps(
+                    {
+                        "type": "content_block_delta",
+                        "delta": {"type": "thinking_delta", "thinking": "内部思考"},
+                    }
+                )
+            ).encode(),
         ] + anthropic_sse("answer")
         rec = patch_http(FakeResponse(lines=lines))
         assert AI.ClaudeClient(api_key="k").chat_stream("hi") == "answer"
@@ -274,11 +297,15 @@ class TestClaudeStream:
         assert c.model
 
     def test_claude_non_stream_chat_parses_content_blocks(self, patch_http):
-        resp = FakeResponse(json_data={"content": [
-            {"type": "text", "text": "第一段"},
-            {"type": "tool_use", "id": "x"},
-            {"type": "text", "text": "第二段"},
-        ]})
+        resp = FakeResponse(
+            json_data={
+                "content": [
+                    {"type": "text", "text": "第一段"},
+                    {"type": "tool_use", "id": "x"},
+                    {"type": "text", "text": "第二段"},
+                ]
+            }
+        )
         rec = patch_http(resp)
         text = AI.ClaudeClient(api_key="k").chat("hi")
         assert text == "第一段第二段"
@@ -290,11 +317,12 @@ class TestClaudeStream:
 # 基类兜底
 # =========================================================
 
+
 class TestBaseClassFallback:
     """基类也必须提供 chat_stream，否则子类会 AttributeError"""
 
     def test_base_has_chat_stream(self):
-        assert hasattr(AI.AIClient, 'chat_stream')
+        assert hasattr(AI.AIClient, "chat_stream")
 
     def test_base_fallback_is_non_streaming_but_correct(self, patch_http):
         class Dummy(AI.AIClient):
@@ -316,13 +344,13 @@ class TestBaseClassFallback:
         for provider in AI.AIClientFactory.list_providers():
             key = provider[0] if isinstance(provider, (tuple, list)) else provider
             c = AI.AIClientFactory.create(provider=key, api_key="k")
-            assert hasattr(c, "chat_stream"), (
-                "provider %s 的客户端缺少 chat_stream" % key)
+            assert hasattr(c, "chat_stream"), "provider %s 的客户端缺少 chat_stream" % key
 
 
 # =========================================================
 # 取消语义
 # =========================================================
+
 
 class TestCancellation:
     def test_cancel_stops_openai_stream(self, patch_http):
@@ -333,7 +361,7 @@ class TestCancellation:
 
         def on_chunk(t):
             got.append(t)
-            c.cancel()          # 收到第一段就取消
+            c.cancel()  # 收到第一段就取消
 
         text = c.chat_stream("hi", callback=on_chunk)
         assert got == ["a"], "取消后不应继续收片段"
@@ -366,10 +394,19 @@ class TestCancellation:
 # 工厂
 # =========================================================
 
+
 class TestFactory:
     def test_all_providers_instantiable(self):
-        for key in ("openai", "ollama", "deepseek", "qwen", "moonshot",
-                    "zhipu", "claude", "anthropic"):
+        for key in (
+            "openai",
+            "ollama",
+            "deepseek",
+            "qwen",
+            "moonshot",
+            "zhipu",
+            "claude",
+            "anthropic",
+        ):
             c = AI.AIClientFactory.create(provider=key, api_key="k")
             assert isinstance(c, AI.AIClient), key
 
@@ -379,8 +416,7 @@ class TestFactory:
             assert isinstance(c, AI.ClaudeClient), key
 
     def test_other_providers_map_to_openai_client(self):
-        for key in ("openai", "ollama", "deepseek", "qwen", "moonshot",
-                    "zhipu"):
+        for key in ("openai", "ollama", "deepseek", "qwen", "moonshot", "zhipu"):
             c = AI.AIClientFactory.create(provider=key, api_key="k")
             assert isinstance(c, AI.OpenAIClient), key
 
@@ -390,8 +426,7 @@ class TestFactory:
             AI.AIClientFactory.create(provider="nope", api_key="k")
 
     def test_default_models_per_provider(self):
-        for key in ("openai", "ollama", "deepseek", "qwen", "moonshot",
-                    "zhipu", "claude"):
+        for key in ("openai", "ollama", "deepseek", "qwen", "moonshot", "zhipu", "claude"):
             models = AI.AIClientFactory.get_default_models(key)
             assert models, "provider %s 缺少默认模型" % key
 
@@ -415,17 +450,16 @@ class TestFactory:
 # 非流式 chat 的协议细节
 # =========================================================
 
+
 class TestChatNonStream:
     def test_openai_chat_returns_message_content(self, patch_http):
-        rec = patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "答案"}}]}))
+        rec = patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "答案"}}]}))
         assert AI.OpenAIClient(api_key="k", provider="openai").chat("q") == "答案"
         assert rec.url.endswith("/chat/completions")
         assert rec.payload.get("stream") is None
 
     def test_openai_chat_raises_on_error_object(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "error": {"message": "额度不足"}}))
+        patch_http(FakeResponse(json_data={"error": {"message": "额度不足"}}))
         with pytest.raises(AI.AIClientError) as ei:
             AI.OpenAIClient(api_key="k", provider="openai").chat("q")
         assert "额度不足" in str(ei.value)
@@ -446,6 +480,7 @@ class TestChatNonStream:
 # 多轮对话历史（此前 _history 只声明、从未使用）
 # =========================================================
 
+
 class TestChatHistory:
     def _client(self):
         c = AI.OpenAIClient(api_key="k", provider="openai")
@@ -458,15 +493,13 @@ class TestChatHistory:
         assert c.history_turns() == 0
 
     def test_no_history_recorded_when_disabled(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "答案"}}]}))
+        patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "答案"}}]}))
         c = self._client()
         c.chat("问题")
         assert c.get_history() == [], "默认不应记录历史"
 
     def test_history_recorded_when_enabled(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "答案"}}]}))
+        patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "答案"}}]}))
         c = self._client()
         c.chat("问题", use_history=True)
         h = c.get_history()
@@ -477,19 +510,16 @@ class TestChatHistory:
 
     def test_second_turn_sends_previous_context(self, patch_http):
         """第二轮必须把第一轮带上去 —— 这是'多轮'的本质"""
-        rec = patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "A1"}}]}))
+        rec = patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "A1"}}]}))
         c = self._client()
         c.chat("Q1", use_history=True)
         c.chat("Q2", use_history=True)
         sent = rec.payload["messages"]
         roles = [(m["role"], m["content"]) for m in sent]
-        assert roles == [("user", "Q1"), ("assistant", "A1"),
-                         ("user", "Q2")], roles
+        assert roles == [("user", "Q1"), ("assistant", "A1"), ("user", "Q2")], roles
 
     def test_system_not_duplicated_into_history(self, patch_http):
-        rec = patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "A"}}]}))
+        rec = patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "A"}}]}))
         c = self._client()
         c.chat("Q", system="SYS", use_history=True)
         # system 每次作为独立首条发送，不进入 history 本体
@@ -497,10 +527,9 @@ class TestChatHistory:
         assert all(m["role"] != "system" for m in c.get_history())
 
     def test_history_is_trimmed(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "A"}}]}))
+        patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "A"}}]}))
         c = self._client()
-        c.max_history_turns = 2          # 上限 2 轮 = 4 条
+        c.max_history_turns = 2  # 上限 2 轮 = 4 条
         for i in range(6):
             c.chat("Q%d" % i, use_history=True)
         assert c.history_turns() <= 4, c.get_history()
@@ -508,8 +537,7 @@ class TestChatHistory:
         assert c.get_history()[-1]["content"] == "A"
 
     def test_reset_history(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "A"}}]}))
+        patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "A"}}]}))
         c = self._client()
         c.chat("Q", use_history=True)
         assert c.history_turns() == 2
@@ -517,8 +545,7 @@ class TestChatHistory:
         assert c.history_turns() == 0
 
     def test_get_history_returns_copy(self, patch_http):
-        patch_http(FakeResponse(json_data={
-            "choices": [{"message": {"content": "A"}}]}))
+        patch_http(FakeResponse(json_data={"choices": [{"message": {"content": "A"}}]}))
         c = self._client()
         c.chat("Q", use_history=True)
         h = c.get_history()
@@ -551,6 +578,7 @@ class TestChatHistory:
 # =========================================================
 # token 分档
 # =========================================================
+
 
 class TestTokenTiers:
     def test_tiers_are_ordered(self):

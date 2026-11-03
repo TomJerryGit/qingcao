@@ -16,6 +16,7 @@ P0-2 的两个缺陷恰好都在跨进程路径上：
 
 服务器故意往 stderr 打印日志，用来覆盖通道分离与抗噪逻辑。
 """
+
 import json
 import os
 import sys
@@ -141,7 +142,7 @@ if __name__ == '__main__':
 def mock_server(tmp_path):
     """写出 mock LSP 服务器脚本并返回 (脚本路径, 日志路径)"""
     script = tmp_path / "mock_lsp_server.py"
-    script.write_text(MOCK_SERVER, encoding='utf-8')
+    script.write_text(MOCK_SERVER, encoding="utf-8")
     log_path = tmp_path / "mock_lsp.log"
     return str(script), str(log_path)
 
@@ -165,7 +166,7 @@ def _read_log(log_path):
     if not os.path.exists(log_path):
         return []
     entries = []
-    with open(log_path, encoding='utf-8') as f:
+    with open(log_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -185,7 +186,7 @@ class TestRealSubprocessHandshake:
 
     def test_full_lifecycle(self, qapp, qtbot, mock_server):
         script, log_path = mock_server
-        os.environ['MOCK_LSP_LOG'] = log_path
+        os.environ["MOCK_LSP_LOG"] = log_path
 
         from core.lsp_client import LspClient
 
@@ -194,9 +195,7 @@ class TestRealSubprocessHandshake:
         client.error_occurred.connect(lambda m: errors.append(m))
 
         diagnostics = []
-        client.diagnostics_updated.connect(
-            lambda uri, diags: diagnostics.append((uri, diags))
-        )
+        client.diagnostics_updated.connect(lambda uri, diags: diagnostics.append((uri, diags)))
 
         uri = "file:///mock.py"
         text_v1 = "x = 1\n"
@@ -206,29 +205,25 @@ class TestRealSubprocessHandshake:
         try:
             # ---- initialize ----
             client.initialize("file:///")
-            assert _wait_until(
-                qtbot, lambda: client.is_initialized
-            ), "initialize 未完成；errors=%s" % errors
+            assert _wait_until(qtbot, lambda: client.is_initialized), (
+                "initialize 未完成；errors=%s" % errors
+            )
 
             # 服务端能力应被解析（证明响应帧被正确解出）
-            assert client.supports('completionProvider') or True
+            assert client.supports("completionProvider") or True
 
             # ---- didOpen：必须带上正确的 languageId / text / version ----
             client.did_open(uri, "python", text_v1)
             assert _wait_until(
-                qtbot, lambda: any(
-                    e['method'] == 'textDocument/didOpen'
-                    for e in _read_log(log_path)
-                )
+                qtbot,
+                lambda: any(e["method"] == "textDocument/didOpen" for e in _read_log(log_path)),
             ), "服务端未收到 didOpen；errors=%s" % errors
 
             # ---- didChange：version 必须递增（P0-2 的核心回归点）----
             client.did_change(uri, text_v2)
             assert _wait_until(
-                qtbot, lambda: any(
-                    e['method'] == 'textDocument/didChange'
-                    for e in _read_log(log_path)
-                )
+                qtbot,
+                lambda: any(e["method"] == "textDocument/didChange" for e in _read_log(log_path)),
             ), "服务端未收到 didChange；errors=%s" % errors
 
             # ---- didSave / didClose ----
@@ -237,92 +232,75 @@ class TestRealSubprocessHandshake:
             # 必须等服务端确实收到，否则 stop() 会抢在写盘前关掉管道
             assert _wait_until(
                 qtbot,
-                lambda: any(
-                    e['method'] == 'textDocument/didSave'
-                    for e in _read_log(log_path)
-                ),
+                lambda: any(e["method"] == "textDocument/didSave" for e in _read_log(log_path)),
             ), "服务端未收到 didSave；errors=%s" % errors
             assert _wait_until(
                 qtbot,
-                lambda: any(
-                    e['method'] == 'textDocument/didClose'
-                    for e in _read_log(log_path)
-                ),
+                lambda: any(e["method"] == "textDocument/didClose" for e in _read_log(log_path)),
             ), "服务端未收到 didClose；errors=%s" % errors
 
             entries = _read_log(log_path)
         finally:
             client.stop()
 
-        methods = [e.get('method') for e in entries]
+        methods = [e.get("method") for e in entries]
 
         # 1) 四个通知全部到达（跨进程路径完整可用）
         for expected in (
-            'initialize',
-            'textDocument/didOpen',
-            'textDocument/didChange',
-            'textDocument/didSave',
-            'textDocument/didClose',
+            "initialize",
+            "textDocument/didOpen",
+            "textDocument/didChange",
+            "textDocument/didSave",
+            "textDocument/didClose",
         ):
-            assert expected in methods, (
-                "服务端未收到 %s；实际收到 %s" % (expected, methods)
-            )
+            assert expected in methods, "服务端未收到 %s；实际收到 %s" % (expected, methods)
 
         # 2) didOpen 的 languageId / text 必须正确（参数错位回归）
         open_params = next(
-            e['params'] for e in entries
-            if e.get('method') == 'textDocument/didOpen'
+            e["params"] for e in entries if e.get("method") == "textDocument/didOpen"
         )
-        doc = open_params['textDocument']
-        assert doc['languageId'] == 'python', (
-            "languageId 错位：%r" % doc['languageId']
-        )
-        assert doc['text'] == text_v1, "didOpen 文本不正确"
+        doc = open_params["textDocument"]
+        assert doc["languageId"] == "python", "languageId 错位：%r" % doc["languageId"]
+        assert doc["text"] == text_v1, "didOpen 文本不正确"
 
         # 3) didChange 的 version 必须是更大的整数
         #    注意：LSP 规范里版本号在 params.textDocument.version，
         #    不在 contentChanges[i].version。
         change_params = next(
-            e['params'] for e in entries
-            if e.get('method') == 'textDocument/didChange'
+            e["params"] for e in entries if e.get("method") == "textDocument/didChange"
         )
-        change_version = change_params['textDocument']['version']
+        change_version = change_params["textDocument"]["version"]
         assert isinstance(change_version, int), (
-            "didChange 版本号非法：%r（None+1 会 TypeError）"
-            % change_version
+            "didChange 版本号非法：%r（None+1 会 TypeError）" % change_version
         )
-        assert change_version > doc['version'], (
-            "版本号未递增：didOpen=%s didChange=%s"
-            % (doc['version'], change_version)
+        assert change_version > doc["version"], "版本号未递增：didOpen=%s didChange=%s" % (
+            doc["version"],
+            change_version,
         )
         # 全量同步必须携带文本
-        changes = change_params.get('contentChanges') or []
-        assert changes and changes[0].get('text') == text_v2, (
-            "didChange 未携带新文本：%r" % changes
-        )
+        changes = change_params.get("contentChanges") or []
+        assert changes and changes[0].get("text") == text_v2, "didChange 未携带新文本：%r" % changes
 
     def test_stderr_noise_does_not_break_protocol(self, qapp, qtbot, mock_server):
         """服务器往 stderr 打日志，客户端仍能完成握手"""
         script, log_path = mock_server
-        os.environ['MOCK_LSP_LOG'] = log_path
+        os.environ["MOCK_LSP_LOG"] = log_path
 
         from core.lsp_client import LspClient
 
         client = LspClient()
         stderr_lines = []
-        client.log_message.connect(
-            lambda text, level: stderr_lines.append(text)
-        )
+        client.log_message.connect(lambda text, level: stderr_lines.append(text))
 
         client.start([sys.executable, script])
         try:
             client.initialize("file:///")
-            assert _wait_until(
-                qtbot, lambda: client.is_initialized
-            ), "stderr 日志污染导致 initialize 失败"
+            assert _wait_until(qtbot, lambda: client.is_initialized), (
+                "stderr 日志污染导致 initialize 失败"
+            )
             # 通道分离后，stderr 应经 log_message 上报
-            assert _wait_until(
-                qtbot, lambda: any('mock-lsp' in t for t in stderr_lines)
-            ), "未收到服务端 stderr 日志，通道可能仍是合并的"
+            assert _wait_until(qtbot, lambda: any("mock-lsp" in t for t in stderr_lines)), (
+                "未收到服务端 stderr 日志，通道可能仍是合并的"
+            )
         finally:
             client.stop()

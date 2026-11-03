@@ -7,6 +7,7 @@
 
 输出: <out>/registry.json + <out>/plugins/<name>-<ver>.zip
 """
+
 import argparse
 import base64
 import hashlib
@@ -30,6 +31,7 @@ def _sign_ed25519(data, key_hex):
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
         Ed25519PrivateKey,
     )
+
     key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_hex))
     return base64.b64encode(key.sign(data)).decode("ascii")
 
@@ -51,8 +53,11 @@ def _pack_plugin(plugin_dir, out_plugins, name, version):
 
 def build(plugins_dir, out_dir, base_url, only=None, key_hex="", app_version=""):
     plugins_root = os.path.join(ROOT, plugins_dir)
-    out_plugins = os.path.join(ROOT, out_dir, "plugins") if not os.path.isabs(out_dir) \
+    out_plugins = (
+        os.path.join(ROOT, out_dir, "plugins")
+        if not os.path.isabs(out_dir)
         else os.path.join(out_dir, "plugins")
+    )
     os.makedirs(out_plugins, exist_ok=True)
     entries = []
     for name in sorted(os.listdir(plugins_root)):
@@ -65,8 +70,7 @@ def build(plugins_dir, out_dir, base_url, only=None, key_hex="", app_version="")
         if not manifest.get("enabled", True):
             continue
         version = str(manifest.get("version", "0.0.0"))
-        zpath, zname = _pack_plugin(
-            os.path.join(plugins_root, name), out_plugins, name, version)
+        zpath, zname = _pack_plugin(os.path.join(plugins_root, name), out_plugins, name, version)
         data = io.open(zpath, "rb").read()
         entry = {
             "name": manifest.get("name") or name,
@@ -89,13 +93,21 @@ def build(plugins_dir, out_dir, base_url, only=None, key_hex="", app_version="")
             entry["signature"] = _sign_ed25519(data, key_hex)
             entry["signature_algo"] = "ed25519"
         entries.append(entry)
-    registry = {"version": 1, "plugins": entries, "themes": [],
-                "generated_by": "build_plugin_registry.py",
-                "app_version": app_version}
-    out_json = os.path.join(ROOT, out_dir, "registry.json") if not os.path.isabs(out_dir) \
+    registry = {
+        "version": 1,
+        "plugins": entries,
+        "themes": [],
+        "generated_by": "build_plugin_registry.py",
+        "app_version": app_version,
+    }
+    out_json = (
+        os.path.join(ROOT, out_dir, "registry.json")
+        if not os.path.isabs(out_dir)
         else os.path.join(out_dir, "registry.json")
+    )
     io.open(out_json, "w", encoding="utf-8", newline="\n").write(
-        json.dumps(registry, ensure_ascii=False, indent=2))
+        json.dumps(registry, ensure_ascii=False, indent=2)
+    )
     return registry, out_json
 
 
@@ -105,14 +117,18 @@ def main():
     ap.add_argument("--out", default="data/registry")
     ap.add_argument("--base-url", default="http://127.0.0.1:8765")
     ap.add_argument("--only", default="")
-    ap.add_argument("--key-hex", default=os.environ.get(
-        "QINGCAO_PLUGIN_SIGN_KEY", ""))
+    ap.add_argument("--key-hex", default=os.environ.get("QINGCAO_PLUGIN_SIGN_KEY", ""))
     ap.add_argument("--app-version", default="")
     args = ap.parse_args()
     only = {x.strip() for x in args.only.split(",") if x.strip()} or None
-    registry, out_json = build(args.plugins_dir, args.out, args.base_url,
-                               only=only, key_hex=args.key_hex,
-                               app_version=args.app_version)
+    registry, out_json = build(
+        args.plugins_dir,
+        args.out,
+        args.base_url,
+        only=only,
+        key_hex=args.key_hex,
+        app_version=args.app_version,
+    )
     print("[registry] %d 个插件 -> %s" % (len(registry["plugins"]), out_json))
     return 0
 

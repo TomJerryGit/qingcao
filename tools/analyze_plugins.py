@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """插件全面分析：功能/性能/UI/沙箱就绪度"""
+
 import ast
 import io
 import json
@@ -8,8 +9,16 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HEAVY = {"numpy", "pandas", "matplotlib", "scipy", "requests",
-         "PyQt5.QtWebEngineWidgets", "torch", "PIL"}
+HEAVY = {
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scipy",
+    "requests",
+    "PyQt5.QtWebEngineWidgets",
+    "torch",
+    "PIL",
+}
 EXT_PREFIXES = ("register_", "add_", "publish_", "clear_")
 
 
@@ -84,22 +93,27 @@ def analyze_plugin(path):
                             file_ops += 1
                         if name in ("get", "post", "urlopen", "request"):
                             net += 1
-                        if fn.value is not None and isinstance(
-                                fn.value, ast.Name) and fn.value.id == "api":
+                        if (
+                            fn.value is not None
+                            and isinstance(fn.value, ast.Name)
+                            and fn.value.id == "api"
+                        ):
                             api_calls.add(name)
-    info.update({
-        "loc": loc,
-        "heavy_imports": sorted(imports),
-        "extensions": sorted(ext),
-        "api_calls": sorted(api_calls)[:12],
-        "refresh_theme": "refresh_theme" in methods,
-        "hard_qss": hard_qss,
-        "timers": timers,
-        "threads": threads,
-        "file_ops": file_ops,
-        "net": net,
-        "sandbox_ready": "diagnostics" in methods or "symbols" in methods,
-    })
+    info.update(
+        {
+            "loc": loc,
+            "heavy_imports": sorted(imports),
+            "extensions": sorted(ext),
+            "api_calls": sorted(api_calls)[:12],
+            "refresh_theme": "refresh_theme" in methods,
+            "hard_qss": hard_qss,
+            "timers": timers,
+            "threads": threads,
+            "file_ops": file_ops,
+            "net": net,
+            "sandbox_ready": "diagnostics" in methods or "symbols" in methods,
+        }
+    )
     return info
 
 
@@ -116,18 +130,32 @@ def main():
     out_json = os.path.join(ROOT, "data", "plugin_analysis.json")
     os.makedirs(os.path.dirname(out_json), exist_ok=True)
     io.open(out_json, "w", encoding="utf-8", newline="\n").write(
-        json.dumps(rows, ensure_ascii=False, indent=2))
-    lines = ["# 插件全面分析（v2.13.0 基线）", "",
-             "| 插件 | 版本 | 启用 | 沙箱 | LOC | 扩展点 | 重依赖 | refresh_theme | 硬编码QSS | 线程 | 文件IO | 网络 |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        json.dumps(rows, ensure_ascii=False, indent=2)
+    )
+    lines = [
+        "# 插件全面分析（v2.13.0 基线）",
+        "",
+        "| 插件 | 版本 | 启用 | 沙箱 | LOC | 扩展点 | 重依赖 | refresh_theme | 硬编码QSS | 线程 | 文件IO | 网络 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for r in rows:
-        lines.append("| %s | %s | %s | %s | %d | %s | %s | %s | %d | %d | %d | %d |"
-                     % (r["name"], r.get("version"), "✓" if r.get("enabled") else "✗",
-                        "✓" if r.get("sandbox") else "✗", r["loc"],
-                        ",".join(r["extensions"])[:60] or "-",
-                        ",".join(r["heavy_imports"]) or "-",
-                        "✓" if r["refresh_theme"] else "✗",
-                        r["hard_qss"], r["threads"], r["file_ops"], r["net"]))
+        lines.append(
+            "| %s | %s | %s | %s | %d | %s | %s | %s | %d | %d | %d | %d |"
+            % (
+                r["name"],
+                r.get("version"),
+                "✓" if r.get("enabled") else "✗",
+                "✓" if r.get("sandbox") else "✗",
+                r["loc"],
+                ",".join(r["extensions"])[:60] or "-",
+                ",".join(r["heavy_imports"]) or "-",
+                "✓" if r["refresh_theme"] else "✗",
+                r["hard_qss"],
+                r["threads"],
+                r["file_ops"],
+                r["net"],
+            )
+        )
     print("\n".join(lines))
     print("\n[JSON] %s" % out_json)
     return 0

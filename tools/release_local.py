@@ -12,6 +12,7 @@
     python tools/release_local.py --no-build     # 跳过构建（复用 dist）
     python tools/release_local.py --dry-run      # 只检查与打印计划
 """
+
 import argparse
 import hashlib
 import json
@@ -49,10 +50,18 @@ def check_exe_version(version: str) -> str:
         raise SystemExit("构建产物缺失: %s" % exe)
     try:
         out = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "(Get-Item '%s').VersionInfo.FileVersion" % exe],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=60).stdout.strip()
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-Item '%s').VersionInfo.FileVersion" % exe,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        ).stdout.strip()
         return out
     except Exception as e:
         print("[警告] 无法读取 FileVersion: %s" % e)
@@ -106,10 +115,8 @@ def make_plan(version, zip_path, sha_path, digest, notes):
         "sha256": digest,
         "steps": [
             "打开 GitHub → Releases → 选择 tag v%s" % version,
-            "粘贴 %s 的全部内容作为 Release 正文"
-            % os.path.relpath(notes, ROOT),
-            "上传 %s 与 %s" % (os.path.basename(zip_path),
-                              os.path.basename(sha_path)),
+            "粘贴 %s 的全部内容作为 Release 正文" % os.path.relpath(notes, ROOT),
+            "上传 %s 与 %s" % (os.path.basename(zip_path), os.path.basename(sha_path)),
             "Publish release",
         ],
     }
@@ -133,8 +140,7 @@ def main():
     print("发布说明: %s" % os.path.relpath(notes, ROOT))
 
     if args.dry_run:
-        print("[dry-run] exe: %s 存在=%s"
-              % (exe_path(), os.path.exists(exe_path())))
+        print("[dry-run] exe: %s 存在=%s" % (exe_path(), os.path.exists(exe_path())))
         print("  FileVersion: %s" % check_exe_version(version))
         print("[dry-run] 跳过构建与打包")
         return 0

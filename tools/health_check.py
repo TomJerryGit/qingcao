@@ -27,11 +27,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 SKIP_DIRS = {
-    '__pycache__', '.git', '.github', '.idea', '.vscode',
-    'venv', '.venv', 'env', '.env', 'node_modules',
-    'build', 'dist', 'backup', 'data', 'logs',
-    '1.0 QingCaoEditor_Others', '_archived_tools', '_archive',
-    'tools',
+    "__pycache__",
+    ".git",
+    ".github",
+    ".idea",
+    ".vscode",
+    "venv",
+    ".venv",
+    "env",
+    ".env",
+    "node_modules",
+    "build",
+    "dist",
+    "backup",
+    "data",
+    "logs",
+    "1.0 QingCaoEditor_Others",
+    "_archived_tools",
+    "_archive",
+    "tools",
 }
 
 
@@ -67,7 +81,7 @@ def find_py_files():
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
-            if fn.endswith('.py') and '.bak' not in fn:
+            if fn.endswith(".py") and ".bak" not in fn:
                 result.append(Path(dirpath) / fn)
     return result
 
@@ -140,7 +154,7 @@ def check_large_files(py_files):
     large = []
     for f in py_files:
         try:
-            with open(f, encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding="utf-8", errors="replace") as fh:
                 n = sum(1 for _ in fh)
         except Exception:
             continue
@@ -194,26 +208,30 @@ def check_deprecated_api(py_files):
 
     for f in py_files:
         try:
-            with open(f, encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding="utf-8", errors="replace") as fh:
                 source = fh.read()
         except Exception:
             continue
 
-        lines = source.split('\n')
+        lines = source.split("\n")
 
         # AST 找 docstring 行范围
         docstring_lines = set()
         try:
             tree = ast.parse(source)
             for node in ast.walk(tree):
-                if isinstance(node, (ast.Module, ast.ClassDef,
-                                     ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if (node.body and isinstance(node.body[0], ast.Expr)
-                            and isinstance(node.body[0].value, ast.Constant)
-                            and isinstance(node.body[0].value.value, str)):
+                if isinstance(
+                    node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+                ):
+                    if (
+                        node.body
+                        and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)
+                    ):
                         d = node.body[0]
                         start = d.lineno
-                        end = getattr(d, 'end_lineno', start)
+                        end = getattr(d, "end_lineno", start)
                         for ln in range(start, end + 1):
                             docstring_lines.add(ln)
         except SyntaxError:
@@ -227,24 +245,22 @@ def check_deprecated_api(py_files):
             stripped = line.strip()
 
             # 跳过注释
-            if stripped.startswith('#'):
+            if stripped.startswith("#"):
                 continue
 
             # 跳过 hasattr/getattr 兼容分支
-            if 'hasattr(' in line or 'getattr(' in line:
+            if "hasattr(" in line or "getattr(" in line:
                 continue
 
             # 跳过 EditorWidget 自己的 self.prov
-            if ('self.prov' in line and
-                    'proxy.prov' not in line and
-                    'editor.prov' not in line):
+            if "self.prov" in line and "proxy.prov" not in line and "editor.prov" not in line:
                 continue
 
             # 只报属性链访问
-            if re.search(r'\b(proxy|editor)\.prov\.[a-zA-Z_]', line):
-                findings.append((f, i, 'proxy.prov.xxx'))
-            elif re.search(r'\b(proxy|editor)\.document\.enc\b(?!oding)', line):
-                findings.append((f, i, 'document.enc.xxx'))
+            if re.search(r"\b(proxy|editor)\.prov\.[a-zA-Z_]", line):
+                findings.append((f, i, "proxy.prov.xxx"))
+            elif re.search(r"\b(proxy|editor)\.document\.enc\b(?!oding)", line):
+                findings.append((f, i, "document.enc.xxx"))
 
     if not findings:
         print_ok("未发现真正的 deprecated API 调用")
@@ -273,13 +289,13 @@ def check_deprecated_api(py_files):
 def check_todos(py_files):
     print_header("检查 6: TODO / FIXME / HACK 统计")
 
-    pattern = re.compile(r'\b(TODO|FIXME|HACK|XXX)\b')
+    pattern = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
     counts = {"TODO": 0, "FIXME": 0, "HACK": 0, "XXX": 0}
     by_file = {}
 
     for f in py_files:
         try:
-            with open(f, encoding='utf-8', errors='replace') as fh:
+            with open(f, encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
         except Exception:
             continue
@@ -358,24 +374,24 @@ def check_gitignore():
         return 0
 
     try:
-        content = gi_path.read_text(encoding='utf-8')
+        content = gi_path.read_text(encoding="utf-8")
     except Exception as e:
         print_fail(f"读取失败: {e}")
         return 0
 
     should_ignore = [
-        ("__pycache__",    ["__pycache__"]),
-        ("*.pyc",          ["*.pyc", "*.py[cod]", "*.py[co]"]),
-        (".pytest_cache",  [".pytest_cache"]),
-        ("build/",         ["build/"]),
-        ("dist/",          ["dist/"]),
-        ("venv/",          ["venv/", "venv\n", "venv\r"]),
-        (".venv/",         [".venv/"]),
-        ("session.json",   ["session.json"]),
-        ("crash.log",      ["crash.log"]),
-        ("logs/",          ["logs/"]),
-        ("backup/",        ["backup/"]),
-        ("data/",          ["data/"]),
+        ("__pycache__", ["__pycache__"]),
+        ("*.pyc", ["*.pyc", "*.py[cod]", "*.py[co]"]),
+        (".pytest_cache", [".pytest_cache"]),
+        ("build/", ["build/"]),
+        ("dist/", ["dist/"]),
+        ("venv/", ["venv/", "venv\n", "venv\r"]),
+        (".venv/", [".venv/"]),
+        ("session.json", ["session.json"]),
+        ("crash.log", ["crash.log"]),
+        ("logs/", ["logs/"]),
+        ("backup/", ["backup/"]),
+        ("data/", ["data/"]),
     ]
 
     missing = []
@@ -440,5 +456,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n脚本异常: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

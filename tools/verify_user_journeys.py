@@ -3,6 +3,7 @@
 
 不依赖单元测试的模拟，而是用真实组件完成完整操作链，记录每一步结果。
 """
+
 import os
 import sys
 import tempfile
@@ -81,8 +82,7 @@ def j1_undo():
     before = sc.text()
     proxy.undo()
     changed = sc.text() != before
-    return changed, "撤销后内容变化=%s (%r -> %r)" % (
-        changed, before.strip(), sc.text().strip())
+    return changed, "撤销后内容变化=%s (%r -> %r)" % (changed, before.strip(), sc.text().strip())
 
 
 def j1_delete_undo():
@@ -100,11 +100,14 @@ def j1_delete_undo():
     proxy = EditorProxy(sc, Document())
     proxy.open_file(p)
     original = sc.text()
-    sc.SendScintilla(sc.SCI_DELETERANGE, 0, 5)      # 删掉 "hello"
+    sc.SendScintilla(sc.SCI_DELETERANGE, 0, 5)  # 删掉 "hello"
     after_del = sc.text()
     proxy.undo()
     return sc.text() == original, "原文=%r 删除后=%r 撤销后=%r" % (
-        original.strip(), after_del.strip(), sc.text().strip())
+        original.strip(),
+        after_del.strip(),
+        sc.text().strip(),
+    )
 
 
 # ---------------------------------------------------------------
@@ -185,8 +188,7 @@ def j4_encoding():
     proxy.open_file(p)
     ok = proxy.document.change_encoding("gbk", reload=True)
     same = sc.text().replace("\r\n", "\n") == "中文内容\n"
-    return (bool(ok) and same), "change_encoding=%s 编辑器=%r" % (
-        ok, sc.text())
+    return (bool(ok) and same), "change_encoding=%s 编辑器=%r" % (ok, sc.text())
 
 
 # ---------------------------------------------------------------
@@ -215,6 +217,7 @@ def j5_external():
     except OSError as e:
         return False, "外部写入被阻止（文件被锁）: %s" % e
     import time
+
     time.sleep(0.05)
     return True, "外部程序可正常修改已打开的文件（关键前提）"
 
@@ -224,6 +227,7 @@ def j5_external():
 # ---------------------------------------------------------------
 def j6_merge():
     from core.file_merge import ThreeWayMerger
+
     r = ThreeWayMerger.merge("a\nb\n", "a\nb\nLOCAL\n", "a\nb\nREMOTE\n")
     m = r["merged"]
     ok = ("LOCAL" in m and "REMOTE" in m) or bool(r["conflicts"])
@@ -242,8 +246,7 @@ def j7_git():
     os.makedirs(repo, exist_ok=True)
 
     def g(*a):
-        return subprocess.run(["git"] + list(a), cwd=repo,
-                              capture_output=True, text=True)
+        return subprocess.run(["git"] + list(a), cwd=repo, capture_output=True, text=True)
 
     g("init", "-q")
     g("config", "user.email", "t@t.t")
@@ -266,8 +269,8 @@ def j8_session():
     has_drafts = hasattr(sm, "find_recoverable_drafts")
     has_autosave = hasattr(sm, "save_autosave")
     return (has_drafts and has_autosave), (
-        "find_recoverable_drafts=%s save_autosave=%s"
-        % (has_drafts, has_autosave))
+        "find_recoverable_drafts=%s save_autosave=%s" % (has_drafts, has_autosave)
+    )
 
 
 # ---------------------------------------------------------------
@@ -279,8 +282,7 @@ def j9_plugins():
     pm = PluginManager()
     r = pm.load_all()
     # LoadResult 的属性是 loaded/failed/disabled/total（不是 activated）
-    return r.loaded > 0, "loaded=%s failed=%s total=%s" % (
-        r.loaded, r.failed, r.total)
+    return r.loaded > 0, "loaded=%s failed=%s total=%s" % (r.loaded, r.failed, r.total)
 
 
 # ---------------------------------------------------------------
@@ -288,6 +290,7 @@ def j9_plugins():
 # ---------------------------------------------------------------
 def j10_ollama():
     from core.ollama_client import OllamaClient
+
     c = OllamaClient()
     running = c.is_running() if hasattr(c, "is_running") else None
     return True, "OllamaClient 可构造，is_running=%s" % running

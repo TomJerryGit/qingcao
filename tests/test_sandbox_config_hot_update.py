@@ -15,10 +15,10 @@ class _FakeSandbox:
         self.diag_calls = 0
 
     def config_schema(self):
-        return {"enabled": {"type": "bool", "label": "启用",
-                            "default": True},
-                "max_words": {"type": "int", "label": "上限",
-                              "default": 10}}
+        return {
+            "enabled": {"type": "bool", "label": "启用", "default": True},
+            "max_words": {"type": "int", "label": "上限", "default": 10},
+        }
 
     def config_apply(self, values):
         self.applied.append(values)
@@ -46,6 +46,7 @@ def test_config_saved_hot_apply(qapp, tmp_path):
     from PyQt5.QtCore import QSettings
 
     from ui.main_window import MainWindow
+
     win = MainWindow()
     fake = _FakeSandbox()
     try:
@@ -53,8 +54,7 @@ def test_config_saved_hot_apply(qapp, tmp_path):
         f.write_text("hello\n", encoding="utf-8")
         win.tabs.open_file(str(f))
         win._sandboxed_plugins = {"hot_cfg": fake}
-        ok = win._sandbox_config_saved(
-            "hot_cfg", {"enabled": False, "max_words": 33})
+        ok = win._sandbox_config_saved("hot_cfg", {"enabled": False, "max_words": 33})
         assert ok is True
         assert fake.applied and fake.applied[-1]["enabled"] is False
         assert fake.applied[-1]["max_words"] == 33

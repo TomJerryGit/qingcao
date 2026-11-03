@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """稳定性工具：分片划分逻辑"""
+
 import importlib.util
 import os
 import subprocess
@@ -36,8 +37,14 @@ def test_collect_test_files():
 
 def test_cli_help():
     path = os.path.join(ROOT, "tools", "run_tests_sharded.py")
-    out = subprocess.run([sys.executable, path, "--help"], cwd=ROOT,
-                         capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", timeout=60)
+    out = subprocess.run(
+        [sys.executable, path, "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
     assert out.returncode == 0
     assert "--localize" in out.stdout

@@ -23,6 +23,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import tempfile
@@ -82,25 +83,31 @@ names = list_templates()
 check("A1 模板数量 == 8", len(names) == 8, str(names))
 # 注意：`.gitignore` 模板本来就没有占位符（纯静态内容），
 # 所以只要求"有非空 code"，不要求"必须有 placeholders"。
-check("A2 每个模板都有非空 code",
-      all(get_template(n).get("code") for n in names), "")
-check("A2b 至少 6 个模板声明了占位符",
-      sum(1 for n in names if get_template_placeholders(n)) >= 6,
-      str({n: len(get_template_placeholders(n)) for n in names}))
+check("A2 每个模板都有非空 code", all(get_template(n).get("code") for n in names), "")
+check(
+    "A2b 至少 6 个模板声明了占位符",
+    sum(1 for n in names if get_template_placeholders(n)) >= 6,
+    str({n: len(get_template_placeholders(n)) for n in names}),
+)
 
 # ★ 参数冲突回归：name 既是模板名参数、又是占位符
 out = format_template(
-    "py_class", name="MyClass", docstring="示例类",
-    args="", init_body="pass", method="run", method_body="pass",
+    "py_class",
+    name="MyClass",
+    docstring="示例类",
+    args="",
+    init_body="pass",
+    method="run",
+    method_body="pass",
 )
-check("A3 format_template 可传 name 占位符（参数冲突已修）",
-      "class MyClass:" in out, repr(out[:40]))
+check(
+    "A3 format_template 可传 name 占位符（参数冲突已修）", "class MyClass:" in out, repr(out[:40])
+)
 check("A4 生成结果无 {xxx} 残留", "{" not in out, repr(out[-40:]))
 
 # 缺占位符时也不能留 {xxx}
 partial = format_template("py_function")
-check("A5 缺占位符时结果仍无 {xxx} 残留", "{" not in partial,
-      repr(partial[:60]))
+check("A5 缺占位符时结果仍无 {xxx} 残留", "{" not in partial, repr(partial[:60]))
 check("A6 未知模板返回空串", format_template("__nope__") == "", "")
 
 # ============================================================
@@ -113,28 +120,30 @@ from ui.template_picker_dialog import TemplatePickerDialog  # noqa: E402
 
 dlg = TemplatePickerDialog(None)
 check("B1 对话框可构造", dlg is not None, "")
-check("B2 模板下拉项数 == 模板数",
-      dlg.template_combo.count() == len(names),
-      "%d" % dlg.template_combo.count())
+check(
+    "B2 模板下拉项数 == 模板数",
+    dlg.template_combo.count() == len(names),
+    "%d" % dlg.template_combo.count(),
+)
 n_ph = dlg.params_form.rowCount()
 check("B3 首个模板生成了占位符输入框", n_ph >= 1, "%d 个" % n_ph)
 check("B4 预览非空", bool(dlg.preview.toPlainText()), "")
 
 # 切换模板 → 输入框重建
 dlg.template_combo.setCurrentIndex(2)
-check("B5 切换模板后占位符输入框重建",
-      dlg.params_form.rowCount() >= 1,
-      "%d 个" % dlg.params_form.rowCount())
+check(
+    "B5 切换模板后占位符输入框重建",
+    dlg.params_form.rowCount() >= 1,
+    "%d 个" % dlg.params_form.rowCount(),
+)
 
 # 填值生成
 for _ph, w in dlg._inputs.items():
     w.setText("Demo")
 dlg._on_accept()
-check("B6 生成文本非空", bool(dlg.generated_text),
-      "%d 字符" % len(dlg.generated_text))
+check("B6 生成文本非空", bool(dlg.generated_text), "%d 字符" % len(dlg.generated_text))
 check("B7 生成文本无 {xxx} 残留", "{" not in dlg.generated_text, "")
-check("B8 有建议文件名", bool(dlg.suggested_filename),
-      dlg.suggested_filename)
+check("B8 有建议文件名", bool(dlg.suggested_filename), dlg.suggested_filename)
 dlg.close()
 
 # ============================================================
@@ -145,11 +154,12 @@ print("== C. core/snapshot.py ==")
 import core.snapshot as snap_mod  # noqa: E402
 
 
-check("C1 快照目录是绝对路径",
-      os.path.isabs(snap_mod.SNAPSHOT_DIR), snap_mod.SNAPSHOT_DIR)
-check("C2 快照目录基于应用根（含 data/snapshots）",
-      os.path.join("data", "snapshots") in snap_mod.SNAPSHOT_DIR,
-      snap_mod.SNAPSHOT_DIR)
+check("C1 快照目录是绝对路径", os.path.isabs(snap_mod.SNAPSHOT_DIR), snap_mod.SNAPSHOT_DIR)
+check(
+    "C2 快照目录基于应用根（含 data/snapshots）",
+    os.path.join("data", "snapshots") in snap_mod.SNAPSHOT_DIR,
+    snap_mod.SNAPSHOT_DIR,
+)
 
 from ui.main_window import MainWindow  # noqa: E402
 
@@ -185,17 +195,19 @@ try:
     ok = mgr.save_snapshot("测试快照", win.tabs, win)
     check("C4 save_snapshot 成功", ok is True, "")
     snaps = mgr.list_snapshots()
-    check("C5 list_snapshots 能看到快照",
-          any(s["name"] == "测试快照" for s in snaps),
-          str([s["name"] for s in snaps]))
+    check(
+        "C5 list_snapshots 能看到快照",
+        any(s["name"] == "测试快照" for s in snaps),
+        str([s["name"] for s in snaps]),
+    )
     data = mgr.load_snapshot("测试快照")
     check("C6 load_snapshot 能读回", data is not None, "")
-    check("C7 快照记录 2 个文件",
-          len(data.get("files", [])) == 2,
-          str(len(data.get("files", []))))
-    check("C8 快照记录了光标行号",
-          any(f.get("cursor_line") == 2 for f in data["files"]),
-          str([f.get("cursor_line") for f in data["files"]]))
+    check("C7 快照记录 2 个文件", len(data.get("files", [])) == 2, str(len(data.get("files", []))))
+    check(
+        "C8 快照记录了光标行号",
+        any(f.get("cursor_line") == 2 for f in data["files"]),
+        str([f.get("cursor_line") for f in data["files"]]),
+    )
 
     # 恢复：先关掉所有标签，再恢复
     while win.tabs.count():
@@ -206,15 +218,19 @@ try:
     check("C10 restore_snapshot 恢复了 2 个文件", n == 2, str(n))
     check("C11 标签数正确", win.tabs.count() == 2, str(win.tabs.count()))
     cur = win.tabs.current_proxy()
-    check("C12 恢复后光标位置正确",
-          cur is not None and cur.sc.getCursorPosition()[0] == 2,
-          str(cur.sc.getCursorPosition() if cur else None))
+    check(
+        "C12 恢复后光标位置正确",
+        cur is not None and cur.sc.getCursorPosition()[0] == 2,
+        str(cur.sc.getCursorPosition() if cur else None),
+    )
 
     # 删除
     mgr.delete_snapshot("测试快照")
-    check("C13 delete_snapshot 后列表为空",
-          not any(s["name"] == "测试快照" for s in mgr.list_snapshots()),
-          "")
+    check(
+        "C13 delete_snapshot 后列表为空",
+        not any(s["name"] == "测试快照" for s in mgr.list_snapshots()),
+        "",
+    )
 finally:
     snap_mod.SNAPSHOT_DIR = _orig_dir
 
@@ -227,10 +243,8 @@ from ui.snapshot_manager_dialog import SnapshotDialog  # noqa: E402
 dlg2 = SnapshotDialog(win, win)
 check("C14 快照对话框可构造", dlg2 is not None, "")
 check("C15 有列表控件", hasattr(dlg2, "list_widget"), "")
-check("C16 有未保存修改检测方法",
-      callable(getattr(dlg2, "_collect_modified_tabs", None)), "")
-check("C17 有批量保存方法",
-      callable(getattr(dlg2, "_save_all_modified", None)), "")
+check("C16 有未保存修改检测方法", callable(getattr(dlg2, "_collect_modified_tabs", None)), "")
+check("C17 有批量保存方法", callable(getattr(dlg2, "_save_all_modified", None)), "")
 
 # 修改一个标签，确认能检测到
 cur = win.tabs.current_proxy()
@@ -249,24 +263,20 @@ from PyQt5.QtWidgets import QAction  # noqa: E402
 
 
 texts = [a.text() for a in win.findChildren(QAction)]
-check("D1 有「从模板新建」菜单项",
-      "🧩 从模板新建…" in texts, "")
-check("D2 有「会话快照」菜单项",
-      "📸 会话快照…" in texts, "")
-check("D3 有 _new_from_template 处理器",
-      callable(getattr(win, "_new_from_template", None)), "")
-check("D4 有 _show_snapshot_dialog 处理器",
-      callable(getattr(win, "_show_snapshot_dialog", None)), "")
+check("D1 有「从模板新建」菜单项", "🧩 从模板新建…" in texts, "")
+check("D2 有「会话快照」菜单项", "📸 会话快照…" in texts, "")
+check("D3 有 _new_from_template 处理器", callable(getattr(win, "_new_from_template", None)), "")
+check(
+    "D4 有 _show_snapshot_dialog 处理器", callable(getattr(win, "_show_snapshot_dialog", None)), ""
+)
 
 # 模板处理器不应再调 _new_file（避免二次弹框）
 import inspect  # noqa: E402
 
 
 src = inspect.getsource(win._new_from_template)
-check("D5 模板处理器不再调用 _new_file（避免二次弹框）",
-      "self._new_file()" not in src, "")
-check("D6 模板处理器用 add_tab 直接建标签",
-      "add_tab" in src, "")
+check("D5 模板处理器不再调用 _new_file（避免二次弹框）", "self._new_file()" not in src, "")
+check("D6 模板处理器用 add_tab 直接建标签", "add_tab" in src, "")
 
 # ============================================================
 # 汇总
@@ -282,6 +292,7 @@ if FAIL:
 
 try:
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
 except Exception:
     pass

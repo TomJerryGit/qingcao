@@ -4,6 +4,7 @@
 用法: python tools/smoke_plugin_theme.py
 输出: docs/smoke_plugin_theme_<theme>.png
 """
+
 import os
 import sys
 import time
@@ -22,6 +23,7 @@ def pump(app, seconds):
 
 def find_plugin_dock(win):
     from PyQt5.QtWidgets import QDockWidget
+
     for d in win.findChildren(QDockWidget):
         title = d.windowTitle() or ""
         name = d.objectName() or ""
@@ -33,6 +35,7 @@ def find_plugin_dock(win):
 
 def pick_themes():
     from infrastructure.theme_loader import ThemeLoader
+
     loader = ThemeLoader()
     try:
         names = [n for n, _ in loader.list_themes()]
@@ -52,6 +55,7 @@ def main():
     from PyQt5.QtWidgets import QApplication
 
     from ui.main_window import MainWindow
+
     app = QApplication.instance() or QApplication(sys.argv)
     win = MainWindow()
     win.resize(1280, 800)
@@ -89,8 +93,7 @@ def main():
         if dock is not None:
             panel = dock.widget()
             if panel is not None:
-                panel.grab().save(os.path.join(
-                    ROOT, "docs", "smoke_plugin_panel_%s.png" % label))
+                panel.grab().save(os.path.join(ROOT, "docs", "smoke_plugin_panel_%s.png" % label))
         out.append((label, name, path, pix.width(), pix.height()))
         print("[smoke] 已截图:", path, "%dx%d" % (pix.width(), pix.height()))
 
@@ -98,17 +101,23 @@ def main():
     if len(out) >= 2:
         try:
             from PyQt5.QtGui import QImage
+
             img1 = QImage(out[0][2])
             img2 = QImage(out[1][2])
-            pts = [(img1.width() // 2, img1.height() // 3),
-                   (img1.width() // 4, img1.height() // 2),
-                   (img1.width() // 2, img1.height() - 30)]
+            pts = [
+                (img1.width() // 2, img1.height() // 3),
+                (img1.width() // 4, img1.height() // 2),
+                (img1.width() // 2, img1.height() - 30),
+            ]
             diffs = []
             for x, y in pts:
                 c1 = img1.pixelColor(x, y)
                 c2 = img2.pixelColor(x, y)
-                diffs.append(abs(c1.red() - c2.red()) + abs(c1.green() - c2.green())
-                             + abs(c1.blue() - c2.blue()))
+                diffs.append(
+                    abs(c1.red() - c2.red())
+                    + abs(c1.green() - c2.green())
+                    + abs(c1.blue() - c2.blue())
+                )
             print("[smoke] 采样点 RGB 差异:", diffs, "平均:", sum(diffs) / len(diffs))
         except Exception as e:
             print("[smoke] 像素对比失败:", e)

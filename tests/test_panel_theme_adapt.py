@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """浅色主题下面板子控件黑块修复测试（adapt_widget_styles）"""
+
 from types import SimpleNamespace
 
 from PyQt5.QtWidgets import QApplication, QTreeWidget, QWidget
@@ -13,8 +14,7 @@ def test_adapt_widget_styles_rewrites_child_inline_qss(monkeypatch):
         color = "#ffffff" if getattr(theme, "name", "") == "light" else "#000000"
         return "QTreeWidget { background-color: %s; }" % color
 
-    monkeypatch.setattr(
-        "infrastructure.theme_loader.adapt_qss_colors", fake_adapt)
+    monkeypatch.setattr("infrastructure.theme_loader.adapt_qss_colors", fake_adapt)
 
     root = QWidget()
     child = QTreeWidget(root)

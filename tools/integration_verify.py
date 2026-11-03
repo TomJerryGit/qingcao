@@ -17,6 +17,7 @@
 用法：
     python tools/integration_verify.py
 """
+
 import io
 import os
 import sys
@@ -64,8 +65,7 @@ def verify_git():
 
     checks = [
         ("is_repo()", lambda: gc.is_repo()),
-        ("find_root(本文件)", lambda: gc.find_root(
-            os.path.join(repo, "core", "git_client.py"))),
+        ("find_root(本文件)", lambda: gc.find_root(os.path.join(repo, "core", "git_client.py"))),
         ("current_branch()", lambda: gc.current_branch()),
         ("status()", lambda: gc.status()),
     ]
@@ -101,16 +101,14 @@ def verify_git():
     try:
         target = os.path.join(repo, "core", "git_client.py")
         d = gc.diff(target) or gc.diff_staged(target)
-        log("  diff()/diff_staged() OK  长度=%d（无改动时为 0 属正常）"
-            % len(d or ""))
+        log("  diff()/diff_staged() OK  长度=%d（无改动时为 0 属正常）" % len(d or ""))
     except Exception as e:
         log("  diff 异常: %s: %s" % (type(e).__name__, e))
 
     # show_log 依赖的方法
     try:
         lg = gc.log(5) if hasattr(gc, "log") else None
-        log("  log(5) OK  条目=%s"
-            % (len(lg) if isinstance(lg, (list, str)) else lg))
+        log("  log(5) OK  条目=%s" % (len(lg) if isinstance(lg, (list, str)) else lg))
     except Exception as e:
         log("  log 异常: %s: %s" % (type(e).__name__, e))
 
@@ -143,13 +141,16 @@ def verify_ollama():
     log("  status_text() -> %s" % (c.status_text(),))
 
     ok, models = c.list_models()
-    log("  list_models() -> ok=%s 数量=%s"
-        % (ok, len(models) if models else 0))
+    log("  list_models() -> ok=%s 数量=%s" % (ok, len(models) if models else 0))
     for m in (models or [])[:5]:
         if isinstance(m, dict):
-            log("      - %s  大小=%s"
-                % (m.get("name"), m.get("size_text")
-                   or OllamaClient.format_size(m.get("size") or 0)))
+            log(
+                "      - %s  大小=%s"
+                % (
+                    m.get("name"),
+                    m.get("size_text") or OllamaClient.format_size(m.get("size") or 0),
+                )
+            )
         else:
             log("      - %s" % (m,))
 
@@ -205,6 +206,7 @@ def verify_inline():
 
     try:
         from core.ai_client import load_ai_client_from_settings
+
         client = load_ai_client_from_settings()
     except Exception as e:
         log("  加载 AI 客户端失败: %s" % e)
@@ -257,7 +259,7 @@ def verify_inline():
         log("  accept_suggestion() -> %s" % ok)
         log("  文本变化: %s" % (before != after))
         if before != after:
-            newline = after[len(before):] if after.startswith(before) else "?"
+            newline = after[len(before) :] if after.startswith(before) else "?"
             log("  插入内容: %r" % newline[:60])
         log("  建议已清除: %s" % (not comp.has_suggestion()))
     else:

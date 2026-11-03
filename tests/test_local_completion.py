@@ -121,12 +121,8 @@ class _CountingCompleter:
 # ============================================================
 def test_production_code_calls_local_completer():
     assert "get_completions(" in inspect.getsource(EditorWidget.local_completions)
-    assert ".record_used(" in inspect.getsource(
-        EditorWidget._on_completion_accepted
-    )
-    assert ".update_from_file(" in inspect.getsource(
-        EditorWidget._sync_completion_words
-    )
+    assert ".record_used(" in inspect.getsource(EditorWidget._on_completion_accepted)
+    assert ".update_from_file(" in inspect.getsource(EditorWidget._sync_completion_words)
 
 
 def test_editor_imports_local_completer_singleton():
@@ -147,12 +143,8 @@ def test_get_completions_called_at_runtime(editor, completer):
 
     candidates = editor.trigger_local_completion(force=True)
 
-    assert spy.get_completions_calls >= 1, (
-        "LocalCompleter.get_completions 没有被生产代码调用"
-    )
-    assert spy.update_from_file_calls >= 1, (
-        "文档词频没有被同步给 LocalCompleter"
-    )
+    assert spy.get_completions_calls >= 1, "LocalCompleter.get_completions 没有被生产代码调用"
+    assert spy.update_from_file_calls >= 1, "文档词频没有被同步给 LocalCompleter"
     assert candidates, "补全候选为空"
 
     args, kwargs = spy.last_get_completions
@@ -180,11 +172,7 @@ def test_language_keywords_are_offered(editor, completer):
 def test_document_words_are_offered(editor, completer):
     """文档词补全能力必须保留（原先靠 QScintilla AcsDocument）"""
     editor.document.meta.filepath = "sample.py"
-    editor.setText(
-        "def zq_worker():\n"
-        "    zq_helper = 1\n"
-        "    return zq_helper\n"
-    )
+    editor.setText("def zq_worker():\n    zq_helper = 1\n    return zq_helper\n")
     editor.setCursorPosition(1, 7)  # 行 "    zq_helper = 1"，光标在 "zq_" 之后
 
     candidates = editor.trigger_local_completion(force=True)
@@ -223,15 +211,9 @@ def test_record_used_changes_ranking():
 def test_file_word_frequency_changes_ranking():
     """文件内词频必须影响排序"""
     comp = LocalCompleter()
-    comp.update_from_file(
-        "f.py", "zq_first zq_second zq_second zq_second\n"
-    )
+    comp.update_from_file("f.py", "zq_first zq_second zq_second zq_second\n")
 
-    words = [
-        w for w, _src in comp.get_completions(
-            "zq", filepath="f.py", language="python"
-        )
-    ]
+    words = [w for w, _src in comp.get_completions("zq", filepath="f.py", language="python")]
     assert words[0] == "zq_second", f"词频没有生效: {words}"
 
 

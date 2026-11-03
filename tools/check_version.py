@@ -17,6 +17,7 @@
        （app/ / core/ / ui/ / infrastructure/ / main.py / build*.py）
     5. README 徽章与发行包名与 version.py 一致
 """
+
 import io
 import os
 import re
@@ -27,25 +28,31 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 允许包含版本字面量的文件（示例/测试/文档/归档不参与检查）
 SKIP_DIRS = {
-    '__pycache__', '_archive', '.git', 'tools', 'tests', 'docs',
-    '1.0 QingCaoEditor_Others', 'node_modules',
+    "__pycache__",
+    "_archive",
+    ".git",
+    "tools",
+    "tests",
+    "docs",
+    "1.0 QingCaoEditor_Others",
+    "node_modules",
 }
 SKIP_FILES = {
-    'version.py',           # 权威来源
-    'VERSION',              # 由 release.py 同步
-    'CHANGELOG.md',         # 历史记录，天然包含各版本号
-    'fake_version.py',
+    "version.py",  # 权威来源
+    "VERSION",  # 由 release.py 同步
+    "CHANGELOG.md",  # 历史记录，天然包含各版本号
+    "fake_version.py",
 }
 
 
 def read_text(path):
-    with io.open(path, encoding='utf-8', errors='replace') as f:
+    with io.open(path, encoding="utf-8", errors="replace") as f:
         return f.read()
 
 
 def get_authoritative_version():
     """读取 version.py 中的 __version__"""
-    path = os.path.join(ROOT, 'version.py')
+    path = os.path.join(ROOT, "version.py")
     src = read_text(path)
     m = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', src, re.M)
     if not m:
@@ -55,13 +62,13 @@ def get_authoritative_version():
 
 def iter_source_files():
     """遍历需要检查的源码文件"""
-    exts = ('.py', '.md', '.iss', '.yml', '.yaml')
+    exts = (".py", ".md", ".iss", ".yml", ".yaml")
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for name in filenames:
             if name in SKIP_FILES:
                 continue
-            if name.endswith('.bak') or '.bak.' in name:
+            if name.endswith(".bak") or ".bak." in name:
                 continue
             if not name.endswith(exts):
                 continue
@@ -70,7 +77,7 @@ def iter_source_files():
 
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
-    verbose = '-v' in argv or '--verbose' in argv
+    verbose = "-v" in argv or "--verbose" in argv
 
     version = get_authoritative_version()
     print("[check_version] 权威版本: %s (version.py)" % version)
@@ -78,7 +85,7 @@ def main(argv=None):
     problems = []
 
     # ---- 1. VERSION 文件 ----
-    vpath = os.path.join(ROOT, 'VERSION')
+    vpath = os.path.join(ROOT, "VERSION")
     if os.path.exists(vpath):
         file_ver = read_text(vpath).strip()
         if file_ver != version:
@@ -89,36 +96,27 @@ def main(argv=None):
         problems.append("缺少 VERSION 文件")
 
     # ---- 2. installer.iss ----
-    iss = os.path.join(ROOT, 'installer.iss')
+    iss = os.path.join(ROOT, "installer.iss")
     if os.path.exists(iss):
         m = re.search(r'#define\s+MyAppVersion\s+"([^"]+)"', read_text(iss))
         if m:
             if m.group(1) != version:
-                problems.append(
-                    "installer.iss MyAppVersion = %r，应为 %r"
-                    % (m.group(1), version)
-                )
+                problems.append("installer.iss MyAppVersion = %r，应为 %r" % (m.group(1), version))
             elif verbose:
                 print("  OK  installer.iss = %s" % m.group(1))
         else:
             problems.append("installer.iss 中找不到 MyAppVersion")
 
     # ---- 3. README ----
-    readme = os.path.join(ROOT, 'README.md')
+    readme = os.path.join(ROOT, "README.md")
     if os.path.exists(readme):
         src = read_text(readme)
-        for m in re.finditer(r'badge/version-([0-9]+\.[0-9]+\.[0-9]+)', src):
+        for m in re.finditer(r"badge/version-([0-9]+\.[0-9]+\.[0-9]+)", src):
             if m.group(1) != version:
-                problems.append(
-                    "README 版本徽章为 %r，应为 %r" % (m.group(1), version)
-                )
-        for m in re.finditer(
-            r'QingCaoEditor(?:_Setup)?_v([0-9]+\.[0-9]+\.[0-9]+)', src
-        ):
+                problems.append("README 版本徽章为 %r，应为 %r" % (m.group(1), version))
+        for m in re.finditer(r"QingCaoEditor(?:_Setup)?_v([0-9]+\.[0-9]+\.[0-9]+)", src):
             if m.group(1) != version:
-                problems.append(
-                    "README 发行包名为 %r，应为 %r" % (m.group(1), version)
-                )
+                problems.append("README 发行包名为 %r，应为 %r" % (m.group(1), version))
 
     # ---- 4. 生产代码中的过期应用版本字面量 ----
     # 说明：插件/主题自带的版本号（1.0.0 等）是合法的，不能
@@ -128,27 +126,45 @@ def main(argv=None):
     # 发布 2.2.0 时补充：2.1.0 曾是 build.py / main.py 的“兜底字面量”，
     # 导致 version.py 导入失败时静默产出过期版本（现已改为读 VERSION 文件）。
     stale_versions = {
-        '2.1.0', '2.0.0', '1.9.9', '1.9.0', '1.8.0', '1.0.0-app',
+        "2.1.0",
+        "2.0.0",
+        "1.9.9",
+        "1.9.0",
+        "1.8.0",
+        "1.0.0-app",
     } - {version}
 
     # 插件 API 版本（2.0.0）是独立契约，允许出现在固定常量中
     api_version_ok = {
-        'CURRENT_API_VERSION', 'API_VERSION',
-        'MIN_SUPPORTED_APP_VERSION', 'api_version',
-        'min_app_version', 'max_app_version',
+        "CURRENT_API_VERSION",
+        "API_VERSION",
+        "MIN_SUPPORTED_APP_VERSION",
+        "api_version",
+        "min_app_version",
+        "max_app_version",
     }
     # 明确用于测试/演示的代码块（自测 main、版本比较样例）
     selftest_markers = (
-        "if __name__ == '__main__'", 'if __name__ == "__main__"',
+        "if __name__ == '__main__'",
+        'if __name__ == "__main__"',
     )
 
     literal = re.compile(r'["\']([0-9]+\.[0-9]+\.[0-9]+)["\']')
     for path in iter_source_files():
         rel = os.path.relpath(path, ROOT)
         top = rel.split(os.sep)[0]
-        if top not in ('app', 'core', 'ui', 'infrastructure', 'main.py',
-                       'build.py', 'build_installer.py', 'build_linux.py',
-                       'build_macos.py', 'release.py'):
+        if top not in (
+            "app",
+            "core",
+            "ui",
+            "infrastructure",
+            "main.py",
+            "build.py",
+            "build_installer.py",
+            "build_linux.py",
+            "build_macos.py",
+            "release.py",
+        ):
             continue
         try:
             lines = read_text(path).splitlines()
@@ -167,7 +183,7 @@ def main(argv=None):
                 continue
             # 跳过注释行：文档里引用历史版本号（如“原兜底是 2.1.0”）
             # 是合法说明，不应被当成硬编码
-            if line.lstrip().startswith('#'):
+            if line.lstrip().startswith("#"):
                 continue
             for m in literal.finditer(line):
                 found = m.group(1)
@@ -177,8 +193,7 @@ def main(argv=None):
                     continue
                 problems.append(
                     "%s:%d 出现过期应用版本字面量 %r"
-                    "（请从 version.py 导入，勿硬编码）"
-                    % (rel, i, found)
+                    "（请从 version.py 导入，勿硬编码）" % (rel, i, found)
                 )
 
     # ---- 汇总 ----
@@ -192,5 +207,5 @@ def main(argv=None):
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

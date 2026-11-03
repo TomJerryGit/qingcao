@@ -14,8 +14,8 @@ def check(rel, pattern, should_exist=True, desc=""):
         print(f"[FAIL] {rel} 不存在")
         results.append(False)
         return
-    content = p.read_text(encoding='utf-8')
-    has = bool(__import__('re').search(pattern, content))
+    content = p.read_text(encoding="utf-8")
+    has = bool(__import__("re").search(pattern, content))
     ok = has == should_exist
     results.append(ok)
     flag = "[OK]  " if ok else "[FAIL]"
@@ -27,7 +27,7 @@ def check_py(rel):
     if not p.exists():
         return
     try:
-        ast.parse(p.read_text(encoding='utf-8'))
+        ast.parse(p.read_text(encoding="utf-8"))
         results.append(True)
         print(f"[OK]   {rel} 语法")
     except SyntaxError as e:
@@ -35,8 +35,7 @@ def check_py(rel):
         print(f"[FAIL] {rel}: line {e.lineno}: {e.msg}")
 
 
-check("ui/command_palette.py", r"qss = getattr\(theme, 'qss', ''\)",
-      True, "补丁 1")
+check("ui/command_palette.py", r"qss = getattr\(theme, 'qss', ''\)", True, "补丁 1")
 check("ui/command_palette.py", r"if 'qss' in theme:", False, "补丁 1 旧代码")
 check("build.py", r"'core\.search_worker'", False, "补丁 3")
 check("ui/directory_tree.py", r"_git_status_cache", True, "补丁 4")
@@ -47,10 +46,16 @@ check("ui/lsp_panel.py", r"_one_shot_finished", True, "补丁 11")
 check("ui/welcome_widget.py", r"bus\.file_opened\.connect", True, "补丁 13")
 check("build.py", r"clean_spec", True, "补丁 15")
 
-for f in ["build.py", "main.py", "ui/main_window.py",
-          "ui/command_palette.py", "ui/directory_tree.py",
-          "ui/editor_view.py", "ui/lsp_panel.py",
-          "ui/welcome_widget.py"]:
+for f in [
+    "build.py",
+    "main.py",
+    "ui/main_window.py",
+    "ui/command_palette.py",
+    "ui/directory_tree.py",
+    "ui/editor_view.py",
+    "ui/lsp_panel.py",
+    "ui/welcome_widget.py",
+]:
     check_py(f)
 
 print()

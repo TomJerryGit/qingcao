@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """检查哪些插件会触发权限确认对话框（启动时阻塞加载的主因）"""
+
 import io
 import json
 import os

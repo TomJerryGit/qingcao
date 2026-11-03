@@ -5,6 +5,7 @@
 （0xC0000409），因此这里验证源码契约与判定函数，避免不稳定的 GUI
 实例化；真实卡片行为由与详情页共用的同一判定函数保证。
 """
+
 import ast
 import os
 
@@ -35,11 +36,14 @@ def test_card_source_has_compat_badge_and_disable_logic():
                 action_clicks.append(seg)
 
     assert build_uis, "未找到 PluginCard._build_ui"
-    assert any("compat_label" in s and "check_plugin_compatibility" in s
-               and "不兼容" in s for s in build_uis), "标题行缺少徽章"
+    assert any(
+        "compat_label" in s and "check_plugin_compatibility" in s and "不兼容" in s
+        for s in build_uis
+    ), "标题行缺少徽章"
 
-    assert any("不兼容" in s and "setEnabled(False)" in s
-               for s in update_btns), "不兼容时应置灰按钮"
+    assert any("不兼容" in s and "setEnabled(False)" in s for s in update_btns), (
+        "不兼容时应置灰按钮"
+    )
 
     assert any("_compat_ok" in s for s in action_clicks), "点击应兜底拦截"
 

@@ -9,6 +9,7 @@
 
 退出码：0 = 无 reject；1 = 存在 reject（--strict 下含 review/warn）。
 """
+
 import argparse
 import json
 import os
@@ -36,10 +37,8 @@ def main():
     ap = argparse.ArgumentParser(description="插件安全沙箱审计")
     ap.add_argument("paths", nargs="*", help="插件目录（默认 plugins/）")
     ap.add_argument("--json", action="store_true", help="JSON 输出")
-    ap.add_argument("--strict", action="store_true",
-                    help="warn 也视为失败")
-    ap.add_argument("--baseline", default="",
-                    help="基线 JSON（登记既有 review/warn 插件）")
+    ap.add_argument("--strict", action="store_true", help="warn 也视为失败")
+    ap.add_argument("--baseline", default="", help="基线 JSON（登记既有 review/warn 插件）")
     args = ap.parse_args()
 
     results = []
@@ -52,22 +51,26 @@ def main():
             results.extend(audit_plugins_root(path))
 
     if args.json:
-        print(json.dumps([r.to_dict() for r in results],
-                         ensure_ascii=False, indent=2))
+        print(json.dumps([r.to_dict() for r in results], ensure_ascii=False, indent=2))
     else:
         for r in results:
             name = os.path.basename(r.plugin_dir.rstrip("\\/"))
-            print("%s %-22s verdict=%-6s findings=%d missing=%s"
-                  % (_ICON.get(r.verdict, "?"), name, r.verdict,
-                     len(r.findings),
-                     ",".join(r.missing_permissions) or "-"))
+            print(
+                "%s %-22s verdict=%-6s findings=%d missing=%s"
+                % (
+                    _ICON.get(r.verdict, "?"),
+                    name,
+                    r.verdict,
+                    len(r.findings),
+                    ",".join(r.missing_permissions) or "-",
+                )
+            )
             for f in r.findings[:5]:
-                print("    [%s] %s"% (f.severity, f.message))
+                print("    [%s] %s" % (f.severity, f.message))
         summary = {}
         for r in results:
             summary[r.verdict] = summary.get(r.verdict, 0) + 1
-        print("\n汇总: " + ", ".join(
-            "%s=%d" % (k, v) for k, v in sorted(summary.items())))
+        print("\n汇总: " + ", ".join("%s=%d" % (k, v) for k, v in sorted(summary.items())))
 
     if args.baseline:
         try:
@@ -75,8 +78,7 @@ def main():
         except (OSError, ValueError) as e:
             print("[错误] 读取基线失败: %s" % e)
             return 1
-        violations = check_against_baseline(
-            results, baseline.get("allow") or {})
+        violations = check_against_baseline(results, baseline.get("allow") or {})
         for v in violations:
             print("[基线] " + v)
         if violations:

@@ -27,6 +27,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import tempfile
@@ -64,8 +65,7 @@ def info(msg):
 
 
 print("=" * 100)
-print("青草编辑器 · UI 层真实压力测试%s"
-      % ("（quick 模式，缩小规模）" if QUICK else ""))
+print("青草编辑器 · UI 层真实压力测试%s" % ("（quick 模式，缩小规模）" if QUICK else ""))
 print("=" * 100)
 
 from PyQt5.QtGui import QFontDatabase  # noqa: E402
@@ -105,6 +105,7 @@ def _stub_modal(kind):
     def _impl(*args, **kwargs):
         _MODAL_CALLS.append(kind)
         return QMessageBox.Discard
+
     return staticmethod(_impl)
 
 
@@ -118,7 +119,7 @@ print("  临时目录: %s" % TMP)
 print("  （模态框已拦截：headless 下弹真实模态框会段错误，属平台限制）")
 print()
 
-N_BIG = 40000 if QUICK else 100000         # 列编辑目标行数
+N_BIG = 40000 if QUICK else 100000  # 列编辑目标行数
 N_TABS = 6 if QUICK else 20
 
 
@@ -172,13 +173,11 @@ try:
         size += len(s.encode("utf-8"))
         i += 1
     big = write_text("ui_big_10mb.txt", "".join(rows), "utf-8")
-    info("10MB 文件: %.1f MB / %d 行"
-         % (os.path.getsize(big) / (1024 * 1024), len(rows)))
+    info("10MB 文件: %.1f MB / %d 行" % (os.path.getsize(big) / (1024 * 1024), len(rows)))
 
     proxy, el_open = timed(lambda: win.tabs.open_file(big))
     check("U1c 打开 10MB 文件成功", proxy is not None, "%.2fs" % el_open)
-    check("U1d 打开耗时 < 15s（UI 层，含渲染）", el_open < 15.0,
-          "%.2fs" % el_open)
+    check("U1d 打开耗时 < 15s（UI 层，含渲染）", el_open < 15.0, "%.2fs" % el_open)
 
     # 大文件分片加载：必须泵事件循环等它加载完（真实 GUI 由事件循环完成）
     total_blocks = 0
@@ -187,15 +186,15 @@ try:
     except Exception:
         pass
     ok_load, el_load = pump_until(
-        lambda: (getattr(proxy, '_load_cursor', 0) >= total_blocks
-                 and getattr(proxy, '_load_total', 0) > 0),
+        lambda: (
+            getattr(proxy, "_load_cursor", 0) >= total_blocks
+            and getattr(proxy, "_load_total", 0) > 0
+        ),
         timeout=60.0,
     )
     if total_blocks:
-        info("10MB 分片加载: %d 块，泵事件 %d 轮共 %.2fs"
-             % (total_blocks, 0, el_load))
-    check("U1e 大文件分片加载能完成（不卡死）", ok_load,
-          "%.2fs / %d 块" % (el_load, total_blocks))
+        info("10MB 分片加载: %d 块，泵事件 %d 轮共 %.2fs" % (total_blocks, 0, el_load))
+    check("U1e 大文件分片加载能完成（不卡死）", ok_load, "%.2fs / %d 块" % (el_load, total_blocks))
     check("U1f 分片加载总耗时 < 20s", el_load < 20.0, "%.2fs" % el_load)
 
     try:
@@ -204,11 +203,16 @@ try:
         line_count = -1
     # 注意：文件每行都以 "\n" 结尾，末尾会多出一个"空行起点"，
     # 所以正确行数是 len(rows) + 1（第一版断言写成 len(rows)，是测试错误）。
-    check("U1g QScintilla 行数正确", line_count == len(rows) + 1,
-          "%d vs %d" % (line_count, len(rows) + 1))
-    check("U1h 当前标签是刚打开的文件",
-          win.tabs.current_filepath() == os.path.abspath(big),
-          str(win.tabs.current_filepath()))
+    check(
+        "U1g QScintilla 行数正确",
+        line_count == len(rows) + 1,
+        "%d vs %d" % (line_count, len(rows) + 1),
+    )
+    check(
+        "U1h 当前标签是刚打开的文件",
+        win.tabs.current_filepath() == os.path.abspath(big),
+        str(win.tabs.current_filepath()),
+    )
 except Exception as e:
     check("U1 MainWindow 大文件场景", False, "%s: %s" % (type(e).__name__, e))
     traceback.print_exc()
@@ -222,8 +226,7 @@ try:
     col_text = "".join("row %07d abcdefghij\n" % k for k in range(N_BIG))
     col_file = write_text("ui_col.txt", col_text, "utf-8")
     proxy2 = win.tabs.open_file(col_file)
-    check("U2a 打开列编辑测试文件", proxy2 is not None,
-          "%d 行" % N_BIG)
+    check("U2a 打开列编辑测试文件", proxy2 is not None, "%d 行" % N_BIG)
 
     from ui.column_editor_dialog import (  # noqa: E402
         ColumnEditConfig,
@@ -239,22 +242,17 @@ try:
     #
     #   压测要测的是"整列编辑 10 万行的性能与撤销原子性"，因此用
     #   `lines=` 显式给出全部行号。
-    cfg = ColumnEditConfig(text="XY", column=2,
-                           lines=list(range(N_BIG)))
+    cfg = ColumnEditConfig(text="XY", column=2, lines=list(range(N_BIG)))
     result, el_col = timed(lambda: apply_column_edit(proxy2, cfg))
     check("U2b 列编辑执行成功", result.ok, result.reason or "")
-    check("U2c %d 行列编辑耗时 < 10s" % N_BIG, el_col < 10.0,
-          "%.2fs" % el_col)
-    check("U2d 作用行数正确", len(result.lines) == N_BIG,
-          str(len(result.lines)))
+    check("U2c %d 行列编辑耗时 < 10s" % N_BIG, el_col < 10.0, "%.2fs" % el_col)
+    check("U2d 作用行数正确", len(result.lines) == N_BIG, str(len(result.lines)))
 
     # 抽检首/中/末行
     first = proxy2.sc.text(0)
     mid = proxy2.sc.text(N_BIG // 2)
-    check("U2e 行内容插入位置正确",
-          first.startswith("roXYw 0000000"), repr(first[:16]))
-    check("U2f 中间行也正确",
-          mid.startswith("roXYw %07d" % (N_BIG // 2)), repr(mid[:16]))
+    check("U2e 行内容插入位置正确", first.startswith("roXYw 0000000"), repr(first[:16]))
+    check("U2f 中间行也正确", mid.startswith("roXYw %07d" % (N_BIG // 2)), repr(mid[:16]))
 
     # 关键：一次撤销回退（列编辑的核心承诺）
     undo_depth = len(proxy2.undo_manager.undo_stack)
@@ -264,13 +262,11 @@ try:
     back = proxy2.sc.text(0)
     check("U2h 一次撤销完全回退", back.startswith("row 0000000"), repr(back[:16]))
     last_back = proxy2.sc.text(N_BIG - 1)
-    check("U2i 末行也回退了",
-          last_back.startswith("row %07d" % (N_BIG - 1)), repr(last_back[:16]))
+    check("U2i 末行也回退了", last_back.startswith("row %07d" % (N_BIG - 1)), repr(last_back[:16]))
 
     proxy2.redo()
     redo_first = proxy2.sc.text(0)
-    check("U2j 重做恢复", redo_first.startswith("roXYw 0000000"),
-          repr(redo_first[:16]))
+    check("U2j 重做恢复", redo_first.startswith("roXYw 0000000"), repr(redo_first[:16]))
 except Exception as e:
     check("U2 列编辑压力场景", False, "%s: %s" % (type(e).__name__, e))
     traceback.print_exc()
@@ -281,9 +277,7 @@ except Exception as e:
 print()
 print("== U3. 在 %d 行上插入数字序列 ==" % N_BIG)
 try:
-    num_file = write_text(
-        "ui_num.txt",
-        "".join("line %07d\n" % k for k in range(N_BIG)), "utf-8")
+    num_file = write_text("ui_num.txt", "".join("line %07d\n" % k for k in range(N_BIG)), "utf-8")
     proxy3 = win.tabs.open_file(num_file)
     check("U3a 打开数字测试文件", proxy3 is not None, "")
 
@@ -293,9 +287,16 @@ try:
     #   "请先输入要插入的文本"，被误当成功能缺陷。
     from ui.column_editor_dialog import MODE_NUMBER  # noqa: E402
 
-    cfg = ColumnEditConfig(mode=MODE_NUMBER, start=1, step=1, radix=10,
-                           min_width=4, pad="zero", column=5,
-                           lines=list(range(N_BIG)))
+    cfg = ColumnEditConfig(
+        mode=MODE_NUMBER,
+        start=1,
+        step=1,
+        radix=10,
+        min_width=4,
+        pad="zero",
+        column=5,
+        lines=list(range(N_BIG)),
+    )
     res3, el_num = timed(lambda: apply_column_edit(proxy3, cfg))
     check("U3b 数字序列执行成功", res3.ok, res3.reason or "")
     check("U3c 耗时 < 12s", el_num < 12.0, "%.2fs" % el_num)
@@ -306,18 +307,28 @@ try:
     #   第一版断言写死 4 位，属测试错误（引擎行为正确）。
     width = len(str(N_BIG))
     first3 = proxy3.sc.text(0)
-    check("U3d 首个数字按最大宽度补零且位置正确",
-          ("line " + "1".zfill(width)) in first3, repr(first3[:24]))
+    check(
+        "U3d 首个数字按最大宽度补零且位置正确",
+        ("line " + "1".zfill(width)) in first3,
+        repr(first3[:24]),
+    )
     mid3 = proxy3.sc.text(N_BIG // 2)
-    check("U3e 中间行数字递增正确",
-          ("line " + str(N_BIG // 2 + 1).zfill(width)) in mid3,
-          repr(mid3[:24]))
-    check("U3f 撤销栈仍只有 1 条",
-          len(proxy3.undo_manager.undo_stack) == 1,
-          str(len(proxy3.undo_manager.undo_stack)))
+    check(
+        "U3e 中间行数字递增正确",
+        ("line " + str(N_BIG // 2 + 1).zfill(width)) in mid3,
+        repr(mid3[:24]),
+    )
+    check(
+        "U3f 撤销栈仍只有 1 条",
+        len(proxy3.undo_manager.undo_stack) == 1,
+        str(len(proxy3.undo_manager.undo_stack)),
+    )
     proxy3.undo()
-    check("U3g 一次撤销回退", proxy3.sc.text(0).startswith("line 0000000"),
-          repr(proxy3.sc.text(0)[:20]))
+    check(
+        "U3g 一次撤销回退",
+        proxy3.sc.text(0).startswith("line 0000000"),
+        repr(proxy3.sc.text(0)[:20]),
+    )
 except Exception as e:
     check("U3 数字序列压力场景", False, "%s: %s" % (type(e).__name__, e))
     traceback.print_exc()
@@ -333,23 +344,29 @@ try:
     big_a = write_text("cmp_a.txt", "A" * 200 + "\n" * 1, "utf-8")
     # 造两个 > 阈值 的文件
     over = DIFF_SIZE_THRESHOLD + 1024 * 1024
-    chunk = ("x" * 79 + "\n")
+    chunk = "x" * 79 + "\n"
     need = over // len(chunk) + 10
     body_a = "".join(chunk for _ in range(need))
     body_b = body_a[:-100] + "CHANGED\n"
     big_a = write_text("cmp_big_a.txt", body_a, "utf-8")
     big_b = write_text("cmp_big_b.txt", body_b, "utf-8")
-    info("对比文件大小: %.1f MB / %.1f MB（阈值 %.0f MB）"
-         % (os.path.getsize(big_a) / 1048576,
+    info(
+        "对比文件大小: %.1f MB / %.1f MB（阈值 %.0f MB）"
+        % (
+            os.path.getsize(big_a) / 1048576,
             os.path.getsize(big_b) / 1048576,
-            DIFF_SIZE_THRESHOLD / 1048576))
+            DIFF_SIZE_THRESHOLD / 1048576,
+        )
+    )
 
     dlg, el_cmp = timed(lambda: FileDiffDialog.from_files(big_a, big_b))
     check("U4a 大文件对比对话框构造成功", dlg is not None, "%.2fs" % el_cmp)
     check("U4b 构造耗时 < 10s（未卡死）", el_cmp < 10.0, "%.2fs" % el_cmp)
-    check("U4c 进入摘要模式而非渲染正文",
-          getattr(dlg, "_large_mode", False) is True,
-          "_large_mode=%s" % getattr(dlg, "_large_mode", None))
+    check(
+        "U4c 进入摘要模式而非渲染正文",
+        getattr(dlg, "_large_mode", False) is True,
+        "_large_mode=%s" % getattr(dlg, "_large_mode", None),
+    )
     if dlg is not None:
         dlg.close()
 except Exception as e:
@@ -367,8 +384,7 @@ try:
         p = write_text("tab_%02d.txt" % k, "tab %d content\n" % k, "utf-8")
         tabs.append(win.tabs.open_file(p))
     opened = sum(1 for t in tabs if t is not None)
-    check("U5a %d 个标签全部打开成功" % N_TABS, opened == N_TABS,
-          "%d/%d" % (opened, N_TABS))
+    check("U5a %d 个标签全部打开成功" % N_TABS, opened == N_TABS, "%d/%d" % (opened, N_TABS))
 
     def _cycle():
         n = win.tabs.count()
@@ -378,10 +394,12 @@ try:
 
     _, el_cycle = timed(_cycle)
     rounds = win.tabs.count() * 3
-    check("U5b 循环切换 %d 次耗时 < 8s" % rounds, el_cycle < 8.0,
-          "%.2fs（%d 次）" % (el_cycle, rounds))
-    check("U5c 切换后标签数未变", win.tabs.count() >= N_TABS,
-          str(win.tabs.count()))
+    check(
+        "U5b 循环切换 %d 次耗时 < 8s" % rounds,
+        el_cycle < 8.0,
+        "%.2fs（%d 次）" % (el_cycle, rounds),
+    )
+    check("U5c 切换后标签数未变", win.tabs.count() >= N_TABS, str(win.tabs.count()))
 except Exception as e:
     check("U5 多标签场景", False, "%s: %s" % (type(e).__name__, e))
     traceback.print_exc()
@@ -420,6 +438,7 @@ if FAIL:
 
 try:
     import shutil
+
     shutil.rmtree(TMP, ignore_errors=True)
 except Exception:
     pass

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """拼写检查插件（DSpellCheck 对应）测试"""
+
 import ast
 import importlib.util
 import json
@@ -11,14 +12,12 @@ PLUGIN_DIR = os.path.join(ROOT, "plugins", "spell_check")
 
 
 def _manifest():
-    return json.load(open(os.path.join(PLUGIN_DIR, "plugin.json"),
-                          encoding="utf-8"))
+    return json.load(open(os.path.join(PLUGIN_DIR, "plugin.json"), encoding="utf-8"))
 
 
 def _load_plugin():
     path = os.path.join(PLUGIN_DIR, "__init__.py")
-    spec = importlib.util.spec_from_file_location("spell_check_plugin",
-                                                  path)
+    spec = importlib.util.spec_from_file_location("spell_check_plugin", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     plugin = mod.Plugin.__new__(mod.Plugin)
@@ -32,23 +31,31 @@ def _load_plugin():
 def test_manifest_is_valid():
     data = _manifest()
     assert data["name"] == "spell_check"
-    for key in ("display_name", "version", "description", "author",
-                "license", "type", "category", "tags", "permissions",
-                "api_version", "enabled", "auto_load"):
+    for key in (
+        "display_name",
+        "version",
+        "description",
+        "author",
+        "license",
+        "type",
+        "category",
+        "tags",
+        "permissions",
+        "api_version",
+        "enabled",
+        "auto_load",
+    ):
         assert key in data, "manifest 缺字段 %s" % key
     assert "editor_read" in data["permissions"]
     assert data["auto_load"] is True
 
 
 def test_plugin_registers_menu_settings_and_diagnostics():
-    src = open(os.path.join(PLUGIN_DIR, "__init__.py"),
-               encoding="utf-8").read()
+    src = open(os.path.join(PLUGIN_DIR, "__init__.py"), encoding="utf-8").read()
     tree = ast.parse(src)
-    cls = next(n for n in tree.body
-               if isinstance(n, ast.ClassDef) and n.name == "Plugin")
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Plugin")
     methods = {n.name for n in cls.body if isinstance(n, ast.FunctionDef)}
-    assert {"on_activate", "on_deactivate", "check_current",
-            "_check_text"} <= methods
+    assert {"on_activate", "on_deactivate", "check_current", "_check_text"} <= methods
     assert "register_settings_schema" in src
     assert "add_menu" in src
     assert "publish_diagnostics" in src
@@ -83,6 +90,7 @@ def test_check_text_respects_limit_and_min_length():
 
 def test_ignore_words_file_loading(tmp_path):
     import importlib.util as _iu
+
     path = os.path.join(PLUGIN_DIR, "__init__.py")
     spec = _iu.spec_from_file_location("spell_ignore_mod", path)
     mod = _iu.module_from_spec(spec)

@@ -28,6 +28,7 @@
 `return index[:-1]`，每次调用都会拷贝整张表（实测 183 µs/次，
 1 MB 即 3.5 s）。因此同时断言"每次搜索只构建一次索引"。
 """
+
 import os
 import time
 
@@ -59,9 +60,7 @@ def count_index_builds(monkeypatch):
             counter["n"] += 1
         return original(self)
 
-    monkeypatch.setattr(
-        search_mod.SearchEngine, "_ensure_line_index", counting
-    )
+    monkeypatch.setattr(search_mod.SearchEngine, "_ensure_line_index", counting)
     return counter
 
 
@@ -75,16 +74,14 @@ class TestLineTextCorrectness:
         text = "first line\nhello world\nhello again\n中文行 hello\nlast"
         prov = MemoryProvider()
         prov.open(initial_text=text)
-        result = SearchEngine(
-            prov, SearchOptions(pattern="hello")
-        ).search()
+        result = SearchEngine(prov, SearchOptions(pattern="hello")).search()
 
         assert result.count == 3
         got = [(m.line, m.col, m.line_text) for m in result.matches]
         assert got == [
             (2, 0, "hello world"),
             (3, 0, "hello again"),
-            (4, 4, "中文行 hello"),   # 中文各占 1 字符 -> col=4
+            (4, 4, "中文行 hello"),  # 中文各占 1 字符 -> col=4
         ]
 
     def test_get_line_text_matches_splitlines(self, qapp):
@@ -99,9 +96,7 @@ class TestLineTextCorrectness:
 
         expected = text.replace("\r\n", "\n").split("\n")
         for i, want in enumerate(expected, start=1):
-            assert engine._get_line_text(i) == want, (
-                "第 %d 行不一致" % i
-            )
+            assert engine._get_line_text(i) == want, "第 %d 行不一致" % i
 
     def test_out_of_range_returns_empty(self, qapp):
         from core.content_provider import MemoryProvider
@@ -121,9 +116,7 @@ class TestLineTextCorrectness:
 
         prov = MemoryProvider()
         prov.open(initial_text="aa\r\nbb hello\r\ncc")
-        result = SearchEngine(
-            prov, SearchOptions(pattern="hello")
-        ).search()
+        result = SearchEngine(prov, SearchOptions(pattern="hello")).search()
 
         assert result.matches[0].line_text == "bb hello"
         assert "\r" not in result.matches[0].line_text
@@ -148,9 +141,7 @@ class TestNoQuadraticBehavior:
         try:
             prov.open(str(path))
             start = time.perf_counter()
-            result = SearchEngine(
-                prov, SearchOptions(pattern="quick")
-            ).search()
+            result = SearchEngine(prov, SearchOptions(pattern="quick")).search()
             elapsed = time.perf_counter() - start
         finally:
             prov.close()
@@ -163,9 +154,7 @@ class TestNoQuadraticBehavior:
             "每个匹配都在重读/重切整个文件" % (elapsed, result.count)
         )
 
-    def test_line_index_built_only_once_per_search(
-        self, qapp, tmp_path, count_index_builds
-    ):
+    def test_line_index_built_only_once_per_search(self, qapp, tmp_path, count_index_builds):
         """整次搜索只应构建一次行索引
 
         拦截"每次匹配都重建索引"，以及"合并索引时每次拷贝整表"
@@ -180,21 +169,16 @@ class TestNoQuadraticBehavior:
         prov = LocalFileProvider()
         try:
             prov.open(str(path))
-            result = SearchEngine(
-                prov, SearchOptions(pattern="quick")
-            ).search()
+            result = SearchEngine(prov, SearchOptions(pattern="quick")).search()
         finally:
             prov.close()
 
         assert result.count > 500
         assert count_index_builds["n"] == 1, (
-            "行索引被构建了 %d 次（应为 1 次）"
-            % count_index_builds["n"]
+            "行索引被构建了 %d 次（应为 1 次）" % count_index_builds["n"]
         )
 
-    def test_line_index_not_copied_per_match(
-        self, qapp, tmp_path, count_index_builds
-    ):
+    def test_line_index_not_copied_per_match(self, qapp, tmp_path, count_index_builds):
         """定位单个匹配的开销不应随文件行数线性增长
 
         这是"合并索引"时踩过的坑：`_build_line_index()` 若返回
@@ -221,9 +205,8 @@ class TestNoQuadraticBehavior:
             prov.close()
 
         # 修好后约 10 µs/次；带整表拷贝时约 190 µs/次
-        assert per_call < 80e-6, (
-            "_position_to_line_col 每次 %.1f µs，疑似在拷贝整张行索引表"
-            % (per_call * 1e6)
+        assert per_call < 80e-6, "_position_to_line_col 每次 %.1f µs，疑似在拷贝整张行索引表" % (
+            per_call * 1e6
         )
 
 
@@ -242,14 +225,10 @@ class TestLargeFilePracticality:
         try:
             prov.open(str(path))
             start = time.perf_counter()
-            result = SearchEngine(
-                prov, SearchOptions(pattern="quick")
-            ).search()
+            result = SearchEngine(prov, SearchOptions(pattern="quick")).search()
             elapsed = time.perf_counter() - start
         finally:
             prov.close()
 
         assert result.count > 15000
-        assert elapsed < 5.0, (
-            "1 MB 搜索耗时 %.2f s（修复前 >25 s）" % elapsed
-        )
+        assert elapsed < 5.0, "1 MB 搜索耗时 %.2f s（修复前 >25 s）" % elapsed

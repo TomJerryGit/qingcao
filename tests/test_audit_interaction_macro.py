@@ -38,7 +38,6 @@ def _fresh(qapp):
 
 
 class TestMacroReplayVsUndo:
-
     def test_replay_is_not_recorded_in_undo_stack(self, qapp):
         from core.macro import MacroRecorder
 
@@ -50,9 +49,7 @@ class TestMacroReplayVsUndo:
         sc.SendScintilla(sc.SCI_INSERTTEXT, 0, b"AAA")
         recorder.stop()
 
-        assert len(recorder.current_macro.commands) >= 1, (
-            "前置条件：宏应有至少 1 条命令"
-        )
+        assert len(recorder.current_macro.commands) >= 1, "前置条件：宏应有至少 1 条命令"
 
         # ---- 再做一次手工编辑，让撤销栈里除了宏的命令之外还有别的 ----
         sc.SendScintilla(sc.SCI_INSERTTEXT, 3, b"-")
@@ -66,10 +63,7 @@ class TestMacroReplayVsUndo:
         depth_before = len(proxy.undo_manager.undo_stack)
         text_before = sc.text()
 
-        ok = recorder.replay(
-            proxy, recorder.current_macro,
-            show_progress=False, check_cancel=False
-        )
+        ok = recorder.replay(proxy, recorder.current_macro, show_progress=False, check_cancel=False)
         assert ok is True
         assert sc.text() != text_before, "前置条件：回放应改变内容"
 
@@ -104,10 +98,7 @@ class TestMacroReplayVsUndo:
         text_before = sc.text()
         undo_depth_before = len(proxy.undo_manager.undo_stack)
 
-        recorder.replay(
-            proxy, recorder.current_macro,
-            show_progress=False, check_cancel=False
-        )
+        recorder.replay(proxy, recorder.current_macro, show_progress=False, check_cancel=False)
         text_after = sc.text()
         assert text_after != text_before
 
@@ -138,8 +129,7 @@ class TestMacroReplayVsUndo:
         assert proxy.is_modified is False
         assert proxy.document.is_modified is False
 
-        recorder.replay(proxy, macro,
-                        show_progress=False, check_cancel=False)
+        recorder.replay(proxy, macro, show_progress=False, check_cancel=False)
 
         assert sc.text() == "ZZ", "前置条件：回放应写入 ZZ"
 
@@ -154,4 +144,5 @@ class TestMacroReplayVsUndo:
 
 if __name__ == "__main__":
     import pytest as _pytest
+
     raise SystemExit(_pytest.main([__file__, "-v"]))

@@ -4,6 +4,7 @@
 用法:
     python tools/extract_i18n_strings.py [--out locale/zh_CN/strings.json]
 """
+
 import argparse
 import ast
 import io
@@ -45,9 +46,9 @@ def extract_tree(root, only_dirs=("ui", "core", "app")):
                 if not f.endswith(".py"):
                     continue
                 try:
-                    src = io.open(os.path.join(dirpath, f),
-                                  encoding="utf-8",
-                                  errors="replace").read()
+                    src = io.open(
+                        os.path.join(dirpath, f), encoding="utf-8", errors="replace"
+                    ).read()
                 except Exception:
                     continue
                 out.update(extract_from_source(src))
@@ -56,13 +57,13 @@ def extract_tree(root, only_dirs=("ui", "core", "app")):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(
-        ROOT, "locale", "zh_CN", "strings.json"))
+    ap.add_argument("--out", default=os.path.join(ROOT, "locale", "zh_CN", "strings.json"))
     args = ap.parse_args()
     strings = extract_tree(ROOT)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     io.open(args.out, "w", encoding="utf-8", newline="\n").write(
-        json.dumps(strings, ensure_ascii=False, indent=2, sort_keys=True))
+        json.dumps(strings, ensure_ascii=False, indent=2, sort_keys=True)
+    )
     print("[i18n] 提取 %d 条中文串 -> %s" % (len(strings), args.out))
     return 0
 

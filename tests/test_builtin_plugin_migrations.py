@@ -4,6 +4,7 @@
 与 `test_json_formatter_plugin.py` 同一思路：加载**真实插件模块**，
 验证扩展点的注册、行为、清理，而不是只测 API 本身。
 """
+
 import importlib.util
 import os
 
@@ -21,6 +22,7 @@ def _load_plugin(name):
 
 def _api(win, perms, name):
     from app.plugins import PluginAPI
+
     return PluginAPI(win, permissions=list(perms), plugin_name=name)
 
 
@@ -58,17 +60,16 @@ def test_markdown_preview_diagnostics_and_settings(qapp, tmp_path):
         assert n >= 2, "应同时报告空 alt 与未闭合围栏，实际 %d" % n
 
         from core.problems import get_problem_manager
+
         manager = get_problem_manager()
-        mine = [p for p in manager.get_for_file(str(md))
-                if p.source == "markdown_preview"]
+        mine = [p for p in manager.get_for_file(str(md)) if p.source == "markdown_preview"]
         codes = {p.code for p in mine}
         assert "MD001" in codes, "缺少图片 alt 诊断: %r" % (codes,)
         assert "MD002" in codes, "缺少代码围栏诊断: %r" % (codes,)
 
         plugin.on_deactivate()
         api.cleanup()
-        mine = [p for p in manager.get_for_file(str(md))
-                if p.source == "markdown_preview"]
+        mine = [p for p in manager.get_for_file(str(md)) if p.source == "markdown_preview"]
         assert not mine, "卸载后诊断未清理"
     finally:
         _close(win)

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """插件兼容性门控（NPP npp-compatible-version 等价）测试"""
+
 import os
 import sys
 
@@ -53,9 +54,12 @@ def test_update_plugin_rejects_incompatible_before_download(_qapp=None):
     app = QApplication.instance() or QApplication([])
     updater = PluginUpdater()
     info = UpdateInfo(
-        name="future_plugin", current_version="1.0.0",
-        latest_version="2.0.0", min_app_version="99.0.0",
-        download_url="http://127.0.0.1:9/never.zip")
+        name="future_plugin",
+        current_version="1.0.0",
+        latest_version="2.0.0",
+        min_app_version="99.0.0",
+        download_url="http://127.0.0.1:9/never.zip",
+    )
     result = updater.update_plugin(info)
     assert result.success is False
     assert "需要应用" in (result.error or "")
@@ -69,12 +73,18 @@ def test_update_all_skips_incompatible():
 
     app = QApplication.instance() or QApplication([])
     updater = PluginUpdater()
-    bad = [UpdateInfo(name="p%d" % i, current_version="1.0.0",
-                      latest_version="2.0.0",
-                      min_app_version="99.0.0")
-           for i in range(2)]
+    bad = [
+        UpdateInfo(
+            name="p%d" % i,
+            current_version="1.0.0",
+            latest_version="2.0.0",
+            min_app_version="99.0.0",
+        )
+        for i in range(2)
+    ]
     results = updater.update_all(bad)
     assert len(results) == 2
-    assert all(not r.success and "跳过" in (r.message or "")
-               for r in results), [r.message for r in results]
+    assert all(not r.success and "跳过" in (r.message or "") for r in results), [
+        r.message for r in results
+    ]
     app.processEvents()

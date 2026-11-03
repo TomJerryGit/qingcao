@@ -7,6 +7,7 @@
 language_id 收到整份文件文本、text 缺失、version=None，
 随后 did_change 里 `version += 1` 抛 TypeError，LSP 静默失效。
 """
+
 import pytest
 
 
@@ -29,7 +30,7 @@ class TestDidOpenSignature:
         client = LspClient()
         uri = "file:///d:/demo.py"
         client.did_open(uri, "python", "print('hi')\n")
-        client.did_change(uri, "print('bye')\n")   # 修复前会 TypeError
+        client.did_change(uri, "print('bye')\n")  # 修复前会 TypeError
         assert client._doc_versions[uri] == 2
 
     def test_missing_text_argument_still_detected(self, qapp):
@@ -89,10 +90,10 @@ class TestUriAndLanguage:
     def test_editor_language_id_mapping(self, qapp):
         from core.editor import LSP_LANGUAGE_BY_EXT
 
-        assert LSP_LANGUAGE_BY_EXT['.py'] == 'python'
-        assert LSP_LANGUAGE_BY_EXT['.rs'] == 'rust'
-        assert LSP_LANGUAGE_BY_EXT['.go'] == 'go'
-        assert LSP_LANGUAGE_BY_EXT['.ts'] == 'typescript'
+        assert LSP_LANGUAGE_BY_EXT[".py"] == "python"
+        assert LSP_LANGUAGE_BY_EXT[".rs"] == "rust"
+        assert LSP_LANGUAGE_BY_EXT[".go"] == "go"
+        assert LSP_LANGUAGE_BY_EXT[".ts"] == "typescript"
 
 
 class TestMergedChannelsFixed:
@@ -114,6 +115,7 @@ class TestMergedChannelsFixed:
         # （注释里提到历史实现是允许的）
         import inspect
         import re
+
         src = inspect.getsource(LspClient.start)
         assert "setProcessChannelMode(QProcess.SeparateChannels)" in src
         assert not re.search(
@@ -135,11 +137,8 @@ class TestFrameParserSkipsNoise:
         client._handle_message = lambda m: received.append(m)
 
         body = json.dumps({"jsonrpc": "2.0", "method": "x", "params": {}})
-        body_bytes = body.encode('utf-8')
-        frame = (
-            b"Content-Length: " + str(len(body_bytes)).encode() +
-            b"\r\n\r\n" + body_bytes
-        )
+        body_bytes = body.encode("utf-8")
+        frame = b"Content-Length: " + str(len(body_bytes)).encode() + b"\r\n\r\n" + body_bytes
 
         # 前面塞入非协议噪声（模拟旧版 MergedChannels 下的 stderr 日志）
         client._buffer = b"[info] server starting\n" + frame

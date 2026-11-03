@@ -84,15 +84,10 @@ class TestAdaptQssColorsChaining:
             out = adapt_qss_colors("color: #d4d4d4;", theme)
             expected = f"color: {theme.colors.foreground};"
             if out != expected:
-                wrong.append((theme.name, out, expected,
-                              theme.colors.panel_bg))
+                wrong.append((theme.name, out, expected, theme.colors.panel_bg))
 
-        assert not wrong, (
-            "以下主题的 #d4d4d4 未落到 foreground："
-            + "; ".join(
-                f"{n}: 实际={o!r} 期望={e!r} (panel_bg={pb})"
-                for n, o, e, pb in wrong
-            )
+        assert not wrong, "以下主题的 #d4d4d4 未落到 foreground：" + "; ".join(
+            f"{n}: 实际={o!r} 期望={e!r} (panel_bg={pb})" for n, o, e, pb in wrong
         )
 
 
@@ -100,7 +95,6 @@ class TestAdaptQssColorsChaining:
 # 2. 主题应用覆盖编辑器偏好
 # ============================================================
 class TestThemeApplyVsPreferences:
-
     def test_apply_theme_does_not_force_caret_line_visible(self, qapp):
         """ThemeLoader.apply 里 `editor.setCaretLineVisible(True)`
         （infrastructure/theme_loader.py:927）无视
@@ -111,7 +105,7 @@ class TestThemeApplyVsPreferences:
         from infrastructure.theme_loader import BuiltinThemes, ThemeLoader
 
         sc = QsciScintilla()
-        sc.setCaretLineVisible(False)     # 用户在首选项里关闭了"高亮当前行"
+        sc.setCaretLineVisible(False)  # 用户在首选项里关闭了"高亮当前行"
 
         loader = ThemeLoader()
         loader.apply(sc, BuiltinThemes.light_clean())
@@ -119,9 +113,7 @@ class TestThemeApplyVsPreferences:
         # QScintilla 的 Python 绑定**没有** `caretLineVisible()` 取值方法
         # （只有 setCaretLineVisible），因此用底层 SCI 消息读取真实状态：
         # SCI_GETCARETLINEVISIBLE == 2095
-        visible = sc.SendScintilla(
-            getattr(sc, 'SCI_GETCARETLINEVISIBLE', 2095)
-        )
+        visible = sc.SendScintilla(getattr(sc, "SCI_GETCARETLINEVISIBLE", 2095))
         assert not visible, (
             "INV-T2 违反：切换主题把'高亮当前行'强制打开了，"
             "用户的 show_current_line=False 被静默覆盖。"
@@ -156,11 +148,10 @@ class TestThemeApplyVsPreferences:
 
         sc.SendScintilla(sc.SCI_INSERTTEXT, 0, b"# x\n")
         assert sc.text().replace("\r\n", "\n").startswith("# x\n")
-        assert len(proxy.undo_manager.undo_stack) >= 1, (
-            "切换 4 套主题后编辑不再被撤销栈记录"
-        )
+        assert len(proxy.undo_manager.undo_stack) >= 1, "切换 4 套主题后编辑不再被撤销栈记录"
 
 
 if __name__ == "__main__":
     import pytest as _pytest
+
     raise SystemExit(_pytest.main([__file__, "-v"]))

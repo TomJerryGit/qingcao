@@ -30,8 +30,7 @@ class _FakeSandbox:
         return "拼写: 0 条"
 
     def menu_items(self):
-        return [{"id": "ignore_flagged", "label": "忽略本文件可疑词",
-                 "path": "工具/拼写检查"}]
+        return [{"id": "ignore_flagged", "label": "忽略本文件可疑词", "path": "工具/拼写检查"}]
 
     def invoke_menu(self, mid):
         return mid == "ignore_flagged"
@@ -49,11 +48,12 @@ def _close(win):
 
 def test_spell_check_sandbox_protocol_static():
     import json
-    manifest = json.load(open(os.path.join(
-        ROOT, "plugins", "spell_check", "plugin.json"), encoding="utf-8"))
+
+    manifest = json.load(
+        open(os.path.join(ROOT, "plugins", "spell_check", "plugin.json"), encoding="utf-8")
+    )
     assert manifest.get("sandbox") is True
-    src = open(os.path.join(ROOT, "plugins", "spell_check", "__init__.py"),
-               encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "plugins", "spell_check", "__init__.py"), encoding="utf-8").read()
     assert "def menu_items(self)" in src
     assert "def invoke_menu(self, menu_id)" in src
     assert "def status_text(self)" in src
@@ -63,6 +63,7 @@ def test_config_changed_roundtrip(qapp):
     import time
 
     from infrastructure.instance_broadcast import InstanceBroadcaster
+
     name = "qingcao-test-%d-cc" % os.getpid()
     hub = InstanceBroadcaster(server_name=name)
     client = InstanceBroadcaster(server_name=name)
@@ -88,6 +89,7 @@ def test_config_changed_roundtrip(qapp):
 
 def test_remote_config_handler(qapp, tmp_path):
     from ui.main_window import MainWindow
+
     win = MainWindow()
     fake = _FakeSandbox()
     try:

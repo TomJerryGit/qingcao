@@ -6,6 +6,7 @@
     python tools/enable_crash_dumps.py --check
     python tools/enable_crash_dumps.py --remove
 """
+
 import argparse
 import os
 import sys
@@ -27,25 +28,23 @@ def dump_folder(arg):
 
 
 def build_values(folder):
-    return {"DumpFolder": os.path.abspath(folder), "DumpType": 1,
-            "DumpCount": 5}
+    return {"DumpFolder": os.path.abspath(folder), "DumpType": 1, "DumpCount": 5}
 
 
 def apply_dump_config(folder):
     import winreg
+
     values = build_values(folder)
     os.makedirs(values["DumpFolder"], exist_ok=True)
     done = []
     for exe in EXES:
         key_path = BASE + "\\" + exe
         try:
-            key = winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, key_path,
-                                     0, winreg.KEY_WRITE)
+            key = winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_WRITE)
         except PermissionError:
             return (False, "需要管理员权限（HKLM）")
         try:
-            winreg.SetValueEx(key, "DumpFolder", 0, winreg.REG_EXPAND_SZ,
-                              values["DumpFolder"])
+            winreg.SetValueEx(key, "DumpFolder", 0, winreg.REG_EXPAND_SZ, values["DumpFolder"])
             winreg.SetValueEx(key, "DumpType", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(key, "DumpCount", 0, winreg.REG_DWORD, 5)
         finally:
@@ -56,11 +55,11 @@ def apply_dump_config(folder):
 
 def check_dump_config():
     import winreg
+
     report = {}
     for exe in EXES:
         try:
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                                 BASE + "\\" + exe, 0, winreg.KEY_READ)
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, BASE + "\\" + exe, 0, winreg.KEY_READ)
         except OSError:
             report[exe] = None
             continue
@@ -73,10 +72,10 @@ def check_dump_config():
 
 def remove_dump_config():
     import winreg
+
     for exe in EXES:
         try:
-            winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE,
-                             BASE + "\\" + exe)
+            winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, BASE + "\\" + exe)
         except OSError:
             pass
     return True

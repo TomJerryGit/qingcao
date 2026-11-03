@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """搜索引擎测试"""
+
 import os
 import sys
 import unittest
@@ -12,13 +13,15 @@ sys.path.insert(0, ROOT)
 class TestSearchOptions(unittest.TestCase):
     def test_build_pattern_escape(self):
         from core.search import SearchOptions
+
         opts = SearchOptions(pattern="a.b", escape_pattern=True)
-        self.assertIn(r'\.', opts.build_pattern())
+        self.assertIn(r"\.", opts.build_pattern())
 
     def test_build_pattern_whole_word(self):
         from core.search import SearchOptions
+
         opts = SearchOptions(pattern="test", whole_word=True)
-        self.assertIn(r'\b', opts.build_pattern())
+        self.assertIn(r"\b", opts.build_pattern())
 
 
 class TestSearchEngine(unittest.TestCase):

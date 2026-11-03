@@ -9,6 +9,7 @@ SecureStorage 单元测试。
 - 迁移逻辑
 - 后端降级
 """
+
 import os
 import sys
 import time
@@ -37,6 +38,7 @@ def _force_plaintext_backend(monkeypatch):
     monkeypatch.setenv("QINGCAO_FORCE_PLAINTEXT", "1")
 
     from core import secure_storage
+
     secure_storage._storage_instance = None
     yield
     secure_storage._storage_instance = None
@@ -50,6 +52,7 @@ def storage(monkeypatch):
 
     # 清除单例
     from core import secure_storage
+
     secure_storage._storage_instance = None
 
     storage = secure_storage.get_secure_storage()
@@ -172,15 +175,12 @@ class TestMigration:
         from PyQt5.QtCore import QSettings
 
         # 使用临时 QSettings
-        settings = QSettings(str(tmp_path / "test.ini"),
-                              QSettings.IniFormat)
+        settings = QSettings(str(tmp_path / "test.ini"), QSettings.IniFormat)
         settings.setValue("api_key", "sk-old-plaintext")
         settings.sync()
 
         # 迁移
-        assert storage.migrate_from_settings(
-            settings, "api_key"
-        ) is True
+        assert storage.migrate_from_settings(settings, "api_key") is True
 
         # 检查结果
         assert storage.load("api_key") == "sk-old-plaintext"
@@ -195,17 +195,14 @@ class TestMigration:
         """已存在时跳过迁移"""
         from PyQt5.QtCore import QSettings
 
-        settings = QSettings(str(tmp_path / "test.ini"),
-                              QSettings.IniFormat)
+        settings = QSettings(str(tmp_path / "test.ini"), QSettings.IniFormat)
         settings.setValue("api_key", "old")
 
         # 预先设置新值
         storage.save("api_key", "new")
 
         # 迁移应跳过
-        assert storage.migrate_from_settings(
-            settings, "api_key"
-        ) is False
+        assert storage.migrate_from_settings(settings, "api_key") is False
 
         # 值应保持为 new
         assert storage.load("api_key") == "new"
@@ -219,9 +216,9 @@ class TestMigration:
 class TestBackend:
     def test_backend_info(self, storage):
         info = storage.get_info()
-        assert 'backend' in info
-        assert 'is_secure' in info
-        assert 'backend_display' in info
+        assert "backend" in info
+        assert "is_secure" in info
+        assert "backend_display" in info
 
     def test_is_secure(self, storage):
         """后端的"安全"标记必须与后端类型一致
@@ -238,9 +235,7 @@ class TestBackend:
             StorageBackend.KEYRING,
             StorageBackend.DISABLED,
         )
-        assert storage.is_secure == (
-            storage._backend == StorageBackend.KEYRING
-        )
+        assert storage.is_secure == (storage._backend == StorageBackend.KEYRING)
 
     def test_dump(self, storage):
         text = storage.dump()

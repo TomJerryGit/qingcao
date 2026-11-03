@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """运行所有测试"""
+
 import os
 import sys
 import unittest
@@ -28,8 +29,8 @@ def run_all():
     start_dir = os.path.dirname(os.path.abspath(__file__))
     args = [
         start_dir,
-        '-v',
-        '--tb=short',
+        "-v",
+        "--tb=short",
     ]
     return pytest.main(args)
 

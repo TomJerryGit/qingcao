@@ -8,6 +8,7 @@
   4. 定义无调用 —— 生产代码零调用点（写好了没人用）
   5. 伪成功     —— 无条件 return True 而不检查真实结果
 """
+
 import io
 import os
 import re
@@ -35,8 +36,12 @@ print("=" * 78)
 for p in sorted(src):
     for n, line in enumerate(src[p].split("\n"), 1):
         s = line.strip()
-        if re.search(r"NotImplementedError|尚未实现|未实现|not implemented|"
-                     r"TODO|FIXME|XXX|占位|placeholder|stub", s, re.I):
+        if re.search(
+            r"NotImplementedError|尚未实现|未实现|not implemented|"
+            r"TODO|FIXME|XXX|占位|placeholder|stub",
+            s,
+            re.I,
+        ):
             if s.startswith("#") or '"""' in s or "'''" in s:
                 continue
             print("  %-40s L%-5d %s" % (p, n, s[:72]))
@@ -55,20 +60,26 @@ for p in sorted(src):
         # 跳过装饰器与多行签名
         body = []
         i = n + 1
-        while i < len(lines) and (not lines[i].strip() or
-                                  lines[i].strip().startswith(('"""', "'''", "#", ")", ":", "@")) or
-                                  len(lines[i]) - len(lines[i].lstrip()) > len(indent) or
-                                  lines[i].strip().startswith(")")):
+        while i < len(lines) and (
+            not lines[i].strip()
+            or lines[i].strip().startswith(('"""', "'''", "#", ")", ":", "@"))
+            or len(lines[i]) - len(lines[i].lstrip()) > len(indent)
+            or lines[i].strip().startswith(")")
+        ):
             s = lines[i].strip()
             if s and not s.startswith(("#", '"""', "'''", ")", "@")):
                 body.append(s)
             i += 1
             if i - n > 12:
                 break
-        if len(body) == 1 and body[0] in ("pass", "return None", "return True",
-                                          "return", "return False"):
-            print("  %-40s L%-5d def %s(...) -> %s"
-                  % (p, n + 1, name, body[0]))
+        if len(body) == 1 and body[0] in (
+            "pass",
+            "return None",
+            "return True",
+            "return",
+            "return False",
+        ):
+            print("  %-40s L%-5d def %s(...) -> %s" % (p, n + 1, name, body[0]))
 
 print()
 print("=" * 78)
@@ -80,10 +91,12 @@ for p in sorted(src):
         m = re.match(r"(\s*)def (\w+)", line)
         if not m:
             continue
-        seg = "\n".join(lines[n:n + 25])
+        seg = "\n".join(lines[n : n + 25])
         if re.search(r"return True", seg) and not re.search(
-                r"\b(set|save|write|apply|emit|insert|delete|clear|update|"
-                r"connect|start|open|close|send|call|invoke|run|exec)\w*\s*\(", seg):
+            r"\b(set|save|write|apply|emit|insert|delete|clear|update|"
+            r"connect|start|open|close|send|call|invoke|run|exec)\w*\s*\(",
+            seg,
+        ):
             if re.search(r"print\(|showMessage|logger|status", seg):
                 print("  %-40s L%-5d def %s" % (p, n + 1, m.group(2)))
 
@@ -107,13 +120,13 @@ for name in sorted(defs):
     if not INTERESTING.match(name):
         continue
     if len(defs[name]) > 1:
-        continue          # 重名（可能是覆盖）另行处理
+        continue  # 重名（可能是覆盖）另行处理
     # 统计全仓调用点（排除定义处）
     calls = 0
     for q in src:
         for mm in re.finditer(r"[.\s]" + re.escape(name) + r"\s*\(", src[q]):
             line_start = src[q].rfind("\n", 0, mm.start()) + 1
-            line = src[q][line_start:src[q].find("\n", mm.start())]
+            line = src[q][line_start : src[q].find("\n", mm.start())]
             if re.match(r"\s*def\s+" + re.escape(name), line):
                 continue
             calls += 1

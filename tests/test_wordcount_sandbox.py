@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """wordcount 沙箱试点：状态栏文本 RPC"""
+
 import os
 
 
@@ -8,6 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_wordcount_sandbox_status_text():
     from infrastructure.plugin_sandbox_manager import SandboxedPlugin
+
     path = os.path.join(ROOT, "plugins", "wordcount_sandbox")
     sp = SandboxedPlugin(path, timeout=8)
     try:
@@ -20,9 +22,10 @@ def test_wordcount_sandbox_status_text():
 
 def test_manifest_sandbox_enabled():
     import json
-    m = json.load(open(os.path.join(
-        ROOT, "plugins", "wordcount_sandbox", "plugin.json"),
-        encoding="utf-8"))
+
+    m = json.load(
+        open(os.path.join(ROOT, "plugins", "wordcount_sandbox", "plugin.json"), encoding="utf-8")
+    )
     assert m.get("sandbox") is True
     assert m.get("enabled") is True
 
@@ -31,6 +34,7 @@ def test_host_refresh_passes_text(qapp):
     from unittest.mock import patch
 
     from ui.main_window import MainWindow
+
     win = MainWindow()
     seen = {}
 

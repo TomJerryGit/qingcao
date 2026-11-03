@@ -43,7 +43,7 @@ from PyQt5.QtWidgets import QApplication, QMessageBox, QWidget
 # 基础设施：Qt 告警捕获 / 线程计数
 # ============================================================
 QT_MESSAGES = []
-CALL_LOG = []          # 跨线程回调是否真的被调用
+CALL_LOG = []  # 跨线程回调是否真的被调用
 
 
 def _qt_message_handler(mode, context, message):
@@ -62,8 +62,7 @@ def _qthread_objects():
 def _dump_threads(tag):
     names = _thread_names()
     alive = [t for t in threading.enumerate() if t.is_alive()]
-    print("\n[THREADS %s] count=%d alive=%d" % (tag, len(names), len(alive)),
-          flush=True)
+    print("\n[THREADS %s] count=%d alive=%d" % (tag, len(names), len(alive)), flush=True)
     for t in alive:
         print("    %-40s daemon=%s" % (t.name, t.daemon), flush=True)
     return names
@@ -79,7 +78,7 @@ def _capture(qapp):
     try:
         QFontDatabase.addApplicationFont(r"C:\Windows\Fonts\consola.ttf")
         QFontDatabase.addApplicationFont(r"C:\Windows\Fonts\msyh.ttc")
-    except Exception as exc:      # pragma: no cover
+    except Exception as exc:  # pragma: no cover
         print("[probe] 字体加载跳过: %s" % exc)
     yield QT_MESSAGES
     qInstallMessageHandler(old)
@@ -113,15 +112,17 @@ def test_A1_singleshot_boundmethod_after_cpp_delete(qapp, qtbot):
     QTimer.singleShot(150, victim.slot)
     print("A1: 删除前 C++ 对象存活 =", not sip.isdeleted(victim), flush=True)
 
-    sip.delete(victim)          # 等价于 lsp_client 引用计数归零后的析构
+    sip.delete(victim)  # 等价于 lsp_client 引用计数归零后的析构
     gc.collect()
     print("A1: sip.isdeleted(victim) =", sip.isdeleted(victim), flush=True)
 
     qtbot.wait(600)
-    print("A1 结果: 回调被调用次数 = %d, CALL_LOG=%r"
-          % (victim.calls, CALL_LOG), flush=True)
-    print("A1 说明: 若为 0 → PyQt5 会在 QObject 析构时自动断开 bound method；"
-          "若 >0 → 存在 use-after-delete 风险。", flush=True)
+    print("A1 结果: 回调被调用次数 = %d, CALL_LOG=%r" % (victim.calls, CALL_LOG), flush=True)
+    print(
+        "A1 说明: 若为 0 → PyQt5 会在 QObject 析构时自动断开 bound method；"
+        "若 >0 → 存在 use-after-delete 风险。",
+        flush=True,
+    )
 
 
 def test_A2_singleshot_lambda_after_cpp_delete(qapp, qtbot):
@@ -135,11 +136,13 @@ def test_A2_singleshot_lambda_after_cpp_delete(qapp, qtbot):
     gc.collect()
 
     qtbot.wait(600)
-    print("A2 结果: CALL_LOG=%r, victim.calls=%d"
-          % (CALL_LOG, victim.calls), flush=True)
-    print("A2 说明: lambda 没有 QObject 接收者上下文，PyQt5 不会自动断开；"
-          "真实代码里 ui/ai_inline_completer.py:133、core/editor.py:454、"
-          "app/session.py:1493 都是这种形态。", flush=True)
+    print("A2 结果: CALL_LOG=%r, victim.calls=%d" % (CALL_LOG, victim.calls), flush=True)
+    print(
+        "A2 说明: lambda 没有 QObject 接收者上下文，PyQt5 不会自动断开；"
+        "真实代码里 ui/ai_inline_completer.py:133、core/editor.py:454、"
+        "app/session.py:1493 都是这种形态。",
+        flush=True,
+    )
 
 
 # ============================================================
@@ -180,8 +183,7 @@ def test_B_lsp_debounce_close_race(qapp, qtbot, tmp_path, monkeypatch, iteration
 
     # 未保存修改会弹模态 QMessageBox（嵌套事件循环），测试里替换掉
     monkeypatch.setattr(
-        QMessageBox, "question",
-        staticmethod(lambda *a, **k: QMessageBox.Discard), raising=False
+        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Discard), raising=False
     )
 
     path = tmp_path / ("race_%02d.py" % iteration)
@@ -199,32 +201,41 @@ def test_B_lsp_debounce_close_race(qapp, qtbot, tmp_path, monkeypatch, iteration
             real_ok = proxy.toggle_lsp(True)
         except Exception:
             traceback.print_exc()
-        print("\n[B iter=%d] 真实 toggle_lsp(True) → %r, "
-              "lsp_client=%r, lsp_active=%r"
-              % (iteration, real_ok, proxy.lsp_client, proxy.lsp_active),
-              flush=True)
+        print(
+            "\n[B iter=%d] 真实 toggle_lsp(True) → %r, "
+            "lsp_client=%r, lsp_active=%r"
+            % (iteration, real_ok, proxy.lsp_client, proxy.lsp_active),
+            flush=True,
+        )
         if proxy.lsp_client is not None:
-            print("[B] lsp_client.get_server_info() = %r"
-                  % (proxy.lsp_client.get_server_info(),), flush=True)
+            print(
+                "[B] lsp_client.get_server_info() = %r" % (proxy.lsp_client.get_server_info(),),
+                flush=True,
+            )
 
         # --- B2: 强制进入防抖路径（真实入口失败时用 stub 补上） ---
         uri = "file:///" + str(path).replace("\\", "/")
         stub = _install_stub_lsp(proxy, uri)
 
         sc = proxy.sc
-        sc.insert("y = 2\n")           # 触发 SCN_MODIFIED → _lsp_sync_timer.start()
+        sc.insert("y = 2\n")  # 触发 SCN_MODIFIED → _lsp_sync_timer.start()
         assert proxy._lsp_sync_timer.isActive(), "防抖定时器没有启动"
-        print("[B iter=%d] 打字后 _lsp_sync_timer.isActive()=%r"
-              % (iteration, proxy._lsp_sync_timer.isActive()), flush=True)
+        print(
+            "[B iter=%d] 打字后 _lsp_sync_timer.isActive()=%r"
+            % (iteration, proxy._lsp_sync_timer.isActive()),
+            flush=True,
+        )
 
         # --- B3: 立刻关闭标签 ---
         idx = win.tabs.find_tab_by_path(str(path))
         assert idx is not None and idx >= 0, "找不到标签索引"
         closed = win.tabs.close_tab(idx)
-        print("[B iter=%d] close_tab → %r, 关闭后 isActive=%r, "
-              "proxy.lsp_active=%r"
-              % (iteration, closed, proxy._lsp_sync_timer.isActive(),
-                 proxy.lsp_active), flush=True)
+        print(
+            "[B iter=%d] close_tab → %r, 关闭后 isActive=%r, "
+            "proxy.lsp_active=%r"
+            % (iteration, closed, proxy._lsp_sync_timer.isActive(), proxy.lsp_active),
+            flush=True,
+        )
 
         # --- B4: 等过防抖延迟（用 Qt 事件循环等） ---
         qtbot.waitUntil(
@@ -232,14 +243,17 @@ def test_B_lsp_debounce_close_race(qapp, qtbot, tmp_path, monkeypatch, iteration
             timeout=LSP_SYNC_DELAY * 6,
         )
         _pump(qtbot, 400)
-        print("[B iter=%d] 等待 %dms 后 stub.calls=%r"
-              % (iteration, LSP_SYNC_DELAY * 6, stub.calls), flush=True)
+        print(
+            "[B iter=%d] 等待 %dms 后 stub.calls=%r" % (iteration, LSP_SYNC_DELAY * 6, stub.calls),
+            flush=True,
+        )
 
         # 结论判定（不崩即通过；若防抖在关闭后仍发了 did_change，打印出来）
         after_close = [c for c in stub.calls if c[0] == "did_change"]
         if after_close:
-            print("[B iter=%d] ★ 关闭后仍发生了 did_change: %r"
-                  % (iteration, after_close), flush=True)
+            print(
+                "[B iter=%d] ★ 关闭后仍发生了 did_change: %r" % (iteration, after_close), flush=True
+            )
     finally:
         win.close()
         win.deleteLater()
@@ -252,8 +266,7 @@ def test_B_window_close_with_pending_debounce(qapp, qtbot, tmp_path, monkeypatch
     from core.editor import LSP_SYNC_DELAY
 
     monkeypatch.setattr(
-        QMessageBox, "question",
-        staticmethod(lambda *a, **k: QMessageBox.Discard), raising=False
+        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Discard), raising=False
     )
     path = tmp_path / "win_close.py"
     path.write_text("x = 1\n", encoding="utf-8")
@@ -265,16 +278,17 @@ def test_B_window_close_with_pending_debounce(qapp, qtbot, tmp_path, monkeypatch
     proxy.sc.insert("y = 2\n")
     assert proxy._lsp_sync_timer.isActive()
 
-    win.close()                       # closeEvent 不关标签、不关 LSP
+    win.close()  # closeEvent 不关标签、不关 LSP
     qtbot.waitUntil(
         lambda: not proxy._lsp_sync_timer.isActive(),
         timeout=LSP_SYNC_DELAY * 6,
     )
     _pump(qtbot, 400)
-    print("\n[B5] win.close() 后 stub.calls=%r, lsp_active=%r, "
-          "timer.isActive=%r"
-          % (stub.calls, proxy.lsp_active, proxy._lsp_sync_timer.isActive()),
-          flush=True)
+    print(
+        "\n[B5] win.close() 后 stub.calls=%r, lsp_active=%r, "
+        "timer.isActive=%r" % (stub.calls, proxy.lsp_active, proxy._lsp_sync_timer.isActive()),
+        flush=True,
+    )
     win.deleteLater()
     _pump(qtbot, 100)
 
@@ -298,9 +312,17 @@ def test_C_thread_leak_around_main_window(qapp, qtbot, tmp_path):
         path.write_text("print(1)\n", encoding="utf-8")
         win.tabs.open_file(str(path))
         # 建几个带 timer 的面板
-        for panel in ("outline", "perf_monitor", "console", "gsearch",
-                      "minimap", "dir_tree", "plugins_panel", "search_bar",
-                      "outline_enhanced"):
+        for panel in (
+            "outline",
+            "perf_monitor",
+            "console",
+            "gsearch",
+            "minimap",
+            "dir_tree",
+            "plugins_panel",
+            "search_bar",
+            "outline_enhanced",
+        ):
             win._ensure_panel(panel)
         _pump(qtbot, 150)
         _dump_threads("INSIDE-%d" % i)
@@ -314,10 +336,8 @@ def test_C_thread_leak_around_main_window(qapp, qtbot, tmp_path):
     after_qth = len(_qthread_objects())
 
     leaked = [n for n in after if n not in before]
-    print("\n[C] before=%r\n[C] after =%r\n[C] 新增线程=%r"
-          % (before, after, leaked), flush=True)
-    print("[C] QThread 实例: before=%d after=%d" % (before_qth, after_qth),
-          flush=True)
+    print("\n[C] before=%r\n[C] after =%r\n[C] 新增线程=%r" % (before, after, leaked), flush=True)
+    print("[C] QThread 实例: before=%d after=%d" % (before_qth, after_qth), flush=True)
 
 
 # ============================================================
@@ -345,9 +365,11 @@ def test_D_timer_churn_and_dangling(qapp, qtbot, tmp_path):
             assert win._ensure_panel("lsp") is False or True  # lsp 不是懒面板
             _pump(qtbot, 5)
 
-        print("\n[D] perf_monitor.timer.isActive() = %r"
-              % (win.perf_monitor.timer.isActive()
-                 if win.perf_monitor else None), flush=True)
+        print(
+            "\n[D] perf_monitor.timer.isActive() = %r"
+            % (win.perf_monitor.timer.isActive() if win.perf_monitor else None),
+            flush=True,
+        )
     finally:
         _pump(qtbot, 100)
         win.close()
@@ -355,12 +377,13 @@ def test_D_timer_churn_and_dangling(qapp, qtbot, tmp_path):
         gc.collect()
         _pump(qtbot, 500)
 
-    bad = [m for lvl, m in QT_MESSAGES
-           if "another thread" in m or "has been deleted" in m
-           or "destroyed" in m.lower()]
+    bad = [
+        m
+        for lvl, m in QT_MESSAGES
+        if "another thread" in m or "has been deleted" in m or "destroyed" in m.lower()
+    ]
     print("[D] 可疑 Qt 告警 %d 条: %r" % (len(bad), bad[:20]), flush=True)
-    print("[D] 全部 Qt 告警 %d 条（前 20）: %r"
-          % (len(QT_MESSAGES), QT_MESSAGES[:20]), flush=True)
+    print("[D] 全部 Qt 告警 %d 条（前 20）: %r" % (len(QT_MESSAGES), QT_MESSAGES[:20]), flush=True)
 
 
 def test_D2_recreate_main_window_20_times(qapp, qtbot):
@@ -379,13 +402,10 @@ def test_D2_recreate_main_window_20_times(qapp, qtbot):
     gc.collect()
     _pump(qtbot, 500)
 
-    bad = [m for lvl, m in QT_MESSAGES
-           if "another thread" in m or "has been deleted" in m]
-    print("\n[D2] 20 轮后线程数 %d → %d" % (base, len(_thread_names())),
-          flush=True)
+    bad = [m for lvl, m in QT_MESSAGES if "another thread" in m or "has been deleted" in m]
+    print("\n[D2] 20 轮后线程数 %d → %d" % (base, len(_thread_names())), flush=True)
     print("[D2] 可疑告警: %r" % (bad[:20],), flush=True)
-    print("[D2] 全部告警 %d 条（前 30）: %r"
-          % (len(QT_MESSAGES), QT_MESSAGES[:30]), flush=True)
+    print("[D2] 全部告警 %d 条（前 30）: %r" % (len(QT_MESSAGES), QT_MESSAGES[:30]), flush=True)
 
 
 # ============================================================
@@ -443,11 +463,9 @@ def test_E_faulthandler_stress(qapp, qtbot, tmp_path):
         fh.close()
         if crash_log.exists():
             data = crash_log.read_bytes()
-            print("[E] faulthandler 文件 %d 字节: %r"
-                  % (len(data), data[:2000]), flush=True)
+            print("[E] faulthandler 文件 %d 字节: %r" % (len(data), data[:2000]), flush=True)
 
-    bad = [m for lvl, m in QT_MESSAGES
-           if "another thread" in m or "has been deleted" in m]
+    bad = [m for lvl, m in QT_MESSAGES if "another thread" in m or "has been deleted" in m]
     print("[E] 可疑告警 %d 条: %r" % (len(bad), bad[:20]), flush=True)
 
 
@@ -475,13 +493,18 @@ def test_F_terminal_restart_thread_leak(qapp, qtbot):
             panel._restart()
             _pump(qtbot, 400)
             names = _thread_names()
-            print("[F] 第 %d 次 _restart 后线程数 = %d, self.process=%r"
-                  % (i + 1, len(names), panel.process), flush=True)
+            print(
+                "[F] 第 %d 次 _restart 后线程数 = %d, self.process=%r"
+                % (i + 1, len(names), panel.process),
+                flush=True,
+            )
 
         _dump_threads("F-AFTER-RESTARTS")
-        print("[F] 增长 = %d（若大于 0，说明旧读线程没有退出；"
-              "它们会与新线程一起读同一根 stdout 管道）"
-              % (len(_thread_names()) - base), flush=True)
+        print(
+            "[F] 增长 = %d（若大于 0，说明旧读线程没有退出；"
+            "它们会与新线程一起读同一根 stdout 管道）" % (len(_thread_names()) - base),
+            flush=True,
+        )
 
         # 关闭窗口后线程是否回落
         if panel.process:
@@ -516,7 +539,7 @@ def test_G_widget_access_from_worker_thread(qapp, qtbot):
         try:
             label.setText("from-worker")
             edit.setPlainText("from-worker")
-            QApplication.processEvents()      # Qt 文档：仅限 GUI 线程
+            QApplication.processEvents()  # Qt 文档：仅限 GUI 线程
         except Exception as exc:
             errors.append(repr(exc))
             traceback.print_exc()
@@ -528,9 +551,11 @@ def test_G_widget_access_from_worker_thread(qapp, qtbot):
 
     print("\n[G] 子线程异常 = %r" % errors, flush=True)
     print("[G] Qt 告警 = %r" % (QT_MESSAGES[:20],), flush=True)
-    print("[G] 说明: 这条实验对应 ui/benchmark_dialog.py:121/126/130 与 "
-          "ui/refactor_dialog.py:266-294（_on_response 在子线程里改控件）。",
-          flush=True)
+    print(
+        "[G] 说明: 这条实验对应 ui/benchmark_dialog.py:121/126/130 与 "
+        "ui/refactor_dialog.py:266-294（_on_response 在子线程里改控件）。",
+        flush=True,
+    )
     label.deleteLater()
     edit.deleteLater()
 
@@ -580,15 +605,13 @@ def test_G2_refactor_worker_callback_pattern_is_gone(qapp):
     for sub in ("core", "ui", "app"):
         base = os.path.join(root, sub)
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames
-                          if d not in ("__pycache__", ".git")]
+            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git")]
             for fn in filenames:
                 if not fn.endswith(".py"):
                     continue
                 path = os.path.join(dirpath, fn)
                 try:
-                    src = io.open(path, encoding="utf-8",
-                                  errors="replace").read()
+                    src = io.open(path, encoding="utf-8", errors="replace").read()
                 except OSError:
                     continue
                 if not pat_thread.search(src):
@@ -601,5 +624,5 @@ def test_G2_refactor_worker_callback_pattern_is_gone(qapp):
         "疑似在工作线程里为 UI 派发事件（F-4 形态，可能随机崩溃）：\n"
         + "\n".join("    " + o for o in offenders)
         + "\n正确做法：QObject + pyqtSignal，worker 只 emit，槽在主线程执行"
-          "（参考 core/search.py::FileSearcher）。"
+        "（参考 core/search.py::FileSearcher）。"
     )

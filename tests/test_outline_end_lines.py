@@ -6,6 +6,7 @@ OutlinePanel 的。OutlinePanel 内部通过
 self.parser._build_hierarchy() → self._compute_end_lines()
 间接使用它。
 """
+
 import pytest
 
 
@@ -26,7 +27,6 @@ def _make_node(name, type_, line, indent):
 
 
 class TestComputeEndLines:
-
     def test_simple_sequence(self):
         parser = _make_parser()
         symbols = [
@@ -55,7 +55,7 @@ class TestComputeEndLines:
 
     def test_empty(self):
         parser = _make_parser()
-        parser._compute_end_lines([])   # 不崩即可
+        parser._compute_end_lines([])  # 不崩即可
 
     def test_single(self):
         parser = _make_parser()

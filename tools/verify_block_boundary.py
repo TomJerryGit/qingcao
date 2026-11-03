@@ -8,6 +8,7 @@
   * 编码回环：read_text() -> encode() 必须逐字节还原原文件
   * 单字节编码（latin-1）与 GBK 不应被边界逻辑破坏
 """
+
 import os
 import sys
 import tempfile
@@ -42,17 +43,13 @@ def roundtrip(label, raw, expect_enc=None):
         whole_raw = p.read_all()
         text = p.read_text()
         enc_back = p.encode(text)
-        ok = (
-            joined == raw
-            and whole_raw == raw
-            and (ref is None or text == ref)
-            and enc_back == raw
-        )
+        ok = joined == raw and whole_raw == raw and (ref is None or text == ref) and enc_back == raw
         if expect_enc is not None and p._encoding != expect_enc:
             ok = False
         if not ok:
-            fails.append((label, p._encoding, len(joined) == len(raw),
-                          whole_raw == raw, enc_back == raw))
+            fails.append(
+                (label, p._encoding, len(joined) == len(raw), whole_raw == raw, enc_back == raw)
+            )
         p.close()
     finally:
         try:
@@ -66,9 +63,9 @@ print("块边界穷举（1~4 字节字符 × 每个偏移）")
 print("=" * 72)
 CHARS = {
     "1B-ascii": b"Z",
-    "2B-latin": "\u00e9".encode(),          # é  -> c3 a9
-    "3B-han": "测".encode(),                 # 测 -> e6 b5 8b
-    "4B-emoji": "\U0001F600".encode(),       # 😀 -> f0 9f 98 80
+    "2B-latin": "\u00e9".encode(),  # é  -> c3 a9
+    "3B-han": "测".encode(),  # 测 -> e6 b5 8b
+    "4B-emoji": "\U0001f600".encode(),  # 😀 -> f0 9f 98 80
 }
 for name, enc in CHARS.items():
     for offset in range(0, len(enc) + 2):
@@ -102,7 +99,7 @@ print("=" * 72)
 print("单字节编码不应被破坏（latin-1 / GBK）")
 print("=" * 72)
 for off in (0, 1, 2):
-    raw = b"\xe9" * (BS - off) + b"tail"       # latin-1 的 é
+    raw = b"\xe9" * (BS - off) + b"tail"  # latin-1 的 é
     roundtrip("latin1 offset=%d" % off, raw)
 gbk = ("中文测试".encode("gbk")) * 20000
 roundtrip("gbk 大文件", gbk)

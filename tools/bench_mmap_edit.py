@@ -6,6 +6,7 @@
   2) mmap 原地补丁（仅写该行范围）
 输出 JSON 与建议阈值。
 """
+
 import argparse
 import io
 import json
@@ -32,6 +33,7 @@ def _rewrite(path, lineno, new_text):
 
 def _mmap_patch(path, lineno, new_text):
     import mmap
+
     t0 = time.perf_counter()
     with io.open(path, "r+b") as f:
         mm = mmap.mmap(f.fileno(), 0)
@@ -65,15 +67,17 @@ def run(repeats=3):
         size = os.path.getsize(path)
         old_line = "row 00050000 abcdefghij"
         new_line = old_line.replace("abcdefghij", "ABCDEFGHIJ")
-        best_rewrite = min(_rewrite(path, 50000, new_line)[0]
-                           for _ in range(repeats))
-        best_mmap = min(_mmap_patch(path, 50000, new_line)[0]
-                        for _ in range(repeats))
-        return {"size_bytes": size, "rewrite_s": round(best_rewrite, 4),
-                "mmap_s": round(best_mmap, 4),
-                "speedup": round(best_rewrite / max(best_mmap, 1e-9), 1)}
+        best_rewrite = min(_rewrite(path, 50000, new_line)[0] for _ in range(repeats))
+        best_mmap = min(_mmap_patch(path, 50000, new_line)[0] for _ in range(repeats))
+        return {
+            "size_bytes": size,
+            "rewrite_s": round(best_rewrite, 4),
+            "mmap_s": round(best_mmap, 4),
+            "speedup": round(best_rewrite / max(best_mmap, 1e-9), 1),
+        }
     finally:
         import shutil
+
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -85,7 +89,8 @@ def main():
     print("[mmap-bench] %s" % result)
     if args.json:
         io.open(args.json, "w", encoding="utf-8", newline="\n").write(
-            json.dumps(result, ensure_ascii=False, indent=2))
+            json.dumps(result, ensure_ascii=False, indent=2)
+        )
     return 0
 
 

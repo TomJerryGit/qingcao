@@ -18,6 +18,7 @@
     python tools/audit_data_roundtrip.py
     python tools/audit_data_roundtrip.py --verbose
 """
+
 import os
 import shutil
 import sys
@@ -29,7 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # 每种编码用各自可编码的样本（GBK 无法表示 emoji，故分开构造）
 ASCII_LINES = [
@@ -53,14 +54,14 @@ CJK_LINES = [
 
 # (标签, 编码, 是否CRLF, 用哪套样本, 是否有BOM)
 CASES = [
-    ("utf-8",            "utf-8",    False, ASCII_LINES, False),
-    ("utf-8 + CRLF",     "utf-8",    True,  ASCII_LINES, False),
-    ("utf-8-sig",        "utf-8",    False, ASCII_LINES, True),
-    ("utf-16",           "utf-16",   False, ASCII_LINES, False),
-    ("gbk",              "gbk",      False, CJK_LINES,   False),
-    ("gbk + CRLF",       "gbk",      True,  CJK_LINES,   False),
-    ("utf-8 中文",        "utf-8",    False, CJK_LINES,   False),
-    ("utf-8 中文 + CRLF", "utf-8",    True,  CJK_LINES,   False),
+    ("utf-8", "utf-8", False, ASCII_LINES, False),
+    ("utf-8 + CRLF", "utf-8", True, ASCII_LINES, False),
+    ("utf-8-sig", "utf-8", False, ASCII_LINES, True),
+    ("utf-16", "utf-16", False, ASCII_LINES, False),
+    ("gbk", "gbk", False, CJK_LINES, False),
+    ("gbk + CRLF", "gbk", True, CJK_LINES, False),
+    ("utf-8 中文", "utf-8", False, CJK_LINES, False),
+    ("utf-8 中文 + CRLF", "utf-8", True, CJK_LINES, False),
 ]
 
 
@@ -69,7 +70,7 @@ def build_bytes(encoding, crlf, lines, bom):
     text = nl.join(lines)
     data = text.encode(encoding)
     if bom:
-        data = b'\xef\xbb\xbf' + data
+        data = b"\xef\xbb\xbf" + data
     return data
 
 
@@ -79,15 +80,15 @@ def decode_sample(raw, encoding, bom):
     enc = encoding
     if bom:
         data = data[3:]
-        enc = 'utf-8'
+        enc = "utf-8"
     return data.decode(enc)
 
 
 def run_case(tmpdir, label, encoding, crlf, lines, bom, mutate, verbose=False):
     raw = build_bytes(encoding, crlf, lines, bom)
-    safe = label.replace(' ', '_').replace('+', 'p')
+    safe = label.replace(" ", "_").replace("+", "p")
     path = os.path.join(tmpdir, "sample_%s.txt" % safe)
-    with open(path, 'wb') as f:
+    with open(path, "wb") as f:
         f.write(raw)
 
     from core.content_provider import LocalFileProvider
@@ -101,14 +102,14 @@ def run_case(tmpdir, label, encoding, crlf, lines, bom, mutate, verbose=False):
     expected_text = mutate(text, nl)
     expected_bytes = expected_text.encode(encoding)
     if bom:
-        expected_bytes = b'\xef\xbb\xbf' + expected_bytes
+        expected_bytes = b"\xef\xbb\xbf" + expected_bytes
 
     # 走真实编辑+保存路径
     provider.write_text(expected_text)
     ok_save = provider.save()
     provider.close()
 
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         got = f.read()
 
     if got == expected_bytes:
@@ -116,15 +117,22 @@ def run_case(tmpdir, label, encoding, crlf, lines, bom, mutate, verbose=False):
             print("      ok    %s" % mutate.__name__)
         return True, ""
 
-    mismatch_at = next((i for i in range(min(len(got), len(expected_bytes)))
-                        if got[i] != expected_bytes[i]),
-                       min(len(got), len(expected_bytes)))
+    mismatch_at = next(
+        (i for i in range(min(len(got), len(expected_bytes))) if got[i] != expected_bytes[i]),
+        min(len(got), len(expected_bytes)),
+    )
     detail = (
         "      保存%s | 期望 %d 字节, 实际 %d 字节, 首个差异 @%d\n"
         "      期望尾部: %r\n"
         "      实际尾部: %r"
-        % ("成功" if ok_save else "**失败**", len(expected_bytes), len(got),
-           mismatch_at, expected_bytes[-36:], got[-36:])
+        % (
+            "成功" if ok_save else "**失败**",
+            len(expected_bytes),
+            len(got),
+            mismatch_at,
+            expected_bytes[-36:],
+            got[-36:],
+        )
     )
     return False, detail
 
@@ -160,17 +168,17 @@ def m_clear_all(text, nl):
     return "x"
 
 
-MUTATIONS = [m_edit_head, m_edit_tail, m_insert_middle,
-             m_delete_large, m_append_only, m_clear_all]
+MUTATIONS = [m_edit_head, m_edit_tail, m_insert_middle, m_delete_large, m_append_only, m_clear_all]
 
 
 def main():
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
 
     print("=" * 78)
@@ -188,8 +196,11 @@ def main():
                 ok, detail = run_case(tmpdir, label, enc, crlf, lines, bom, mut)
             except Exception as e:
                 ok = False
-                detail = ("      异常 %s: %s\n%s"
-                          % (type(e).__name__, e, traceback.format_exc(limit=4)))
+                detail = "      异常 %s: %s\n%s" % (
+                    type(e).__name__,
+                    e,
+                    traceback.format_exc(limit=4),
+                )
             results.append((label, mut.__name__, ok))
             print("      %-5s %s" % ("ok" if ok else "FAIL", mut.__name__))
             if not ok:
@@ -228,5 +239,5 @@ def main():
     return 1 if failures else 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

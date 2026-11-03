@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.15.x P3：沙箱 RPC 审计 + 市场签名校验 + 调试器求值 RPC 校验"""
+
 import hashlib
 import hmac
 import importlib.util
@@ -21,10 +22,14 @@ def _load_tool():
 
 def test_sandbox_rpc_audit_strict_pass():
     out = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "tools",
-                                      "audit_sandbox_rpc.py"), "--strict"],
-        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=120)
+        [sys.executable, os.path.join(ROOT, "tools", "audit_sandbox_rpc.py"), "--strict"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "审计通过" in out.stdout
 
@@ -41,6 +46,7 @@ def test_audit_sets_detects_mismatch():
 
 def test_market_signature_verification(monkeypatch):
     from ui.plugin_store import plugin_bytes_sha256, verify_plugin_signature
+
     data = b"plugin-bytes"
     h = plugin_bytes_sha256(data)
     assert verify_plugin_signature(data, h)[0] is True
@@ -58,20 +64,21 @@ def test_market_signature_verification(monkeypatch):
 
 
 def test_install_plugin_uses_signature_check():
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"),
-               encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
     assert "verify_plugin_signature(" in src
     assert "signature: str" in src
 
 
 def test_debugger_eval_rpc_validation():
     from plugins.python_debugger.session import validate_eval_expression
+
     ok, val = validate_eval_expression("x + 1")
     assert ok and val == "x + 1"
     ok, msg = validate_eval_expression("")
     assert not ok and "空" in msg
     ok, msg = validate_eval_expression("a" * 4001)
     assert not ok and "过长" in msg
-    src = open(os.path.join(ROOT, "plugins", "python_debugger",
-                            "session.py"), encoding="utf-8").read()
+    src = open(
+        os.path.join(ROOT, "plugins", "python_debugger", "session.py"), encoding="utf-8"
+    ).read()
     assert "validate_eval_expression" in src

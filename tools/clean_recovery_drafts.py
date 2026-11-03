@@ -3,6 +3,7 @@
 
 移动目标：data/_trash_<日期>/（可手动恢复）
 """
+
 import argparse
 import os
 import shutil
@@ -39,7 +40,8 @@ def main():
         print("[clean] 仅预览；加 --yes 执行移动")
         return 0
     trash = args.trash or os.path.join(
-        ROOT, "data", "_trash_%s" % datetime.now().strftime("%Y%m%d"))
+        ROOT, "data", "_trash_%s" % datetime.now().strftime("%Y%m%d")
+    )
     os.makedirs(trash, exist_ok=True)
     moved = 0
     for rel, path in items:

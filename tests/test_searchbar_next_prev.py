@@ -1,4 +1,5 @@
 """SearchBar next/prev 逻辑测试（P0-C2）"""
+
 import pytest
 
 

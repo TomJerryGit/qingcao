@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """崩溃草稿清理工具：预览模式可用"""
+
 import importlib.util
 import os
 import subprocess
@@ -27,8 +28,14 @@ def test_collect_targets_returns_list():
 
 def test_preview_mode_exit_zero():
     path = os.path.join(ROOT, "tools", "clean_recovery_drafts.py")
-    out = subprocess.run([sys.executable, path], cwd=ROOT,
-                         capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", timeout=60)
+    out = subprocess.run(
+        [sys.executable, path],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
     assert out.returncode == 0
     assert ("没有需要清理" in out.stdout) or ("仅预览" in out.stdout)

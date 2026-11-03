@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Vim 模式测试（v2 操作符/文本对象/寄存器）"""
+
 import pytest
 
 
@@ -31,10 +32,8 @@ def _send_key(vim_obj, ch: str):
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QKeyEvent
 
-    key = Qt.Key_A + (ord(ch.upper()) - ord('A')) if ch.isalpha() else Qt.Key_unknown
-    event = QKeyEvent(
-        QKeyEvent.KeyPress, key, Qt.NoModifier, ch
-    )
+    key = Qt.Key_A + (ord(ch.upper()) - ord("A")) if ch.isalpha() else Qt.Key_unknown
+    event = QKeyEvent(QKeyEvent.KeyPress, key, Qt.NoModifier, ch)
     return vim_obj.handle_key(event)
 
 
@@ -44,19 +43,19 @@ class TestOperators:
     def test_dd_deletes_line(self, vim):
         vm, editor, _ = vim
         # 光标在第 0 行
-        _send_key(vm, 'd')
-        _send_key(vm, 'd')
+        _send_key(vm, "d")
+        _send_key(vm, "d")
         # 第 0 行被删
         text = editor.text()
         assert not text.startswith("hello world")
 
     def test_yy_yank_and_p_paste(self, vim):
         vm, editor, _ = vim
-        vm.registers['"'] = ''
-        _send_key(vm, 'y')
-        _send_key(vm, 'y')
+        vm.registers['"'] = ""
+        _send_key(vm, "y")
+        _send_key(vm, "y")
         # 再 p 粘贴
-        _send_key(vm, 'p')
+        _send_key(vm, "p")
         text = editor.text()
         # 应该有两行 "hello world"
         assert text.count("hello world") >= 2
@@ -64,8 +63,8 @@ class TestOperators:
     def test_dw_deletes_word(self, vim):
         vm, editor, _ = vim
         # 光标在行首
-        _send_key(vm, 'd')
-        _send_key(vm, 'w')
+        _send_key(vm, "d")
+        _send_key(vm, "w")
         text = editor.text()
         # "hello" 应被删除
         assert "hello" not in text
@@ -74,9 +73,9 @@ class TestOperators:
         vm, editor, _ = vim
         # 光标在第 0 行 位置 2（"hello" 中间）
         editor.setCursorPosition(0, 2)
-        _send_key(vm, 'd')
-        _send_key(vm, 'i')
-        _send_key(vm, 'w')
+        _send_key(vm, "d")
+        _send_key(vm, "i")
+        _send_key(vm, "w")
         text = editor.text()
         assert "hello" not in text
         # "world" 保留
@@ -90,13 +89,13 @@ class TestRegisters:
         vm, editor, _ = vim
         # "ayy 复制到 a 寄存器
         _send_key(vm, '"')
-        _send_key(vm, 'a')
-        _send_key(vm, 'y')
-        _send_key(vm, 'y')
+        _send_key(vm, "a")
+        _send_key(vm, "y")
+        _send_key(vm, "y")
 
         # 检查 a 寄存器
-        assert 'a' in vm.registers
-        assert 'hello' in vm.registers['a']
+        assert "a" in vm.registers
+        assert "hello" in vm.registers["a"]
 
     def test_register_not_leak(self, vim):
         vm, editor, _ = vim
@@ -105,9 +104,8 @@ class TestRegisters:
         # 换行符（不是合法寄存器名）
         from PyQt5.QtCore import Qt
         from PyQt5.QtGui import QKeyEvent
-        event = QKeyEvent(
-            QKeyEvent.KeyPress, Qt.Key_Enter, Qt.NoModifier, '\n'
-        )
+
+        event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Enter, Qt.NoModifier, "\n")
         vm.handle_key(event)
         # 状态应已清空
         assert vm._pending_register is None
@@ -121,8 +119,8 @@ class TestTextObjects:
         editor.setText('say "hello world" end')
         editor.setCursorPosition(0, 8)  # 在 "hello" 内部
 
-        _send_key(vm, 'd')
-        _send_key(vm, 'i')
+        _send_key(vm, "d")
+        _send_key(vm, "i")
         _send_key(vm, '"')
 
         text = editor.text()
@@ -134,13 +132,13 @@ class TestTextObjects:
         editor.setText('say "hello world" end')
         editor.setCursorPosition(0, 8)
 
-        _send_key(vm, 'd')
-        _send_key(vm, 'a')
+        _send_key(vm, "d")
+        _send_key(vm, "a")
         _send_key(vm, '"')
 
         text = editor.text()
         # 引号 + 内容都被删
-        assert text == 'say  end'
+        assert text == "say  end"
 
 
 class TestSearchRepeat:
@@ -152,7 +150,7 @@ class TestSearchRepeat:
         editor.setCursorPosition(0, 0)
 
         vm.last_search = "foo"
-        _send_key(vm, 'n')
+        _send_key(vm, "n")
         pos = editor.SendScintilla(editor.SCI_GETCURRENTPOS)
         # 应该跳到第二个 foo
         assert pos > 0
@@ -164,8 +162,8 @@ class TestUnknownMotion:
     def test_dq_no_crash(self, vim):
         """dq（无意义动作）应静默放弃"""
         vm, editor, _ = vim
-        _send_key(vm, 'd')
-        _send_key(vm, 'q')
+        _send_key(vm, "d")
+        _send_key(vm, "q")
         # 状态应被清理
         assert vm._pending_operator is None
 
@@ -173,11 +171,10 @@ class TestUnknownMotion:
         """d 后按 Esc"""
         from PyQt5.QtCore import Qt
         from PyQt5.QtGui import QKeyEvent
+
         vm, editor, _ = vim
-        _send_key(vm, 'd')
-        event = QKeyEvent(
-            QKeyEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier, ''
-        )
+        _send_key(vm, "d")
+        event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier, "")
         vm.handle_key(event)
 
 

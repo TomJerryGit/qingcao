@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """插件市场元数据校验：category/license/homepage/keywords"""
+
 import glob
 import io
 import json
@@ -13,8 +14,7 @@ REQUIRED = ("category", "license", "homepage", "keywords", "description")
 
 def check():
     problems = []
-    for mf in sorted(glob.glob(os.path.join(ROOT, "plugins", "*",
-                                            "plugin.json"))):
+    for mf in sorted(glob.glob(os.path.join(ROOT, "plugins", "*", "plugin.json"))):
         try:
             m = json.load(io.open(mf, encoding="utf-8"))
         except Exception as e:
@@ -32,9 +32,10 @@ def main():
     problems = check()
     for p in problems:
         print("  [market]", p)
-    print("[market] 检查 %d 个插件，问题 %d 项"
-          % (len(glob.glob(os.path.join(ROOT, "plugins", "*",
-                                        "plugin.json"))), len(problems)))
+    print(
+        "[market] 检查 %d 个插件，问题 %d 项"
+        % (len(glob.glob(os.path.join(ROOT, "plugins", "*", "plugin.json"))), len(problems))
+    )
     return 1 if (ap_strict and problems) else 0
 
 

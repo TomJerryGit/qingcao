@@ -21,6 +21,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import time
@@ -84,10 +85,8 @@ from core.key_sequence_manager import (  # noqa: E402
 
 mgr = KeySequenceManager()
 hits = []
-mgr.register(["Ctrl+K", "Ctrl+S"], lambda: hits.append("save"),
-             description="保存全部")
-mgr.register(["Ctrl+K", "Ctrl+C"], lambda: hits.append("comment"),
-             description="注释")
+mgr.register(["Ctrl+K", "Ctrl+S"], lambda: hits.append("save"), description="保存全部")
+mgr.register(["Ctrl+K", "Ctrl+C"], lambda: hits.append("comment"), description="注释")
 
 check("A1 注册 2 条序列", len(mgr.bindings) == 2, str(len(mgr.bindings)))
 check("A2 初始不在等待", mgr.is_waiting() is False, "")
@@ -115,18 +114,18 @@ mgr2.register(["Ctrl+K", "Ctrl+S"], lambda: None, timeout_ms=80)
 mgr2.handle_key("Ctrl+K")
 check("A10 超时前仍在等待", mgr2.is_waiting() is True, "")
 time.sleep(0.15)
-mgr2.handle_key("Ctrl+S")     # 超时后再按，应视为新一轮前缀匹配失败
-check("A11 超时后 pending 被清（不会误触发）",
-      not mgr2.is_waiting() or len(mgr2._pending_keys) <= 1,
-      str(mgr2._pending_keys))
+mgr2.handle_key("Ctrl+S")  # 超时后再按，应视为新一轮前缀匹配失败
+check(
+    "A11 超时后 pending 被清（不会误触发）",
+    not mgr2.is_waiting() or len(mgr2._pending_keys) <= 1,
+    str(mgr2._pending_keys),
+)
 
 # 键名转换
 ev = make_key_event(Qt.Key_S, Qt.ControlModifier, "\x13")
-check("A12 QKeyEvent → 'Ctrl+S'",
-      key_event_to_string(ev) == "Ctrl+S", key_event_to_string(ev))
+check("A12 QKeyEvent → 'Ctrl+S'", key_event_to_string(ev) == "Ctrl+S", key_event_to_string(ev))
 ev2 = make_key_event(Qt.Key_A, Qt.NoModifier, "a")
-check("A13 普通字母 → 'A'（无修饰键）",
-      key_event_to_string(ev2) == "A", key_event_to_string(ev2))
+check("A13 普通字母 → 'A'（无修饰键）", key_event_to_string(ev2) == "A", key_event_to_string(ev2))
 
 # ============================================================
 # B/C/D. 真实 MainWindow 集成 + 安全闸
@@ -139,17 +138,18 @@ from ui.main_window import MainWindow  # noqa: E402
 win = MainWindow()
 seq = getattr(win, "key_sequence_manager", None)
 check("B1 主窗口创建了序列管理器", seq is not None, "")
-check("B2 注册了 6 条序列",
-      len(getattr(seq, "bindings", [])) == 6,
-      str(len(getattr(seq, "bindings", []))))
+check(
+    "B2 注册了 6 条序列",
+    len(getattr(seq, "bindings", [])) == 6,
+    str(len(getattr(seq, "bindings", []))),
+)
 
 # 冲突检测
 conflicts = win.key_sequence_conflicts()
 check("B3 与现有单键快捷键无冲突", conflicts == [], str(conflicts))
 
 # 处理器都存在
-missing = [h for _k, h, _d in win.KEY_SEQUENCES
-           if not callable(getattr(win, h, None))]
+missing = [h for _k, h, _d in win.KEY_SEQUENCES if not callable(getattr(win, h, None))]
 check("B4 所有序列处理器都存在", not missing, str(missing))
 
 # 前缀键确实无单键绑定
@@ -157,9 +157,11 @@ from PyQt5.QtWidgets import QAction  # noqa: E402
 
 
 prefix = win.KEY_SEQUENCES[0][0][0]
-owners = [a.text() for a in win.findChildren(QAction)
-          if not a.shortcut().isEmpty()
-          and a.shortcut().toString() == prefix]
+owners = [
+    a.text()
+    for a in win.findChildren(QAction)
+    if not a.shortcut().isEmpty() and a.shortcut().toString() == prefix
+]
 check("B5 前缀键 %s 没有被单键动作占用" % prefix, not owners, str(owners))
 
 print()
@@ -175,20 +177,15 @@ def filter_key(key, mods, text=""):
 
 
 # C1: 普通字母，无 Ctrl/Alt → 不能消费
-check("C1 普通字母 'a' 不被消费",
-      filter_key(Qt.Key_A, Qt.NoModifier, "a") is False, "")
+check("C1 普通字母 'a' 不被消费", filter_key(Qt.Key_A, Qt.NoModifier, "a") is False, "")
 # C2: Backspace → 不能消费
-check("C2 退格键不被消费",
-      filter_key(Qt.Key_Backspace, Qt.NoModifier) is False, "")
+check("C2 退格键不被消费", filter_key(Qt.Key_Backspace, Qt.NoModifier) is False, "")
 # C3: 数字键 → 不能消费
-check("C3 数字键 '5' 不被消费",
-      filter_key(Qt.Key_5, Qt.NoModifier, "5") is False, "")
+check("C3 数字键 '5' 不被消费", filter_key(Qt.Key_5, Qt.NoModifier, "5") is False, "")
 # C4: Enter → 不能消费
-check("C4 回车不被消费",
-      filter_key(Qt.Key_Return, Qt.NoModifier, "\r") is False, "")
+check("C4 回车不被消费", filter_key(Qt.Key_Return, Qt.NoModifier, "\r") is False, "")
 # C5: 非序列的 Ctrl 组合 → 不能消费
-check("C5 Ctrl+B（非序列）不被消费",
-      filter_key(Qt.Key_B, Qt.ControlModifier, "\x02") is False, "")
+check("C5 Ctrl+B（非序列）不被消费", filter_key(Qt.Key_B, Qt.ControlModifier, "\x02") is False, "")
 
 # C6: 焦点不在编辑器时（模拟对话框输入框聚焦）→ 不拦截
 dialog = QDialog(win)
@@ -197,8 +194,7 @@ dialog.show()
 edit.setFocus()
 app.processEvents()
 consumed_dialog = filter_key(Qt.Key_K, Qt.ControlModifier, "\x0b")
-check("C6 焦点在 QLineEdit 时不拦截 Ctrl+K",
-      consumed_dialog is False, "")
+check("C6 焦点在 QLineEdit 时不拦截 Ctrl+K", consumed_dialog is False, "")
 dialog.close()
 
 # C7: 有模态窗口时 → 不拦截
@@ -246,9 +242,10 @@ def _editor_sequence_flow():
         waiting = mgr.is_waiting()
         ev2 = make_key_event(Qt.Key_S, Qt.ControlModifier, "\x13")
         c2 = win._handle_keyseq_event(ed, ev2)
-        return (bool(c1) and waiting and bool(c2) and called == ["fired"],
-                "consumed1=%r waiting=%r consumed2=%r called=%r"
-                % (c1, waiting, c2, called))
+        return (
+            bool(c1) and waiting and bool(c2) and called == ["fired"],
+            "consumed1=%r waiting=%r consumed2=%r called=%r" % (c1, waiting, c2, called),
+        )
     finally:
         mgr.bindings[0].callback = orig_cb
         mgr.cancel()

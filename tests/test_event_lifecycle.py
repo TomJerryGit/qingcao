@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 """事件生命周期契约：文档与代码一致 + 全部事件可订阅/退订"""
+
 import os
 
 
-DOC_PATH = os.path.join(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))), "docs", "event_lifecycle.md")
+DOC_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "event_lifecycle.md"
+)
 
 
 def _api():
     from app.plugins import PluginAPI
+
     return PluginAPI(None, permissions=[], plugin_name="evt_test")
 
 

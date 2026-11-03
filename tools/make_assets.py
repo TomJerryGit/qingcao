@@ -20,26 +20,28 @@ README 与打包脚本引用了 ``resources/icons/qingcao.ico`` /
 
     python tools/make_assets.py
 """
+
 import os
 import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ICON_DIR = os.path.join(ROOT, 'resources', 'icons')
-SPLASH_PATH = os.path.join(ROOT, 'resources', 'splash.png')
+ICON_DIR = os.path.join(ROOT, "resources", "icons")
+SPLASH_PATH = os.path.join(ROOT, "resources", "splash.png")
 
 # 与 resources/qingcao_theme.qss / main.py 回退主题一致的配色
-BG_TOP = (30, 58, 95)      # #1e3a5f
-BG_BOTTOM = (13, 31, 51)   # #0d1f33
-ACCENT = (126, 200, 80)    # #7ec850
+BG_TOP = (30, 58, 95)  # #1e3a5f
+BG_BOTTOM = (13, 31, 51)  # #0d1f33
+ACCENT = (126, 200, 80)  # #7ec850
 SUBTITLE = (160, 160, 160)  # #a0a0a0
 
 
 def _gradient(size):
     """生成竖向渐变背景"""
     from PIL import Image
+
     w, h = size
-    img = Image.new('RGB', size, BG_TOP)
+    img = Image.new("RGB", size, BG_TOP)
     px = img.load()
     for y in range(h):
         t = y / max(1, h - 1)
@@ -54,6 +56,7 @@ def _gradient(size):
 def _font(size):
     """找一个能渲染中文的字体"""
     from PIL import ImageFont
+
     candidates = [
         r"C:\Windows\Fonts\msyh.ttc",
         r"C:\Windows\Fonts\msyhbd.ttc",
@@ -80,7 +83,9 @@ def _center_text(draw, box, text, font, fill):
         tw, th = draw.textsize(text, font=font)
     draw.text(
         (x + (w - tw) / 2 - left, y + (h - th) / 2 - top),
-        text, font=font, fill=fill,
+        text,
+        font=font,
+        fill=fill,
     )
 
 
@@ -96,30 +101,27 @@ def make_icon():
 
     # 圆角遮罩（让图标在小尺寸下更像应用图标）
     radius = 48
-    mask = Image.new('L', (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, size - 1, size - 1), radius=radius, fill=255
-    )
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=radius, fill=255)
 
     # 主字形
     font = _font(150)
-    _center_text(draw, (0, -18, size, size), '青', font, ACCENT)
+    _center_text(draw, (0, -18, size, size), "青", font, ACCENT)
     # 底部细横线
     draw.rectangle((72, 206, size - 72, 212), fill=ACCENT)
 
-    rgba = img.convert('RGBA')
+    rgba = img.convert("RGBA")
     rgba.putalpha(mask)
 
-    png_path = os.path.join(ICON_DIR, 'qingcao.png')
+    png_path = os.path.join(ICON_DIR, "qingcao.png")
     rgba.save(png_path)
     print("[make_assets] 写出 %s" % os.path.relpath(png_path, ROOT))
 
-    ico_path = os.path.join(ICON_DIR, 'qingcao.ico')
+    ico_path = os.path.join(ICON_DIR, "qingcao.ico")
     rgba.save(
         ico_path,
-        format='ICO',
-        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64),
-               (128, 128), (256, 256)],
+        format="ICO",
+        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
     print("[make_assets] 写出 %s" % os.path.relpath(ico_path, ROOT))
 
@@ -132,9 +134,8 @@ def make_splash():
     img = _gradient((w, h))
     draw = ImageDraw.Draw(img)
 
-    _center_text(draw, (0, -30, w, h), '青草编辑器', _font(56), ACCENT)
-    _center_text(draw, (0, 60, w, h), '青草枯荣 · 野火重生',
-                 _font(22), SUBTITLE)
+    _center_text(draw, (0, -30, w, h), "青草编辑器", _font(56), ACCENT)
+    _center_text(draw, (0, 60, w, h), "青草枯荣 · 野火重生", _font(22), SUBTITLE)
     draw.rectangle((180, 186, w - 180, 189), fill=ACCENT)
 
     os.makedirs(os.path.dirname(SPLASH_PATH), exist_ok=True)
@@ -155,5 +156,5 @@ def main():
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

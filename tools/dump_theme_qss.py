@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """导出护眼主题生成的 QSS，检查其语法与工具栏/菜单栏规则"""
+
 import io
 import os
 import sys
@@ -25,9 +26,19 @@ print("主题:", theme.name, "| colors 对象:", type(theme.colors).__name__)
 c = theme.colors
 print()
 print("关键颜色值:")
-for k in ("toolbar_bg", "window_fg", "window_bg", "menubar_bg",
-          "menubar_fg", "menu_bg", "menu_fg", "statusbar_bg",
-          "statusbar_fg", "button_bg", "button_fg"):
+for k in (
+    "toolbar_bg",
+    "window_fg",
+    "window_bg",
+    "menubar_bg",
+    "menubar_fg",
+    "menu_bg",
+    "menu_fg",
+    "statusbar_bg",
+    "statusbar_fg",
+    "button_bg",
+    "button_fg",
+):
     print("  %-16s = %s" % (k, getattr(c, k, "<缺失>")))
 
 qss = theme.qss or loader._generate_qss(c)
@@ -40,8 +51,15 @@ print("生成 QSS 长度:", len(qss), "-> 已写出 _gen_theme.qss")
 # 检查关键规则是否存在
 print()
 print("关键规则检查:")
-for sel in ("QToolBar", "QToolBar QToolButton", "QMenuBar", "QMenuBar::item",
-            "QStatusBar", "QMainWindow", "QWidget"):
+for sel in (
+    "QToolBar",
+    "QToolBar QToolButton",
+    "QMenuBar",
+    "QMenuBar::item",
+    "QStatusBar",
+    "QMainWindow",
+    "QWidget",
+):
     cnt = qss.count(sel)
     print("  %-26s 出现 %d 次" % (sel, cnt))
 
@@ -50,7 +68,7 @@ print()
 print("QToolBar / QToolButton 段落原文:")
 idx = qss.find("QToolBar")
 if idx >= 0:
-    print(qss[idx:idx + 700])
+    print(qss[idx : idx + 700])
 else:
     print("  !! QSS 中完全没有 QToolBar 规则")
 
@@ -67,7 +85,7 @@ if qss.count("{") != qss.count("}"):
         elif ch == "}":
             depth -= 1
             if depth < 0:
-                print("  多余的 } 在偏移", i, "附近:", repr(qss[max(0, i - 80):i + 20]))
+                print("  多余的 } 在偏移", i, "附近:", repr(qss[max(0, i - 80) : i + 20]))
                 break
     if depth > 0:
         print("  还有", depth, "个未闭合的 {")

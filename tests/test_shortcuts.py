@@ -16,6 +16,7 @@
    而**不抛异常**（不能因为一个冲突打断启动）。
 6. P8-4 —— 文档（tips / help_browser）与实际快捷键一致。
 """
+
 import datetime
 import logging
 import os
@@ -91,18 +92,13 @@ class TestNoDuplicateShortcuts:
         for key, action in iter_action_shortcuts(window):
             previous = seen.get(key)
             if previous is not None and previous is not action:
-                duplicates.append(
-                    (key, previous.text(), action.text())
-                )
+                duplicates.append((key, previous.text(), action.text()))
             else:
                 seen[key] = action
 
         assert not duplicates, (
             "存在重复快捷键（Qt 会报 ambiguous shortcut 并导致按键失效）: "
-            + "; ".join(
-                "{}: 「{}」 vs 「{}」".format(k, a, b)
-                for k, a, b in duplicates
-            )
+            + "; ".join("{}: 「{}」 vs 「{}」".format(k, a, b) for k, a, b in duplicates)
         )
 
     def test_scan_is_not_vacuous(self, window):
@@ -117,24 +113,34 @@ class TestNoDuplicateShortcuts:
         """抽查：修复后的关键快捷键确实都绑上了。"""
         keys = {k for k, _ in iter_action_shortcuts(window)}
         for expected in (
-            "Ctrl+N", "Ctrl+S", "Ctrl+F", "Ctrl+Shift+P",
-            "Alt+C", "F5", "F12",
-            "Ctrl+Alt+D", "Ctrl+Alt+Shift+V", "Ctrl+Shift+V",
+            "Ctrl+N",
+            "Ctrl+S",
+            "Ctrl+F",
+            "Ctrl+Shift+P",
+            "Alt+C",
+            "F5",
+            "F12",
+            "Ctrl+Alt+D",
+            "Ctrl+Alt+Shift+V",
+            "Ctrl+Shift+V",
         ):
-            assert expected in keys, "缺少快捷键 %s（现有: %s）" % (
-                expected, sorted(keys)
-            )
+            assert expected in keys, "缺少快捷键 %s（现有: %s）" % (expected, sorted(keys))
 
     def test_shortcut_registry_covers_menu_actions(self, window):
         """P8-5: 关键动作必须经过 _register_action_shortcut 登记。"""
         registry = getattr(window, "_shortcut_owners", {})
         for key in (
-            "Ctrl+N", "Ctrl+S", "Alt+C", "F5", "F12",
-            "Ctrl+Alt+D", "Ctrl+Alt+Shift+V", "Ctrl+Shift+V", "Ctrl+V",
+            "Ctrl+N",
+            "Ctrl+S",
+            "Alt+C",
+            "F5",
+            "F12",
+            "Ctrl+Alt+D",
+            "Ctrl+Alt+Shift+V",
+            "Ctrl+Shift+V",
+            "Ctrl+V",
         ):
-            assert key in registry, (
-                "%s 未登记到 _shortcut_owners，重复检测覆盖不到它" % key
-            )
+            assert key in registry, "%s 未登记到 _shortcut_owners，重复检测覆盖不到它" % key
 
 
 # ============================================================
@@ -145,17 +151,14 @@ class TestColumnModeShortcut:
         acts = actions_with_shortcut(window, "Alt+C")
         assert len(acts) == 1, (
             "Alt+C 绑定了 %d 个 QAction: %s —— 这会触发 Qt 的 "
-            "ambiguous shortcut overload，按键将完全无响应"
-            % (len(acts), [a.text() for a in acts])
+            "ambiguous shortcut overload，按键将完全无响应" % (len(acts), [a.text() for a in acts])
         )
         assert acts[0] is window.column_mode_action
 
     def test_column_action_shared_by_menu_and_toolbar(self, window):
         """同一个 QAction 实例同时出现在视图菜单和主工具栏。"""
         action = window.column_mode_action
-        assert action in window.view_menu.actions(), (
-            "列模式 QAction 不在视图菜单里"
-        )
+        assert action in window.view_menu.actions(), "列模式 QAction 不在视图菜单里"
 
         toolbar = window.findChild(QToolBar, "MainToolBar")
         assert toolbar is not None, "找不到主工具栏"
@@ -170,9 +173,7 @@ class TestColumnModeShortcut:
 class TestF5Semantics:
     def test_f5_is_run_current_file(self, window):
         acts = actions_with_shortcut(window, "F5")
-        assert len(acts) == 1, (
-            "F5 应且只应绑定 1 个动作，实际: %s" % [a.text() for a in acts]
-        )
+        assert len(acts) == 1, "F5 应且只应绑定 1 个动作，实际: %s" % [a.text() for a in acts]
         text = acts[0].text()
         assert "运行" in text, "F5 应绑定「运行当前文件」，实际是 %r" % text
         assert "日期" not in text and "时间" not in text, (
@@ -183,9 +184,7 @@ class TestF5Semantics:
         acts = actions_with_text(window, "插入日期时间")
         assert acts, "「插入日期时间」菜单项必须仍然存在"
         keys = {shortcut_of(a) for a in acts if not a.shortcut().isEmpty()}
-        assert keys == {"Ctrl+Alt+D"}, (
-            "「插入日期时间」应绑定 Ctrl+Alt+D，实际 %s" % sorted(keys)
-        )
+        assert keys == {"Ctrl+Alt+D"}, "「插入日期时间」应绑定 Ctrl+Alt+D，实际 %s" % sorted(keys)
 
     def test_f5_not_owned_by_datetime_action(self, window):
         """直接对着"插入日期时间"断言，防止有人只改了另一处。"""
@@ -219,20 +218,17 @@ class TestPastePlain:
         assert vim is not None, "Vim 模式动作不存在"
         vim_key = shortcut_of(vim)
 
-        assert plain_key != vim_key, (
-            "「粘贴为纯文本」(%s) 与 Vim 模式 (%s) 冲突" % (plain_key, vim_key)
+        assert plain_key != vim_key, "「粘贴为纯文本」(%s) 与 Vim 模式 (%s) 冲突" % (
+            plain_key,
+            vim_key,
         )
         assert vim_key == "Ctrl+Shift+V"
-        assert plain_key != "Ctrl+Alt+V", (
-            "Ctrl+Alt+V 在 Windows 上被 AltGr 吞掉，不能再用"
-        )
+        assert plain_key != "Ctrl+Alt+V", "Ctrl+Alt+V 在 Windows 上被 AltGr 吞掉，不能再用"
 
     def test_clipboard_binding_is_idempotent(self, window):
         """回归：同一快捷键被两个动作占用时必然被扫描出来。"""
         conflicts = [
-            (k, a.text())
-            for k, a in iter_action_shortcuts(window)
-            if k == "Ctrl+Alt+Shift+V"
+            (k, a.text()) for k, a in iter_action_shortcuts(window) if k == "Ctrl+Alt+Shift+V"
         ]
         assert len(conflicts) == 1, conflicts
 
@@ -244,9 +240,7 @@ class TestDuplicateDetection:
     def test_add_action_warns_on_duplicate(self, window, caplog):
         caplog.set_level(logging.WARNING)
 
-        action = window._add_action(
-            window.tools_menu, "测试重复绑定动作", "Ctrl+N", lambda: None
-        )
+        action = window._add_action(window.tools_menu, "测试重复绑定动作", "Ctrl+N", lambda: None)
 
         assert action is not None, "_add_action 不应因冲突而失败"
         assert "快捷键冲突" in caplog.text, (
@@ -257,9 +251,7 @@ class TestDuplicateDetection:
     def test_add_action_does_not_raise(self, window):
         """冲突时不得抛异常打断启动。"""
         try:
-            window._add_action(
-                window.tools_menu, "再一个冲突动作", "Ctrl+S", lambda: None
-            )
+            window._add_action(window.tools_menu, "再一个冲突动作", "Ctrl+S", lambda: None)
         except Exception as e:  # pragma: no cover - 失败时给出清晰信息
             pytest.fail("重复绑定抛出了异常: %r" % (e,))
 
@@ -268,9 +260,7 @@ class TestDuplicateDetection:
         original = window._shortcut_owners.get("Ctrl+F")
         assert original is not None
 
-        window._add_action(
-            window.tools_menu, "冲突的查找动作", "Ctrl+F", lambda: None
-        )
+        window._add_action(window.tools_menu, "冲突的查找动作", "Ctrl+F", lambda: None)
         assert window._shortcut_owners.get("Ctrl+F") is original
 
 
@@ -282,9 +272,7 @@ class TestDocumentationConsistency:
         from ui import tips
 
         text = "\n".join(tips.TIPS)
-        assert "F5 在光标处插入" not in text, (
-            "每日技巧仍在教 F5 = 插入日期时间"
-        )
+        assert "F5 在光标处插入" not in text, "每日技巧仍在教 F5 = 插入日期时间"
         assert "Ctrl+Alt+D" in text, "每日技巧应提到新的日期时间快捷键"
 
     def test_tips_column_mode_still_alt_c(self):
@@ -307,9 +295,7 @@ class TestDocumentationConsistency:
         from ui.help_browser import HELP_TOPICS
 
         text = "\n".join(HELP_TOPICS.values())
-        assert not re.search(r"\|\s*F5\s*\|\s*插入日期时间", text), (
-            "帮助里仍把 F5 写成插入日期时间"
-        )
+        assert not re.search(r"\|\s*F5\s*\|\s*插入日期时间", text), "帮助里仍把 F5 写成插入日期时间"
 
 
 # ============================================================
@@ -341,7 +327,7 @@ class TestInsertDatetimeWiring:
 
     def test_no_editor_is_reported(self, window, monkeypatch):
         monkeypatch.setattr(window.tabs, "current_proxy", lambda: None)
-        window._insert_datetime()   # 不得抛异常
+        window._insert_datetime()  # 不得抛异常
 
     def test_proxy_insert_datetime_honors_preferences(self, qapp, monkeypatch):
         """运行时验证：改掉 Preferences 里的格式，插入的文本随之变化。
@@ -359,9 +345,7 @@ class TestInsertDatetimeWiring:
                 values = {"date_format": "%Y!%m!%d", "time_format": "%H"}
                 return values.get(key, default)
 
-        monkeypatch.setattr(
-            prefs_mod, "get_preferences", lambda: FakePrefs()
-        )
+        monkeypatch.setattr(prefs_mod, "get_preferences", lambda: FakePrefs())
 
         sc = QsciScintilla()
         proxy = EditorProxy(sc, Document())
@@ -372,13 +356,9 @@ class TestInsertDatetimeWiring:
         assert inserted.startswith(expected_date), (
             "插入的日期时间没有遵循 Preferences.date_format：%r" % inserted
         )
-        assert "!" in inserted, (
-            "仍在使用硬编码格式（date_format 未生效）：%r" % inserted
-        )
+        assert "!" in inserted, "仍在使用硬编码格式（date_format 未生效）：%r" % inserted
 
-    def test_proxy_insert_datetime_defaults_without_prefs(
-        self, qapp, monkeypatch
-    ):
+    def test_proxy_insert_datetime_defaults_without_prefs(self, qapp, monkeypatch):
         """Preferences 不可用时回退到历史默认格式，且不抛异常。"""
         from PyQt5.Qsci import QsciScintilla
 
@@ -395,6 +375,4 @@ class TestInsertDatetimeWiring:
         proxy = EditorProxy(sc, Document())
         proxy.insert_datetime()
 
-        assert sc.text() == datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        assert sc.text() == datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

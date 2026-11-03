@@ -45,11 +45,16 @@ def show_proxy_env():
     print_header("1. 代理环境变量")
 
     proxy_keys = [
-        'HTTP_PROXY', 'http_proxy',
-        'HTTPS_PROXY', 'https_proxy',
-        'ALL_PROXY', 'all_proxy',
-        'NO_PROXY', 'no_proxy',
-        'FTP_PROXY', 'ftp_proxy',
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "NO_PROXY",
+        "no_proxy",
+        "FTP_PROXY",
+        "ftp_proxy",
     ]
 
     found = False
@@ -94,13 +99,16 @@ def test_ollama(use_proxy: bool, timeout: int = 15) -> bool:
     start = time.time()
     try:
         resp = requests.post(
-            url, json=payload, headers=headers,
-            timeout=timeout, proxies=proxies,
+            url,
+            json=payload,
+            headers=headers,
+            timeout=timeout,
+            proxies=proxies,
         )
         elapsed = (time.time() - start) * 1000
         if resp.status_code == 200:
             try:
-                content = resp.json()['choices'][0]['message']['content']
+                content = resp.json()["choices"][0]["message"]["content"]
             except Exception:
                 content = resp.text[:80]
             print_ok(f"HTTP 200 ({elapsed:.0f} ms): {content[:60]}")
@@ -206,5 +214,5 @@ def main():
     return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

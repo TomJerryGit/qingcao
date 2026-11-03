@@ -191,24 +191,15 @@ def test_every_mapped_lexer_class_exists_and_is_instantiable(qapp):
     所以这里必须同时断言"可实例化"，光断言"类存在"不够。
     """
     missing = sorted(
-        {
-            name
-            for name in LEXER_BY_EXTENSION.values()
-            if resolve_lexer_class(name) is None
-        }
+        {name for name in LEXER_BY_EXTENSION.values() if resolve_lexer_class(name) is None}
     )
     assert missing == [], f"本构建缺少这些词法器类: {missing}"
 
     not_instantiable = sorted(
-        {
-            name
-            for name in LEXER_BY_EXTENSION.values()
-            if not is_instantiable_lexer(name)
-        }
+        {name for name in LEXER_BY_EXTENSION.values() if not is_instantiable_lexer(name)}
     )
     assert not_instantiable == [], (
-        f"这些词法器是 C++ 抽象类 / 无法实例化，登记它们会静默零高亮: "
-        f"{not_instantiable}"
+        f"这些词法器是 C++ 抽象类 / 无法实例化，登记它们会静默零高亮: {not_instantiable}"
     )
 
 
@@ -230,9 +221,7 @@ def test_asm_uses_instantiable_nasm_lexer(qapp):
 
 def test_uninstantiable_lexer_name_degrades_without_crashing(editor, monkeypatch):
     """若将来有人把抽象类填进映射表，必须降级为 None 且打印告警（不崩）"""
-    monkeypatch.setitem(
-        editor_view.LEXER_BY_EXTENSION, ".abstract", "QsciLexerAsm"
-    )
+    monkeypatch.setitem(editor_view.LEXER_BY_EXTENSION, ".abstract", "QsciLexerAsm")
     editor.set_lexer_by_filename("a.abstract")
     assert editor.lexer() is None
 

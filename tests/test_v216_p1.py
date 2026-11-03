@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """v2.16 P1：Ed25519 签名 / 审计基线 / 调试器模式 / 市场状态"""
+
 import base64
 import importlib.util
 import json
@@ -20,8 +21,7 @@ def test_ed25519_verify(monkeypatch):
     from core.plugin_signature import verify_ed25519
 
     priv = Ed25519PrivateKey.generate()
-    pub = priv.public_key().public_bytes(
-        serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    pub = priv.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     data = b"plugin-data"
     sig = base64.b64encode(priv.sign(data)).decode()
     ok, msg = verify_ed25519(data, sig, public_keys=[pub])
@@ -56,9 +56,11 @@ def test_plugin_store_ed25519_integration(monkeypatch):
     from ui.plugin_store import verify_plugin_signature
 
     priv = Ed25519PrivateKey.generate()
-    pub_hex = priv.public_key().public_bytes(
-        serialization.Encoding.Raw,
-        serialization.PublicFormat.Raw).hex()
+    pub_hex = (
+        priv.public_key()
+        .public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        .hex()
+    )
     monkeypatch.setenv("QINGCAO_PLUGIN_PUBKEYS", pub_hex)
     data = b"zip-bytes"
     sig = base64.b64encode(priv.sign(data)).decode()
@@ -69,14 +71,24 @@ def test_plugin_store_ed25519_integration(monkeypatch):
 
 def test_audit_baseline_present_and_enforced(tmp_path):
     from ui.plugin_store import build_market_catalog  # noqa: F401
+
     base = os.path.join(ROOT, "tools", "baselines", "sandbox_rpc.json")
     assert os.path.exists(base)
     out = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "tools",
-                                      "audit_sandbox_rpc.py"),
-         "--strict", "--baseline", base],
-        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=120)
+        [
+            sys.executable,
+            os.path.join(ROOT, "tools", "audit_sandbox_rpc.py"),
+            "--strict",
+            "--baseline",
+            base,
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
     assert out.returncode == 0, out.stdout + out.stderr
 
     data = json.load(open(base, encoding="utf-8"))
@@ -84,11 +96,20 @@ def test_audit_baseline_present_and_enforced(tmp_path):
     bad = tmp_path / "bad_baseline.json"
     bad.write_text(json.dumps(data), encoding="utf-8")
     out2 = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "tools",
-                                      "audit_sandbox_rpc.py"),
-         "--strict", "--baseline", str(bad)],
-        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=120)
+        [
+            sys.executable,
+            os.path.join(ROOT, "tools", "audit_sandbox_rpc.py"),
+            "--strict",
+            "--baseline",
+            str(bad),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
     assert out2.returncode == 1
     assert "白名单变更" in out2.stdout
 

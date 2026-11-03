@@ -46,8 +46,7 @@ def test_open_dropped_file_paths(qapp, tmp_path):
         f3.write_text("c\n", encoding="utf-8")
         md = QMimeData()
         md.setUrls([QUrl.fromLocalFile(str(f3))])
-        ev = QDropEvent(QPoint(5, 5), Qt.CopyAction, md,
-                        Qt.LeftButton, Qt.NoModifier)
+        ev = QDropEvent(QPoint(5, 5), Qt.CopyAction, md, Qt.LeftButton, Qt.NoModifier)
         win.dropEvent(ev)
         assert win.tabs.count() == 3
     finally:

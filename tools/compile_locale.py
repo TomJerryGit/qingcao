@@ -25,6 +25,7 @@
     python tools/compile_locale.py --check    # 只检查，不写文件
     python tools/compile_locale.py --scaffold # 为缺失语言生成脚手架
 """
+
 import io
 import os
 import re
@@ -33,9 +34,9 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOCALE_DIR = os.path.join(ROOT, 'locale')
-DOMAIN = 'qingcao'
-LANGUAGES = ['zh_CN', 'en_US', 'ja_JP', 'ko_KR']
+LOCALE_DIR = os.path.join(ROOT, "locale")
+DOMAIN = "qingcao"
+LANGUAGES = ["zh_CN", "en_US", "ja_JP", "ko_KR"]
 
 
 # ============================================================
@@ -43,11 +44,13 @@ LANGUAGES = ['zh_CN', 'en_US', 'ja_JP', 'ko_KR']
 # ============================================================
 def _unescape(s: str) -> str:
     """还原 PO 字符串转义"""
-    return (s.replace('\\n', '\n')
-             .replace('\\t', '\t')
-             .replace('\\r', '\r')
-             .replace('\\"', '"')
-             .replace('\\\\', '\\'))
+    return (
+        s.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace('\\"', '"')
+        .replace("\\\\", "\\")
+    )
 
 
 def parse_po(text: str):
@@ -63,13 +66,13 @@ def parse_po(text: str):
     def flush():
         nonlocal msgid_parts, msgstr_parts, mode
         if mode is not None:
-            msgid = ''.join(msgid_parts)
-            msgstr = ''.join(msgstr_parts)
-            if msgid == '':
+            msgid = "".join(msgid_parts)
+            msgstr = "".join(msgstr_parts)
+            if msgid == "":
                 # 头部
-                for line in msgstr.split('\n'):
-                    if ':' in line:
-                        k, v = line.split(':', 1)
+                for line in msgstr.split("\n"):
+                    if ":" in line:
+                        k, v = line.split(":", 1)
                         header[k.strip()] = v.strip()
             else:
                 entries.append((msgid, msgstr))
@@ -78,29 +81,29 @@ def parse_po(text: str):
         mode = None
 
     for raw in text.splitlines():
-        line = raw.rstrip('\r')
+        line = raw.rstrip("\r")
         if not line.strip():
             flush()
             continue
-        if line.startswith('#'):
+        if line.startswith("#"):
             current_comment.append(line)
             continue
-        if line.startswith('msgid '):
+        if line.startswith("msgid "):
             if mode is not None:
                 flush()
-            mode = 'id'
+            mode = "id"
             msgid_parts.append(_unescape(line[6:].strip()[1:-1]))
-        elif line.startswith('msgstr '):
-            mode = 'str'
+        elif line.startswith("msgstr "):
+            mode = "str"
             msgstr_parts.append(_unescape(line[7:].strip()[1:-1]))
-        elif line.startswith('msgid_plural'):
+        elif line.startswith("msgid_plural"):
             # 复数形式暂不支持，跳过
             continue
         elif line.startswith('"'):
             value = _unescape(line.strip()[1:-1])
-            if mode == 'id':
+            if mode == "id":
                 msgid_parts.append(value)
-            elif mode == 'str':
+            elif mode == "str":
                 msgstr_parts.append(value)
 
     flush()
@@ -110,7 +113,7 @@ def parse_po(text: str):
 # ============================================================
 # .mo 生成
 # ============================================================
-def build_mo(entries, lang: str = '') -> bytes:
+def build_mo(entries, lang: str = "") -> bytes:
     """把 (msgid, msgstr) 列表编译为 .mo 字节流
 
     重要（P1-2）: 必须在 .mo 中写入 **元数据条目**
@@ -126,21 +129,18 @@ def build_mo(entries, lang: str = '') -> bytes:
         "Content-Transfer-Encoding: 8bit\n"
     ) % lang
 
-    all_entries = [('', meta)]
+    all_entries = [("", meta)]
     all_entries += list(entries)
 
-    pairs = sorted(
-        (k.encode('utf-8'), v.encode('utf-8'))
-        for k, v in all_entries if v
-    )
+    pairs = sorted((k.encode("utf-8"), v.encode("utf-8")) for k, v in all_entries if v)
 
     offsets = []
-    ids = b''
-    strs = b''
+    ids = b""
+    strs = b""
     for k, v in pairs:
         offsets.append((len(ids), len(k), len(strs), len(v)))
-        ids += k + b'\x00'
-        strs += v + b'\x00'
+        ids += k + b"\x00"
+        strs += v + b"\x00"
 
     keystart = 7 * 4 + 16 * len(pairs)
     valuestart = keystart + len(ids)
@@ -153,13 +153,13 @@ def build_mo(entries, lang: str = '') -> bytes:
 
     output = struct.pack(
         "Iiiiiii",
-        0x950412de,          # magic
-        0,                   # version
-        len(pairs),          # number of entries
-        7 * 4,               # offset of key table
+        0x950412DE,  # magic
+        0,  # version
+        len(pairs),  # number of entries
+        7 * 4,  # offset of key table
         7 * 4 + len(pairs) * 8,  # offset of value table
-        0,                   # hash table size
-        0,                   # hash table offset
+        0,  # hash table size
+        0,  # hash table offset
     )
     output += struct.pack("i" * len(koffsets), *koffsets)
     output += struct.pack("i" * len(voffsets), *voffsets)
@@ -172,11 +172,11 @@ def build_mo(entries, lang: str = '') -> bytes:
 # 单语言处理
 # ============================================================
 def find_po(lang: str) -> str:
-    return os.path.join(LOCALE_DIR, lang, 'LC_MESSAGES', f'{DOMAIN}.po')
+    return os.path.join(LOCALE_DIR, lang, "LC_MESSAGES", f"{DOMAIN}.po")
 
 
 def find_mo(lang: str) -> str:
-    return os.path.join(LOCALE_DIR, lang, 'LC_MESSAGES', f'{DOMAIN}.mo')
+    return os.path.join(LOCALE_DIR, lang, "LC_MESSAGES", f"{DOMAIN}.mo")
 
 
 def read_po_text(path: str):
@@ -184,41 +184,39 @@ def read_po_text(path: str):
 
     返回 (text, note)。note 非空表示做过编码修正。
     """
-    raw = open(path, 'rb').read()
-    declared = b'UTF-8'
-    m = re.search(rb'charset=([A-Za-z0-9_\-]+)', raw)
+    raw = open(path, "rb").read()
+    declared = b"UTF-8"
+    m = re.search(rb"charset=([A-Za-z0-9_\-]+)", raw)
     if m:
         declared = m.group(1)
-    declared_txt = declared.decode('ascii', 'replace')
+    declared_txt = declared.decode("ascii", "replace")
 
     # 先按 UTF-8 试
     try:
-        text = raw.decode('utf-8')
-        if declared.upper().replace(b'-', b'') not in (b'UTF8', b'UTF8SIG'):
-            return text, ('声明 charset=%s，实际为 UTF-8，已统一'
-                          % declared_txt)
-        return text, ''
+        text = raw.decode("utf-8")
+        if declared.upper().replace(b"-", b"") not in (b"UTF8", b"UTF8SIG"):
+            return text, ("声明 charset=%s，实际为 UTF-8，已统一" % declared_txt)
+        return text, ""
     except UnicodeDecodeError:
         pass
 
     # 再按常见中文编码试
-    for enc in ('gbk', 'gb18030', 'big5', 'latin-1'):
+    for enc in ("gbk", "gb18030", "big5", "latin-1"):
         try:
             text = raw.decode(enc)
-            return text, ('正文实为 %s（头部却声明 %s），已转换为 UTF-8'
-                          % (enc, declared_txt))
+            return text, ("正文实为 %s（头部却声明 %s），已转换为 UTF-8" % (enc, declared_txt))
         except UnicodeDecodeError:
             continue
 
-    raise RuntimeError('无法解码 %s' % path)
+    raise RuntimeError("无法解码 %s" % path)
 
 
 def normalize_po(text: str) -> str:
     """把 PO 头部 charset 统一为 UTF-8，换行统一为 \\n"""
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(
-        r'(charset=)[A-Za-z0-9_\-]+',
-        r'\1UTF-8',
+        r"(charset=)[A-Za-z0-9_\-]+",
+        r"\1UTF-8",
         text,
         count=1,
     )
@@ -242,7 +240,7 @@ def compile_language(lang: str, check_only: bool = False) -> bool:
         print("  [%s] 修正编码: %s" % (lang, note))
         if not check_only:
             text = normalize_po(text)
-            io.open(po, 'w', encoding='utf-8', newline='\n').write(text)
+            io.open(po, "w", encoding="utf-8", newline="\n").write(text)
 
     text = normalize_po(text)
     _, entries = parse_po(text)
@@ -253,15 +251,16 @@ def compile_language(lang: str, check_only: bool = False) -> bool:
 
     mo = build_mo(entries, lang=lang)
     translated = sum(1 for _, v in entries if v)
-    print("  [%s] %d 条词条（已翻译 %d 条），.mo %d 字节"
-          % (lang, len(entries), translated, len(mo)))
+    print(
+        "  [%s] %d 条词条（已翻译 %d 条），.mo %d 字节" % (lang, len(entries), translated, len(mo))
+    )
 
     if check_only:
         return True
 
     mo_path = find_mo(lang)
     os.makedirs(os.path.dirname(mo_path), exist_ok=True)
-    with open(mo_path, 'wb') as f:
+    with open(mo_path, "wb") as f:
         f.write(mo)
     return True
 
@@ -269,14 +268,14 @@ def compile_language(lang: str, check_only: bool = False) -> bool:
 # ============================================================
 # 脚手架
 # ============================================================
-SCAFFOLD_HEADER = '''msgid ""
+SCAFFOLD_HEADER = """msgid ""
 msgstr ""
 "Project-Id-Version: QingCao 2.1\\n"
 "Language: {lang}\\n"
 "MIME-Version: 1.0\\n"
 "Content-Type: text/plain; charset=UTF-8\\n"
 "Content-Transfer-Encoding: 8bit\\n"
-'''
+"""
 
 
 def scaffold(lang: str, msgids):
@@ -287,10 +286,10 @@ def scaffold(lang: str, msgids):
     os.makedirs(os.path.dirname(po), exist_ok=True)
     lines = [SCAFFOLD_HEADER.format(lang=lang)]
     for m in msgids:
-        lines.append('msgid "%s"' % m.replace('\\', '\\\\').replace('"', '\\"'))
+        lines.append('msgid "%s"' % m.replace("\\", "\\\\").replace('"', '\\"'))
         lines.append('msgstr ""')
-        lines.append('')
-    io.open(po, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines))
+        lines.append("")
+    io.open(po, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
     print("  [%s] 已生成脚手架 .po（%d 条待翻译）" % (lang, len(msgids)))
     return True
 
@@ -300,8 +299,8 @@ def scaffold(lang: str, msgids):
 # ============================================================
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
-    check_only = '--check' in argv
-    do_scaffold = '--scaffold' in argv
+    check_only = "--check" in argv
+    do_scaffold = "--scaffold" in argv
 
     print("[compile_locale] 语言目录: %s" % LOCALE_DIR)
     if not os.path.isdir(LOCALE_DIR):
@@ -310,14 +309,14 @@ def main(argv=None):
 
     if do_scaffold:
         # 以 zh_CN 的 msgid 集合作为基准
-        base = find_po('zh_CN')
+        base = find_po("zh_CN")
         msgids = []
         if os.path.exists(base):
             text, _ = read_po_text(base)
             _, entries = parse_po(normalize_po(text))
             msgids = [k for k, _ in entries]
         for lang in LANGUAGES:
-            if lang == 'zh_CN':
+            if lang == "zh_CN":
                 continue
             scaffold(lang, msgids)
 
@@ -335,5 +334,5 @@ def main(argv=None):
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

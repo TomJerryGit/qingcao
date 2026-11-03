@@ -6,6 +6,7 @@
     python tools/sign_plugin.py --sign plugin.zip --key <私钥hex>
     python tools/sign_plugin.py --verify plugin.zip --sig <base64> --pub <公钥hex>
 """
+
 import argparse
 import base64
 import hashlib
@@ -24,14 +25,16 @@ def generate_keypair():
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
         Ed25519PrivateKey,
     )
+
     priv = Ed25519PrivateKey.generate()
     priv_hex = priv.private_bytes(
-        serialization.Encoding.Raw,
-        serialization.PrivateFormat.Raw,
-        serialization.NoEncryption()).hex()
-    pub_hex = priv.public_key().public_bytes(
-        serialization.Encoding.Raw,
-        serialization.PublicFormat.Raw).hex()
+        serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption()
+    ).hex()
+    pub_hex = (
+        priv.public_key()
+        .public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        .hex()
+    )
     return priv_hex, pub_hex
 
 
@@ -43,6 +46,7 @@ def sign_bytes(data, priv_hex):
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
         Ed25519PrivateKey,
     )
+
     priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(priv_hex))
     return base64.b64encode(priv.sign(data)).decode("ascii")
 
@@ -64,17 +68,19 @@ def main():
     if args.sign:
         data = io.open(args.sign, "rb").read()
         if not args.key:
-            print("缺少 --key 私钥"); return 1
+            print("缺少 --key 私钥")
+            return 1
         print("SHA256=" + sha256_hex(data))
         print("SIGNATURE=" + sign_bytes(data, args.key))
         return 0
     if args.verify:
         data = io.open(args.verify, "rb").read()
         from core.plugin_signature import verify_ed25519
+
         if not args.pub:
-            print("缺少 --pub 公钥"); return 1
-        ok, msg = verify_ed25519(data, args.sig,
-                                 public_keys=[bytes.fromhex(args.pub)])
+            print("缺少 --pub 公钥")
+            return 1
+        ok, msg = verify_ed25519(data, args.sig, public_keys=[bytes.fromhex(args.pub)])
         print("OK" if ok else "FAIL", msg)
         return 0 if ok else 1
     ap.print_help()

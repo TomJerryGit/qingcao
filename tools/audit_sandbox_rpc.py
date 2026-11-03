@@ -8,6 +8,7 @@
 
 用法: python tools/audit_sandbox_rpc.py [--strict] [--json OUT]
 """
+
 import argparse
 import ast
 import io
@@ -26,15 +27,17 @@ def _allowed_methods():
     tree = ast.parse(io.open(RPC, encoding="utf-8").read())
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "ALLOWED_METHODS"
-                for t in node.targets):
+            isinstance(t, ast.Name) and t.id == "ALLOWED_METHODS" for t in node.targets
+        ):
             call = node.value
             if isinstance(call, ast.Call) and call.args:
                 arg = call.args[0]
                 if isinstance(arg, ast.Set):
-                    return {e.value for e in arg.elts
-                            if isinstance(e, ast.Constant)
-                            and isinstance(e.value, str)}
+                    return {
+                        e.value
+                        for e in arg.elts
+                        if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                    }
     return set()
 
 
@@ -46,8 +49,11 @@ def _worker_handlers():
             left = node.left
             if isinstance(left, ast.Name) and left.id == "method":
                 for op, comp in zip(node.ops, node.comparators):
-                    if isinstance(op, ast.Eq) and isinstance(comp, ast.Constant) \
-                            and isinstance(comp.value, str):
+                    if (
+                        isinstance(op, ast.Eq)
+                        and isinstance(comp, ast.Constant)
+                        and isinstance(comp.value, str)
+                    ):
                         out.add(comp.value)
     return out
 
@@ -58,10 +64,12 @@ def _manager_proxies():
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             fn = node.func
-            if isinstance(fn, ast.Attribute) and fn.attr in (
-                    "_safe_call", "_call"):
-                if node.args and isinstance(node.args[0], ast.Constant) \
-                        and isinstance(node.args[0].value, str):
+            if isinstance(fn, ast.Attribute) and fn.attr in ("_safe_call", "_call"):
+                if (
+                    node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and isinstance(node.args[0].value, str)
+                ):
                     out.add(node.args[0].value)
     return out
 
@@ -86,38 +94,39 @@ def main():
     ap.add_argument("--baseline", default="")
     ap.add_argument("--update-baseline", action="store_true")
     args = ap.parse_args()
-    result = audit_sets(_allowed_methods(), _worker_handlers(),
-                        _manager_proxies())
+    result = audit_sets(_allowed_methods(), _worker_handlers(), _manager_proxies())
     result["ok"] = not (result["missing_handler"] or result["unlisted_handler"])
     base_problem = []
     if args.baseline:
         try:
             import json as _json
+
             base = _json.load(io.open(args.baseline, encoding="utf-8"))
             base_allowed = set(base.get("allowed") or [])
             added = sorted(set(result["allowed"]) - base_allowed)
             removed = sorted(base_allowed - set(result["allowed"]))
             if added or removed:
-                base_problem = ["白名单变更未更新基线（新增=%s 移除=%s）"
-                                % (added, removed)]
+                base_problem = ["白名单变更未更新基线（新增=%s 移除=%s）" % (added, removed)]
                 if args.update_baseline:
-                    result_write = {"allowed": result["allowed"],
-                                    "handlers": result["handlers"]}
+                    result_write = {"allowed": result["allowed"], "handlers": result["handlers"]}
                     import json as _json2
-                    io.open(args.baseline, "w", encoding="utf-8",
-                            newline="\n").write(
-                        _json2.dumps(result_write, ensure_ascii=False,
-                                     indent=2))
+
+                    io.open(args.baseline, "w", encoding="utf-8", newline="\n").write(
+                        _json2.dumps(result_write, ensure_ascii=False, indent=2)
+                    )
                     print("  基线已更新:", args.baseline)
                     base_problem = []
         except FileNotFoundError:
             if args.update_baseline:
                 import json as _json
-                io.open(args.baseline, "w", encoding="utf-8",
-                        newline="\n").write(
-                    _json.dumps({"allowed": result["allowed"],
-                                 "handlers": result["handlers"]},
-                                ensure_ascii=False, indent=2))
+
+                io.open(args.baseline, "w", encoding="utf-8", newline="\n").write(
+                    _json.dumps(
+                        {"allowed": result["allowed"], "handlers": result["handlers"]},
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
                 print("  基线已创建:", args.baseline)
             else:
                 base_problem = ["基线文件不存在: %s" % args.baseline]

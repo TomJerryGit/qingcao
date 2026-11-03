@@ -20,6 +20,7 @@ def test_theme_apply_order_adapt_before_notify():
 
 def test_panel_theme_colors_light_dark():
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
     from ui.plugins_panel import PluginsPanel
 

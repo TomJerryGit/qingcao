@@ -16,6 +16,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import tempfile
@@ -57,8 +58,7 @@ from core.profiler import Profiler, get_profiler  # noqa: E402
 p = Profiler()
 check("A1 新建实例 active=False", p.active is False, str(p.active))
 check("A2 未 start 时 stop() 返回 None", p.stop() is None, repr(p.stop()))
-check("A3 未 start 时 get_result() 为 None",
-      p.get_result() is None, repr(p.get_result()))
+check("A3 未 start 时 get_result() 为 None", p.get_result() is None, repr(p.get_result()))
 
 check("A4 start() 返回 True", p.start() is True, "")
 check("A5 start() 后 active=True", p.active is True, str(p.active))
@@ -66,15 +66,12 @@ check("A6 重复 start() 返回 False（已在运行）", p.start() is False, ""
 
 burn_cpu()
 report = p.stop()
-check("A7 stop() 返回非空报告", bool(report),
-      "%d 字符" % len(report or ""))
+check("A7 stop() 返回非空报告", bool(report), "%d 字符" % len(report or ""))
 check("A8 报告含 pstats 列名 ncalls", "ncalls" in (report or ""), "")
 check("A9 报告含 pstats 列名 tottime", "tottime" in (report or ""), "")
-check("A10 报告里能看到我们调用的函数 burn_cpu",
-      "burn_cpu" in (report or ""), "")
+check("A10 报告里能看到我们调用的函数 burn_cpu", "burn_cpu" in (report or ""), "")
 check("A11 stop() 后 active=False", p.active is False, str(p.active))
-check("A12 get_result() 与 stop() 返回值一致",
-      p.get_result() == report, "")
+check("A12 get_result() 与 stop() 返回值一致", p.get_result() == report, "")
 
 tmp = os.path.join(tempfile.gettempdir(), "qc_profiler_verify.txt")
 try:
@@ -84,13 +81,11 @@ try:
 finally:
     if os.path.exists(tmp):
         os.remove(tmp)
-check("A15 get_profiler() 返回单例",
-      get_profiler() is get_profiler(), "")
+check("A15 get_profiler() 返回单例", get_profiler() is get_profiler(), "")
 
 # 未产出报告时 save_report 必须失败而不是写空文件
 p2 = Profiler()
-check("A16 无报告时 save_report() 返回 False",
-      p2.save_report(tmp) is False, "")
+check("A16 无报告时 save_report() 返回 False", p2.save_report(tmp) is False, "")
 check("A17 无报告时未创建文件", not os.path.exists(tmp), "")
 
 # ============================================================
@@ -108,26 +103,26 @@ from ui.profiler_panel import ProfilerDialog  # noqa: E402
 
 dlg = ProfilerDialog(None)
 check("B1 ProfilerDialog 可构造（parent=None）", dlg is not None, "")
-check("B2 三个按钮齐全",
-      all(hasattr(dlg, n) for n in ("start_btn", "stop_btn", "save_btn")), "")
-check("B3 排序下拉存在且有选项",
-      hasattr(dlg, "sort_combo") and dlg.sort_combo.count() >= 4,
-      "%d 项" % getattr(dlg.sort_combo, 'count', lambda: 0)())
-check("B4 结果框存在（report_view）",
-      hasattr(dlg, "report_view") and dlg.report_view is not None, "")
+check("B2 三个按钮齐全", all(hasattr(dlg, n) for n in ("start_btn", "stop_btn", "save_btn")), "")
+check(
+    "B3 排序下拉存在且有选项",
+    hasattr(dlg, "sort_combo") and dlg.sort_combo.count() >= 4,
+    "%d 项" % getattr(dlg.sort_combo, "count", lambda: 0)(),
+)
+check(
+    "B4 结果框存在（report_view）", hasattr(dlg, "report_view") and dlg.report_view is not None, ""
+)
 
 status0 = dlg.status_label.text()
 dlg.start_btn.click()
 status1 = dlg.status_label.text()
-check("B5 点击开始后状态文案变化", status1 != status0,
-      "%r -> %r" % (status0, status1))
+check("B5 点击开始后状态文案变化", status1 != status0, "%r -> %r" % (status0, status1))
 check("B6 开始后状态含「运行」", "运行" in status1, status1)
 
 burn_cpu()
 dlg.stop_btn.click()
 status2 = dlg.status_label.text()
-check("B7 点击停止后状态变化回未运行", status2 != status1,
-      "%r -> %r" % (status1, status2))
+check("B7 点击停止后状态变化回未运行", status2 != status1, "%r -> %r" % (status1, status2))
 
 # ⚠️ 属性名必须是实际存在的 `report_view`。
 #    实测：面板里是 `self.report_view = QPlainTextEdit(...)`，
@@ -153,20 +148,24 @@ from ui.main_window import MainWindow  # noqa: E402
 
 
 win = MainWindow()
-check("C1 MainWindow 有 _show_profiler 方法",
-      callable(getattr(win, "_show_profiler", None)), "")
+check("C1 MainWindow 有 _show_profiler 方法", callable(getattr(win, "_show_profiler", None)), "")
 
 items = [a for a in win.findChildren(QAction) if "性能剖析" in a.text()]
-check("C2 菜单里存在「性能剖析」项", len(items) == 1,
-      "%d 项: %s" % (len(items), [a.text() for a in items]))
+check(
+    "C2 菜单里存在「性能剖析」项",
+    len(items) == 1,
+    "%d 项: %s" % (len(items), [a.text() for a in items]),
+)
 if items:
     act = items[0]
     check("C3 菜单项文本正确", act.text() == "⏱ 性能剖析…", repr(act.text()))
-    check("C4 **不绑快捷键**（避免重复绑定）",
-          act.shortcut().isEmpty(), repr(act.shortcut().toString()))
+    check(
+        "C4 **不绑快捷键**（避免重复绑定）",
+        act.shortcut().isEmpty(),
+        repr(act.shortcut().toString()),
+    )
     check("C5 有 tooltip 说明局限", bool(act.toolTip()), "")
-    check("C6 tooltip 提到「Python」局限",
-          "Python" in act.toolTip(), "")
+    check("C6 tooltip 提到「Python」局限", "Python" in act.toolTip(), "")
 
 # 静态确认插在「性能监控」之后（同级菜单、顺序相邻）
 tools_menu = getattr(win, "tools_menu", None)
@@ -174,9 +173,11 @@ if tools_menu is not None:
     texts = [a.text() for a in tools_menu.actions()]
     idx_perf = next((i for i, t in enumerate(texts) if "性能监控" in t), -1)
     idx_prof = next((i for i, t in enumerate(texts) if "性能剖析" in t), -1)
-    check("C7 「性能剖析」紧跟在「性能监控」之后",
-          idx_perf >= 0 and idx_prof == idx_perf + 1,
-          "监控@%d 剖析@%d" % (idx_perf, idx_prof))
+    check(
+        "C7 「性能剖析」紧跟在「性能监控」之后",
+        idx_perf >= 0 and idx_prof == idx_perf + 1,
+        "监控@%d 剖析@%d" % (idx_perf, idx_prof),
+    )
 else:
     check("C7 「性能剖析」紧跟在「性能监控」之后", False, "无 tools_menu")
 
@@ -187,10 +188,7 @@ import io
 
 src = io.open("ui/main_window.py", encoding="utf-8").read()
 tree = ast.parse(src)
-hit = any(
-    isinstance(n, ast.Attribute) and n.attr == "_show_profiler"
-    for n in ast.walk(tree)
-)
+hit = any(isinstance(n, ast.Attribute) and n.attr == "_show_profiler" for n in ast.walk(tree))
 check("C8 main_window 源码把 _show_profiler 接到了菜单上", hit, "")
 
 print()

@@ -14,8 +14,7 @@ class _FakeSandbox:
         self.applied = []
 
     def config_schema(self):
-        return {"enabled": {"type": "bool", "label": "启用",
-                            "default": True}}
+        return {"enabled": {"type": "bool", "label": "启用", "default": True}}
 
     def config_apply(self, values):
         self.applied.append(values)
@@ -39,6 +38,7 @@ def test_apply_sandbox_configs_on_start(qapp):
     from PyQt5.QtCore import QSettings
 
     from ui.main_window import MainWindow
+
     win = MainWindow()
     fake = _FakeSandbox()
     try:

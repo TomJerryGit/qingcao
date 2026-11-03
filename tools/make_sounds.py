@@ -32,6 +32,7 @@
     python tools/make_sounds.py --force    # 覆盖已有文件
     python tools/make_sounds.py --list     # 只列出将生成的文件
 """
+
 import os
 import sys
 
@@ -43,18 +44,18 @@ if ROOT not in sys.path:
 
 def main(argv=None):
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
     argv = argv if argv is not None else sys.argv[1:]
-    force = '--force' in argv
-    list_only = '--list' in argv
+    force = "--force" in argv
+    list_only = "--list" in argv
 
     try:
         from PyQt5.QtWidgets import QApplication
     except ImportError:
-        print('[make_sounds] 需要 PyQt5')
+        print("[make_sounds] 需要 PyQt5")
         return 1
 
     app = QApplication.instance() or QApplication([])
@@ -73,7 +74,7 @@ def main(argv=None):
     total_bytes = 0
 
     for event in SoundEvent:
-        filename = EVENT_FILE_MAP.get(event, '%s.wav' % event.value)
+        filename = EVENT_FILE_MAP.get(event, "%s.wav" % event.value)
         path = os.path.join(sound_dir, filename)
 
         if os.path.exists(path) and not force:
@@ -83,7 +84,7 @@ def main(argv=None):
         try:
             data = BuiltinSounds.get(event)
         except Exception as e:
-            print('  [FAIL] %-16s 合成失败: %s' % (event.value, e))
+            print("  [FAIL] %-16s 合成失败: %s" % (event.value, e))
             failed += 1
             continue
 
@@ -92,38 +93,41 @@ def main(argv=None):
             continue
 
         if list_only:
-            print('  将生成 %-18s %6d 字节' % (filename, len(data)))
+            print("  将生成 %-18s %6d 字节" % (filename, len(data)))
             created += 1
             continue
 
         try:
-            with open(path, 'wb') as f:
+            with open(path, "wb") as f:
                 f.write(data)
             created += 1
             total_bytes += len(data)
         except OSError as e:
-            print('  [FAIL] %s: %s' % (filename, e))
+            print("  [FAIL] %s: %s" % (filename, e))
             failed += 1
 
     if list_only:
-        print('[make_sounds] 待生成 %d 个（--list 模式，未写盘）' % created)
+        print("[make_sounds] 待生成 %d 个（--list 模式，未写盘）" % created)
         return 0
 
-    print('[make_sounds] 目录: %s' % sound_dir)
-    print('[make_sounds] 新生成 %d 个, 已存在跳过 %d 个, 失败 %d 个, 共 %.1f KB'
-          % (created, skipped, failed, total_bytes / 1024.0))
+    print("[make_sounds] 目录: %s" % sound_dir)
+    print(
+        "[make_sounds] 新生成 %d 个, 已存在跳过 %d 个, 失败 %d 个, 共 %.1f KB"
+        % (created, skipped, failed, total_bytes / 1024.0)
+    )
 
     # 校验：SoundManager 现在应能从文件加载
     try:
         from infrastructure.sound_manager import SoundManager
+
         mgr = SoundManager(sound_dir=sound_dir)
-        loaded = len(getattr(mgr, '_event_sounds', {}) or {})
-        print('[make_sounds] SoundManager 载入事件音效: %d 个' % loaded)
+        loaded = len(getattr(mgr, "_event_sounds", {}) or {})
+        print("[make_sounds] SoundManager 载入事件音效: %d 个" % loaded)
     except Exception as e:
-        print('[make_sounds] SoundManager 校验跳过: %s' % e)
+        print("[make_sounds] SoundManager 校验跳过: %s" % e)
 
     return 0 if failed == 0 else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -106,23 +106,25 @@ def _orphan_keys():
 #: 注意：app/sync.py 仍然使用同名键 'gist_token'，但那是它**自己的
 #: 配置文件**（self.config），与 Preferences 无关，因此不在下面的
 #: tests/tools 扫描范围内也不构成悬空引用。
-DELETED_KEYS = frozenset({
-    "caret_blink_rate",
-    "smooth_scroll",
-    "virtual_scroll",
-    "icon_theme",
-    "max_loaded_blocks",
-    "cache_lexer_results",
-    "startup_delay_load",
-    "delay_plugin_load",
-    "delay_plugin_ms",
-    "config_sync",
-    "sync_provider",
-    "gist_token",
-    "encoding_confidence",
-    "follow_symlinks",
-    "restore_undo_history",
-})
+DELETED_KEYS = frozenset(
+    {
+        "caret_blink_rate",
+        "smooth_scroll",
+        "virtual_scroll",
+        "icon_theme",
+        "max_loaded_blocks",
+        "cache_lexer_results",
+        "startup_delay_load",
+        "delay_plugin_load",
+        "delay_plugin_ms",
+        "config_sync",
+        "sync_provider",
+        "gist_token",
+        "encoding_confidence",
+        "follow_symlinks",
+        "restore_undo_history",
+    }
+)
 
 #: 本次接线的键 -> 必须出现该键字符串的接线文件。
 WIRED_KEYS = {
@@ -139,86 +141,88 @@ WIRED_KEYS = {
 #: 已确认的存量孤儿键（P7 之后仍然既无 UI、也无生产代码引用）。
 #: 它们分布在 P7 写作用域之外的文件里，属于**已知债务**：
 #: 本测试只断言"没有新增孤儿"，不要求这些立刻消失。
-KNOWN_UNWIRED_ORPHANS = frozenset({
-    # ui/editor_view.py 与 core/editor.py 的编辑体验键（他人写作用域）
-    "font_line_height",
-    "font_weight",
-    "font_italic",
-    "font_antialias",
-    "font_scale",
-    "indent_auto_detect",
-    "indent_rainbow_colors",
-    "word_wrap_mode",
-    "word_wrap_column",
-    "folding_style",
-    "current_line_color",
-    "brace_match_color",
-    "caret_line_visible",
-    "auto_indent",
-    "smart_home",
-    "scroll_past_end",
-    "scroll_past_end_lines",
-    "drag_and_drop",
-    "mouse_wheel_zoom",
-    "triple_click_select_line",
-    "backspace_unindent",
-    "smart_highlight_delay",
-    # 外观 / 面板可见性（ui/main_window.py, ui/minimap.py）
-    "color_scheme",
-    "sidebar_visible",
-    "minimap_visible",
-    "minimap_width",
-    "minimap_scale",
-    "line_highlight_color",
-    "search_highlight_color",
-    "search_current_color",
-    "bracket_match_color",
-    # 行为 / 编码（app/session.py, core/content_provider.py）
-    "auto_save_interval",
-    "auto_save_on_focus_loss",
-    "ensure_single_final_newline",
-    "auto_reload",
-    "auto_reload_confirm",
-    "save_backup",
-    "backup_dir",
-    "crash_recovery",
-    "confirm_close_multiple",
-    "confirm_close_modified",
-    "confirm_exit",
-    "default_encoding",
-    "default_line_ending",
-    "detect_encoding",
-    # 性能
-    "huge_file_threshold",
-    "gc_interval",
-    # 语言 / 时间格式（date_format / time_format 由 P8 任务在
-    # core/editor.py 内接线，接线后应从基线移除）
-    "date_format",
-    "time_format",
-    # 窗口几何（ui/main_window.py）
-    "window_width",
-    "window_height",
-    "window_x",
-    "window_y",
-    "window_maximized",
-    "window_fullscreen",
-    "remember_geometry",
-    "remember_layout",
-    "panel_layout",
-    "splitter_sizes",
-    "recent_files_max",
-    # 快捷键 / 插件
-    "keybindings_file",
-    "keybindings_custom",
-    "plugins_enabled",
-    "plugins_disabled",
-    "plugin_permissions_required",
-    "plugin_auto_update",
-    "plugin_update_check_interval",
-    # 高级
-    "sound_volume",
-    "crash_report",
-})
+KNOWN_UNWIRED_ORPHANS = frozenset(
+    {
+        # ui/editor_view.py 与 core/editor.py 的编辑体验键（他人写作用域）
+        "font_line_height",
+        "font_weight",
+        "font_italic",
+        "font_antialias",
+        "font_scale",
+        "indent_auto_detect",
+        "indent_rainbow_colors",
+        "word_wrap_mode",
+        "word_wrap_column",
+        "folding_style",
+        "current_line_color",
+        "brace_match_color",
+        "caret_line_visible",
+        "auto_indent",
+        "smart_home",
+        "scroll_past_end",
+        "scroll_past_end_lines",
+        "drag_and_drop",
+        "mouse_wheel_zoom",
+        "triple_click_select_line",
+        "backspace_unindent",
+        "smart_highlight_delay",
+        # 外观 / 面板可见性（ui/main_window.py, ui/minimap.py）
+        "color_scheme",
+        "sidebar_visible",
+        "minimap_visible",
+        "minimap_width",
+        "minimap_scale",
+        "line_highlight_color",
+        "search_highlight_color",
+        "search_current_color",
+        "bracket_match_color",
+        # 行为 / 编码（app/session.py, core/content_provider.py）
+        "auto_save_interval",
+        "auto_save_on_focus_loss",
+        "ensure_single_final_newline",
+        "auto_reload",
+        "auto_reload_confirm",
+        "save_backup",
+        "backup_dir",
+        "crash_recovery",
+        "confirm_close_multiple",
+        "confirm_close_modified",
+        "confirm_exit",
+        "default_encoding",
+        "default_line_ending",
+        "detect_encoding",
+        # 性能
+        "huge_file_threshold",
+        "gc_interval",
+        # 语言 / 时间格式（date_format / time_format 由 P8 任务在
+        # core/editor.py 内接线，接线后应从基线移除）
+        "date_format",
+        "time_format",
+        # 窗口几何（ui/main_window.py）
+        "window_width",
+        "window_height",
+        "window_x",
+        "window_y",
+        "window_maximized",
+        "window_fullscreen",
+        "remember_geometry",
+        "remember_layout",
+        "panel_layout",
+        "splitter_sizes",
+        "recent_files_max",
+        # 快捷键 / 插件
+        "keybindings_file",
+        "keybindings_custom",
+        "plugins_enabled",
+        "plugins_disabled",
+        "plugin_permissions_required",
+        "plugin_auto_update",
+        "plugin_update_check_interval",
+        # 高级
+        "sound_volume",
+        "crash_report",
+    }
+)
 
 
 # ============================================================
@@ -291,9 +295,8 @@ def test_no_new_fake_switches():
 
 def test_known_orphan_baseline_is_honest():
     """基线只能包含真实存在的键，且不得残留已接线/已删除的键。"""
-    assert set(DEFAULTS) >= KNOWN_UNWIRED_ORPHANS, (
-        "基线里存在不在 DEFAULTS 中的键："
-        + str(sorted(KNOWN_UNWIRED_ORPHANS - set(DEFAULTS)))
+    assert set(DEFAULTS) >= KNOWN_UNWIRED_ORPHANS, "基线里存在不在 DEFAULTS 中的键：" + str(
+        sorted(KNOWN_UNWIRED_ORPHANS - set(DEFAULTS))
     )
     wired_left = sorted(KNOWN_UNWIRED_ORPHANS & set(WIRED_KEYS))
     assert not wired_left, f"这些键已接线，应从 KNOWN_UNWIRED_ORPHANS 移除: {wired_left}"
@@ -340,23 +343,21 @@ def _patch_preferences(monkeypatch, fake):
 def test_search_options_reads_preferences(monkeypatch):
     from core.search import SearchOptions
 
-    fake = _FakePrefs({
-        "search_threads": 7,
-        "use_hyperscan": False,
-        "search_timeout": 12,
-    })
+    fake = _FakePrefs(
+        {
+            "search_threads": 7,
+            "use_hyperscan": False,
+            "search_timeout": 12,
+        }
+    )
     _patch_preferences(monkeypatch, fake)
 
     options = SearchOptions.from_preferences(pattern="hello")
 
     assert options.pattern == "hello"
     assert options.threads == 7, "search_threads 未接线到 SearchOptions.threads"
-    assert options.use_hyperscan is False, (
-        "use_hyperscan 未接线到 SearchOptions.use_hyperscan"
-    )
-    assert options.timeout_seconds == 12, (
-        "search_timeout 未接线到 SearchOptions.timeout_seconds"
-    )
+    assert options.use_hyperscan is False, "use_hyperscan 未接线到 SearchOptions.use_hyperscan"
+    assert options.timeout_seconds == 12, "search_timeout 未接线到 SearchOptions.timeout_seconds"
 
 
 def test_search_options_clamps_and_falls_back(monkeypatch):
@@ -393,9 +394,7 @@ def test_search_engine_uses_preference_options(monkeypatch, qapp):
 
     engine = SearchEngine(None)
 
-    assert engine.options.threads == 3, (
-        "SearchEngine 未走 SearchOptions.from_preferences()"
-    )
+    assert engine.options.threads == 3, "SearchEngine 未走 SearchOptions.from_preferences()"
 
 
 # ============================================================
@@ -414,15 +413,12 @@ def test_pref_helper_reads_qsettings(qapp):
     """
     import main as main_module
 
-    settings = QSettings(QSettings.IniFormat, QSettings.UserScope,
-                         main_module.ORG_NAME, "Editor")
+    settings = QSettings(QSettings.IniFormat, QSettings.UserScope, main_module.ORG_NAME, "Editor")
     original = settings.value("splash_screen", True, type=bool)
     try:
         settings.setValue("splash_screen", False)
         settings.sync()
-        assert main_module._pref("splash_screen", True) is False, (
-            "main._pref 未读到 splash_screen"
-        )
+        assert main_module._pref("splash_screen", True) is False, "main._pref 未读到 splash_screen"
     finally:
         settings.setValue("splash_screen", original)
         settings.sync()
@@ -433,8 +429,7 @@ def test_log_settings_reads_log_level(qapp):
 
     # 同 test_pref_helper_reads_qsettings：必须显式 IniFormat 才能落到
     # 与生产代码（Preferences）相同的隔离路径
-    settings = QSettings(QSettings.IniFormat, QSettings.UserScope,
-                         main_module.ORG_NAME, "Editor")
+    settings = QSettings(QSettings.IniFormat, QSettings.UserScope, main_module.ORG_NAME, "Editor")
     original = settings.value("log_level", "INFO", type=str)
     original_debug = settings.value("debug_mode", False, type=bool)
     try:

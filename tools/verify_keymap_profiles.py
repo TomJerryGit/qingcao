@@ -18,6 +18,7 @@
 
 退出码: 0 = 全部通过；1 = 有失败项。
 """
+
 import os
 import sys
 import tempfile
@@ -98,12 +99,10 @@ from core.keymap_profiles import (  # noqa: E402
 print()
 print("== 1. 逐方案 validate_scheme（纯逻辑，不看 ActionManager）==")
 names = get_scheme_names()
-check("方案数量 >= 4", len(names) >= 4,
-      str([k for k, _ in names]))
+check("方案数量 >= 4", len(names) >= 4, str([k for k, _ in names]))
 for key, label in names:
     ok, probs = validate_scheme(key)
-    check("方案 %s（%s）内部自洽" % (key, label), ok,
-          "" if ok else "; ".join(probs[:2]))
+    check("方案 %s（%s）内部自洽" % (key, label), ok, "" if ok else "; ".join(probs[:2]))
 
 # 未知方案必须被拒绝，而不是静默回退
 ok_unknown, probs_unknown = validate_scheme("__no_such_scheme__")
@@ -122,14 +121,13 @@ _KS["__dup_probe__"] = {
     "description": "人为构造的重复方案",
     "overrides": {
         "file.save": "Ctrl+S",
-        "file.new": "Ctrl+S",   # 与上一条重复
+        "file.new": "Ctrl+S",  # 与上一条重复
     },
 }
 try:
     ok_dup, probs_dup = validate_scheme("__dup_probe__")
     check("重复方案 validate 返回 False", not ok_dup, "")
-    check("重复方案给出可读原因",
-          any("重复" in p for p in probs_dup), str(probs_dup[:1]))
+    check("重复方案给出可读原因", any("重复" in p for p in probs_dup), str(probs_dup[:1]))
 
     class _FakeMgr:
         def __init__(self):
@@ -148,8 +146,7 @@ try:
     fake = _FakeMgr()
     res = apply_scheme(fake, "__dup_probe__")
     check("重复方案 apply_scheme 返回 False", res is False, str(res))
-    check("拒绝时**没有**动过任何快捷键（不留半坏状态）",
-          fake.calls == [], str(fake.calls))
+    check("拒绝时**没有**动过任何快捷键（不留半坏状态）", fake.calls == [], str(fake.calls))
 finally:
     _KS.pop("__dup_probe__", None)
 
@@ -162,13 +159,12 @@ from ui.main_window import MainWindow  # noqa: E402
 
 
 win = MainWindow()
-acts = getattr(win.act_mgr, 'actions', {}) or {}
-check("ActionManager 里注册了核心动作（此前为 0）",
-      len(acts) >= 30, "%d 个" % len(acts))
+acts = getattr(win.act_mgr, "actions", {}) or {}
+check("ActionManager 里注册了核心动作（此前为 0）", len(acts) >= 30, "%d 个" % len(acts))
 core_names = [k for k in acts if not str(k).startswith(("plugin.", "misc."))]
-check("存在具名核心动作（非 misc./plugin.）",
-      len(core_names) >= 10,
-      ", ".join(sorted(core_names)[:6]))
+check(
+    "存在具名核心动作（非 misc./plugin.）", len(core_names) >= 10, ", ".join(sorted(core_names)[:6])
+)
 
 # 方案里引用的每个 action 名都必须真实存在
 referenced = set()
@@ -180,8 +176,7 @@ check("方案引用的动作名全部真实存在", not missing, str(missing))
 # 带 ActionManager 的完整校验
 for key, label in names:
     ok, probs = validate_scheme(key, action_manager=win.act_mgr)
-    check("方案 %s 在真实 ActionManager 上可应用" % key, ok,
-          "" if ok else "; ".join(probs[:2]))
+    check("方案 %s 在真实 ActionManager 上可应用" % key, ok, "" if ok else "; ".join(probs[:2]))
 
 # ============================================================
 # 4. 套用方案：快捷键真的变了，且全仓无重复
@@ -201,12 +196,14 @@ for key, label in names:
         got = sc_of(a) if a else "<动作不存在>"
         if norm(got) != norm(want):
             bad.append("%s: 期望 %s 实际 %s" % (action_name, want, got))
-    check("方案 %s 的 overrides 全部落到 QAction 上" % key, not bad,
-          "; ".join(bad[:2]) if bad else "%d 条" % len(overrides))
+    check(
+        "方案 %s 的 overrides 全部落到 QAction 上" % key,
+        not bad,
+        "; ".join(bad[:2]) if bad else "%d 条" % len(overrides),
+    )
 
     dups = duplicate_shortcuts(win)
-    check("套用 %s 后全仓无重复快捷键" % key, not dups,
-          str(dups[:2]) if dups else "0 处")
+    check("套用 %s 后全仓无重复快捷键" % key, not dups, str(dups[:2]) if dups else "0 处")
 
 # ============================================================
 # 5. default 方案：恢复默认而不是清空
@@ -215,15 +212,16 @@ print()
 print("== 5. default 方案恢复默认（而非清空）==")
 apply_scheme(win.act_mgr, "vscode")
 save_action = win.act_mgr.actions.get("file.save")
-check("套用 vscode 后 file.save == Ctrl+S",
-      sc_of(save_action) == "Ctrl+S" if save_action else False,
-      sc_of(save_action) if save_action else "<无>")
+check(
+    "套用 vscode 后 file.save == Ctrl+S",
+    sc_of(save_action) == "Ctrl+S" if save_action else False,
+    sc_of(save_action) if save_action else "<无>",
+)
 
 res = apply_scheme(win.act_mgr, "default")
 check("apply_scheme(default) 成功", res is True, str(res))
 after = sc_of(save_action) if save_action else ""
-check("恢复默认后 file.save 仍为 Ctrl+S（未被清空）",
-      after == "Ctrl+S", repr(after))
+check("恢复默认后 file.save 仍为 Ctrl+S（未被清空）", after == "Ctrl+S", repr(after))
 
 # 找一个**没有**被任何方案覆盖的动作，确认它也没被清空
 untouched = None
@@ -231,9 +229,11 @@ for name, a in acts.items():
     if str(name).startswith("misc.") and sc_of(a):
         untouched = (name, a)
         break
-check("存在自动注册的 misc.* 动作（快捷键编辑器不再是空表）",
-      untouched is not None,
-      untouched[0] if untouched else "无")
+check(
+    "存在自动注册的 misc.* 动作（快捷键编辑器不再是空表）",
+    untouched is not None,
+    untouched[0] if untouched else "无",
+)
 
 # ============================================================
 # 6. 持久化
@@ -250,22 +250,30 @@ from ui.keymap_editor import (  # noqa: E402
 old = load_saved_scheme()
 try:
     save_scheme("vim")
-    check("save_scheme('vim') → load_saved_scheme() == 'vim'",
-          load_saved_scheme() == "vim", load_saved_scheme())
-    check("apply_saved_scheme(act_mgr) 返回 True",
-          apply_saved_scheme(win.act_mgr) is True, "")
-    check("应用后 file.save 仍存在",
-          sc_of(win.act_mgr.actions.get("file.save")) == "Ctrl+S" if
-          win.act_mgr.actions.get("file.save") else False, "")
+    check(
+        "save_scheme('vim') → load_saved_scheme() == 'vim'",
+        load_saved_scheme() == "vim",
+        load_saved_scheme(),
+    )
+    check("apply_saved_scheme(act_mgr) 返回 True", apply_saved_scheme(win.act_mgr) is True, "")
+    check(
+        "应用后 file.save 仍存在",
+        sc_of(win.act_mgr.actions.get("file.save")) == "Ctrl+S"
+        if win.act_mgr.actions.get("file.save")
+        else False,
+        "",
+    )
 
     save_scheme("default")
-    check("保存 default 后 apply_saved_scheme 返回 False（无需应用）",
-          apply_saved_scheme(win.act_mgr) is False, "")
+    check(
+        "保存 default 后 apply_saved_scheme 返回 False（无需应用）",
+        apply_saved_scheme(win.act_mgr) is False,
+        "",
+    )
 
     # 非法 key 必须回退到 default，而不是抛异常/返回垃圾
     save_scheme("__bogus__")
-    check("非法方案 key 回退为 'default'",
-          load_saved_scheme() == "default", load_saved_scheme())
+    check("非法方案 key 回退为 'default'", load_saved_scheme() == "default", load_saved_scheme())
 finally:
     save_scheme(old)
 
@@ -279,12 +287,16 @@ from ui.keymap_editor import KeymapEditor  # noqa: E402
 
 ed = KeymapEditor(win.act_mgr, win)
 check("编辑器有 scheme_combo", hasattr(ed, "scheme_combo"), "")
-check("下拉项数 == 方案数",
-      ed.scheme_combo.count() == len(names),
-      "%d vs %d" % (ed.scheme_combo.count(), len(names)))
-check("下拉项的 userData 是方案 key",
-      [ed.scheme_combo.itemData(i) for i in range(ed.scheme_combo.count())]
-      == [k for k, _ in names], "")
+check(
+    "下拉项数 == 方案数",
+    ed.scheme_combo.count() == len(names),
+    "%d vs %d" % (ed.scheme_combo.count(), len(names)),
+)
+check(
+    "下拉项的 userData 是方案 key",
+    [ed.scheme_combo.itemData(i) for i in range(ed.scheme_combo.count())] == [k for k, _ in names],
+    "",
+)
 check("编辑器有「套用」按钮", hasattr(ed, "apply_scheme_btn"), "")
 ed.close()
 

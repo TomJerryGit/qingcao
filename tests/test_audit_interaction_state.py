@@ -35,7 +35,6 @@ import pytest
 # 0. 根因：编辑器缓冲区与 provider 双内容源
 # ============================================================
 class TestContentSourceDuplication:
-
     def test_provider_is_not_updated_while_typing(self, qapp, tmp_path):
         """打字后 provider 仍停留在打开时的快照（INV-A）。"""
         from PyQt5.Qsci import QsciScintilla
@@ -51,8 +50,7 @@ class TestContentSourceDuplication:
         proxy = EditorProxy(sc, Document())
         assert proxy.open_file(str(p)) is True
 
-        sc.SendScintilla(sc.SCI_INSERTTEXT, len(sc.text()),
-                         b"print(2)\n")
+        sc.SendScintilla(sc.SCI_INSERTTEXT, len(sc.text()), b"print(2)\n")
 
         provider_text = proxy.document.provider.read_text()
         assert provider_text == sc.text(), (
@@ -67,18 +65,19 @@ class TestContentSourceDuplication:
 # 1. 另存为：写入磁盘的是过期内容，且脏标记不清
 # ============================================================
 class TestSaveAs:
-
-    @pytest.mark.skip(reason=(
-        "已过时（P0-B 已修复）：本用例断言 `proxy.document.save(path)` "
-        "应写入编辑器内容，但 Document 只持有 provider、**拿不到 "
-        "QScintilla 文本** —— 唯一能同步内容的是 "
-        "`EditorProxy.save_file()`。原缺陷是 UI 调用了错误的入口，"
-        "现已把生产代码里所有 `document.save()` 调用改为 "
-        "`save_file(path)`（生产代码中仅剩 save_file 内部一处正确调用）。"
-        "把 Document 也做对在架构上不可能。"
-        "等价且更可靠的不变量由 tests/test_wiring_audit.py 的 "
-        "test_no_ui_bypasses_content_sync 守住。"
-    ))
+    @pytest.mark.skip(
+        reason=(
+            "已过时（P0-B 已修复）：本用例断言 `proxy.document.save(path)` "
+            "应写入编辑器内容，但 Document 只持有 provider、**拿不到 "
+            "QScintilla 文本** —— 唯一能同步内容的是 "
+            "`EditorProxy.save_file()`。原缺陷是 UI 调用了错误的入口，"
+            "现已把生产代码里所有 `document.save()` 调用改为 "
+            "`save_file(path)`（生产代码中仅剩 save_file 内部一处正确调用）。"
+            "把 Document 也做对在架构上不可能。"
+            "等价且更可靠的不变量由 tests/test_wiring_audit.py 的 "
+            "test_no_ui_bypasses_content_sync 守住。"
+        )
+    )
     def test_save_as_writes_stale_content(self, qapp, tmp_path):
         """ui/mixins/file_ops_mixin.py:230 的
         `proxy.document.save(path)` 只走 Document，不经过
@@ -99,8 +98,7 @@ class TestSaveAs:
         assert proxy.open_file(str(src)) is True
 
         # 用户输入新内容（未保存）
-        sc.SendScintilla(sc.SCI_INSERTTEXT, len(sc.text()),
-                         b"print(2)\n")
+        sc.SendScintilla(sc.SCI_INSERTTEXT, len(sc.text()), b"print(2)\n")
         assert "print(2)" in sc.text()
 
         # 复现 _save_file_as 的调用
@@ -113,12 +111,14 @@ class TestSaveAs:
             f" 另存为写入={written!r}，编辑器内容={sc.text()!r}"
         )
 
-    @pytest.mark.skip(reason=(
-        "已过时（P0-B 已修复）：同上 —— 断言 `document.save()` 应清除 "
-        "Scintilla 的脏标记，但 Document 不持有编辑器控件。"
-        "`EditorProxy.save_file()` 已经会 `sc.setModified(False)`，"
-        "UI 层现已统一走该入口。"
-    ))
+    @pytest.mark.skip(
+        reason=(
+            "已过时（P0-B 已修复）：同上 —— 断言 `document.save()` 应清除 "
+            "Scintilla 的脏标记，但 Document 不持有编辑器控件。"
+            "`EditorProxy.save_file()` 已经会 `sc.setModified(False)`，"
+            "UI 层现已统一走该入口。"
+        )
+    )
     def test_save_as_does_not_clear_modified_flag(self, qapp, tmp_path):
         """另存为成功后 * 标记仍存在（Scintilla 侧未 setModified(False)）。"""
         from PyQt5.Qsci import QsciScintilla
@@ -150,9 +150,7 @@ class TestSaveAs:
 # 2. 编辑器内查找/替换 × 过期 provider
 # ============================================================
 class TestSearchAgainstStaleProvider:
-
-    def test_search_next_cannot_find_freshly_typed_text(
-            self, qapp, tmp_path):
+    def test_search_next_cannot_find_freshly_typed_text(self, qapp, tmp_path):
         """EditorProxy.search_next / highlight_all / SearchBar._search
         全都查 document.provider（core/editor.py:1446,1504；
         ui/panels.py:443），所以刚输入的文字查不到。
@@ -180,8 +178,7 @@ class TestSearchAgainstStaleProvider:
             f"{proxy.document.provider.read_text()!r}"
         )
 
-    def test_replace_all_reverts_editor_to_provider_snapshot(
-            self, qapp, tmp_path):
+    def test_replace_all_reverts_editor_to_provider_snapshot(self, qapp, tmp_path):
         """ui/panels.py:640-653 的"全部替换"先在 provider 上替换，
         再用 `proxy.sc.setText(provider.read_text())` 覆盖编辑器，
         因此未保存的编辑会被丢弃。
@@ -209,7 +206,7 @@ class TestSearchAgainstStaleProvider:
         options = SearchOptions(pattern="foo")
         result = SearchEngine(provider, options).search()
         ReplaceEngine(provider).replace_all(result, "bar", pattern="foo")
-        proxy.sc.setText(provider.read_text())     # ui/panels.py:652
+        proxy.sc.setText(provider.read_text())  # ui/panels.py:652
 
         assert "MY EDIT" in sc.text(), (
             "全部替换把编辑器内容重置为 provider 快照，未保存的编辑丢失。"
@@ -244,7 +241,7 @@ class TestIdleReleaseVsSave:
         with open(p, "w", encoding="utf-8", newline="") as f:
             f.write(original)
         tabs = TabManager()
-        tabs._idle_timer.stop()          # 测试里手动触发，避免定时器干扰
+        tabs._idle_timer.stop()  # 测试里手动触发，避免定时器干扰
         return tabs, p, original
 
     def test_release_does_not_mark_tab_modified(self, qapp, tmp_path):
@@ -256,7 +253,7 @@ class TestIdleReleaseVsSave:
         assert widget is not None, "前置条件：应有编辑器控件"
         assert proxy.is_modified is False, "前置条件：刚打开应为干净状态"
 
-        tabs._release_tab_content(widget)          # 等价于闲置 30 分钟
+        tabs._release_tab_content(widget)  # 等价于闲置 30 分钟
         assert widget.text() == "", "前置条件：内容应已被释放"
 
         assert proxy.is_modified is False, (
@@ -265,8 +262,7 @@ class TestIdleReleaseVsSave:
             f" undo_stack={len(proxy.undo_manager.undo_stack)}"
         )
 
-    def test_save_all_after_release_does_not_truncate_file(
-            self, qapp, tmp_path):
+    def test_save_all_after_release_does_not_truncate_file(self, qapp, tmp_path):
         """INV-B：保存写盘的字节必须来自用户的真实内容，
         绝不能因为内存回收而把文件清空。
 
@@ -291,9 +287,7 @@ class TestIdleReleaseVsSave:
         widget = tabs.widget(0)
 
         tabs._release_tab_content(widget)
-        assert widget in tabs._released_content, (
-            "前置条件：释放的内容应被缓存，以便切回时恢复"
-        )
+        assert widget in tabs._released_content, "前置条件：释放的内容应被缓存，以便切回时恢复"
 
         tabs.save_all()
 
@@ -334,7 +328,6 @@ class TestIdleReleaseVsSave:
 # 4. 外部文件变更 × 撤销
 # ============================================================
 class TestExternalChangeVsUndo:
-
     def test_reload_does_not_reset_undo_stack(self, qapp, tmp_path):
         """app/tabs.py:1399-1458 _reload_file 只重置 modified 标记，
         不清理 undo_manager；旧的撤销命令位置相对新内容全部失效（INV-D）。
@@ -392,17 +385,14 @@ class TestExternalChangeVsUndo:
 
         tabs._reload_file(str(p), widget)
 
-        assert proxy.document.provider is not old_provider, (
-            "前置条件：provider 应被替换"
-        )
+        assert proxy.document.provider is not old_provider, "前置条件：provider 应被替换"
         assert getattr(old_provider, "_mmap", None) is None, (
             "旧 provider 的 mmap 未释放（文件句柄泄漏）。"
         )
-        assert getattr(old_provider, "_file", None) is None, (
-            "旧 provider 的文件句柄未关闭。"
-        )
+        assert getattr(old_provider, "_file", None) is None, "旧 provider 的文件句柄未关闭。"
 
 
 if __name__ == "__main__":
     import pytest as _pytest
+
     raise SystemExit(_pytest.main([__file__, "-v"]))
