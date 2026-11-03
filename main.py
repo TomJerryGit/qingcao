@@ -1203,6 +1203,13 @@ def main():
         pass
 
     app = QApplication(sys.argv)
+    try:
+        from ui.i18n_widgets import install_ui_translators
+
+        install_ui_translators(app)
+    except Exception:
+        pass
+
     if not args.get("new_window"):
         try:
             from infrastructure.instance_broadcast import try_focus_existing
