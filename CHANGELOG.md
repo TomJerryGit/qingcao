@@ -10,6 +10,8 @@
 
 ### 新增
 
+- CI 卫生：`ruff format tools tests` 通过（210 文件）；Windows-only 崩溃工具测试加平台跳过；Linux 跨平台测试任务暂标非阻断（技术债跟踪）。
+
 - mmap 增量保存（M1）：大文件等长修改走原地补丁 + journal 备份 + 崩溃恢复 + 默认关闭灰度（`core/mmap_save.py`）；
   50MB 文件单行保存实测 **0.36s**（区间级 journal，达标 <0.5s），非等长/失败自动回退全量写盘；
 
