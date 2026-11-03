@@ -86,6 +86,13 @@ def translate_text(text: str) -> str:
     exact = tr(text)
     if exact != text:
         return exact
+    # 动态消息："已另存为: xxx" → 翻译前缀后保留参数
+    for sep in (": ", "：", " - "):
+        if sep in text:
+            head, tail = text.split(sep, 1)
+            translated = tr(head)
+            if translated != head:
+                return translated + sep + tail
     return tr_label(text)
 
 
