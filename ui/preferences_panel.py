@@ -738,6 +738,17 @@ class PreferencesDialog(QDialog):
 
         self._build_ui()
         self._apply_style()
+        # v2.19 P1-2：长尾翻译（贪婪覆盖所有页面控件）
+        try:
+            from core.i18n_json import current_language
+            from core.i18n_json import tr as _tr
+            from ui.i18n_widgets import translate_widgets
+
+            if current_language() != "zh_CN":
+                self.setWindowTitle(_tr("首选项"))
+                translate_widgets(self)
+        except Exception:
+            pass
 
     def _build_ui(self):
         layout = QHBoxLayout(self)
@@ -753,8 +764,14 @@ class PreferencesDialog(QDialog):
 
         self.category_list = QListWidget()
         self.category_list.setObjectName("prefs_category_list")
+        try:
+            from core.i18n_json import current_language
+            from core.i18n_json import tr as _tcat
+        except Exception:
+            _tcat = lambda s: s
         for key, name, icon in PAGES:
-            item = QListWidgetItem(f"  {icon}  {name}")
+            _name = _tcat(name) if current_language() != "zh_CN" else name
+            item = QListWidgetItem(f"  {icon}  {_name}")
             item.setData(Qt.UserRole, key)
             self.category_list.addItem(item)
 

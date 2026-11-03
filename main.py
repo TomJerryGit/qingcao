@@ -104,7 +104,7 @@ def _force_utf8_stdio():
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding='utf-8', errors='replace')
+            stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
 
@@ -124,18 +124,15 @@ _force_utf8_stdio()
 try:
     from version import __version__
 except ImportError:
-    _version_file = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "VERSION"
-    )
+    _version_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
     try:
-        with open(_version_file, encoding='utf-8') as _f:
+        with open(_version_file, encoding="utf-8") as _f:
             __version__ = _f.read().strip()
     except OSError:
         __version__ = ""
     if not __version__:
         raise SystemExit(
-            "[main] 无法确定版本号：version.py 导入失败，且读取 %s 失败"
-            % _version_file
+            "[main] 无法确定版本号：version.py 导入失败，且读取 %s 失败" % _version_file
         )
 
 __author__ = "TomJerry"
@@ -192,23 +189,30 @@ def ensure_directories():
     # 草稿目录：以写入端（core/document.py 的 Document）为唯一事实来源
     try:
         from core.document import Document
+
         drafts_dir = Document._draft_dir()
     except Exception:
         # 极端兜底：与 core/document.py 的历史默认保持一致
         drafts_dir = os.path.join(BACKUP_DIR, "drafts")
 
-    for d in [RESOURCES_DIR, LOCALE_DIR, THEMES_DIR, PLUGINS_DIR,
-              DATA_DIR, BACKUP_DIR, LOGS_DIR,
-              os.path.join(BACKUP_DIR, "autosave"),
-              drafts_dir,
-              os.path.join(DATA_DIR, "crashes"),
-              os.path.join(DATA_DIR, "telemetry"),
-              os.path.join(DATA_DIR, "snapshots"),
-              os.path.join(DATA_DIR, "plugin_cache"),
-              os.path.join(DATA_DIR, "plugin_backups"),
-              os.path.join(DATA_DIR, "backups"),
-              os.path.join(DATA_DIR, "update_cache"),
-              ]:
+    for d in [
+        RESOURCES_DIR,
+        LOCALE_DIR,
+        THEMES_DIR,
+        PLUGINS_DIR,
+        DATA_DIR,
+        BACKUP_DIR,
+        LOGS_DIR,
+        os.path.join(BACKUP_DIR, "autosave"),
+        drafts_dir,
+        os.path.join(DATA_DIR, "crashes"),
+        os.path.join(DATA_DIR, "telemetry"),
+        os.path.join(DATA_DIR, "snapshots"),
+        os.path.join(DATA_DIR, "plugin_cache"),
+        os.path.join(DATA_DIR, "plugin_backups"),
+        os.path.join(DATA_DIR, "backups"),
+        os.path.join(DATA_DIR, "update_cache"),
+    ]:
         try:
             os.makedirs(d, exist_ok=True)
         except Exception:
@@ -224,20 +228,19 @@ def is_portable():
     如果可执行文件所在目录或项目根目录存在 portable.txt 文件，
     则认为处于便携模式，所有配置和数据均写入程序目录下。
     """
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
     else:
         exe_dir = ROOT_DIR
 
-    markers = ['portable.txt', 'portable', '.portable']
+    markers = ["portable.txt", "portable", ".portable"]
     for m in markers:
         if os.path.exists(os.path.join(exe_dir, m)):
             return True
     return False
 
 
-def instance_settings_dir(base_dir: str, pid: int,
-                          new_window: bool) -> str:
+def instance_settings_dir(base_dir: str, pid: int, new_window: bool) -> str:
     """多实例：新窗口实例使用独立的设置目录"""
     if not new_window:
         return base_dir
@@ -248,16 +251,17 @@ def instance_pid_alive(pid: int) -> bool:
     """判断进程是否存活（Windows 安全实现，不用 os.kill）"""
     try:
         import ctypes
+
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         STILL_ACTIVE = 259
         handle = ctypes.windll.kernel32.OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+        )
         if not handle:
             return False
         try:
             code = ctypes.c_ulong(0)
-            ok = ctypes.windll.kernel32.GetExitCodeProcess(
-                handle, ctypes.byref(code))
+            ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
             return bool(ok) and code.value == STILL_ACTIVE
         finally:
             ctypes.windll.kernel32.CloseHandle(handle)
@@ -268,6 +272,7 @@ def instance_pid_alive(pid: int) -> bool:
 def cleanup_stale_instance_dirs(data_dir: str) -> int:
     """删除已退出实例的配置目录（instance_pid_alive 为假）"""
     import shutil
+
     inst = os.path.join(data_dir, "instances")
     if not os.path.isdir(inst):
         return 0
@@ -316,8 +321,10 @@ def get_max_new_window_instances() -> int:
         pass
     try:
         from PyQt5.QtCore import QSettings
+
         val = QSettings("QingCao", "Editor").value(
-            "max_new_window_instances", DEFAULT_MAX_NEW_WINDOW_INSTANCES)
+            "max_new_window_instances", DEFAULT_MAX_NEW_WINDOW_INSTANCES
+        )
         return max(1, min(10, int(val)))
     except Exception:
         return DEFAULT_MAX_NEW_WINDOW_INSTANCES
@@ -333,11 +340,10 @@ def setup_portable_mode():
             data_dir = os.path.join(ROOT_DIR, "data")
         elif new_window:
             # QApplication 创建前 QStandardPaths 不可靠，显式使用 AppData
-            base = (os.environ.get("APPDATA")
-                    or os.path.join(os.path.expanduser("~"), "AppData",
-                                    "Roaming"))
-            data_dir = os.path.join(base, "QingCao", "QingCaoEditor",
-                                    "data")
+            base = os.environ.get("APPDATA") or os.path.join(
+                os.path.expanduser("~"), "AppData", "Roaming"
+            )
+            data_dir = os.path.join(base, "QingCao", "QingCaoEditor", "data")
         else:
             return
         try:
@@ -348,21 +354,17 @@ def setup_portable_mode():
             try:
                 _max_inst = get_max_new_window_instances()
                 if count_alive_instance_dirs(data_dir) >= _max_inst:
-                    print("[多实例] 已达实例上限（%d），请先关闭部分窗口"
-                          % _max_inst)
+                    print("[多实例] 已达实例上限（%d），请先关闭部分窗口" % _max_inst)
                     sys.exit(0)
             except SystemExit:
                 raise
             except Exception:
                 pass
-        data_dir = instance_settings_dir(data_dir, os.getpid(),
-                                         new_window)
+        data_dir = instance_settings_dir(data_dir, os.getpid(), new_window)
         os.makedirs(data_dir, exist_ok=True)
         QSettings.setDefaultFormat(QSettings.IniFormat)
-        QSettings.setPath(QSettings.IniFormat,
-                          QSettings.UserScope, data_dir)
-        QSettings.setPath(QSettings.IniFormat,
-                          QSettings.SystemScope, data_dir)
+        QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, data_dir)
+        QSettings.setPath(QSettings.IniFormat, QSettings.SystemScope, data_dir)
         print(f"[设置] 配置存储于: {data_dir}")
     except Exception as e:
         print(f"[设置] 配置目录初始化失败: {e}")
@@ -422,6 +424,7 @@ def _detect_language() -> str:
     # ---- 1. 用户设置 ----
     try:
         from PyQt5.QtCore import QSettings
+
         settings = QSettings(ORG_NAME, "Editor")
         lang = settings.value("language", "", type=str)
         if lang:
@@ -441,9 +444,7 @@ def _detect_language() -> str:
     try:
         from PyQt5.QtCore import QSettings
 
-        auto_detect = QSettings(ORG_NAME, "Editor").value(
-            "language_auto_detect", True, type=bool
-        )
+        auto_detect = QSettings(ORG_NAME, "Editor").value("language_auto_detect", True, type=bool)
     except Exception:
         auto_detect = True
 
@@ -452,6 +453,7 @@ def _detect_language() -> str:
 
     try:
         from PyQt5.QtCore import QLocale
+
         sys_locale = QLocale.system().name()
         if sys_locale.startswith("zh"):
             return "zh_CN"
@@ -514,9 +516,7 @@ def setup_locale():
 
         # 尝试加载指定语言的翻译
         try:
-            tr = gettext.translation(
-                "qingcao", LOCALE_DIR, languages=[lang]
-            )
+            tr = gettext.translation("qingcao", LOCALE_DIR, languages=[lang])
             tr.install()
             print(f"[国际化] 已加载语言（gettext）: {lang}")
             return
@@ -566,8 +566,7 @@ def _log_settings():
 
         settings = QSettings(ORG_NAME, "Editor")
         raw = settings.value("log_level", "INFO", type=str) or "INFO"
-        if str(raw).upper() in ("DEBUG", "INFO", "WARNING",
-                                "ERROR", "CRITICAL"):
+        if str(raw).upper() in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
             level_name = str(raw).upper()
         if settings.value("debug_mode", False, type=bool):
             level_name = "DEBUG"
@@ -592,17 +591,20 @@ def setup_logging():
     # v2.17.x：原生崩溃转储（faulthandler → logs/crash_dump_<pid>.log）
     try:
         import faulthandler
-        _dump = open(os.path.join(
-            LOGS_DIR, "crash_dump_%d.log" % os.getpid()),
-            "a", encoding="utf-8", errors="replace")
+
+        _dump = open(
+            os.path.join(LOGS_DIR, "crash_dump_%d.log" % os.getpid()),
+            "a",
+            encoding="utf-8",
+            errors="replace",
+        )
         faulthandler.enable(file=_dump)
     except Exception:
         pass
 
     # 日志轮转：超过 max_bytes 则重命名
     try:
-        if os.path.exists(RUNTIME_LOG) and \
-                os.path.getsize(RUNTIME_LOG) > max_bytes:
+        if os.path.exists(RUNTIME_LOG) and os.path.getsize(RUNTIME_LOG) > max_bytes:
             backup = RUNTIME_LOG + ".1"
             if os.path.exists(backup):
                 try:
@@ -624,9 +626,7 @@ def setup_logging():
     try:
         fh = logging.FileHandler(RUNTIME_LOG, encoding="utf-8")
         fh.setLevel(level)
-        formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
         fh.setFormatter(formatter)
         logger.addHandler(fh)
     except Exception:
@@ -653,7 +653,7 @@ def exception_hook(exc_type, exc_value, exc_tb):
     - 将完整堆栈写入 crash.log
     - 调用崩溃上报器（弹对话框、收集上下文、生成 GitHub Issue URL）
     """
-    tb_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 1) 写入崩溃日志
@@ -682,10 +682,9 @@ def exception_hook(exc_type, exc_value, exc_tb):
     # 3) 崩溃上报器（首选）
     try:
         from core.crash_reporter import get_crash_reporter
+
         reporter = get_crash_reporter(__version__)
-        reporter.show_crash_dialog(
-            None, (exc_type, exc_value, exc_tb)
-        )
+        reporter.show_crash_dialog(None, (exc_type, exc_value, exc_tb))
         return
     except Exception as report_err:
         try:
@@ -729,6 +728,7 @@ def _on_exit():
     """进程退出时输出日志标记"""
     try:
         import logging
+
         logging.getLogger("QingCao").info("进程退出 (atexit)")
     except Exception:
         pass
@@ -752,9 +752,7 @@ def check_crash_recovery():
             if os.path.isdir(path) and name.startswith("autosave_"):
                 files = [f for f in os.listdir(path) if f.endswith(".tmp")]
                 if files:
-                    backup_dirs.append(
-                        (path, len(files), os.path.getmtime(path))
-                    )
+                    backup_dirs.append((path, len(files), os.path.getmtime(path)))
     except Exception:
         return None
 
@@ -765,16 +763,17 @@ def check_crash_recovery():
     backup_dirs.sort(key=lambda x: x[2], reverse=True)
     latest_path, file_count, _ = backup_dirs[0]
 
-    msg = (f"检测到上次未正常退出，共有 {file_count} 个文件可恢复。\n"
-           f"是否尝试恢复这些文件？\n\n"
-           f"备份位置：{latest_path}")
+    msg = (
+        f"检测到上次未正常退出，共有 {file_count} 个文件可恢复。\n"
+        f"是否尝试恢复这些文件？\n\n"
+        f"备份位置：{latest_path}"
+    )
 
     try:
         from PyQt5.QtWidgets import QMessageBox
 
         reply = QMessageBox.question(
-            None, "崩溃恢复", msg,
-            QMessageBox.Yes | QMessageBox.No | QMessageBox.Discard
+            None, "崩溃恢复", msg, QMessageBox.Yes | QMessageBox.No | QMessageBox.Discard
         )
 
         if reply == QMessageBox.Yes:
@@ -806,7 +805,7 @@ def _render_recovered_drafts(window) -> int:
     安全约束：只处理标题带 "[未保存]"（check_and_recover_drafts 的固定
     后缀）且"编辑器缓冲区为空、provider 有正文"的标签，不碰其它标签。
     """
-    tabs = getattr(window, 'tabs', None)
+    tabs = getattr(window, "tabs", None)
     if tabs is None:
         return 0
 
@@ -828,17 +827,15 @@ def _render_recovered_drafts(window) -> int:
             if "[未保存]" not in title:
                 continue
 
-            proxy = getattr(widget, 'proxy', None)
+            proxy = getattr(widget, "proxy", None)
             if proxy is None:
                 continue
-            sc = getattr(proxy, 'sc', None)
+            sc = getattr(proxy, "sc", None)
             if sc is None or sc.text():
                 continue
 
-            provider = getattr(
-                getattr(proxy, 'document', None), 'provider', None
-            )
-            if provider is None or not getattr(provider, 'is_open', False):
+            provider = getattr(getattr(proxy, "document", None), "provider", None)
+            if provider is None or not getattr(provider, "is_open", False):
                 continue
             text = provider.read_text()
             if not text:
@@ -877,7 +874,7 @@ def _notify_draft_recovery(window, drafts, restored: int):
     try:
         orphans = []
         for d in drafts or []:
-            original = (d or {}).get('original') or ""
+            original = (d or {}).get("original") or ""
             if not original:
                 orphans.append("(未命名)")
             elif not os.path.exists(original):
@@ -889,11 +886,9 @@ def _notify_draft_recovery(window, drafts, restored: int):
         ]
         if orphans:
             preview = "\n".join("  · %s" % p for p in orphans[:8])
-            more = "" if len(orphans) <= 8 else \
-                "\n  … 另有 %d 项" % (len(orphans) - 8)
+            more = "" if len(orphans) <= 8 else "\n  … 另有 %d 项" % (len(orphans) - 8)
             lines.append("")
-            lines.append("以下内容没有可回写的原文件"
-                         "（未命名或原文件已不存在）：")
+            lines.append("以下内容没有可回写的原文件（未命名或原文件已不存在）：")
             lines.append(preview + more)
 
         QMessageBox.information(window, "草稿恢复", "\n".join(lines))
@@ -937,8 +932,7 @@ def create_splash():
         painter.setPen(QColor("#a0a0a0"))
         font2 = QFont("Microsoft YaHei", 11)
         painter.setFont(font2)
-        painter.drawText(0, 160, 480, 40, Qt.AlignCenter,
-                          "青草枯荣 · 野火重生")
+        painter.drawText(0, 160, 480, 40, Qt.AlignCenter, "青草枯荣 · 野火重生")
 
         painter.end()
 
@@ -969,12 +963,10 @@ def load_theme(app):
             theme = loader.load_by_name(theme_name)
             if theme is not None:
                 loader.apply_qss(app, theme)
-                print(f"[主题] 已应用: {theme.name} "
-                      f"({theme.display_name or theme.name})")
+                print(f"[主题] 已应用: {theme.name} ({theme.display_name or theme.name})")
                 return
             else:
-                print(f"[主题] 未找到主题: {theme_name}，"
-                      f"回退到 qss 文件")
+                print(f"[主题] 未找到主题: {theme_name}，回退到 qss 文件")
     except Exception as e:
         print(f"[主题] 从 theme_name 恢复失败: {e}")
 
@@ -982,6 +974,7 @@ def load_theme(app):
     theme_path = DEFAULT_THEME
     try:
         from PyQt5.QtCore import QSettings
+
         settings = QSettings(ORG_NAME, "Editor")
         custom_theme = settings.value("theme_path", "", type=str)
         if custom_theme and os.path.exists(custom_theme):
@@ -991,8 +984,8 @@ def load_theme(app):
 
     if os.path.exists(theme_path):
         try:
-            content = open(theme_path, encoding='utf-8').read()
-            if content.strip() and not content.strip().startswith('/*'):
+            content = open(theme_path, encoding="utf-8").read()
+            if content.strip() and not content.strip().startswith("/*"):
                 app.setStyleSheet(content)
                 print(f"[主题] 已加载文件: {theme_path}")
             else:
@@ -1058,30 +1051,30 @@ def parse_arguments(argv):
     - --new-window：新窗口启动（预留）
     """
     args = {
-        'files': [],
-        'no_splash': False,
-        'version': False,
-        'help': False,
-        'project': None,
-        'new_window': False,
+        "files": [],
+        "no_splash": False,
+        "version": False,
+        "help": False,
+        "project": None,
+        "new_window": False,
     }
 
     i = 1
     while i < len(argv):
         arg = argv[i]
-        if arg == '--new-window':
-            args['new_window'] = True
-        elif arg == '--no-splash':
-            args['no_splash'] = True
-        elif arg in ('--version', '-v'):
-            args['version'] = True
-        elif arg in ('--help', '-h'):
-            args['help'] = True
-        elif arg == '--project' and i + 1 < len(argv):
-            args['project'] = argv[i + 1]
+        if arg == "--new-window":
+            args["new_window"] = True
+        elif arg == "--no-splash":
+            args["no_splash"] = True
+        elif arg in ("--version", "-v"):
+            args["version"] = True
+        elif arg in ("--help", "-h"):
+            args["help"] = True
+        elif arg == "--project" and i + 1 < len(argv):
+            args["project"] = argv[i + 1]
             i += 1
-        elif not arg.startswith('-'):
-            args['files'].append(arg)
+        elif not arg.startswith("-"):
+            args["files"].append(arg)
         i += 1
 
     return args
@@ -1126,6 +1119,7 @@ def print_version():
 
     try:
         from PyQt5.QtCore import PYQT_VERSION_STR, QT_VERSION_STR
+
         print(f"Qt: {QT_VERSION_STR}")
         print(f"PyQt5: {PYQT_VERSION_STR}")
     except Exception:
@@ -1133,15 +1127,16 @@ def print_version():
 
     try:
         from PyQt5.Qsci import QSCINTILLA_VERSION_STR
+
         print(f"QScintilla: {QSCINTILLA_VERSION_STR}")
     except Exception:
         pass
 
     # 可选依赖
-    for mod in ['chardet', 'requests', 'psutil']:
+    for mod in ["chardet", "requests", "psutil"]:
         try:
             m = __import__(mod)
-            v = getattr(m, '__version__', '?')
+            v = getattr(m, "__version__", "?")
             print(f"{mod}: {v}")
         except ImportError:
             print(f"{mod}: 未安装")
@@ -1158,15 +1153,15 @@ def main():
     # 1. 解析命令行参数
     # --------------------------------------------------------
     args = parse_arguments(sys.argv)
-    if args.get('new_window'):
+    if args.get("new_window"):
         # 多实例：新窗口使用独立会话文件与设置目录
-        os.environ['QINGCAO_NEW_WINDOW'] = '1'
+        os.environ["QINGCAO_NEW_WINDOW"] = "1"
 
-    if args['help']:
+    if args["help"]:
         print_help()
         return 0
 
-    if args['version']:
+    if args["version"]:
         print_version()
         return 0
 
@@ -1211,6 +1206,7 @@ def main():
     if not args.get("new_window"):
         try:
             from infrastructure.instance_broadcast import try_focus_existing
+
             if try_focus_existing():
                 return 0
         except Exception:
@@ -1250,15 +1246,13 @@ def main():
     splash_started = 0.0
     # P7 接线：splash_screen 之前只在首选项面板里读写，main.py 无条件
     # 创建启动画面（只有命令行 --no-splash 能关掉）。
-    if not args['no_splash'] and bool(_pref("splash_screen", True)):
+    if not args["no_splash"] and bool(_pref("splash_screen", True)):
         try:
             splash = create_splash()
             splash_started = time.monotonic()
             splash.show()
             splash.showMessage(
-                f"正在启动 {APP_NAME} v{__version__}...",
-                Qt.AlignBottom | Qt.AlignHCenter,
-                Qt.white
+                f"正在启动 {APP_NAME} v{__version__}...", Qt.AlignBottom | Qt.AlignHCenter, Qt.white
             )
             app.processEvents()
         except Exception as e:
@@ -1270,8 +1264,7 @@ def main():
     # --------------------------------------------------------
     recovery_dir = None
     if splash:
-        splash.showMessage("检查上次退出状态...",
-                            Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
+        splash.showMessage("检查上次退出状态...", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
         app.processEvents()
 
     try:
@@ -1284,8 +1277,7 @@ def main():
     # 11. 导入主窗口
     # --------------------------------------------------------
     if splash:
-        splash.showMessage("加载主界面...",
-                            Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
+        splash.showMessage("加载主界面...", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
         app.processEvents()
 
     try:
@@ -1294,10 +1286,11 @@ def main():
         logger.error(f"无法导入主窗口: {e}")
         traceback.print_exc()
         QMessageBox.critical(
-            None, "启动失败",
+            None,
+            "启动失败",
             f"无法加载主窗口模块：\n{e}\n\n"
             f"请确认项目文件完整，且已安装依赖：\n"
-            f"pip install PyQt5 QScintilla chardet requests psutil"
+            f"pip install PyQt5 QScintilla chardet requests psutil",
         )
         return 1
 
@@ -1310,10 +1303,7 @@ def main():
         logger.error(f"创建主窗口失败: {e}")
         tb = traceback.format_exc()
         traceback.print_exc()
-        QMessageBox.critical(
-            None, "启动失败",
-            f"创建主窗口时发生错误：\n{e}\n\n{tb}"
-        )
+        QMessageBox.critical(None, "启动失败", f"创建主窗口时发生错误：\n{e}\n\n{tb}")
         return 1
 
     # --------------------------------------------------------
@@ -1326,6 +1316,7 @@ def main():
     # v2.19: 启动时恢复未完成的 mmap 增量保存（journal）
     try:
         from core.mmap_save import recover_pending_journals
+
         _n = recover_pending_journals()
         if _n:
             print(f"[mmap-save] 已恢复 {_n} 个未完成保存")
@@ -1333,11 +1324,10 @@ def main():
         pass
 
     try:
-        if hasattr(window, 'apply_startup_theme'):
+        if hasattr(window, "apply_startup_theme"):
             _theme = window.apply_startup_theme()
             if _theme is not None:
-                logger.info("启动主题已应用到面板: %s", getattr(
-                    _theme, 'name', ''))
+                logger.info("启动主题已应用到面板: %s", getattr(_theme, "name", ""))
     except Exception as _e:
         logger.warning("启动主题应用到面板失败: %s", _e)
 
@@ -1351,19 +1341,20 @@ def main():
     try:
         window.apply_accessibility_settings()
         from ui.accessibility import apply_accessible_descriptions
+
         apply_accessible_descriptions(window)
         from PyQt5.QtWidgets import QApplication as _QApp
 
         from ui.accessibility import focus_ring_qss as _focus
+
         _app = _QApp.instance()
         if _app is not None:
-            _app.setStyleSheet(
-                (_app.styleSheet() or "") + _focus())
+            _app.setStyleSheet((_app.styleSheet() or "") + _focus())
     except Exception:
         pass
 
-    if args['files']:
-        for filepath in args['files']:
+    if args["files"]:
+        for filepath in args["files"]:
             abs_path = os.path.abspath(filepath)
             if os.path.exists(abs_path):
                 try:
@@ -1377,10 +1368,10 @@ def main():
     # --------------------------------------------------------
     # 14. 处理项目参数
     # --------------------------------------------------------
-    if args['project']:
+    if args["project"]:
         try:
-            if hasattr(window, 'open_project'):
-                window.open_project(args['project'])
+            if hasattr(window, "open_project"):
+                window.open_project(args["project"])
                 logger.info(f"已打开项目: {args['project']}")
         except Exception as e:
             logger.error(f"打开项目失败: {e}")
@@ -1393,11 +1384,9 @@ def main():
     # 该方法，hasattr 恒为 False，恢复被静默跳过。
     if recovery_dir:
         try:
-            sess = getattr(window, 'session', None)
-            if sess is not None and hasattr(sess, 'check_and_recover_crash'):
-                count = sess.check_and_recover_crash(
-                    parent=window, auto_save_dir=recovery_dir
-                )
+            sess = getattr(window, "session", None)
+            if sess is not None and hasattr(sess, "check_and_recover_crash"):
+                count = sess.check_and_recover_crash(parent=window, auto_save_dir=recovery_dir)
                 if count > 0:
                     logger.info(f"已从备份恢复 {count} 个文件")
             else:
@@ -1418,9 +1407,7 @@ def main():
 
         if should_show_wizard():
             if splash:
-                splash.showMessage("首次启动配置...",
-                                    Qt.AlignBottom | Qt.AlignHCenter,
-                                    Qt.white)
+                splash.showMessage("首次启动配置...", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
                 app.processEvents()
 
             wizard = FirstRunWizard(window)
@@ -1453,6 +1440,7 @@ def main():
     if os.environ.get("QINGCAO_STARTUP_DIAG") == "1":
         try:
             from PyQt5.QtWidgets import QDockWidget as _QDW
+
             app.processEvents()
             sb = window.statusBar()
             lines = [
@@ -1462,23 +1450,21 @@ def main():
                 "statusBar_visible=%r" % (sb.isVisible() if sb else None),
                 "statusBar_height=%r" % (sb.height() if sb else None),
                 "statusBar_geometry=%s" % (sb.geometry() if sb else None),
-                "theme_name=%r" % (
+                "theme_name=%r"
+                % (
                     __import__("PyQt5.QtCore", fromlist=["QSettings"])
                     .QSettings(ORG_NAME, "Editor")
                     .value("theme_name", "", type=str)
                 ),
-                "startup_theme=%r" % getattr(
-                    getattr(window, "_startup_theme", None), "name", None),
+                "startup_theme=%r" % getattr(getattr(window, "_startup_theme", None), "name", None),
                 "central_size=%s" % (window.centralWidget().size(),),
             ]
             for dock in window.findChildren(_QDW):
                 lines.append(
                     "dock=%r visible=%r area=%r"
-                    % (dock.objectName(), dock.isVisible(),
-                       int(window.dockWidgetArea(dock)))
+                    % (dock.objectName(), dock.isVisible(), int(window.dockWidgetArea(dock)))
                 )
-            diag_path = os.path.join(os.path.dirname(
-                os.path.abspath(__file__)), "startup_diag.txt")
+            diag_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "startup_diag.txt")
             with open(diag_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
             logger.info("启动诊断已写入: %s", diag_path)
@@ -1508,9 +1494,7 @@ def main():
             elapsed_ms = int((time.monotonic() - splash_started) * 1000)
             remaining_ms = max(0, duration_ms - elapsed_ms)
             if remaining_ms > 0:
-                QTimer.singleShot(
-                    remaining_ms, lambda: splash.finish(window)
-                )
+                QTimer.singleShot(remaining_ms, lambda: splash.finish(window))
             else:
                 splash.finish(window)
         except Exception:
@@ -1527,7 +1511,7 @@ def main():
         logger.info("deferred_init 开始")
         try:
             # ---- 会话恢复 ----
-            if hasattr(window, 'restore_session'):
+            if hasattr(window, "restore_session"):
                 logger.debug("调用 restore_session...")
                 try:
                     window.restore_session()
@@ -1543,23 +1527,20 @@ def main():
             # 与写入端可能不是同一路径，会出现"备份写了、恢复找不到"。
             try:
                 from app.session import AUTOSAVE_DIR as _autosave_dir
+
                 auto_backup = _autosave_dir
             except Exception:
                 auto_backup = os.path.join(BACKUP_DIR, "autosave")
             try:
                 meta_path = os.path.join(auto_backup, "meta.json")
                 if os.path.isfile(meta_path):
-                    sess = getattr(window, 'session', None)
-                    if sess is not None and hasattr(
-                        sess, 'check_and_recover_crash'
-                    ):
+                    sess = getattr(window, "session", None)
+                    if sess is not None and hasattr(sess, "check_and_recover_crash"):
                         count = sess.check_and_recover_crash(
                             parent=window, auto_save_dir=auto_backup
                         )
                         if count > 0:
-                            logger.info(
-                                f"已从自动备份恢复 {count} 个未保存文件"
-                            )
+                            logger.info(f"已从自动备份恢复 {count} 个未保存文件")
             except Exception as e:
                 logger.error(f"自动备份恢复失败: {e}")
 
@@ -1573,9 +1554,8 @@ def main():
             #   这里补上调用（parent=window 以弹出可见的确认框），
             #   并对"未命名 / 原文件已删除"的情况给出明确提示。
             try:
-                sess = getattr(window, 'session', None)
-                if sess is not None and hasattr(
-                        sess, 'check_and_recover_drafts'):
+                sess = getattr(window, "session", None)
+                if sess is not None and hasattr(sess, "check_and_recover_drafts"):
                     drafts = []
                     try:
                         drafts = sess.find_recoverable_drafts()
@@ -1585,17 +1565,12 @@ def main():
 
                     if drafts:
                         logger.info(f"检测到 {len(drafts)} 项未保存草稿")
-                        restored = sess.check_and_recover_drafts(
-                            parent=window, drafts=drafts
-                        )
+                        restored = sess.check_and_recover_drafts(parent=window, drafts=drafts)
                         if restored > 0:
                             # 补渲染：session 侧只把正文放进 provider，
                             # 不会显示出来（见 _render_recovered_drafts）
                             rendered = _render_recovered_drafts(window)
-                            logger.info(
-                                f"已恢复 {restored} 项未保存草稿"
-                                f"（补渲染 {rendered} 项）"
-                            )
+                            logger.info(f"已恢复 {restored} 项未保存草稿（补渲染 {rendered} 项）")
                             _notify_draft_recovery(window, drafts, restored)
                             try:
                                 window.status_bar.showMessage(
@@ -1608,7 +1583,7 @@ def main():
 
             # ---- 检查更新 ----
             try:
-                prefs = getattr(window, 'prefs', None)
+                prefs = getattr(window, "prefs", None)
                 check_update = True
                 if prefs:
                     try:
@@ -1618,6 +1593,7 @@ def main():
 
                 if check_update:
                     from core.updater import UpdateChecker, show_update_dialog
+
                     checker = UpdateChecker(__version__)
 
                     def _on_update(info):
@@ -1636,7 +1612,7 @@ def main():
 
             # ---- 每日技巧 ----
             try:
-                if hasattr(window, '_show_daily_tip'):
+                if hasattr(window, "_show_daily_tip"):
                     # 用 QTimer 延迟弹出，避免打断用户
                     QTimer.singleShot(3000, window._show_daily_tip)
             except Exception:
@@ -1645,6 +1621,7 @@ def main():
             # ---- 遥测：记录启动 ----
             try:
                 from core.telemetry import get_telemetry
+
                 telemetry = get_telemetry()
                 telemetry.record_app_start()
                 logger.debug("遥测记录完成")
@@ -1658,6 +1635,7 @@ def main():
         except Exception as e:
             logger.error(f"延迟初始化失败: {e}")
             import traceback
+
             traceback.print_exc()
 
     QTimer.singleShot(100, deferred_init)
@@ -1676,6 +1654,7 @@ def main():
         out = []
         try:
             import platform
+
             out.append("青草编辑器 插件加载自检报告")
             out.append("=" * 56)
             out.append("冻结运行   : %s" % bool(getattr(sys, "frozen", False)))
@@ -1684,8 +1663,7 @@ def main():
             out.append("PLUGINS_DIR: %s" % PLUGINS_DIR)
             out.append("插件目录存在: %s" % os.path.isdir(PLUGINS_DIR))
             out.append("Python     : %s" % platform.python_version())
-            out.append("采样耗时   : %.1f 秒（轮询 %d 次后写出）"
-                       % (elapsed, attempts))
+            out.append("采样耗时   : %.1f 秒（轮询 %d 次后写出）" % (elapsed, attempts))
             out.append("")
 
             pm = getattr(window, "plugin_manager", None)
@@ -1699,11 +1677,11 @@ def main():
                 sp = specs[name]
                 inst = getattr(sp, "instance", None)
                 st = getattr(sp, "state", None)
-                out.append("  %-20s 状态=%-14s 实例=%s"
-                           % (name, getattr(st, "name", st),
-                              "有" if inst is not None else "无"))
-            active = [n for n, s in specs.items()
-                      if getattr(s, "instance", None) is not None]
+                out.append(
+                    "  %-20s 状态=%-14s 实例=%s"
+                    % (name, getattr(st, "name", st), "有" if inst is not None else "无")
+                )
+            active = [n for n, s in specs.items() if getattr(s, "instance", None) is not None]
             out.append("")
             out.append("已激活插件数: %d" % len(active))
             out.append("")
@@ -1717,6 +1695,7 @@ def main():
             if tools is None:
                 out.append("  （未找到工具菜单）")
             else:
+
                 def walk(menu, depth):
                     for act in menu.actions():
                         nm = act.text().replace("&", "")
@@ -1725,21 +1704,28 @@ def main():
                             walk(act.menu(), depth + 1)
                         else:
                             out.append("  " * (depth + 1) + nm)
+
                 walk(tools, 0)
             out.append("")
 
             out.append("插件依赖模块可导入性:")
-            for m in ("core.ai_client", "core.ai_cache", "core.ollama_client",
-                      "ui.ai_inline_completer", "core.git_client",
-                      "core.secure_storage", "infrastructure.plugin_loader"):
+            for m in (
+                "core.ai_client",
+                "core.ai_cache",
+                "core.ollama_client",
+                "ui.ai_inline_completer",
+                "core.git_client",
+                "core.secure_storage",
+                "infrastructure.plugin_loader",
+            ):
                 try:
                     __import__(m)
                     out.append("  %-30s OK" % m)
                 except Exception as e:
-                    out.append("  %-30s 失败: %s: %s"
-                               % (m, type(e).__name__, e))
+                    out.append("  %-30s 失败: %s: %s" % (m, type(e).__name__, e))
         except Exception:
             import traceback
+
             out.append("生成报告时出错:")
             out.append(traceback.format_exc())
 
@@ -1805,13 +1791,14 @@ def main():
         # 保存遥测
         try:
             from core.telemetry import get_telemetry
+
             get_telemetry()._save_stats()
         except Exception:
             pass
 
         # 清理自动备份（正常退出后不再需要）
         try:
-            if hasattr(window, 'session') and window.session:
+            if hasattr(window, "session") and window.session:
                 window.session.clear_autosave()
         except Exception:
             pass

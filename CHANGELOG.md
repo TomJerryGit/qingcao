@@ -8,6 +8,8 @@
 
 ### 新增
 
+- i18n 长尾：通用控件树翻译 `ui/i18n_widgets.py`（QLabel/按钮/分组框/输入框占位符，支持尾部冒号/省略号/emoji/加速键）+ 首选项对话框整体翻译；英文词典 89→161 条；覆盖率报告 `tools/i18n_coverage.py`。
+
 - **i18n 首批落地**：设置 → 界面语言（简体中文/English，重启生效）；菜单（170+ 动作/顶级菜单/加速键/emoji 前缀）与欢迎页接入 JSON 翻译；`locale/en_US/strings.json` 首批 89 条；未翻译项安全回退中文。
 
 - mmap 增量保存（M1）：大文件等长修改走原地补丁 + 区间级 journal 备份 + 崩溃恢复 + 默认关闭灰度（`core/mmap_save.py`）；
