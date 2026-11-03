@@ -100,3 +100,53 @@ def test_coverage_tool_and_report(monkeypatch, tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "重点 UI 覆盖率" in text
     assert os.path.isfile(os.path.join(ROOT, "docs", "i18n_coverage_report.md"))
+
+
+def test_runtime_menu_coverage(monkeypatch):
+    """菜单动作中文 base 覆盖率应 ≥95%（批量翻译后 100%）"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "qc_i18n_cov2", os.path.join(ROOT, "tools", "i18n_coverage.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setenv("QINGCAO_LANG", "en_US")
+    from core.i18n_json import clear_cache
+
+    clear_cache()
+    cov = mod.menu_runtime_coverage()
+    assert cov is not None, "无法构建运行时菜单"
+    total, hit, ratio = cov
+    assert ratio >= 95.0, "菜单覆盖率不足: %s/%s=%.1f%%" % (hit, total, ratio)
+
+
+def test_menu_sample_english(qapp, monkeypatch):
+    """抽样验证常见菜单动作英文（含 emoji/加速键）"""
+    from PyQt5.QtWidgets import QAction, QMessageBox
+
+    monkeypatch.setenv("QINGCAO_LANG", "en_US")
+    from core.i18n_json import clear_cache
+
+    clear_cache()
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: QMessageBox.Ok))
+    from ui.main_window import MainWindow
+
+    win = MainWindow()
+    try:
+        texts = [a.text() for a in win.findChildren(QAction)]
+        for expected in (
+            "Save",
+            "Preferences",
+            "Run Current File",
+            "Go to Definition",
+            "Plugin Market",
+        ):
+            assert any(expected in t for t in texts), (expected, texts[:15])
+    finally:
+        try:
+            win.session.save = lambda *a, **k: None
+        except Exception:
+            pass
+        win.close()

@@ -34,6 +34,10 @@ def _extract(path):
     return set(extract_from_source(src))
 
 
+def has_cjk(text):
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
 def _tr_like(text, en):
     if text in en:
         return True
@@ -43,12 +47,82 @@ def _tr_like(text, en):
     return False
 
 
+def _has_cjk(text):
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def _menu_base(text):
+    import re
+
+    m = re.match(r"^([^0-9A-Za-z\u4e00-\u9fff]{1,6}\s+)(.+)$", text)
+    return m.group(2) if m else text
+
+
+def menu_runtime_coverage():
+    """运行时菜单动作覆盖率（中文 base 文本 → en 词典命中率）"""
+    import os as _os
+    import sys as _sys
+
+    old_lang = _os.environ.get("QINGCAO_LANG")
+    old_plat = _os.environ.get("QT_QPA_PLATFORM")
+    _os.environ["QINGCAO_LANG"] = "zh_CN"
+    _os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    try:
+        _sys.path.insert(0, ROOT)
+        from PyQt5.QtWidgets import QApplication, QMessageBox
+
+        app = QApplication.instance() or QApplication([])
+        QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
+        QMessageBox.warning = staticmethod(lambda *a, **k: QMessageBox.Ok)
+        QMessageBox.information = staticmethod(lambda *a, **k: QMessageBox.Ok)
+        from ui.main_window import MainWindow
+
+        win = MainWindow()
+        texts = set()
+
+        def walk(menu):
+            for act in menu.actions():
+                if act.isSeparator():
+                    continue
+                label = act.text().replace("&", "")
+                if label:
+                    texts.add(label)
+                if act.menu() is not None:
+                    walk(act.menu())
+
+        walk(win.menuBar())
+        try:
+            win.session.save = lambda *a, **k: None
+        except Exception:
+            pass
+        win.close()
+
+        en = json.load(io.open(EN, encoding="utf-8"))
+        bases = {_menu_base(t) for t in texts if _has_cjk(t)}
+        hit = len({b for b in bases if b in en or b.rstrip(".:：") in en})
+        ratio = (hit / len(bases) * 100) if bases else 0.0
+        return (len(bases), hit, ratio)
+    except Exception:
+        return None
+    finally:
+        if old_lang is None:
+            _os.environ.pop("QINGCAO_LANG", None)
+        else:
+            _os.environ["QINGCAO_LANG"] = old_lang
+        if old_plat is None:
+            _os.environ.pop("QT_QPA_PLATFORM", None)
+        else:
+            _os.environ["QT_QPA_PLATFORM"] = old_plat
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "i18n_coverage_report.md"))
     args = ap.parse_args()
     template = json.load(io.open(TEMPLATE, encoding="utf-8"))
     en = json.load(io.open(EN, encoding="utf-8"))
+    menu_cov = menu_runtime_coverage()
     rows = []
     total = 0
     translated = 0
@@ -56,7 +130,7 @@ def main():
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):
             continue
-        strings = _extract(path)
+        strings = {s for s in _extract(path) if has_cjk(s)}
         hit = sum(1 for s in strings if _tr_like(s, en))
         total += len(strings)
         translated += hit
@@ -73,6 +147,9 @@ def main():
         "| 英文映射条目（en_US） | %d |" % len(en),
         "| 模板覆盖率 | %.1f%% |" % tpl_ratio,
         "| 重点 UI 覆盖率 | %.1f%% |" % ui_ratio,
+        ("| 菜单动作覆盖率（运行时） | %d/%d（%.1f%%） |" % (menu_cov[1], menu_cov[0], menu_cov[2]))
+        if menu_cov
+        else "| 菜单动作覆盖率（运行时） | n/a |",
         "",
         "## 重点文件",
         "",
