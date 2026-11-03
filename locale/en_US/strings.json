@@ -233,6 +233,7 @@
   "启动": "Start",
   "启动时打开上次会话": "Open Last Session on Startup",
   "启动自动备份定时器失败": "Failed to start auto-backup timer",
+  "启动自动备份定时器失败: %s": "Failed to start auto-backup timer: %s",
   "启用": "Enable",
   "启用/停用 LSP（智能补全）": "Enable/Disable LSP (Completion)",
   "启用代码折叠": "Enable Code Folding",
@@ -396,6 +397,7 @@
   "快捷键编辑器": "Shortcut Editor",
   "快捷键编辑器（方案）…": "Shortcut Editor (Profiles)…",
   "快捷键重复检测失败": "Shortcut duplicate check failed",
+  "快捷键重复检测失败: %s": "Shortcut duplicate check failed: %s",
   "快照可保存当前所有打开的文件、光标位置、窗口布局，随时一键恢复。": "Snapshots save all open files, cursor positions, and window layout for one-click restore.",
   "快照名称:": "Snapshot Name:",
   "快照已保存": "Snapshot saved",
@@ -974,5 +976,6 @@
   "🗑 清空": "🗑 Clear",
   "🗑 清空事件历史": "🗑 Clear Event History",
   "🗑 清空结果": "🗑 Clear Results",
-  "🧮 计算表达式": "🧮 Evaluate Expression"
+  "🧮 计算表达式": "🧮 Evaluate Expression",
+  "🧰 工具栏图标模式": "🧰 Toolbar Icon Mode"
 }
