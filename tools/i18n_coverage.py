@@ -123,6 +123,25 @@ def main():
     template = json.load(io.open(TEMPLATE, encoding="utf-8"))
     en = json.load(io.open(EN, encoding="utf-8"))
     menu_cov = menu_runtime_coverage()
+    # v2.19 收口：可翻译语料覆盖率（用户可见文本，而非全部源码字符串）
+    corpus_path = os.path.join(ROOT, "locale", "zh_CN", "translatable.json")
+    corpus_ratio = None
+    corpus_pending = 0
+    if os.path.isfile(corpus_path):
+        corpus = json.load(io.open(corpus_path, encoding="utf-8"))
+
+        def _hit(s):
+            if s in en:
+                return True
+            for suffix in ("：", ":", "..."):
+                if s.endswith(suffix) and s[: -len(suffix)].strip() in en:
+                    return True
+            return False
+
+        hit = sum(1 for s in corpus if _hit(s))
+        corpus_pending = len(corpus) - hit
+        corpus_ratio = (hit / len(corpus) * 100) if corpus else 0.0
+
     rows = []
     total = 0
     translated = 0
@@ -147,6 +166,9 @@ def main():
         "| 英文映射条目（en_US） | %d |" % len(en),
         "| 模板覆盖率 | %.1f%% |" % tpl_ratio,
         "| 重点 UI 覆盖率 | %.1f%% |" % ui_ratio,
+        ("| **可翻译语料覆盖率** | **%.1f%%**（剩余 %d 条） |" % (corpus_ratio, corpus_pending))
+        if corpus_ratio is not None
+        else "| 可翻译语料覆盖率 | n/a |",
         ("| 菜单动作覆盖率（运行时） | %d/%d（%.1f%%） |" % (menu_cov[1], menu_cov[0], menu_cov[2]))
         if menu_cov
         else "| 菜单动作覆盖率（运行时） | n/a |",

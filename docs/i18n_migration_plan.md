@@ -43,3 +43,16 @@ python tools/extract_i18n_strings.py
 - ✅ 偏好页/对话框：通用控件树翻译 `ui/i18n_widgets.py`；
 - ✅ 英文词典 161 条；覆盖率报告 `docs/i18n_coverage_report.md`；
 - ⏳ 长尾：`locale/zh_CN/strings.json` 模板 5218 条继续分批翻译。
+
+
+## 收口策略（v2.19 长尾收尾）
+
+**为什么不直接翻 5218 条**：模板中约 87% 是日志/内部文档/代码片段，
+翻译无用户价值且增加维护成本。
+
+**做法**：
+1. `tools/i18n_scope.py` 按 AST 调用上下文提取**用户可见语料**
+   → `locale/zh_CN/translatable.json`；
+2. 实测语料 **597 条**（47 个 ui 文件），而非 5218；
+3. 覆盖率以「可翻译语料覆盖率」为门禁指标，剩余项逐批翻译；
+4. 完成后语言菜单可标记 English 为正式可用。
