@@ -1862,7 +1862,14 @@ class PluginDetailDialog(QDialog):
 
         html_parts.append("</ul>")
 
-        return "".join(html_parts)
+        html = "".join(html_parts)
+        try:
+            from ui.i18n_widgets import translate_html
+
+            html = translate_html(html)
+        except Exception:
+            pass
+        return html
 
     def _update_action_button(self):
         """更新操作按钮"""

@@ -149,3 +149,19 @@ def install_ui_translators(app=None) -> int:
         app.installEventFilter(_dialog_filter)
     _installed = True
     return 1
+
+
+def translate_html(html: str) -> str:
+    """翻译 HTML 文案中的已知中文片段（市场详情/说明页）"""
+    if not html or current_language() == "zh_CN":
+        return html
+    from core.i18n_json import load_strings
+
+    strings = load_strings(current_language())
+    # 长键优先，避免「版本」先于「最低版本」被替换
+    for zh in sorted(strings, key=len, reverse=True):
+        if len(zh) < 2:
+            continue
+        if zh in html:
+            html = html.replace(zh, strings[zh])
+    return html

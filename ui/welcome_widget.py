@@ -743,7 +743,7 @@ class TipsPanel(QWidget):
             available_tips = DAILY_TIPS
 
         self._current_tip = random.choice(available_tips)
-        self.tip_label.setText(self._current_tip)
+        self.tip_label.setText(_tr(self._current_tip))
 
     def refresh_theme(self, theme=None):
         """重放标题/换一条按钮/技巧卡片样式"""
