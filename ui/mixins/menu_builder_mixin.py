@@ -41,6 +41,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from core.i18n_json import AVAILABLE as _I18N_LANGS
+from core.i18n_json import current_language as _i18n_lang
+from core.i18n_json import set_language as _i18n_set_language
+from core.i18n_json import tr_menu as _tr_menu
 from ui.mixins.capability_wiring_mixin import CapabilityWiringMixin
 from ui.mixins.edit_ops_mixin import EditOpsMixin
 from ui.mixins.file_ops_mixin import FileOpsMixin
@@ -357,6 +361,11 @@ class MenuBuilderMixin:
         #
         # 放最后：需要 `self.file_menu` 已存在（作为插入锚点）。
         self._setup_project_menu()
+        try:
+            self._build_ui_language_menu()
+            self._translate_menu_titles()
+        except Exception:
+            pass
 
     def refresh_feature_menu(self):
         """重新填充「特色功能」里的插件命令子菜单
@@ -479,6 +488,71 @@ class MenuBuilderMixin:
         self.theme_menu.addSeparator()
         self._add_action(self.theme_menu, "📁 打开主题目录", None, self._open_theme_dir)
 
+    def _find_settings_menu(self):
+        """查找「设置」顶级菜单（兼容标准/NPP 两种布局）"""
+        try:
+            for act in self.menuBar().actions():
+                if act.menu() and ("设置" in act.text() or "Settings" in act.text()):
+                    return act.menu()
+        except Exception:
+            pass
+        return None
+
+    def _build_ui_language_menu(self):
+        """设置 → 界面语言（v2.19 P1-2 首批 i18n 落地）"""
+        if getattr(self, "_ui_language_menu", None) is not None:
+            return
+        try:
+            settings_menu = self._find_settings_menu()
+            if settings_menu is None:
+                return
+            from PyQt5.QtWidgets import QActionGroup
+
+            menu = settings_menu.addMenu(_tr_menu("🌐 界面语言"))
+            group = QActionGroup(self)
+            group.setExclusive(True)
+            current = _i18n_lang()
+            for code, label in _I18N_LANGS.items():
+                act = menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(code == current)
+                act.triggered.connect(lambda checked=False, c=code: self._set_ui_language(c))
+                group.addAction(act)
+            self._ui_language_group = group
+            self._ui_language_menu = menu
+        except Exception as e:
+            if "logger" in globals():
+                logger.debug("构建界面语言菜单失败: %s", e)
+
+    def _set_ui_language(self, code: str):
+        """切换界面语言（持久化，重启后生效）"""
+        ok = _i18n_set_language(code)
+        if ok:
+            QMessageBox.information(self, _tr_menu("界面语言"), _tr_menu("重启后生效"))
+
+    def _translate_menu_titles(self):
+        """翻译菜单标题与全部菜单动作（加速键/emoji 智能匹配）"""
+        try:
+            for act in self.menuBar().actions():
+                menu = act.menu()
+                if menu is not None:
+                    menu.setTitle(_tr_menu(menu.title()))
+        except Exception:
+            pass
+        # 很多菜单项是直接 QAction 创建（未走 _add_action），统一翻译一次
+        try:
+            from PyQt5.QtWidgets import QAction
+
+            for act in self.findChildren(QAction):
+                text = act.text()
+                if not text:
+                    continue
+                translated = _tr_menu(text)
+                if translated != text:
+                    act.setText(translated)
+        except Exception:
+            pass
+
     def _add_action(
         self,
         menu: QMenu,
@@ -521,7 +595,7 @@ class MenuBuilderMixin:
             （= 当前 shortcut），使 `reset_to_defaults()` 真正"恢复默认"
             而不是"全部清空"。
         """
-        action = QAction(text, self)
+        action = QAction(_tr_menu(text), self)
         if shortcut:
             action.setShortcut(QKeySequence(shortcut))
             # P8-5: 运行时重复检测（不抛异常，避免打断启动）
@@ -847,6 +921,11 @@ class MenuBuilderMixin:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
         try:
             self._start_instance_broadcast()
+        except Exception:
+            pass
+        try:
+            self._build_ui_language_menu()
+            self._translate_menu_titles()
         except Exception:
             pass
 

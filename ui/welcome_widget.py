@@ -84,6 +84,8 @@ from PyQt5.QtWidgets import (
 )
 
 from app.event_bus import FileOpenedEvent, StatusMessageEvent, bus
+from core.i18n_json import tr as _tr
+from core.i18n_json import tr_menu as _tr_menu
 
 
 # ============================================================
@@ -111,6 +113,7 @@ class _ThemeProxy:
                 return val
         # 回退：内置暗色主题的取值（保证任何情况下都能渲染）
         from infrastructure.theme_loader import BuiltinThemes
+
         return getattr(BuiltinThemes.dark_night().colors, name, "#1e1e1e")
 
 
@@ -119,6 +122,7 @@ C = _ThemeProxy()
 # 首次导入即绑定默认主题，避免在主题系统初始化前访问 C 出错
 try:
     from infrastructure.theme_loader import BuiltinThemes as _BT
+
     C.bind(_BT.dark_night().colors)
 except Exception:  # pragma: no cover
     pass
@@ -195,29 +199,26 @@ class WelcomeHeader(QWidget):
         layout.addWidget(self.logo_label)
 
         # 应用名称
-        self.title_label = QLabel(APP_NAME)
+        self.title_label = QLabel(_tr(APP_NAME))
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet(
-            f"font-size: 28px; font-weight: bold; "
-            f"color: {C.success}; letter-spacing: 4px;"
+            f"font-size: 28px; font-weight: bold; color: {C.success}; letter-spacing: 4px;"
         )
         layout.addWidget(self.title_label)
 
         # 版本信息
-        version_label = QLabel(f"v{APP_VERSION}  ·  {APP_DESCRIPTION}")
+        version_label = QLabel(f"v{APP_VERSION}  ·  {_tr(APP_DESCRIPTION)}")
         version_label.setObjectName("welcome_version")
         version_label.setAlignment(Qt.AlignCenter)
-        version_label.setStyleSheet(
-            f"font-size: 12px; color: {C.line_number_fg};")
+        version_label.setStyleSheet(f"font-size: 12px; color: {C.line_number_fg};")
         layout.addWidget(version_label)
 
         # 标语
-        self.slogan_label = QLabel(APP_SLOGAN)
+        self.slogan_label = QLabel(_tr(APP_SLOGAN))
         self.slogan_label.setObjectName("welcome_slogan")
         self.slogan_label.setAlignment(Qt.AlignCenter)
         self.slogan_label.setStyleSheet(
-            f"font-size: 13px; color: {C.line_number_fg}; "
-            f"font-style: italic; letter-spacing: 2px;"
+            f"font-size: 13px; color: {C.line_number_fg}; font-style: italic; letter-spacing: 2px;"
         )
         layout.addWidget(self.slogan_label)
 
@@ -227,14 +228,12 @@ class WelcomeHeader(QWidget):
         if colors is not None:
             C.bind(colors)
         self.title_label.setStyleSheet(
-            f"font-size: 28px; font-weight: bold; "
-            f"color: {C.success}; letter-spacing: 4px;"
+            f"font-size: 28px; font-weight: bold; color: {C.success}; letter-spacing: 4px;"
         )
         for lbl in self.findChildren(QLabel):
             name = lbl.objectName()
             if name == "welcome_version":
-                lbl.setStyleSheet(
-                    f"font-size: 12px; color: {C.line_number_fg};")
+                lbl.setStyleSheet(f"font-size: 12px; color: {C.line_number_fg};")
             elif name == "welcome_slogan":
                 lbl.setStyleSheet(
                     f"font-size: 13px; color: {C.line_number_fg}; "
@@ -245,6 +244,7 @@ class WelcomeHeader(QWidget):
 # ============================================================
 # 快捷操作面板
 # ============================================================
+
 
 class QuickActionsPanel(QWidget):
     """
@@ -267,11 +267,10 @@ class QuickActionsPanel(QWidget):
         layout.setSpacing(8)
 
         # 标题
-        title = QLabel("快速开始")
+        title = QLabel(_tr("快速开始"))
         self.title_label = title
         title.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; "
-            f"color: {C.panel_fg}; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
         )
         layout.addWidget(title)
 
@@ -287,8 +286,7 @@ class QuickActionsPanel(QWidget):
 
         layout.addLayout(grid)
 
-    def _create_action_button(self, icon: str, text: str,
-                                shortcut: str, key: str) -> QPushButton:
+    def _create_action_button(self, icon: str, text: str, shortcut: str, key: str) -> QPushButton:
         """创建操作按钮"""
         btn = QPushButton()
         btn.setObjectName("quick_action_button")
@@ -332,8 +330,7 @@ class QuickActionsPanel(QWidget):
             C.bind(colors)
         if getattr(self, "title_label", None) is not None:
             self.title_label.setStyleSheet(
-                f"font-size: 14px; font-weight: bold; "
-                f"color: {C.panel_fg}; padding: 4px 0;"
+                f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
             )
         for btn in self.findChildren(QPushButton):
             if btn.objectName() != "quick_action_button":
@@ -369,8 +366,8 @@ class RecentFilesList(QWidget):
     显示最近打开的文件和项目。
     """
 
-    file_clicked = pyqtSignal(str)      # 文件路径
-    project_clicked = pyqtSignal(str)   # 项目路径
+    file_clicked = pyqtSignal(str)  # 文件路径
+    project_clicked = pyqtSignal(str)  # 项目路径
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -383,6 +380,7 @@ class RecentFilesList(QWidget):
         # 修复说明（P2-2）: 订阅文件事件自动刷新最近列表
         try:
             from app.event_bus import bus
+
             bus.file_opened.connect(self._on_file_event)
             bus.file_saved.connect(self._on_file_event)
         except Exception as e:
@@ -404,10 +402,9 @@ class RecentFilesList(QWidget):
         # 标题行
         title_layout = QHBoxLayout()
 
-        self.title_label = QLabel("最近打开")
+        self.title_label = QLabel(_tr("最近打开"))
         self.title_label.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; "
-            f"color: {C.panel_fg}; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
         )
         title_layout.addWidget(self.title_label)
 
@@ -415,7 +412,7 @@ class RecentFilesList(QWidget):
 
         # 清空按钮
         self.clear_btn = QToolButton()
-        self.clear_btn.setText("清空")
+        self.clear_btn.setText(_tr("清空"))
         self.clear_btn.setStyleSheet(f"""
             QToolButton {{
                 color: {C.line_number_fg};
@@ -439,13 +436,9 @@ class RecentFilesList(QWidget):
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("recent_list")
         self.list_widget.setFrameShape(QFrame.NoFrame)
-        self.list_widget.setSelectionMode(
-            QListWidget.SingleSelection
-        )
+        self.list_widget.setSelectionMode(QListWidget.SingleSelection)
         self.list_widget.itemClicked.connect(self._on_item_clicked)
-        self.list_widget.itemDoubleClicked.connect(
-            self._on_item_double_clicked
-        )
+        self.list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         self.list_widget.setStyleSheet(f"""
             QListWidget#recent_list {{
                 background-color: transparent;
@@ -526,25 +519,25 @@ class RecentFilesList(QWidget):
         # 图标（根据文件类型）
         ext = os.path.splitext(filepath)[1].lower()
         icon_map = {
-            '.py': '🐍',
-            '.js': '📜',
-            '.ts': '📘',
-            '.cpp': '⚙',
-            '.c': '⚙',
-            '.h': '📋',
-            '.java': '☕',
-            '.go': '🐹',
-            '.rs': '🦀',
-            '.md': '📝',
-            '.txt': '📄',
-            '.json': '📊',
-            '.xml': '📋',
-            '.html': '🌐',
-            '.css': '🎨',
-            '.log': '📃',
-            '.csv': '📈',
+            ".py": "🐍",
+            ".js": "📜",
+            ".ts": "📘",
+            ".cpp": "⚙",
+            ".c": "⚙",
+            ".h": "📋",
+            ".java": "☕",
+            ".go": "🐹",
+            ".rs": "🦀",
+            ".md": "📝",
+            ".txt": "📄",
+            ".json": "📊",
+            ".xml": "📋",
+            ".html": "🌐",
+            ".css": "🎨",
+            ".log": "📃",
+            ".csv": "📈",
         }
-        icon = icon_map.get(ext, '📄')
+        icon = icon_map.get(ext, "📄")
 
         # 文件名和路径
         filename = os.path.basename(filepath)
@@ -557,7 +550,7 @@ class RecentFilesList(QWidget):
         item.setText(f"{icon}  {filename}")
         item.setToolTip(f"{filepath}\n\n双击打开")
 
-        item.setData(Qt.UserRole, 'file')
+        item.setData(Qt.UserRole, "file")
         item.setData(Qt.UserRole + 1, filepath)
 
         return item
@@ -567,13 +560,13 @@ class RecentFilesList(QWidget):
         item = QListWidgetItem()
 
         name = os.path.basename(project_path)
-        if name.endswith('.qingcao-project'):
+        if name.endswith(".qingcao-project"):
             name = name[:-16]
 
         item.setText(f"📁  [项目] {name}")
         item.setToolTip(f"{project_path}\n\n双击打开项目")
 
-        item.setData(Qt.UserRole, 'project')
+        item.setData(Qt.UserRole, "project")
         item.setData(Qt.UserRole + 1, project_path)
 
         return item
@@ -594,19 +587,20 @@ class RecentFilesList(QWidget):
         if not path:
             return
 
-        if item_type == 'file':
+        if item_type == "file":
             self.file_clicked.emit(path)
-        elif item_type == 'project':
+        elif item_type == "project":
             self.project_clicked.emit(path)
 
     def _clear_recent(self):
         """清空最近列表"""
         # 关键修复：QMessageBox 已在顶部导入
         reply = QMessageBox.question(
-            self, "确认清空",
+            self,
+            "确认清空",
             "确定要清空最近文件列表吗？",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
 
         if reply != QMessageBox.Yes:
@@ -626,8 +620,7 @@ class RecentFilesList(QWidget):
         if colors is not None:
             C.bind(colors)
         self.title_label.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; "
-            f"color: {C.panel_fg}; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
         )
         self.clear_btn.setStyleSheet(f"""
             QToolButton {{
@@ -696,8 +689,7 @@ class TipsPanel(QWidget):
         title = QLabel("💡 每日技巧")
         self.title_label = title
         title.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; "
-            f"color: {C.panel_fg}; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
         )
         title_layout.addWidget(title)
 
@@ -760,8 +752,7 @@ class TipsPanel(QWidget):
             C.bind(colors)
         if getattr(self, "title_label", None) is not None:
             self.title_label.setStyleSheet(
-                f"font-size: 14px; font-weight: bold; "
-                f"color: {C.panel_fg}; padding: 4px 0;"
+                f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
             )
         self.next_btn.setStyleSheet(f"""
             QToolButton {{
@@ -816,8 +807,7 @@ class StatsPanel(QWidget):
         title = QLabel("📊 使用统计")
         self.title_label = title
         title.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; "
-            f"color: {C.panel_fg}; padding: 4px 0;"
+            f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
         )
         layout.addWidget(title)
 
@@ -854,16 +844,14 @@ class StatsPanel(QWidget):
             value_label = QLabel("0")
             value_label.setObjectName("stat_value")
             value_label.setStyleSheet(
-                f"font-size: 20px; font-weight: bold; "
-                f"color: {C.success}; background: transparent;"
+                f"font-size: 20px; font-weight: bold; color: {C.success}; background: transparent;"
             )
             item_layout.addWidget(value_label)
 
             label = QLabel(f"{icon} {display}")
             label.setObjectName("stat_name")
             label.setStyleSheet(
-                f"font-size: 11px; color: {C.line_number_fg}; "
-                f"background: transparent;"
+                f"font-size: 11px; color: {C.line_number_fg}; background: transparent;"
             )
             item_layout.addWidget(label)
 
@@ -885,18 +873,15 @@ class StatsPanel(QWidget):
         """
         try:
             from core.usage_stats import get_usage_stats
+
             snap = get_usage_stats().get_snapshot()
 
             self.update_stat("saves", int(snap.files_saved))
             self.update_stat("files_opened", int(snap.files_opened))
             # lines_edited：用累计编辑时长（秒）近似
-            self.update_stat(
-                "lines_edited", int(snap.total_edit_time)
-            )
+            self.update_stat("lines_edited", int(snap.total_edit_time))
             # macros_used：用加载插件数近似
-            self.update_stat(
-                "macros_used", int(snap.plugins_loaded)
-            )
+            self.update_stat("macros_used", int(snap.plugins_loaded))
         except ImportError as e:
             print(f"[StatsPanel] core.usage_stats 不可用: {e}")
         except Exception as e:
@@ -927,8 +912,7 @@ class StatsPanel(QWidget):
             C.bind(colors)
         if getattr(self, "title_label", None) is not None:
             self.title_label.setStyleSheet(
-                f"font-size: 14px; font-weight: bold; "
-                f"color: {C.panel_fg}; padding: 4px 0;"
+                f"font-size: 14px; font-weight: bold; color: {C.panel_fg}; padding: 4px 0;"
             )
         for card in self.findChildren(QWidget):
             if card.objectName() == "stat_card":
@@ -947,8 +931,7 @@ class StatsPanel(QWidget):
                 )
             elif name == "stat_name":
                 lbl.setStyleSheet(
-                    f"font-size: 11px; color: {C.line_number_fg}; "
-                    f"background: transparent;"
+                    f"font-size: 11px; color: {C.line_number_fg}; background: transparent;"
                 )
 
 
@@ -980,8 +963,7 @@ class WelcomeFooter(QWidget):
 
         # 开发者
         author_label = QLabel(f"开发者: {AUTHOR}")
-        author_label.setStyleSheet(
-            f"color: {C.line_number_fg}; font-size: 11px;")
+        author_label.setStyleSheet(f"color: {C.line_number_fg}; font-size: 11px;")
         layout.addWidget(author_label)
 
         # 分隔符
@@ -991,9 +973,7 @@ class WelcomeFooter(QWidget):
 
         # 邮箱
         email_label = QLabel(f"📧 {EMAIL}")
-        email_label.setStyleSheet(
-            f"color: {C.line_number_fg}; font-size: 11px;"
-        )
+        email_label.setStyleSheet(f"color: {C.line_number_fg}; font-size: 11px;")
         email_label.setToolTip("点击复制邮箱")
         email_label.setCursor(Qt.PointingHandCursor)
         email_label.mousePressEvent = lambda e: self._copy_email()
@@ -1049,8 +1029,7 @@ class WelcomeFooter(QWidget):
             if t == "·":
                 lbl.setStyleSheet(f"color: {C.border};")
             elif t.startswith("开发者") or t.startswith("📧"):
-                lbl.setStyleSheet(
-                    f"color: {C.line_number_fg}; font-size: 11px;")
+                lbl.setStyleSheet(f"color: {C.line_number_fg}; font-size: 11px;")
             elif t.startswith(("📖", "🐙")):
                 lbl.setStyleSheet(f"""
                     color: {C.info};
@@ -1153,17 +1132,16 @@ class WelcomeWidget(QWidget):
         # 1) 已加载过主题的实例（ThemeLoader 内部会缓存 current_theme）
         try:
             theme = getattr(ThemeLoader(), "current_theme", None)
-        except Exception as e:                       # pragma: no cover
+        except Exception as e:  # pragma: no cover
             print(f"[Welcome] 读取当前主题失败: {e}")
 
         # 2) 回退：从设置里按名称加载
         if theme is None:
             try:
-                name = QSettings(ORG_NAME, "Editor").value(
-                    "theme_name", "", type=str)
+                name = QSettings(ORG_NAME, "Editor").value("theme_name", "", type=str)
                 if name:
                     theme = ThemeLoader().load_by_name(name)
-            except Exception as e:                   # pragma: no cover
+            except Exception as e:  # pragma: no cover
                 print(f"[Welcome] 按名称加载主题失败: {e}")
 
         if theme is not None and getattr(theme, "colors", None) is not None:
@@ -1178,8 +1156,7 @@ class WelcomeWidget(QWidget):
         """)
         content = getattr(self, "_content_widget", None)
         if content is not None:
-            content.setStyleSheet(
-                f"background-color: {C.window_bg};")
+            content.setStyleSheet(f"background-color: {C.window_bg};")
         scroll = getattr(self, "_scroll_area", None)
         if scroll is not None:
             scroll.setStyleSheet(f"""
@@ -1220,12 +1197,14 @@ class WelcomeWidget(QWidget):
             colors = getattr(theme, "colors", None) if theme else None
             if colors is not None:
                 C.bind(colors)
-            for panel in (getattr(self, "header", None),
-                          getattr(self, "quick_actions", None),
-                          getattr(self, "recent_files", None),
-                          getattr(self, "tips_panel", None),
-                          getattr(self, "stats_panel", None),
-                          getattr(self, "footer", None)):
+            for panel in (
+                getattr(self, "header", None),
+                getattr(self, "quick_actions", None),
+                getattr(self, "recent_files", None),
+                getattr(self, "tips_panel", None),
+                getattr(self, "stats_panel", None),
+                getattr(self, "footer", None),
+            ):
                 fn = getattr(panel, "refresh_theme", None)
                 if callable(fn):
                     try:
@@ -1328,17 +1307,11 @@ class WelcomeWidget(QWidget):
     def _connect_signals(self):
         """连接信号"""
         # 快速操作
-        self.quick_actions.action_triggered.connect(
-            self._on_quick_action
-        )
+        self.quick_actions.action_triggered.connect(self._on_quick_action)
 
         # 最近文件
-        self.recent_files.file_clicked.connect(
-            self._on_recent_file_clicked
-        )
-        self.recent_files.project_clicked.connect(
-            self._on_recent_project_clicked
-        )
+        self.recent_files.file_clicked.connect(self._on_recent_file_clicked)
+        self.recent_files.project_clicked.connect(self._on_recent_project_clicked)
 
         # 底部链接
         self.footer.link_clicked.connect(self._on_link_clicked)
@@ -1382,9 +1355,8 @@ class WelcomeWidget(QWidget):
             self.open_file_requested.emit()
         elif action_key == "open_folder":
             from PyQt5.QtWidgets import QFileDialog
-            folder = QFileDialog.getExistingDirectory(
-                self, "打开文件夹"
-            )
+
+            folder = QFileDialog.getExistingDirectory(self, "打开文件夹")
             if folder:
                 self.open_folder_requested.emit(folder)
         elif action_key == "recent":
@@ -1509,34 +1481,22 @@ if __name__ == "__main__":
     win.setCentralWidget(welcome)
 
     # 连接信号
-    welcome.new_file_requested.connect(
-        lambda: print("[信号] 新建文件")
-    )
-    welcome.open_file_requested.connect(
-        lambda: print("[信号] 打开文件")
-    )
-    welcome.open_folder_requested.connect(
-        lambda p: print(f"[信号] 打开文件夹: {p}")
-    )
-    welcome.open_recent_file.connect(
-        lambda p: print(f"[信号] 打开最近文件: {p}")
-    )
-    welcome.open_recent_project.connect(
-        lambda p: print(f"[信号] 打开最近项目: {p}")
-    )
-    welcome.open_plugin_store.connect(
-        lambda: print("[信号] 打开插件市场")
-    )
-    welcome.open_command_palette.connect(
-        lambda: print("[信号] 打开命令面板")
-    )
+    welcome.new_file_requested.connect(lambda: print("[信号] 新建文件"))
+    welcome.open_file_requested.connect(lambda: print("[信号] 打开文件"))
+    welcome.open_folder_requested.connect(lambda p: print(f"[信号] 打开文件夹: {p}"))
+    welcome.open_recent_file.connect(lambda p: print(f"[信号] 打开最近文件: {p}"))
+    welcome.open_recent_project.connect(lambda p: print(f"[信号] 打开最近项目: {p}"))
+    welcome.open_plugin_store.connect(lambda: print("[信号] 打开插件市场"))
+    welcome.open_command_palette.connect(lambda: print("[信号] 打开命令面板"))
 
     # 添加一些测试最近文件
     from PyQt5.QtCore import QSettings
+
     settings = QSettings("QingCao", "Editor")
 
     # 创建临时测试文件
     import tempfile
+
     tmp_dir = tempfile.mkdtemp(prefix="qingcao_welcome_test_")
     test_files = [
         os.path.join(tmp_dir, "main.py"),
@@ -1545,7 +1505,7 @@ if __name__ == "__main__":
     ]
 
     for f in test_files:
-        with open(f, 'w') as file:
+        with open(f, "w") as file:
             file.write("# test\n")
 
     settings.setValue("recent_files", test_files)
@@ -1568,6 +1528,7 @@ if __name__ == "__main__":
     # 清理并退出
     def cleanup_and_quit():
         import shutil
+
         shutil.rmtree(tmp_dir, ignore_errors=True)
         app.quit()
 
