@@ -61,36 +61,26 @@ class MenuBuilderMixin:
         # ============ 文件菜单 ============
         self.file_menu = menubar.addMenu("文件(&F)")
 
-        self._add_action(self.file_menu, "📄 新建(&N)", "Ctrl+N",
-                          self._new_file)
+        self._add_action(self.file_menu, "📄 新建(&N)", "Ctrl+N", self._new_file)
         # 从模板新建：接线 core/code_templates.py（此前零引用）
-        self._add_action(self.file_menu, "🧩 从模板新建…", None,
-                          self._new_from_template)
-        self._add_action(self.file_menu, "📂 打开(&O)", "Ctrl+O",
-                          self._open_file)
-        self._add_action(self.file_menu, "📁 打开文件夹", None,
-                          self._open_folder)
+        self._add_action(self.file_menu, "🧩 从模板新建…", None, self._new_from_template)
+        self._add_action(self.file_menu, "📂 打开(&O)", "Ctrl+O", self._open_file)
+        self._add_action(self.file_menu, "📁 打开文件夹", None, self._open_folder)
         self.file_menu.addSeparator()
         # 会话快照：接线 core/snapshot.py + ui/snapshot_manager_dialog.py（此前零引用）
-        self._add_action(self.file_menu, "📸 会话快照…", None,
-                          self._show_snapshot_dialog)
+        self._add_action(self.file_menu, "📸 会话快照…", None, self._show_snapshot_dialog)
         self.file_menu.addSeparator()
-        self._add_action(self.file_menu, "💾 保存(&S)", "Ctrl+S",
-                          self._save_file)
-        self._add_action(self.file_menu, "💾 另存为(&A)", "Ctrl+Shift+S",
-                          self._save_file_as)
-        self._add_action(self.file_menu, "💾 全部保存", "Ctrl+Alt+S",
-                          self._save_all)
+        self._add_action(self.file_menu, "💾 保存(&S)", "Ctrl+S", self._save_file)
+        self._add_action(self.file_menu, "💾 另存为(&A)", "Ctrl+Shift+S", self._save_file_as)
+        self._add_action(self.file_menu, "💾 全部保存", "Ctrl+Alt+S", self._save_all)
         self.file_menu.addSeparator()
-        self._add_action(self.file_menu, "❌ 关闭标签", "Ctrl+W",
-                          self._close_current_tab)
-        self._add_action(self.file_menu, "❌ 关闭所有标签", "Ctrl+Shift+W",
-                          self._close_all_tabs)
-        self._add_action(self.file_menu, "↩ 恢复关闭的标签", "Ctrl+Shift+T",
-                          self._restore_closed_tab)
+        self._add_action(self.file_menu, "❌ 关闭标签", "Ctrl+W", self._close_current_tab)
+        self._add_action(self.file_menu, "❌ 关闭所有标签", "Ctrl+Shift+W", self._close_all_tabs)
+        self._add_action(
+            self.file_menu, "↩ 恢复关闭的标签", "Ctrl+Shift+T", self._restore_closed_tab
+        )
         self.file_menu.addSeparator()
-        self._add_action(self.file_menu, "🚪 退出(&X)", "Ctrl+Q",
-                          self.close)
+        self._add_action(self.file_menu, "🚪 退出(&X)", "Ctrl+Q", self.close)
 
         # ============ 编辑菜单 ============
         self.edit_menu = menubar.addMenu("编辑(&E)")
@@ -107,37 +97,27 @@ class MenuBuilderMixin:
         #   该功能在 Qt 的 ambiguous shortcut 下**完全失效**。
         #   现改绑 Ctrl+Alt+Shift+V（已穷举本文件所有 setShortcut /
         #   register_shortcut 调用确认无重复）。
-        self._add_action(self.edit_menu, "📋 粘贴为纯文本", "Ctrl+Alt+Shift+V",
-                          self._paste_plain)
-        self._add_action(self.edit_menu, "全选(&A)", "Ctrl+A",
-                          self._select_all)
+        self._add_action(self.edit_menu, "📋 粘贴为纯文本", "Ctrl+Alt+Shift+V", self._paste_plain)
+        self._add_action(self.edit_menu, "全选(&A)", "Ctrl+A", self._select_all)
         self.edit_menu.addSeparator()
-        self._add_action(self.edit_menu, "🔍 查找(&F)", "Ctrl+F",
-                          self._show_search)
-        self._add_action(self.edit_menu, "🔎 全局搜索", "Ctrl+Shift+F",
-                          self._show_global_search)
+        self._add_action(self.edit_menu, "🔍 查找(&F)", "Ctrl+F", self._show_search)
+        self._add_action(self.edit_menu, "🔎 全局搜索", "Ctrl+Shift+F", self._show_global_search)
         self.edit_menu.addSeparator()
-        self._add_action(self.edit_menu, "📍 跳转到行", "Ctrl+G",
-                          self._goto_line_dialog)
-        self._add_action(self.edit_menu, "💬 注释切换", "Ctrl+/",
-                          self._toggle_comment)
-        self._add_action(self.edit_menu, "🧮 计算表达式", "Ctrl+Shift+E",
-                          self._eval_expression)
+        self._add_action(self.edit_menu, "📍 跳转到行", "Ctrl+G", self._goto_line_dialog)
+        self._add_action(self.edit_menu, "💬 注释切换", "Ctrl+/", self._toggle_comment)
+        self._add_action(self.edit_menu, "🧮 计算表达式", "Ctrl+Shift+E", self._eval_expression)
         # P8-2: F5 从"插入日期时间"改为"运行当前文件"（主流 IDE 语义）。
         #   日期时间改绑 Ctrl+Alt+D，见下面的编辑菜单。
         #   运行入口见 _run_current_file()：调试插件未激活时给出**明确
         #   提示**，不再静默失败。
-        self._add_action(self.edit_menu, "📅 插入日期时间", "Ctrl+Alt+D",
-                          self._insert_datetime)
+        self._add_action(self.edit_menu, "📅 插入日期时间", "Ctrl+Alt+D", self._insert_datetime)
         self.edit_menu.addSeparator()
-        self._add_action(self.edit_menu, "📋 复制整行", "Ctrl+Shift+D",
-                          self._duplicate_line)
-        self._add_action(self.edit_menu, "⬆ 上移行", "Ctrl+Shift+Up",
-                          self._move_line_up)
-        self._add_action(self.edit_menu, "⬇ 下移行", "Ctrl+Shift+Down",
-                          self._move_line_down)
-        self._add_action(self.edit_menu, "🔷 选中下一个相同项", "Ctrl+D",
-                          self._select_next_occurrence)
+        self._add_action(self.edit_menu, "📋 复制整行", "Ctrl+Shift+D", self._duplicate_line)
+        self._add_action(self.edit_menu, "⬆ 上移行", "Ctrl+Shift+Up", self._move_line_up)
+        self._add_action(self.edit_menu, "⬇ 下移行", "Ctrl+Shift+Down", self._move_line_down)
+        self._add_action(
+            self.edit_menu, "🔷 选中下一个相同项", "Ctrl+D", self._select_next_occurrence
+        )
         self.edit_menu.addSeparator()
         self._add_action(self.edit_menu, "🔠 转为大写", None, self._to_upper)
         self._add_action(self.edit_menu, "🔡 转为小写", None, self._to_lower)
@@ -147,8 +127,7 @@ class MenuBuilderMixin:
         # 此前 `ui/column_editor_dialog.py` 的能力只能从编辑器右键菜单进入，
         # 而 Notepad++ 用户习惯在「编辑」菜单里找它（Edit → Column Editor…）。
         self.edit_menu.addSeparator()
-        self._add_action(self.edit_menu, "📊 列编辑器…", "Alt+Shift+I",
-                          self._column_editor)
+        self._add_action(self.edit_menu, "📊 列编辑器…", "Alt+Shift+I", self._column_editor)
 
         # ---- 书签（引擎早已实现、会话也已持久化，但此前无菜单无快捷键）----
         #
@@ -156,14 +135,10 @@ class MenuBuilderMixin:
         # 用户设了书签却跳不过去。这里补全导航入口（Toggle 已在
         # 编辑器右键菜单，快捷键 Ctrl+F2 保持与主流编辑器一致）。
         self.bookmark_menu = self.edit_menu.addMenu("🔖 书签")
-        self._add_action(self.bookmark_menu, "切换书签", "Ctrl+F2",
-                          self._toggle_bookmark)
-        self._add_action(self.bookmark_menu, "下一个书签", "F2",
-                          self._bookmark_next)
-        self._add_action(self.bookmark_menu, "上一个书签", "Shift+F2",
-                          self._bookmark_prev)
-        self._add_action(self.bookmark_menu, "清除所有书签", None,
-                          self._bookmark_clear)
+        self._add_action(self.bookmark_menu, "切换书签", "Ctrl+F2", self._toggle_bookmark)
+        self._add_action(self.bookmark_menu, "下一个书签", "F2", self._bookmark_next)
+        self._add_action(self.bookmark_menu, "上一个书签", "Shift+F2", self._bookmark_prev)
+        self._add_action(self.bookmark_menu, "清除所有书签", None, self._bookmark_clear)
 
         # ============ 视图菜单 ============
         self.view_menu = menubar.addMenu("视图(&V)")
@@ -194,17 +169,12 @@ class MenuBuilderMixin:
             except Exception as e:
                 print(f"[MainWindow] 注册列模式动作失败: {e}")
         self.view_menu.addSeparator()
-        self._add_action(self.view_menu, "🖥 无干扰模式", "F11",
-                          self.toggle_distraction_free)
-        self._add_action(self.view_menu, "⛶ 全屏", "Shift+F11",
-                          self.toggle_fullscreen)
+        self._add_action(self.view_menu, "🖥 无干扰模式", "F11", self.toggle_distraction_free)
+        self._add_action(self.view_menu, "⛶ 全屏", "Shift+F11", self.toggle_fullscreen)
         self.view_menu.addSeparator()
-        self._add_action(self.view_menu, "🔍 放大字体", "Ctrl+=",
-                          self._zoom_in)
-        self._add_action(self.view_menu, "🔍 缩小字体", "Ctrl+-",
-                          self._zoom_out)
-        self._add_action(self.view_menu, "🔍 重置字体", "Ctrl+0",
-                          self._zoom_reset)
+        self._add_action(self.view_menu, "🔍 放大字体", "Ctrl+=", self._zoom_in)
+        self._add_action(self.view_menu, "🔍 缩小字体", "Ctrl+-", self._zoom_out)
+        self._add_action(self.view_menu, "🔍 重置字体", "Ctrl+0", self._zoom_reset)
         self.view_menu.addSeparator()
 
         # 大文件强制高亮（性能开关）
@@ -213,12 +183,12 @@ class MenuBuilderMixin:
         # `ui/editor_view.py` 对大文档默认关闭语法高亮与缩略图渲染
         # （见 LARGE_DOC_LINES 的实测注释）。此开关给需要彩色显示的用户
         # 一个显式覆盖入口；切换后对当前标签重新应用词法器。
-        self.force_highlight_large_files_action = QAction(
-            "🎨 大文件强制高亮", self)
+        self.force_highlight_large_files_action = QAction("🎨 大文件强制高亮", self)
         self.force_highlight_large_files_action.setCheckable(True)
         self.force_highlight_large_files_action.setChecked(False)
         self.force_highlight_large_files_action.toggled.connect(
-            self._toggle_force_highlight_large_files)
+            self._toggle_force_highlight_large_files
+        )
         self.view_menu.addAction(self.force_highlight_large_files_action)
         self._force_highlight_large_files = False
 
@@ -234,11 +204,9 @@ class MenuBuilderMixin:
         self.tools_menu = menubar.addMenu("工具(&T)")
 
         # P8-2: F5 = 运行当前文件（原来的"插入日期时间"已改绑 Ctrl+Alt+D）
-        self._add_action(self.tools_menu, "▶ 运行当前文件", "F5",
-                          self._run_current_file)
+        self._add_action(self.tools_menu, "▶ 运行当前文件", "F5", self._run_current_file)
         # P6: F12 = 转到定义，把 LspClient.request_definition 接进生产路径
-        self._add_action(self.tools_menu, "🔎 转到定义", "F12",
-                          self._goto_definition)
+        self._add_action(self.tools_menu, "🔎 转到定义", "F12", self._goto_definition)
 
         # B 阶段：LSP 其余能力的用户入口
         #
@@ -250,38 +218,25 @@ class MenuBuilderMixin:
         # 备注：Ctrl+Alt+R 已被"符号跳转"占用、F12 已被"转到定义"占用，
         # 因此这里刻意避开；新增键均已通过 tests/test_shortcuts.py 的
         # "无重复快捷键"严格扫描。
-        self._add_action(self.lsp_menu, "💡 悬停信息", "Ctrl+Alt+H",
-                          self._lsp_hover)
-        self._add_action(self.lsp_menu, "🔗 查找引用", "Shift+F12",
-                          self._lsp_find_references)
-        self._add_action(self.lsp_menu, "✏ 重命名符号", "Ctrl+Alt+N",
-                          self._lsp_rename)
-        self._add_action(self.lsp_menu, "🧾 文档符号", "Ctrl+Alt+K",
-                          self._lsp_document_symbols)
-        self._add_action(self.lsp_menu, "💡 代码操作", "Ctrl+Alt+O",
-                          self._lsp_code_actions)
-        self._add_action(self.lsp_menu, "🪄 格式化文档",
-                          "Ctrl+Alt+L", self._lsp_format)
-        self._add_action(self.lsp_menu, "📝 签名帮助", "Ctrl+Shift+Space",
-                          self._lsp_signature)
+        self._add_action(self.lsp_menu, "💡 悬停信息", "Ctrl+Alt+H", self._lsp_hover)
+        self._add_action(self.lsp_menu, "🔗 查找引用", "Shift+F12", self._lsp_find_references)
+        self._add_action(self.lsp_menu, "✏ 重命名符号", "Ctrl+Alt+N", self._lsp_rename)
+        self._add_action(self.lsp_menu, "🧾 文档符号", "Ctrl+Alt+K", self._lsp_document_symbols)
+        self._add_action(self.lsp_menu, "💡 代码操作", "Ctrl+Alt+O", self._lsp_code_actions)
+        self._add_action(self.lsp_menu, "🪄 格式化文档", "Ctrl+Alt+L", self._lsp_format)
+        self._add_action(self.lsp_menu, "📝 签名帮助", "Ctrl+Shift+Space", self._lsp_signature)
 
         self.tools_menu.addSeparator()
 
-        self._add_action(self.tools_menu, "⌨ 命令面板", "Ctrl+Shift+P",
-                          self._show_command_palette)
-        self._add_action(self.tools_menu, "📂 文件切换", "Ctrl+P",
-                          self._show_file_palette)
+        self._add_action(self.tools_menu, "⌨ 命令面板", "Ctrl+Shift+P", self._show_command_palette)
+        self._add_action(self.tools_menu, "📂 文件切换", "Ctrl+P", self._show_file_palette)
         # P2-4: 符号跳转改为 Ctrl+Alt+R，避免与"重新加载"Ctrl+R 冲突
-        self._add_action(self.tools_menu, "🔣 符号跳转", "Ctrl+Alt+R",
-                          self._show_symbol_palette)
+        self._add_action(self.tools_menu, "🔣 符号跳转", "Ctrl+Alt+R", self._show_symbol_palette)
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "🐍 Python 控制台", "Ctrl+`",
-                          self._toggle_console)
+        self._add_action(self.tools_menu, "🐍 Python 控制台", "Ctrl+`", self._toggle_console)
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "⏺ 录制/停止宏", "Ctrl+Shift+R",
-                          self._toggle_macro)
-        self._add_action(self.tools_menu, "▶ 回放宏", "Ctrl+Shift+M",
-                          self._play_macro)
+        self._add_action(self.tools_menu, "⏺ 录制/停止宏", "Ctrl+Shift+R", self._toggle_macro)
+        self._add_action(self.tools_menu, "▶ 回放宏", "Ctrl+Shift+M", self._play_macro)
         self.tools_menu.addSeparator()
 
         # ---- 对比合并（P0 核心功能）----
@@ -290,28 +245,24 @@ class MenuBuilderMixin:
         # 静默丢弃"与"末尾换行丢失"），但 UI 对话框此前被删除、零入口。
         # 注意：**不绑快捷键** —— `Ctrl+Alt+D` 已被"插入日期时间"占用
         # （且有 tests/test_shortcuts.py 的重复扫描保护）。
-        self._add_action(self.tools_menu, "🔀 对比文件…", None,
-                          self._show_file_diff)
+        self._add_action(self.tools_menu, "🔀 对比文件…", None, self._show_file_diff)
 
         # ---- 格式化 / 导出 / 崩溃统计（接线零引用的孤立能力）----
         self._setup_format_menu()
         self._setup_export_menu()
 
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "🧩 插件市场", None,
-                          self._show_plugin_store)
-        self._add_action(self.tools_menu, "🔌 插件管理", None,
-                          self._show_plugins_panel)
-        self._add_action(self.tools_menu, "⌨ 快捷键编辑器", None,
-                          self._show_keymap_editor)
+        self._add_action(self.tools_menu, "🧩 插件市场", None, self._show_plugin_store)
+        self._add_action(self.tools_menu, "🔌 插件管理", None, self._show_plugins_panel)
+        self._add_action(self.tools_menu, "⌨ 快捷键编辑器", None, self._show_keymap_editor)
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "📊 性能监控", None,
-                          self._show_perf_monitor)
+        self._add_action(self.tools_menu, "📊 性能监控", None, self._show_perf_monitor)
         # 性能剖析：`core/profiler.py` + `ui/profiler_panel.py` 此前零引用。
         # **不绑快捷键**（全仓快捷键已很拥挤，且 tests/test_shortcuts.py
         # 会扫描重复绑定）。
         _profiler_action = self._add_action(
-            self.tools_menu, "⏱ 性能剖析…", None, self._show_profiler)
+            self.tools_menu, "⏱ 性能剖析…", None, self._show_profiler
+        )
         try:
             _profiler_action.setToolTip(
                 "用 cProfile 统计 **Python 帧** 的耗时。\n"
@@ -326,8 +277,7 @@ class MenuBuilderMixin:
         # 原 `ui/snippet_market_dialog.py` 是"网络片段市场"，指向一个
         # **实测返回 404 的 GitHub 仓库**；已改造为本地片段包库
         # （见 core/snippet_market.py 的模块说明）。
-        self._add_action(self.tools_menu, "📚 代码片段库…", None,
-                         self._show_snippet_library)
+        self._add_action(self.tools_menu, "📚 代码片段库…", None, self._show_snippet_library)
         # C: Vim 模式菜单开关
         self.vim_mode_action = QAction("Vim 模式", self)
         self.vim_mode_action.setCheckable(True)
@@ -347,36 +297,31 @@ class MenuBuilderMixin:
         self.tools_menu.addAction(self.lsp_action)
         # --- 首选项入口 ---
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "⚙ 首选项...", "Ctrl+,",
-                          self._show_preferences)
+        self._add_action(self.tools_menu, "⚙ 首选项...", "Ctrl+,", self._show_preferences)
 
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "📤 导出配置", None,
-                          self._export_config)
-        self._add_action(self.tools_menu, "📥 导入配置", None,
-                          self._import_config)
+        self._add_action(self.tools_menu, "📤 导出配置", None, self._export_config)
+        self._add_action(self.tools_menu, "📥 导入配置", None, self._import_config)
 
         # ============ 帮助菜单 ============
         self.help_menu = menubar.addMenu("帮助(&H)")
 
-        self._add_action(self.help_menu, "⌨ 快捷键参考", None,
-                          self._show_shortcuts)
+        self._add_action(self.help_menu, "⌨ 快捷键参考", None, self._show_shortcuts)
         # P2-C4: manual 参数
         self._add_action(
-            self.help_menu, "💡 每日技巧", None,
-            lambda checked=False: self._show_daily_tip(manual=True)
+            self.help_menu,
+            "💡 每日技巧",
+            None,
+            lambda checked=False: self._show_daily_tip(manual=True),
         )
         self.help_menu.addSeparator()
-        self._add_action(self.help_menu, "📖 在线文档", None,
-                          self._show_online_docs)
-        self._add_action(self.help_menu, "🐙 GitHub", None,
-                          self._show_github)
+        self._add_action(self.help_menu, "📖 在线文档", None, self._show_online_docs)
+        self._add_action(self.help_menu, "🐙 GitHub", None, self._show_github)
         self.help_menu.addSeparator()
         # 崩溃统计：`core/crash_stats.py` 早就有 get_top_exceptions /
         # get_recent_count / should_notify / cleanup_old，但**零引用** ——
         # 用户完全看不到"这个版本是不是经常崩"。
-        self._add_action(self.help_menu, "📉 崩溃统计", None,
-                          self._show_crash_stats)
+        self._add_action(self.help_menu, "📉 崩溃统计", None, self._show_crash_stats)
         self._add_action(self.help_menu, "ℹ 关于", None, self._about)
 
         # ============ 特色功能菜单（P1-7 入口重排）============
@@ -421,7 +366,7 @@ class MenuBuilderMixin:
         一次，用户会看到"（该插件未注册命令）"的假象。
         """
         try:
-            if getattr(self, 'feature_menu', None) is None:
+            if getattr(self, "feature_menu", None) is None:
                 return
         except Exception:
             return
@@ -436,9 +381,7 @@ class MenuBuilderMixin:
                     act.menu().clear()
                     cmds = self._plugin_commands(plugin)
                     if not cmds:
-                        item = act.menu().addAction(
-                            "（该插件未注册命令，或未启用）"
-                        )
+                        item = act.menu().addAction("（该插件未注册命令，或未启用）")
                         item.setEnabled(False)
                     else:
                         for _name, qa in cmds:
@@ -464,8 +407,7 @@ class MenuBuilderMixin:
             ("问题", "panel.problems", self._toggle_problems_panel),
             # 本轮接线：LSP 状态/安装向导 + 撤销历史（此前零实例化）
             ("LSP 状态", "panel.lsp", self._toggle_lsp_panel),
-            ("撤销历史", "panel.undo_history",
-             self._toggle_undo_history_panel),
+            ("撤销历史", "panel.undo_history", self._toggle_undo_history_panel),
             # 项目任务面板（该项目根下的 .qingcao/tasks.json）
             ("任务", "panel.task", self._toggle_task_panel),
         ]
@@ -480,67 +422,57 @@ class MenuBuilderMixin:
         """构建完整的主题子菜单"""
         # 跟随系统
         self._add_action(
-            self.theme_menu, "跟随系统", None,
-            lambda: self._apply_theme_by_name("__system__")
+            self.theme_menu, "跟随系统", None, lambda: self._apply_theme_by_name("__system__")
         )
 
         self.theme_menu.addSeparator()
 
         # 动态扫描 themes/
+        # v2.19 修复：本文件位于 ui/mixins/，主题目录在仓库根
         themes_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "themes"
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "themes"
         )
         if os.path.isdir(themes_dir):
             for f in sorted(os.listdir(themes_dir)):
-                if f.endswith('.json'):
+                if f.endswith(".json"):
                     name = os.path.splitext(f)[0]
                     # B(主题): 菜单显示 display_name
                     # 读取 display_name 用于展示，name 保留给回调用
                     display = name
                     try:
                         import json as _json
-                        with open(
-                            os.path.join(themes_dir, f), encoding='utf-8'
-                        ) as _fp:
+
+                        with open(os.path.join(themes_dir, f), encoding="utf-8") as _fp:
                             _data = _json.load(_fp)
-                        display = _data.get('display_name', name)
+                        display = _data.get("display_name", name)
                     except Exception:
                         pass
                     self._add_action(
-                        self.theme_menu, display, None,
-                        lambda checked=False, n=name:
-                        self._apply_theme_by_name(n)
+                        self.theme_menu,
+                        display,
+                        None,
+                        lambda checked=False, n=name: self._apply_theme_by_name(n),
                     )
 
         self.theme_menu.addSeparator()
 
         # 编辑 / 市场 / 导入 / 导出 / 删除
-        self._add_action(
-            self.theme_menu, "📝 编辑当前主题...", None,
-            self._show_theme_editor
-        )
-        self._add_action(
-            self.theme_menu, "🎨 主题市场...", None,
-            self._show_theme_market
-        )
+        self._add_action(self.theme_menu, "📝 编辑当前主题...", None, self._show_theme_editor)
+        self._add_action(self.theme_menu, "🎨 主题市场...", None, self._show_theme_market)
         self.theme_menu.addSeparator()
-        self._add_action(
-            self.theme_menu, "📥 导入主题包...", None,
-            self._import_theme_pack
-        )
-        self._add_action(
-            self.theme_menu, "📤 导出当前主题...", None,
-            self._export_theme_pack
-        )
+        self._add_action(self.theme_menu, "📥 导入主题包...", None, self._import_theme_pack)
+        self._add_action(self.theme_menu, "📤 导出当前主题...", None, self._export_theme_pack)
         self.theme_menu.addSeparator()
-        self._add_action(
-            self.theme_menu, "📁 打开主题目录", None,
-            self._open_theme_dir
-        )
+        self._add_action(self.theme_menu, "📁 打开主题目录", None, self._open_theme_dir)
 
-    def _add_action(self, menu: QMenu, text: str, shortcut: Optional[str],
-                     slot, action_name: Optional[str] = None) -> QAction:
+    def _add_action(
+        self,
+        menu: QMenu,
+        text: str,
+        shortcut: Optional[str],
+        slot,
+        action_name: Optional[str] = None,
+    ) -> QAction:
         """
         添加菜单项。
 
@@ -634,7 +566,9 @@ class MenuBuilderMixin:
                 logger.warning(
                     "快捷键冲突: %s 已绑定到「%s」，现又被「%s」绑定；"
                     "后者的快捷键已失效（Qt ambiguous shortcut）",
-                    key, previous.text(), action.text(),
+                    key,
+                    previous.text(),
+                    action.text(),
                 )
                 return
             owners[key] = action
@@ -644,19 +578,18 @@ class MenuBuilderMixin:
     def _on_lsp_code_actions(self, actions: list):
         """代码操作 → 选单，选中后报告（应用留待后续）"""
         try:
-            titles = [a.get('title') or "" for a in (actions or [])]
+            titles = [a.get("title") or "" for a in (actions or [])]
             titles = [t for t in titles if t]
             if not titles:
                 self.status_bar.showMessage("此处没有可用的代码操作", 4000)
                 return
             from PyQt5.QtWidgets import QInputDialog
+
             choice, ok = QInputDialog.getItem(
                 self, "代码操作", "选择要执行的操作:", titles, 0, False
             )
             if ok and choice:
-                self.status_bar.showMessage(
-                    "已选择代码操作：%s（应用尚未实现）" % choice, 8000
-                )
+                self.status_bar.showMessage("已选择代码操作：%s（应用尚未实现）" % choice, 8000)
         except Exception as e:
             logger.debug("显示代码操作失败: %s", e)
 
@@ -687,14 +620,13 @@ class MenuBuilderMixin:
 
         # 查找
         toolbar.addAction(self._toolbar_action("查找", self._show_search))
-        toolbar.addAction(self._toolbar_action("全局搜索",
-                                                self._show_global_search))
+        toolbar.addAction(self._toolbar_action("全局搜索", self._show_global_search))
         toolbar.addSeparator()
 
         # 列模式（P8-1: 与"视图 → 列模式"共用同一个 QAction。
         # 全窗口只保留**一处** Alt+C 绑定，避免 Qt 的
         # ambiguous shortcut overload 导致按键完全无响应。）
-        if getattr(self, 'column_mode_action', None) is None:
+        if getattr(self, "column_mode_action", None) is None:
             # 兜底：万一 _build_menus 未执行（只需工具栏的场景）
             self.column_mode_action = QAction("列模式", self)
             self.column_mode_action.setCheckable(True)
@@ -704,8 +636,7 @@ class MenuBuilderMixin:
         toolbar.addAction(self.column_mode_action)
 
         # 命令面板
-        toolbar.addAction(self._toolbar_action("命令面板",
-                                                self._show_command_palette))
+        toolbar.addAction(self._toolbar_action("命令面板", self._show_command_palette))
 
     def _toolbar_action(self, text: str, slot) -> QAction:
         """创建工具栏动作"""
@@ -727,8 +658,9 @@ class MenuBuilderMixin:
         """
         try:
             from PyQt5.QtWidgets import QMenu
+
             menubar = self.menuBar()
-            help_menu = getattr(self, 'help_menu', None)
+            help_menu = getattr(self, "help_menu", None)
 
             def _insert(menu):
                 if help_menu is not None:
@@ -742,16 +674,12 @@ class MenuBuilderMixin:
             m = _insert(QMenu("搜索(&S)", self))
             self.npp_search_menu = m
             self._add_action(m, "🔍 查找(&F)", None, self._show_search)
-            self._add_action(m, "🗂 在文件中查找", None,
-                             self._show_global_search)
+            self._add_action(m, "🗂 在文件中查找", None, self._show_global_search)
             self._add_action(m, "⌨ 跳转到行…", None, self._show_line_palette)
             m.addSeparator()
-            self._add_action(m, "🎛 命令面板", None,
-                             self._show_command_palette)
-            self._add_action(m, "📄 打开文件（模糊匹配）", None,
-                             self._show_file_palette)
-            self._add_action(m, "🔣 跳转到符号", None,
-                             self._show_symbol_palette)
+            self._add_action(m, "🎛 命令面板", None, self._show_command_palette)
+            self._add_action(m, "📄 打开文件（模糊匹配）", None, self._show_file_palette)
+            self._add_action(m, "🔣 跳转到符号", None, self._show_symbol_palette)
 
             # ---- 宏(&M) ----
             m = _insert(QMenu("宏(&M)", self))
@@ -763,22 +691,21 @@ class MenuBuilderMixin:
             m = _insert(QMenu("运行(&R)", self))
             self.npp_run_menu = m
             self._add_action(m, "▶ 运行当前文件", None, self._run_current_file)
-            debug_run = getattr(self, '_debug_run', None)
+            debug_run = getattr(self, "_debug_run", None)
             if callable(debug_run):
                 self._add_action(m, "🐞 调试运行", None, debug_run)
 
             # ---- 窗口(&W) ----
             m = _insert(QMenu("窗口(&W)", self))
             self.npp_window_menu = m
-            panel_menu = getattr(self, 'panel_menu', None)
+            panel_menu = getattr(self, "panel_menu", None)
             if panel_menu is not None:
                 for act in panel_menu.actions():
                     if act.isSeparator() or act.menu() is not None:
                         continue
                     m.addAction(act)
             m.addSeparator()
-            self._add_action(m, "🖥 无干扰模式", None,
-                             self.toggle_distraction_free)
+            self._add_action(m, "🖥 无干扰模式", None, self.toggle_distraction_free)
             self._add_action(m, "⛶ 全屏", None, self.toggle_fullscreen)
 
             # ---- 编码(&C)（NPP 习惯：编码/换行符集中）----
@@ -786,11 +713,12 @@ class MenuBuilderMixin:
             self.npp_encoding_menu = m
             try:
                 from ui.status_bar_widgets import ENCODINGS, LINE_ENDINGS
+
                 self._npp_encoding_actions = []
                 for name, code in ENCODINGS:
                     act = self._add_action(
-                        m, name, None,
-                        lambda c=code: self._on_encoding_changed(c))
+                        m, name, None, lambda c=code: self._on_encoding_changed(c)
+                    )
                     act.setCheckable(True)
                     self._npp_encoding_actions.append((str(code), act))
                 m.aboutToShow.connect(self._sync_encoding_menu_checks)
@@ -799,8 +727,8 @@ class MenuBuilderMixin:
                 self._npp_eol_actions = []
                 for name, code in LINE_ENDINGS:
                     act = self._add_action(
-                        eol_menu, name, None,
-                        lambda c=code: self._on_eol_changed(c))
+                        eol_menu, name, None, lambda c=code: self._on_eol_changed(c)
+                    )
                     act.setCheckable(True)
                     self._npp_eol_actions.append((code, act))
                 eol_menu.aboutToShow.connect(self._sync_encoding_menu_checks)
@@ -812,11 +740,12 @@ class MenuBuilderMixin:
             self.npp_language_menu = m
             self._npp_language_actions = []
             self._npp_language_auto_action = self._add_action(
-                m, "自动（按扩展名）", None,
-                self._apply_language_by_extension)
+                m, "自动（按扩展名）", None, self._apply_language_by_extension
+            )
             self._npp_language_auto_action.setCheckable(True)
             try:
                 from core.language_pack import get_packs
+
                 packs = {}
                 for _ext, pack in get_packs().items():
                     packs[pack.name] = pack
@@ -824,8 +753,8 @@ class MenuBuilderMixin:
                     m.addSeparator()
                 for name in sorted(packs):
                     act = self._add_action(
-                        m, name, None,
-                        lambda p=packs[name]: self._apply_language_pack(p))
+                        m, name, None, lambda p=packs[name]: self._apply_language_pack(p)
+                    )
                     act.setCheckable(True)
                     self._npp_language_actions.append((name, act))
                 m.aboutToShow.connect(self._sync_language_menu_checks)
@@ -837,43 +766,34 @@ class MenuBuilderMixin:
             self.npp_settings_menu = m
             self._add_action(m, "⚙ 首选项…", None, self._show_preferences)
             self._add_action(m, "⌨ 快捷键一览…", None, self._show_shortcuts)
-            self._add_action(m, "⌨ 快捷键编辑器（方案）…", None,
-                             self._show_keymap_editor)
+            self._add_action(m, "⌨ 快捷键编辑器（方案）…", None, self._show_keymap_editor)
             m.addSeparator()
-            self._add_action(m, "🎨 主题编辑器…", None,
-                             self._show_theme_editor)
-            self._add_action(m, "🎨 主题市场…", None,
-                             self._show_theme_market)
-            self._add_action(m, "📥 导入主题包…", None,
-                             self._import_theme_pack)
-            self._add_action(m, "📤 导出主题包…", None,
-                             self._export_theme_pack)
-            self._add_action(m, "📂 打开主题目录", None,
-                             self._open_theme_dir)
+            self._add_action(m, "🎨 主题编辑器…", None, self._show_theme_editor)
+            self._add_action(m, "🎨 主题市场…", None, self._show_theme_market)
+            self._add_action(m, "📥 导入主题包…", None, self._import_theme_pack)
+            self._add_action(m, "📤 导出主题包…", None, self._export_theme_pack)
+            self._add_action(m, "📂 打开主题目录", None, self._open_theme_dir)
             m.addSeparator()
             self._add_action(m, "📥 导入配置…", None, self._import_config)
             self._add_action(m, "📤 导出配置…", None, self._export_config)
-            self._add_action(m, "📂 打开语言包目录", None,
-                             self._open_language_packs_dir)
+            self._add_action(m, "📂 打开语言包目录", None, self._open_language_packs_dir)
 
             # 文件菜单补打印入口（NPP 对齐）
-            file_menu = getattr(self, 'file_menu', None)
+            file_menu = getattr(self, "file_menu", None)
             if file_menu is not None:
                 file_menu.addSeparator()
-                self._add_action(file_menu, "🖨 打印…", None,
-                                 self._print_document)
-                self._add_action(file_menu, "👁 打印预览…", None,
-                                 self._print_preview)
+                self._add_action(file_menu, "🖨 打印…", None, self._print_document)
+                self._add_action(file_menu, "👁 打印预览…", None, self._print_preview)
 
             # 视图菜单追加「显示欢迎页」开关（checkable，无快捷键）
             try:
                 from PyQt5.QtWidgets import QAction
-                view_menu = getattr(self, 'view_menu', None)
+
+                view_menu = getattr(self, "view_menu", None)
                 if view_menu is not None:
                     act = QAction("🏠 显示欢迎页", self)
                     act.setCheckable(True)
-                    act.setChecked(bool(self.prefs.get(
-                        "show_welcome_page", True)))
+                    act.setChecked(bool(self.prefs.get("show_welcome_page", True)))
                     act.toggled.connect(self._set_welcome_page_enabled)
                     view_menu.addSeparator()
                     view_menu.addAction(act)
@@ -881,8 +801,7 @@ class MenuBuilderMixin:
 
                     tb_act = QAction("🧰 工具栏图标模式", self)
                     tb_act.setCheckable(True)
-                    tb_act.setChecked(bool(self.prefs.get(
-                        "toolbar_icon_mode", False)))
+                    tb_act.setChecked(bool(self.prefs.get("toolbar_icon_mode", False)))
                     tb_act.toggled.connect(self._set_toolbar_icon_mode)
                     view_menu.addAction(tb_act)
                     self.toolbar_icon_action = tb_act
@@ -891,15 +810,15 @@ class MenuBuilderMixin:
             except Exception as e:
                 print(f"[MainWindow] 欢迎页开关失败: {e}")
 
-            tools_menu = getattr(self, 'tools_menu', None)
+            tools_menu = getattr(self, "tools_menu", None)
             if tools_menu is not None:
                 tools_menu.addSeparator()
                 self._add_action(
-                    tools_menu, "🧪 运行沙箱插件诊断", None,
-                    self.run_sandboxed_diagnostics)
+                    tools_menu, "🧪 运行沙箱插件诊断", None, self.run_sandboxed_diagnostics
+                )
                 self._add_action(
-                    tools_menu, "🧹 忽略沙箱诊断中的可疑词", None,
-                    self.ignore_sandboxed_diagnostics)
+                    tools_menu, "🧹 忽略沙箱诊断中的可疑词", None, self.ignore_sandboxed_diagnostics
+                )
                 live = QAction("⚡ 实时沙箱诊断（停止输入 500ms）", self)
                 live.setCheckable(True)
                 live.setChecked(self._sandbox_live_enabled())
@@ -908,8 +827,7 @@ class MenuBuilderMixin:
                 hc_act = QAction("♿ 跟随系统高对比度", self)
                 hc_act.setCheckable(True)
                 hc_act.setChecked(self._follow_system_high_contrast())
-                hc_act.toggled.connect(
-                    self._set_follow_system_high_contrast)
+                hc_act.toggled.connect(self._set_follow_system_high_contrast)
                 tools_menu.addAction(hc_act)
         except Exception as e:
             print(f"[MainWindow] 构建 NPP 式菜单失败: {e}")
@@ -950,7 +868,7 @@ class MenuBuilderMixin:
 
     def _set_toolbar_icon_mode(self, enabled: bool):
         """视图 → 工具栏图标模式（NPP 风格小图标；持久化偏好）"""
-        toolbar = getattr(self, 'toolbar', None)
+        toolbar = getattr(self, "toolbar", None)
         if toolbar is None:
             return
         enabled = bool(enabled)
@@ -959,6 +877,7 @@ class MenuBuilderMixin:
         except Exception:
             pass
         from PyQt5.QtCore import Qt as _Qt
+
         for act in toolbar.actions():
             if act.isSeparator() or act.menu() is not None:
                 continue
@@ -975,9 +894,7 @@ class MenuBuilderMixin:
                 act.setText("")
             else:
                 act.setText(orig)
-        toolbar.setToolButtonStyle(
-            _Qt.ToolButtonIconOnly if enabled
-            else _Qt.ToolButtonTextOnly)
+        toolbar.setToolButtonStyle(_Qt.ToolButtonIconOnly if enabled else _Qt.ToolButtonTextOnly)
 
     def toggle_distraction_free(self):
         """切换无干扰模式"""

@@ -124,24 +124,21 @@ except ImportError:  # pragma: no cover
 # 优先级：jsDelivr CDN > 用户自定义 > FALLBACK 列表
 # 用户可在"插件市场"的"注册表 URL"输入框中覆盖此默认值
 DEFAULT_REGISTRY_URL = (
-    "https://cdn.jsdelivr.net/gh/"
-    "qingcao-editor/plugins-registry@main/registry.json"
+    "https://cdn.jsdelivr.net/gh/qingcao-editor/plugins-registry@main/registry.json"
 )
 
 # 备用注册表地址（多路兜底）
 FALLBACK_REGISTRY_URLS = [
     # GitHub 原始地址（国外/代理环境）
-    "https://raw.githubusercontent.com/"
-    "qingcao-editor/plugins-registry/main/registry.json",
+    "https://raw.githubusercontent.com/qingcao-editor/plugins-registry/main/registry.json",
     # Gitee 镜像（国内）
     "https://gitee.com/qingcao-editor/plugins-registry/raw/main/registry.json",
     # Statically CDN（第三兜底）
-    "https://cdn.statically.io/gh/"
-    "qingcao-editor/plugins-registry/main/registry.json",
+    "https://cdn.statically.io/gh/qingcao-editor/plugins-registry/main/registry.json",
 ]
 
 # 插件目录
-PLUGINS_DIR = "plugins"   # 使用前请经 resolve_plugin_dir 解析
+PLUGINS_DIR = "plugins"  # 使用前请经 resolve_plugin_dir 解析
 THEMES_DIR = "themes"
 
 # 缓存目录
@@ -207,11 +204,13 @@ def plugin_bytes_sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def verify_plugin_signature(data: bytes, expected_hash: str = "",
-                            signature: str = "",
-                            signature_algo: str = "",
-                            key_env: str = "QINGCAO_PLUGIN_SIGNING_KEY"
-                            ) -> Tuple[bool, str]:
+def verify_plugin_signature(
+    data: bytes,
+    expected_hash: str = "",
+    signature: str = "",
+    signature_algo: str = "",
+    key_env: str = "QINGCAO_PLUGIN_SIGNING_KEY",
+) -> Tuple[bool, str]:
     """校验插件包完整性/签名（v2.16：SHA256 + HMAC/Ed25519，fail closed）"""
     actual = plugin_bytes_sha256(data)
     if expected_hash and actual.lower() != expected_hash.lower():
@@ -220,14 +219,14 @@ def verify_plugin_signature(data: bytes, expected_hash: str = "",
         algo = (signature_algo or "").lower()
         if algo == "ed25519":
             from core.plugin_signature import verify_ed25519
+
             return verify_ed25519(data, signature)
         import hmac
+
         key = os.environ.get(key_env, "")
         if not key:
             return (False, "未配置签名密钥（%s），拒绝安装" % key_env)
-        expected = hmac.new(key.encode("utf-8"),
-                            actual.encode("ascii"),
-                            hashlib.sha256).hexdigest()
+        expected = hmac.new(key.encode("utf-8"), actual.encode("ascii"), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, signature.lower()):
             return (False, "签名校验失败")
     return (True, "ok")
@@ -237,14 +236,14 @@ def plugin_signature_status(info) -> str:
     """市场 UI 用：插件安全状态文本（v2.16）"""
     try:
         from core.plugin_signature import is_revoked
+
         if is_revoked(getattr(info, "name", "")):
             return "已吊销"
     except Exception:
         pass
     algo = (getattr(info, "signature_algo", "") or "").lower()
     if not getattr(info, "signature", ""):
-        return "未签名（仅 SHA256 校验和）" if getattr(info, "file_hash", "") \
-            else "无签名"
+        return "未签名（仅 SHA256 校验和）" if getattr(info, "file_hash", "") else "无签名"
     if algo == "ed25519":
         return "Ed25519 签名"
     return "HMAC 签名"
@@ -264,6 +263,7 @@ def plugin_security_bucket(info) -> str:
     """安全状态分类（v2.17 市场筛选）"""
     try:
         from core.plugin_signature import is_revoked
+
         if is_revoked(getattr(info, "name", "")):
             return "revoked"
     except Exception:
@@ -306,31 +306,33 @@ def build_market_catalog(plugin_root: str) -> Dict[str, Any]:
                 m = json.load(f)
         except Exception:
             continue
-        plugins.append({
-            "name": m.get("name") or name,
-            "display_name": m.get("display_name") or m.get("name") or name,
-            "version": m.get("version", "0.0.0"),
-            "description": m.get("description", ""),
-            "author": m.get("author", ""),
-            "category": m.get("category", "other"),
-            "license": m.get("license", ""),
-            "homepage": m.get("homepage", ""),
-            "keywords": m.get("keywords") or [],
-            "permissions": m.get("permissions") or [],
-            "sandbox": bool(m.get("sandbox")),
-            "enabled": bool(m.get("enabled", True)),
-        })
-    return {"version": 1, "plugins": plugins, "themes": [],
-            "_from_local_catalog": True}
+        plugins.append(
+            {
+                "name": m.get("name") or name,
+                "display_name": m.get("display_name") or m.get("name") or name,
+                "version": m.get("version", "0.0.0"),
+                "description": m.get("description", ""),
+                "author": m.get("author", ""),
+                "category": m.get("category", "other"),
+                "license": m.get("license", ""),
+                "homepage": m.get("homepage", ""),
+                "keywords": m.get("keywords") or [],
+                "permissions": m.get("permissions") or [],
+                "sandbox": bool(m.get("sandbox")),
+                "enabled": bool(m.get("enabled", True)),
+            }
+        )
+    return {"version": 1, "plugins": plugins, "themes": [], "_from_local_catalog": True}
 
 
 class PluginState(Enum):
     """插件状态"""
-    NOT_INSTALLED = auto()   # 未安装
-    INSTALLED = auto()       # 已安装
+
+    NOT_INSTALLED = auto()  # 未安装
+    INSTALLED = auto()  # 已安装
     UPDATE_AVAILABLE = auto()  # 可更新
-    DISABLED = auto()        # 已禁用
-    ERROR = auto()           # 错误
+    DISABLED = auto()  # 已禁用
+    ERROR = auto()  # 错误
 
 
 # ============================================================
@@ -340,10 +342,12 @@ def check_plugin_compatibility(info, app_version: str = ""):
     """插件与应用版本是否兼容（复用更新器判定，唯一实现）"""
     try:
         from infrastructure.plugin_updater import get_app_version, is_app_version_compatible
+
         return is_app_version_compatible(
-            getattr(info, 'min_app_version', '') or "",
-            getattr(info, 'max_app_version', '') or "",
-            app_version or get_app_version())
+            getattr(info, "min_app_version", "") or "",
+            getattr(info, "max_app_version", "") or "",
+            app_version or get_app_version(),
+        )
     except Exception as e:
         return False, "兼容性检查失败: %s" % e
 
@@ -357,34 +361,34 @@ class PluginInfo:
     """
 
     # 基本信息
-    name: str = ""                          # 内部名称
-    display_name: str = ""                  # 显示名称
-    version: str = "0.0.0"                  # 版本
-    description: str = ""                   # 简介
-    long_description: str = ""              # 详细描述
-    author: str = ""                        # 作者
-    author_email: str = ""                  # 作者邮箱
-    homepage: str = ""                      # 主页
-    repository: str = ""                    # 仓库地址
+    name: str = ""  # 内部名称
+    display_name: str = ""  # 显示名称
+    version: str = "0.0.0"  # 版本
+    description: str = ""  # 简介
+    long_description: str = ""  # 详细描述
+    author: str = ""  # 作者
+    author_email: str = ""  # 作者邮箱
+    homepage: str = ""  # 主页
+    repository: str = ""  # 仓库地址
 
     # 分类
-    type: str = PLUGIN_TYPE_PLUGIN          # 类型
-    category: str = "other"                 # 分类
+    type: str = PLUGIN_TYPE_PLUGIN  # 类型
+    category: str = "other"  # 分类
     tags: List[str] = field(default_factory=list)  # 标签
 
     # 版本信息
-    min_app_version: str = ""               # 最低应用版本
-    max_app_version: str = ""               # 最高应用版本
-    updated_at: str = ""                    # 更新时间
-    changelog: str = ""                     # 更新日志（可选）
+    min_app_version: str = ""  # 最低应用版本
+    max_app_version: str = ""  # 最高应用版本
+    updated_at: str = ""  # 更新时间
+    changelog: str = ""  # 更新日志（可选）
 
     # 安装信息
-    download_url: str = ""                  # 下载地址
-    update_url: str = ""                    # 更新检测地址
-    file_hash: str = ""                     # 文件哈希（SHA256）
-    signature: str = ""                     # 签名（HMAC/Ed25519）
-    signature_algo: str = ""                # 签名算法（hmac/ed25519）
-    file_size: int = 0                      # 文件大小
+    download_url: str = ""  # 下载地址
+    update_url: str = ""  # 更新检测地址
+    file_hash: str = ""  # 文件哈希（SHA256）
+    signature: str = ""  # 签名（HMAC/Ed25519）
+    signature_algo: str = ""  # 签名算法（hmac/ed25519）
+    file_size: int = 0  # 文件大小
 
     # 依赖
     dependencies: List[str] = field(default_factory=list)  # Python 依赖
@@ -394,35 +398,35 @@ class PluginInfo:
     permissions: List[str] = field(default_factory=list)
 
     # 统计
-    downloads: int = 0                      # 下载量
-    rating: float = 0.0                     # 评分
-    rating_count: int = 0                   # 评分数
+    downloads: int = 0  # 下载量
+    rating: float = 0.0  # 评分
+    rating_count: int = 0  # 评分数
 
     # 状态
-    verified: bool = False                  # 是否认证
-    featured: bool = False                  # 是否精选
-    installed: bool = False                 # 是否已安装
-    installed_version: str = ""             # 已安装版本
-    enabled: bool = True                    # 是否启用
+    verified: bool = False  # 是否认证
+    featured: bool = False  # 是否精选
+    installed: bool = False  # 是否已安装
+    installed_version: str = ""  # 已安装版本
+    enabled: bool = True  # 是否启用
     state: PluginState = PluginState.NOT_INSTALLED
 
     # 本地信息
-    local_path: str = ""                    # 本地路径
-    installed_at: str = ""                  # 安装时间
+    local_path: str = ""  # 本地路径
+    installed_at: str = ""  # 安装时间
 
     def to_dict(self) -> Dict[str, Any]:
         """序列化为字典"""
         d = asdict(self)
-        d['state'] = self.state.name
+        d["state"] = self.state.name
         return d
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> 'PluginInfo':
+    def from_dict(cls, d: Dict[str, Any]) -> "PluginInfo":
         """从字典反序列化"""
         info = cls()
         for key, value in d.items():
             if hasattr(info, key):
-                if key == 'state' and isinstance(value, str):
+                if key == "state" and isinstance(value, str):
                     try:
                         setattr(info, key, PluginState[value])
                     except KeyError:
@@ -460,19 +464,18 @@ class PluginInfo:
         missing = []
         for dep in self.dependencies:
             # 简化处理：仅检查包名（不验证版本）
-            dep_name = dep.split('==')[0].split('>=')[0].split('<')[0]
-            dep_name = dep_name.split('[')[0].strip()
+            dep_name = dep.split("==")[0].split(">=")[0].split("<")[0]
+            dep_name = dep_name.split("[")[0].strip()
 
             try:
-                __import__(dep_name.replace('-', '_'))
+                __import__(dep_name.replace("-", "_"))
             except ImportError:
                 missing.append(dep)
 
         return (len(missing) == 0, missing)
 
     def __repr__(self) -> str:
-        return (f"<PluginInfo {self.name} v{self.version} "
-                f"state={self.state.name}>")
+        return f"<PluginInfo {self.name} v{self.version} state={self.state.name}>"
 
 
 # ============================================================
@@ -498,8 +501,18 @@ class PluginStoreClient:
 
         # 鉴权/TLS（v2.18.x P3）
         self.registry_token = os.environ.get("QINGCAO_REGISTRY_TOKEN", "")
-        self.verify_tls = os.environ.get(
-            "QINGCAO_REGISTRY_VERIFY_TLS", "1") != "0"
+        _env_tls = os.environ.get("QINGCAO_REGISTRY_VERIFY_TLS")
+        if _env_tls is not None:
+            self.verify_tls = _env_tls != "0"
+        else:
+            try:
+                from PyQt5.QtCore import QSettings
+
+                self.verify_tls = QSettings("QingCao", "Editor").value(
+                    "registry_verify_tls", True, type=bool
+                )
+            except Exception:
+                self.verify_tls = True
 
         # 缓存
         self._registry_cache: Optional[Dict[str, Any]] = None
@@ -514,9 +527,9 @@ class PluginStoreClient:
     # --------------------------------------------------------
     # 远程注册表
     # --------------------------------------------------------
-    def fetch_registry(self, force: bool = False,
-                       cache_first: bool = False
-                       ) -> Optional[Dict[str, Any]]:
+    def fetch_registry(
+        self, force: bool = False, cache_first: bool = False
+    ) -> Optional[Dict[str, Any]]:
         """
         拉取远程注册表。
 
@@ -581,13 +594,12 @@ class PluginStoreClient:
 
     def _registry_headers(self) -> Dict[str, str]:
         """注册表请求头（Token 鉴权，v2.18.x P3）"""
-        token = self.registry_token or os.environ.get(
-            "QINGCAO_REGISTRY_TOKEN", "")
+        token = self.registry_token or os.environ.get("QINGCAO_REGISTRY_TOKEN", "")
         if not token:
             try:
                 from PyQt5.QtCore import QSettings
-                token = QSettings("QingCao", "Editor").value(
-                    "registry_token", "", type=str) or ""
+
+                token = QSettings("QingCao", "Editor").value("registry_token", "", type=str) or ""
             except Exception:
                 token = ""
         return {"Authorization": "Bearer %s" % token} if token else {}
@@ -596,18 +608,22 @@ class PluginStoreClient:
         """下载 JSON"""
         try:
             import requests
-            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT,
-                                headers=self._registry_headers(),
-                                verify=self.verify_tls)
+
+            resp = requests.get(
+                url,
+                timeout=DOWNLOAD_TIMEOUT,
+                headers=self._registry_headers(),
+                verify=self.verify_tls,
+            )
             if resp.status_code == 200:
                 return resp.json()
         except ImportError:
             # 使用 urllib 回退
             import urllib.request
-            _req = urllib.request.Request(
-                url, headers=self._registry_headers())
+
+            _req = urllib.request.Request(url, headers=self._registry_headers())
             with urllib.request.urlopen(_req, timeout=DOWNLOAD_TIMEOUT) as f:
-                return json.loads(f.read().decode('utf-8'))
+                return json.loads(f.read().decode("utf-8"))
         except Exception as e:
             print(f"[PluginStore] 下载失败: {e}")
 
@@ -617,11 +633,15 @@ class PluginStoreClient:
         """保存到磁盘缓存"""
         try:
             cache_file = os.path.join(self.cache_dir, "registry.json")
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'data': data,
-                    'timestamp': time.time(),
-                }, f, ensure_ascii=False)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "data": data,
+                        "timestamp": time.time(),
+                    },
+                    f,
+                    ensure_ascii=False,
+                )
         except Exception:
             pass
 
@@ -638,33 +658,27 @@ class PluginStoreClient:
         try:
             # 定位 resources/registry_fallback.json
             # 当前文件在 ui/ 下，根目录是上一级
-            root = os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__))
-            )
-            fallback_path = os.path.join(
-                root, "resources", "registry_fallback.json"
-            )
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            fallback_path = os.path.join(root, "resources", "registry_fallback.json")
 
             if not os.path.exists(fallback_path):
-                catalog = build_market_catalog(
-                    os.path.join(root, "plugins"))
+                catalog = build_market_catalog(os.path.join(root, "plugins"))
                 if catalog.get("plugins"):
                     return catalog
                 return None
 
-            with open(fallback_path, encoding='utf-8') as f:
+            with open(fallback_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
                 return None
             if not data.get("plugins"):
-                catalog = build_market_catalog(
-                    os.path.join(root, "plugins"))
+                catalog = build_market_catalog(os.path.join(root, "plugins"))
                 if catalog.get("plugins"):
                     return catalog
 
             # 打标记，便于 UI 区分
-            data['_from_fallback'] = True
+            data["_from_fallback"] = True
             return data
 
         except Exception as e:
@@ -684,10 +698,10 @@ class PluginStoreClient:
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, encoding='utf-8') as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached = json.load(f)
 
-            data = cached.get('data')
+            data = cached.get("data")
             if isinstance(data, dict):
                 return data
         except Exception:
@@ -701,15 +715,15 @@ class PluginStoreClient:
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, encoding='utf-8') as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached = json.load(f)
 
             # 检查缓存时间
-            timestamp = cached.get('timestamp', 0)
+            timestamp = cached.get("timestamp", 0)
             if time.time() - timestamp > CACHE_TTL * 24:  # 缓存最长 1 天
                 return None
 
-            self._registry_cache = cached.get('data')
+            self._registry_cache = cached.get("data")
             self._registry_cache_time = timestamp
             return self._registry_cache
 
@@ -731,8 +745,8 @@ class PluginStoreClient:
         # 1. 从远程注册表加载
         registry = self.fetch_registry(force=force)
         if registry:
-            items = registry.get('plugins', [])
-            items.extend(registry.get('themes', []))
+            items = registry.get("plugins", [])
+            items.extend(registry.get("themes", []))
 
             for item in items:
                 try:
@@ -763,9 +777,9 @@ class PluginStoreClient:
                     remote_info.state = PluginState.INSTALLED
             else:
                 # 仅本地存在
-                local_info.state = (PluginState.INSTALLED
-                                     if local_info.enabled
-                                     else PluginState.DISABLED)
+                local_info.state = (
+                    PluginState.INSTALLED if local_info.enabled else PluginState.DISABLED
+                )
                 plugins[name] = local_info
 
         return list(plugins.values())
@@ -783,7 +797,7 @@ class PluginStoreClient:
                 path = os.path.join(self.plugins_dir, name)
                 if not os.path.isdir(path):
                     continue
-                if name.startswith('.'):
+                if name.startswith("."):
                     continue
 
                 info = self._read_local_plugin(path, name)
@@ -793,7 +807,7 @@ class PluginStoreClient:
         # 扫描 themes 目录
         if os.path.isdir(self.themes_dir):
             for filename in os.listdir(self.themes_dir):
-                if filename.endswith('.json'):
+                if filename.endswith(".json"):
                     theme_name = os.path.splitext(filename)[0]
                     path = os.path.join(self.themes_dir, filename)
 
@@ -801,7 +815,7 @@ class PluginStoreClient:
                         name=theme_name,
                         display_name=theme_name,
                         type=PLUGIN_TYPE_THEME,
-                        category='theme',
+                        category="theme",
                         local_path=path,
                         installed=True,
                         enabled=True,
@@ -809,12 +823,12 @@ class PluginStoreClient:
                     )
 
                     try:
-                        with open(path, encoding='utf-8') as f:
+                        with open(path, encoding="utf-8") as f:
                             theme_data = json.load(f)
-                        info.display_name = theme_data.get('name', theme_name)
-                        info.description = theme_data.get('description', '')
-                        info.author = theme_data.get('author', '')
-                        info.version = theme_data.get('version', '1.0.0')
+                        info.display_name = theme_data.get("name", theme_name)
+                        info.description = theme_data.get("description", "")
+                        info.author = theme_data.get("author", "")
+                        info.version = theme_data.get("version", "1.0.0")
                     except Exception:
                         pass
 
@@ -824,33 +838,32 @@ class PluginStoreClient:
 
     def _read_local_plugin(self, path: str, name: str) -> Optional[PluginInfo]:
         """读取本地插件信息"""
-        manifest_path = os.path.join(path, 'plugin.json')
+        manifest_path = os.path.join(path, "plugin.json")
         if not os.path.exists(manifest_path):
             return None
 
         try:
-            with open(manifest_path, encoding='utf-8') as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = json.load(f)
 
             info = PluginInfo(
-                name=manifest.get('name', name),
-                display_name=manifest.get('display_name',
-                                            manifest.get('name', name)),
-                version=manifest.get('version', '0.0.0'),
-                description=manifest.get('description', ''),
-                author=manifest.get('author', ''),
-                author_email=manifest.get('author_email', ''),
-                homepage=manifest.get('homepage', ''),
-                repository=manifest.get('repository', ''),
-                type=manifest.get('type', PLUGIN_TYPE_PLUGIN),
-                category=manifest.get('category', 'other'),
-                tags=manifest.get('tags', []),
-                dependencies=manifest.get('dependencies', []),
-                plugin_dependencies=manifest.get('plugin_dependencies', []),
-                permissions=manifest.get('permissions', []),
+                name=manifest.get("name", name),
+                display_name=manifest.get("display_name", manifest.get("name", name)),
+                version=manifest.get("version", "0.0.0"),
+                description=manifest.get("description", ""),
+                author=manifest.get("author", ""),
+                author_email=manifest.get("author_email", ""),
+                homepage=manifest.get("homepage", ""),
+                repository=manifest.get("repository", ""),
+                type=manifest.get("type", PLUGIN_TYPE_PLUGIN),
+                category=manifest.get("category", "other"),
+                tags=manifest.get("tags", []),
+                dependencies=manifest.get("dependencies", []),
+                plugin_dependencies=manifest.get("plugin_dependencies", []),
+                permissions=manifest.get("permissions", []),
                 local_path=path,
                 installed=True,
-                enabled=not manifest.get('disabled', False),
+                enabled=not manifest.get("disabled", False),
             )
 
             # 安装时间
@@ -870,9 +883,12 @@ class PluginStoreClient:
     # --------------------------------------------------------
     # 安装/卸载
     # --------------------------------------------------------
-    def install_plugin(self, info: PluginInfo,
-                        progress_callback: Optional[Callable[[int, str], None]] = None,
-                        install_deps: bool = True) -> Tuple[bool, str]:
+    def install_plugin(
+        self,
+        info: PluginInfo,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+        install_deps: bool = True,
+    ) -> Tuple[bool, str]:
         """
         安装插件。
 
@@ -906,9 +922,11 @@ class PluginStoreClient:
                     progress_callback(40, "校验中...")
 
                 ok, msg = verify_plugin_signature(
-                    data, info.file_hash,
+                    data,
+                    info.file_hash,
                     getattr(info, "signature", ""),
-                    getattr(info, "signature_algo", ""))
+                    getattr(info, "signature_algo", ""),
+                )
                 if not ok:
                     return (False, msg)
 
@@ -925,19 +943,17 @@ class PluginStoreClient:
             if progress_callback:
                 progress_callback(70, "解压中...")
 
-            target_dir = (self.themes_dir if info.type == PLUGIN_TYPE_THEME
-                          else self.plugins_dir)
+            target_dir = self.themes_dir if info.type == PLUGIN_TYPE_THEME else self.plugins_dir
 
             _target_path = os.path.join(target_dir, info.name)
             _existed_before = os.path.exists(_target_path)
-            success, msg = self._extract_plugin(
-                data, target_dir, info.name, info.type
-            )
+            success, msg = self._extract_plugin(data, target_dir, info.name, info.type)
             if not success:
                 # 回滚：清理本次新建的半成品目录（v2.17）
                 try:
                     if not _existed_before and os.path.isdir(_target_path):
                         import shutil
+
                         shutil.rmtree(_target_path, ignore_errors=True)
                 except Exception:
                     pass
@@ -972,8 +988,7 @@ class PluginStoreClient:
 
             # 备份
             backup_dir = os.path.join(
-                self.cache_dir, "uninstalled",
-                f"{info.name}_{int(time.time())}"
+                self.cache_dir, "uninstalled", f"{info.name}_{int(time.time())}"
             )
             os.makedirs(os.path.dirname(backup_dir), exist_ok=True)
 
@@ -994,9 +1009,9 @@ class PluginStoreClient:
         except Exception as e:
             return (False, f"卸载失败: {e}")
 
-    def update_plugin(self, info: PluginInfo,
-                       progress_callback: Optional[Callable[[int, str], None]] = None
-                       ) -> Tuple[bool, str]:
+    def update_plugin(
+        self, info: PluginInfo, progress_callback: Optional[Callable[[int, str], None]] = None
+    ) -> Tuple[bool, str]:
         """
         更新插件。
 
@@ -1009,10 +1024,7 @@ class PluginStoreClient:
         # 先卸载再安装
         if info.local_path and os.path.exists(info.local_path):
             # 移动到备份
-            backup_dir = os.path.join(
-                self.cache_dir, "backup",
-                f"{info.name}_{int(time.time())}"
-            )
+            backup_dir = os.path.join(self.cache_dir, "backup", f"{info.name}_{int(time.time())}")
             os.makedirs(os.path.dirname(backup_dir), exist_ok=True)
 
             try:
@@ -1039,21 +1051,20 @@ class PluginStoreClient:
             if not info.local_path:
                 return False
 
-            manifest_path = os.path.join(info.local_path, 'plugin.json')
+            manifest_path = os.path.join(info.local_path, "plugin.json")
             if not os.path.exists(manifest_path):
                 return False
 
-            with open(manifest_path, encoding='utf-8') as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = json.load(f)
 
-            manifest['disabled'] = not enabled
+            manifest["disabled"] = not enabled
 
-            with open(manifest_path, 'w', encoding='utf-8') as f:
+            with open(manifest_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
 
             info.enabled = enabled
-            info.state = (PluginState.INSTALLED if enabled
-                          else PluginState.DISABLED)
+            info.state = PluginState.INSTALLED if enabled else PluginState.DISABLED
 
             return True
 
@@ -1082,8 +1093,7 @@ class PluginStoreClient:
                 if not remote_info:
                     continue
 
-                if self._is_newer_version(local_info.version,
-                                            remote_info.version):
+                if self._is_newer_version(local_info.version, remote_info.version):
                     remote_info.installed = True
                     remote_info.installed_version = local_info.version
                     remote_info.local_path = local_info.local_path
@@ -1101,12 +1111,12 @@ class PluginStoreClient:
         if not registry:
             return None
 
-        for item in registry.get('plugins', []):
-            if item.get('name') == name:
+        for item in registry.get("plugins", []):
+            if item.get("name") == name:
                 return PluginInfo.from_dict(item)
 
-        for item in registry.get('themes', []):
-            if item.get('name') == name:
+        for item in registry.get("themes", []):
+            if item.get("name") == name:
                 return PluginInfo.from_dict(item)
 
         return None
@@ -1115,10 +1125,11 @@ class PluginStoreClient:
     def _is_newer_version(old_version: str, new_version: str) -> bool:
         """比较版本号"""
         try:
+
             def parse(v):
                 # 移除预发布标识
-                v = v.split('-')[0].split('+')[0]
-                return [int(x) for x in v.split('.')]
+                v = v.split("-")[0].split("+")[0]
+                return [int(x) for x in v.split(".")]
 
             return parse(new_version) > parse(old_version)
 
@@ -1128,8 +1139,7 @@ class PluginStoreClient:
     # --------------------------------------------------------
     # 依赖安装
     # --------------------------------------------------------
-    def _install_dependencies(self, dependencies: List[str]
-                                ) -> Tuple[bool, str]:
+    def _install_dependencies(self, dependencies: List[str]) -> Tuple[bool, str]:
         """安装 Python 依赖"""
         if not dependencies:
             return (True, "")
@@ -1137,13 +1147,10 @@ class PluginStoreClient:
         try:
             import subprocess
 
-            cmd = [sys.executable, '-m', 'pip', 'install']
+            cmd = [sys.executable, "-m", "pip", "install"]
             cmd.extend(dependencies)
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=120
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
             if result.returncode == 0:
                 return (True, "")
@@ -1160,9 +1167,14 @@ class PluginStoreClient:
         """下载字节数据"""
         try:
             import requests
-            resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT,
-                                headers=self._registry_headers(),
-                                verify=self.verify_tls, stream=True)
+
+            resp = requests.get(
+                url,
+                timeout=DOWNLOAD_TIMEOUT,
+                headers=self._registry_headers(),
+                verify=self.verify_tls,
+                stream=True,
+            )
             if resp.status_code != 200:
                 return None
 
@@ -1171,13 +1183,13 @@ class PluginStoreClient:
             for chunk in resp.iter_content(chunk_size=8192):
                 chunks.append(chunk)
 
-            return b''.join(chunks)
+            return b"".join(chunks)
 
         except ImportError:
             import urllib.request
+
             try:
-                _req = urllib.request.Request(
-                    url, headers=self._registry_headers())
+                _req = urllib.request.Request(url, headers=self._registry_headers())
                 with urllib.request.urlopen(_req, timeout=DOWNLOAD_TIMEOUT) as f:
                     return f.read()
             except Exception:
@@ -1189,35 +1201,33 @@ class PluginStoreClient:
     # --------------------------------------------------------
     # 解压
     # --------------------------------------------------------
-    def _extract_plugin(self, data: bytes, target_dir: str,
-                          plugin_name: str, plugin_type: str
-                          ) -> Tuple[bool, str]:
+    def _extract_plugin(
+        self, data: bytes, target_dir: str, plugin_name: str, plugin_type: str
+    ) -> Tuple[bool, str]:
         """解压插件包"""
         try:
             # 写入临时文件
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix='.zip'
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
                 tmp.write(data)
                 tmp_path = tmp.name
 
             try:
                 # 解压
-                with zipfile.ZipFile(tmp_path, 'r') as zf:
+                with zipfile.ZipFile(tmp_path, "r") as zf:
                     # 检查压缩包结构
                     names = zf.namelist()
 
                     # 判断是否包含顶层目录
                     top_level = set()
                     for name in names:
-                        parts = name.split('/')
+                        parts = name.split("/")
                         if parts:
                             top_level.add(parts[0])
 
                     # 如果只有一个顶层目录且是插件名，则解压后移动
                     if len(top_level) == 1:
                         top_dir = list(top_level)[0]
-                        if top_dir == plugin_name or top_dir.endswith('/'):
+                        if top_dir == plugin_name or top_dir.endswith("/"):
                             # 直接解压到 target_dir
                             extract_dir = target_dir
                         else:
@@ -1229,10 +1239,7 @@ class PluginStoreClient:
                             if os.path.exists(final_dir):
                                 shutil.rmtree(final_dir)
 
-                            shutil.move(
-                                os.path.join(extract_dir, top_dir),
-                                final_dir
-                            )
+                            shutil.move(os.path.join(extract_dir, top_dir), final_dir)
                             shutil.rmtree(extract_dir, ignore_errors=True)
 
                             os.unlink(tmp_path)
@@ -1242,13 +1249,11 @@ class PluginStoreClient:
                     if plugin_type == PLUGIN_TYPE_THEME:
                         # 主题文件是单个 JSON，直接复制到 themes 目录
                         for name in names:
-                            if name.endswith('.json'):
+                            if name.endswith(".json"):
                                 with zf.open(name) as src:
                                     content = src.read()
-                                theme_file = os.path.join(
-                                    target_dir, os.path.basename(name)
-                                )
-                                with open(theme_file, 'wb') as dst:
+                                theme_file = os.path.join(target_dir, os.path.basename(name))
+                                with open(theme_file, "wb") as dst:
                                     dst.write(content)
                     else:
                         # 插件解压到子目录
@@ -1259,7 +1264,7 @@ class PluginStoreClient:
 
                         for name in names:
                             # 安全检查：防止路径穿越
-                            if '..' in name or name.startswith('/'):
+                            if ".." in name or name.startswith("/"):
                                 continue
                             zf.extract(name, extract_to)
 
@@ -1294,15 +1299,13 @@ class PluginStoreClient:
     def get_cache_info(self) -> Dict[str, Any]:
         """获取缓存信息"""
         info = {
-            'cache_dir': self.cache_dir,
-            'has_cache': self._registry_cache is not None,
-            'cache_age_seconds': 0,
+            "cache_dir": self.cache_dir,
+            "has_cache": self._registry_cache is not None,
+            "cache_age_seconds": 0,
         }
 
         if self._registry_cache_time > 0:
-            info['cache_age_seconds'] = int(
-                time.time() - self._registry_cache_time
-            )
+            info["cache_age_seconds"] = int(time.time() - self._registry_cache_time)
 
         return info
 
@@ -1317,7 +1320,7 @@ class PluginCard(QFrame):
     展示单个插件的信息，支持点击安装/卸载。
     """
 
-    install_clicked = pyqtSignal(object)     # PluginInfo
+    install_clicked = pyqtSignal(object)  # PluginInfo
     uninstall_clicked = pyqtSignal(object)
     update_clicked = pyqtSignal(object)
     detail_clicked = pyqtSignal(object)
@@ -1354,8 +1357,7 @@ class PluginCard(QFrame):
             self.icon_label.setText("🧩")
 
         self.icon_label.setStyleSheet(
-            "font-size: 24px; background-color: #2d2d2d; "
-            "border-radius: 6px;"
+            "font-size: 24px; background-color: #2d2d2d; border-radius: 6px;"
         )
         layout.addWidget(self.icon_label)
 
@@ -1368,16 +1370,12 @@ class PluginCard(QFrame):
         title_layout.setSpacing(6)
 
         self.title_label = QLabel(self.info.display_title)
-        self.title_label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; color: #d4d4d4;"
-        )
+        self.title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #d4d4d4;")
         title_layout.addWidget(self.title_label)
 
         # 版本
         self.version_label = QLabel(f"v{self.info.version}")
-        self.version_label.setStyleSheet(
-            "font-size: 11px; color: #888;"
-        )
+        self.version_label.setStyleSheet("font-size: 11px; color: #888;")
         title_layout.addWidget(self.version_label)
 
         try:
@@ -1385,7 +1383,8 @@ class PluginCard(QFrame):
             _badge.setStyleSheet(
                 "font-size:10px; color:#9cdcfe; "
                 "border:1px solid #3c3c3c; border-radius:3px; "
-                "padding:1px 4px;")
+                "padding:1px 4px;"
+            )
             title_layout.addWidget(_badge)
             _sec = QLabel(plugin_security_bucket(self.info))
             _sec.setStyleSheet("font-size:10px; color:#888;")
@@ -1395,15 +1394,14 @@ class PluginCard(QFrame):
             pass
 
         # 兼容性徽章（列表行内，与详情页一致）
-        self._compat_ok, self._compat_reason = (
-            check_plugin_compatibility(self.info))
-        self.compat_label = QLabel(
-            "✅ 兼容" if self._compat_ok else "⚠️ 不兼容")
-        self.compat_label.setToolTip(
-            self._compat_reason or "与当前应用版本兼容")
+        self._compat_ok, self._compat_reason = check_plugin_compatibility(self.info)
+        self.compat_label = QLabel("✅ 兼容" if self._compat_ok else "⚠️ 不兼容")
+        self.compat_label.setToolTip(self._compat_reason or "与当前应用版本兼容")
         self.compat_label.setStyleSheet(
-            "font-size: 11px; color: #4caf50;" if self._compat_ok
-            else "font-size: 11px; color: #ff9800;")
+            "font-size: 11px; color: #4caf50;"
+            if self._compat_ok
+            else "font-size: 11px; color: #ff9800;"
+        )
         title_layout.addWidget(self.compat_label)
 
         # 认证标记
@@ -1466,9 +1464,7 @@ class PluginCard(QFrame):
         self.detail_btn.setText("ℹ")
         self.detail_btn.setFixedSize(24, 24)
         self.detail_btn.setToolTip("查看详情")
-        self.detail_btn.clicked.connect(
-            lambda: self.detail_clicked.emit(self.info)
-        )
+        self.detail_btn.clicked.connect(lambda: self.detail_clicked.emit(self.info))
         btn_layout.addWidget(self.detail_btn)
 
         layout.addLayout(btn_layout)
@@ -1518,9 +1514,9 @@ class PluginCard(QFrame):
             self.action_btn.setEnabled(False)
 
         # 不兼容 → 安装/更新按钮置灰（卸载/启用不受限）
-        if (state in (PluginState.NOT_INSTALLED,
-                      PluginState.UPDATE_AVAILABLE)
-                and not getattr(self, '_compat_ok', True)):
+        if state in (PluginState.NOT_INSTALLED, PluginState.UPDATE_AVAILABLE) and not getattr(
+            self, "_compat_ok", True
+        ):
             self.action_btn.setText("不兼容")
             self.action_btn.setEnabled(False)
             self.action_btn.setToolTip(self._compat_reason)
@@ -1528,9 +1524,8 @@ class PluginCard(QFrame):
     def _on_action_clicked(self):
         """按钮点击"""
         state = self.info.state
-        if state in (PluginState.NOT_INSTALLED,
-                     PluginState.UPDATE_AVAILABLE):
-            if not getattr(self, '_compat_ok', True):
+        if state in (PluginState.NOT_INSTALLED, PluginState.UPDATE_AVAILABLE):
+            if not getattr(self, "_compat_ok", True):
                 return
 
         if state == PluginState.NOT_INSTALLED:
@@ -1697,19 +1692,14 @@ class PluginDetailDialog(QDialog):
         icon_label.setFixedSize(64, 64)
         icon_label.setAlignment(Qt.AlignCenter)
         icon_label.setText("🧩")
-        icon_label.setStyleSheet(
-            "font-size: 40px; background-color: #2d2d2d; "
-            "border-radius: 8px;"
-        )
+        icon_label.setStyleSheet("font-size: 40px; background-color: #2d2d2d; border-radius: 8px;")
         layout.addWidget(icon_label)
 
         # 信息
         info_layout = QVBoxLayout()
 
         name_label = QLabel(self.info.display_title)
-        name_label.setStyleSheet(
-            "font-size: 18px; font-weight: bold; color: #d4d4d4;"
-        )
+        name_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #d4d4d4;")
         info_layout.addWidget(name_label)
 
         meta_parts = [f"v{self.info.version}"]
@@ -1760,8 +1750,7 @@ class PluginDetailDialog(QDialog):
             if _ok:
                 html_parts.append("<p>依赖状态: <b>全部满足</b></p>")
             else:
-                html_parts.append(
-                    "<p>依赖状态: <b>缺失 " + ", ".join(_missing) + "</b></p>")
+                html_parts.append("<p>依赖状态: <b>缺失 " + ", ".join(_missing) + "</b></p>")
         except Exception:
             pass
 
@@ -1797,9 +1786,7 @@ class PluginDetailDialog(QDialog):
             for perm in self.info.permissions:
                 desc = PERMISSION_DESCRIPTIONS.get(perm)
                 if desc:
-                    html_parts.append(
-                        f'<li class="permission">🔑 {desc[0]} - {desc[1]}</li>'
-                    )
+                    html_parts.append(f'<li class="permission">🔑 {desc[0]} - {desc[1]}</li>')
                 else:
                     html_parts.append(f'<li class="permission">🔑 {perm}</li>')
             html_parts.append("</ul>")
@@ -1812,9 +1799,7 @@ class PluginDetailDialog(QDialog):
             html_parts.append("<ul>")
             for dep in self.info.dependencies:
                 if dep in missing:
-                    html_parts.append(
-                        f'<li class="missing">✗ {dep} (未安装)</li>'
-                    )
+                    html_parts.append(f'<li class="missing">✗ {dep} (未安装)</li>')
                 else:
                     html_parts.append(f'<li class="dep">✓ {dep}</li>')
             html_parts.append("</ul>")
@@ -1859,17 +1844,14 @@ class PluginDetailDialog(QDialog):
         if _ok:
             html_parts.append("<li>✅ 兼容当前版本</li>")
         else:
-            html_parts.append(
-                f"<li>⚠️ 不兼容: {_reason}</li>")
+            html_parts.append(f"<li>⚠️ 不兼容: {_reason}</li>")
 
-        if getattr(self.info, 'update_url', ''):
+        if getattr(self.info, "update_url", ""):
             _url = self.info.update_url
-            html_parts.append(
-                f"<li>更新地址: <a href='{_url}'>{_url}</a></li>")
+            html_parts.append(f"<li>更新地址: <a href='{_url}'>{_url}</a></li>")
 
-        if getattr(self.info, 'changelog', ''):
-            html_parts.append(
-                "<li>更新日志: %s</li>" % self.info.changelog)
+        if getattr(self.info, "changelog", ""):
+            html_parts.append("<li>更新日志: %s</li>" % self.info.changelog)
 
         if self.info.verified:
             html_parts.append("<li>✅ 已验证</li>")
@@ -1949,9 +1931,7 @@ class InstallProgressDialog(QDialog):
 
         self.setWindowTitle("安装插件")
         self.setFixedSize(400, 150)
-        self.setWindowFlags(
-            self.windowFlags() & ~Qt.WindowContextHelpButtonHint
-        )
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         self._cancelled = False
 
@@ -2035,9 +2015,7 @@ class PluginStoreDialog(QDialog):
         # v2.9: 从 QSettings 加载自定义注册表 URL
         # 允许用户覆盖默认注册表地址（适配网络环境）
         self._settings = QSettings("QingCao", "PluginStore")
-        custom_url = self._settings.value(
-            "registry_url", "", type=str
-        )
+        custom_url = self._settings.value("registry_url", "", type=str)
         if custom_url:
             self.client.registry_url = custom_url
 
@@ -2111,9 +2089,7 @@ class PluginStoreDialog(QDialog):
 
         # 状态栏
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet(
-            "color: #888; font-size: 11px; padding: 4px;"
-        )
+        self.status_label.setStyleSheet("color: #888; font-size: 11px; padding: 4px;")
         layout.addWidget(self.status_label)
 
         # 底部按钮
@@ -2123,13 +2099,13 @@ class PluginStoreDialog(QDialog):
         self.check_updates_btn.clicked.connect(self._check_updates)
         bottom.addWidget(self.check_updates_btn)
         self.update_all_btn = QPushButton("⬆ 全部更新")
-        self.update_all_btn.setToolTip(
-            "检查并更新所有兼容的插件（不兼容项自动跳过）")
+        self.update_all_btn.setToolTip("检查并更新所有兼容的插件（不兼容项自动跳过）")
         self.update_all_btn.clicked.connect(self._check_updates)
         self.update_all_btn.setObjectName("update_all_btn")
         self.update_all_btn.setStyleSheet(
             "QPushButton { background: #4a90d9; color: white; "
-            "padding: 4px 12px; border-radius: 3px; }")
+            "padding: 4px 12px; border-radius: 3px; }"
+        )
         bottom.addWidget(self.update_all_btn)
 
         self.refresh_btn = QPushButton("🔄 刷新")
@@ -2170,22 +2146,14 @@ class PluginStoreDialog(QDialog):
         url_row.addWidget(url_label)
 
         self.registry_url_edit = QLineEdit()
-        self.registry_url_edit.setPlaceholderText(
-            "留空使用默认（jsDelivr CDN）"
-        )
-        self.registry_url_edit.setText(
-            self._settings.value("registry_url", "", type=str)
-        )
+        self.registry_url_edit.setPlaceholderText("留空使用默认（jsDelivr CDN）")
+        self.registry_url_edit.setText(self._settings.value("registry_url", "", type=str))
         self.registry_url_edit.setClearButtonEnabled(True)
-        self.registry_url_edit.returnPressed.connect(
-            self._on_registry_url_changed
-        )
+        self.registry_url_edit.returnPressed.connect(self._on_registry_url_changed)
         url_row.addWidget(self.registry_url_edit, 1)
 
         self.apply_url_btn = QPushButton("应用并刷新")
-        self.apply_url_btn.clicked.connect(
-            self._on_registry_url_changed
-        )
+        self.apply_url_btn.clicked.connect(self._on_registry_url_changed)
         url_row.addWidget(self.apply_url_btn)
 
         reset_url_btn = QPushButton("重置")
@@ -2194,6 +2162,26 @@ class PluginStoreDialog(QDialog):
         url_row.addWidget(reset_url_btn)
 
         outer.addLayout(url_row)
+
+        # v2.19：访问令牌 + TLS 校验（P1 审计缺口修复）
+        auth_row = QHBoxLayout()
+        auth_row.setContentsMargins(0, 0, 0, 0)
+        auth_row.setSpacing(6)
+        token_label = QLabel("访问令牌:")
+        token_label.setStyleSheet("color: #888; font-size: 11px;")
+        auth_row.addWidget(token_label)
+        self.registry_token_edit = QLineEdit()
+        self.registry_token_edit.setEchoMode(QLineEdit.Password)
+        self.registry_token_edit.setPlaceholderText("Bearer Token（可选，留空表示未配置）")
+        self.registry_token_edit.setText(self._settings.value("registry_token", "", type=str))
+        self.registry_token_edit.setClearButtonEnabled(True)
+        auth_row.addWidget(self.registry_token_edit, 1)
+        self.registry_tls_cb = QCheckBox("校验 TLS 证书")
+        self.registry_tls_cb.setChecked(
+            self._settings.value("registry_verify_tls", True, type=bool)
+        )
+        auth_row.addWidget(self.registry_tls_cb)
+        outer.addLayout(auth_row)
 
         # ====================================================
         # 原有的搜索/分类/排序行
@@ -2216,9 +2204,7 @@ class PluginStoreDialog(QDialog):
         self.category_combo = QComboBox()
         for key, name in CATEGORIES:
             self.category_combo.addItem(name, key)
-        self.category_combo.currentIndexChanged.connect(
-            self._on_category_changed
-        )
+        self.category_combo.currentIndexChanged.connect(self._on_category_changed)
         layout.addWidget(self.category_combo)
 
         # 排序下拉
@@ -2233,8 +2219,7 @@ class PluginStoreDialog(QDialog):
         self.security_combo = QComboBox()
         for _key, _label in SECURITY_FILTERS:
             self.security_combo.addItem(_label, _key)
-        self.security_combo.currentIndexChanged.connect(
-            lambda *a: self._apply_filters())
+        self.security_combo.currentIndexChanged.connect(lambda *a: self._apply_filters())
         filter_row.addWidget(self.security_combo)
 
         outer.addLayout(filter_row)
@@ -2249,12 +2234,8 @@ class PluginStoreDialog(QDialog):
         url = self.registry_url_edit.text().strip()
 
         # 简单校验
-        if url and not (url.startswith("http://")
-                        or url.startswith("https://")):
-            QMessageBox.warning(
-                self, "URL 格式错误",
-                "注册表 URL 必须以 http:// 或 https:// 开头"
-            )
+        if url and not (url.startswith("http://") or url.startswith("https://")):
+            QMessageBox.warning(self, "URL 格式错误", "注册表 URL 必须以 http:// 或 https:// 开头")
             return
 
         # 保存到 QSettings
@@ -2263,6 +2244,23 @@ class PluginStoreDialog(QDialog):
         else:
             self._settings.remove("registry_url")
 
+        # v2.19：访问令牌 + TLS 校验
+        token = ""
+        try:
+            token = self.registry_token_edit.text().strip()
+        except Exception:
+            token = ""
+        if token:
+            self._settings.setValue("registry_token", token)
+        else:
+            self._settings.remove("registry_token")
+        verify_tls = True
+        try:
+            verify_tls = self.registry_tls_cb.isChecked()
+        except Exception:
+            verify_tls = True
+        self._settings.setValue("registry_verify_tls", verify_tls)
+
         # 应用到 client
         if url:
             self.client.registry_url = url
@@ -2270,14 +2268,19 @@ class PluginStoreDialog(QDialog):
             # 恢复默认
             self.client.registry_url = DEFAULT_REGISTRY_URL
 
+        # v2.19：应用到客户端（Token / TLS）
+        try:
+            self.client.registry_token = token
+            self.client.verify_tls = verify_tls
+        except Exception:
+            pass
+
         # 清缓存并刷新
         self.client.clear_cache()
         self._load_plugins(force=True)
 
         QMessageBox.information(
-            self, "已应用",
-            f"注册表地址已更新：\n{url or '(默认)'}\n\n"
-            f"正在重新拉取插件列表..."
+            self, "已应用", f"注册表地址已更新：\n{url or '(默认)'}\n\n正在重新拉取插件列表..."
         )
 
     def _on_reset_registry_url(self):
@@ -2368,20 +2371,15 @@ class PluginStoreDialog(QDialog):
             # v2.9: 先用 cache_first 快速合并（本地 + 磁盘缓存）
             # 不发起网络请求，确保 UI 立即有内容
             try:
-                fast_registry = self.client.fetch_registry(
-                    force=False, cache_first=True
-                )
+                fast_registry = self.client.fetch_registry(force=False, cache_first=True)
             except Exception:
                 fast_registry = None
 
             if fast_registry:
                 # 有磁盘缓存：一次性合并远程 + 本地
-                self._all_plugins = self.client.get_all_plugins(
-                    force=False
-                )
+                self._all_plugins = self.client.get_all_plugins(force=False)
                 self.status_label.setText(
-                    f"已从缓存加载 {len(self._all_plugins)} 个插件，"
-                    f"后台刷新中..."
+                    f"已从缓存加载 {len(self._all_plugins)} 个插件，后台刷新中..."
                 )
             else:
                 # 无缓存：只显示本地
@@ -2390,8 +2388,7 @@ class PluginStoreDialog(QDialog):
                 for p in self._all_plugins:
                     p.state = PluginState.INSTALLED
                 self.status_label.setText(
-                    f"已加载 {len(self._all_plugins)} 个本地插件，"
-                    f"正在拉取远程列表..."
+                    f"已加载 {len(self._all_plugins)} 个本地插件，正在拉取远程列表..."
                 )
             self._apply_filters()
 
@@ -2402,15 +2399,9 @@ class PluginStoreDialog(QDialog):
 
         # ---- 第 2 步：后台拉远程 ----
         # 用 QThread 避免阻塞主线程。
-        self._registry_worker = RegistryFetchWorker(
-            self.client, force=force, parent=self
-        )
-        self._registry_worker.registry_ready.connect(
-            self._on_registry_loaded
-        )
-        self._registry_worker.failed.connect(
-            self._on_registry_failed
-        )
+        self._registry_worker = RegistryFetchWorker(self.client, force=force, parent=self)
+        self._registry_worker.registry_ready.connect(self._on_registry_loaded)
+        self._registry_worker.failed.connect(self._on_registry_failed)
         self._registry_worker.start()
 
     def _on_registry_loaded(self, registry: dict):
@@ -2419,9 +2410,7 @@ class PluginStoreDialog(QDialog):
             # 重新合并远程 + 本地
             self._all_plugins = self.client.get_all_plugins(force=False)
             self._apply_filters()
-            self.status_label.setText(
-                f"共 {len(self._all_plugins)} 个插件"
-            )
+            self.status_label.setText(f"共 {len(self._all_plugins)} 个插件")
         except Exception as e:
             print(f"[PluginStore] 合并远程插件失败: {e}")
         finally:
@@ -2430,9 +2419,7 @@ class PluginStoreDialog(QDialog):
     def _on_registry_failed(self, error: str):
         """后台拉取远程注册表失败（已 fallback 到本地）"""
         print(f"[PluginStore] 远程注册表不可用: {error}")
-        self.status_label.setText(
-            f"共 {len(self._all_plugins)} 个插件（离线模式）"
-        )
+        self.status_label.setText(f"共 {len(self._all_plugins)} 个插件（离线模式）")
         self.refresh_btn.setEnabled(True)
 
     def _refresh_plugins(self):
@@ -2470,18 +2457,20 @@ class PluginStoreDialog(QDialog):
         elif self._current_category == "featured":
             plugins = [p for p in plugins if p.featured]
         elif self._current_category != "all":
-            plugins = [p for p in plugins
-                       if p.category == self._current_category]
+            plugins = [p for p in plugins if p.category == self._current_category]
 
         # 搜索过滤
         if self._search_text:
             text = self._search_text
             plugins = [
-                p for p in plugins
-                if (text in p.name.lower()
+                p
+                for p in plugins
+                if (
+                    text in p.name.lower()
                     or text in p.display_name.lower()
                     or text in p.description.lower()
-                    or any(text in tag.lower() for tag in p.tags))
+                    or any(text in tag.lower() for tag in p.tags)
+                )
             ]
 
         # 安全状态筛选（v2.17）
@@ -2502,10 +2491,7 @@ class PluginStoreDialog(QDialog):
             plugins.sort(key=lambda p: p.display_title.lower())
         elif self._current_sort == "trending":
             # 按下载量 + 评分综合
-            plugins.sort(
-                key=lambda p: p.downloads * 0.7 + p.rating * 100 * 0.3,
-                reverse=True
-            )
+            plugins.sort(key=lambda p: p.downloads * 0.7 + p.rating * 100 * 0.3, reverse=True)
 
         self._filtered_plugins = plugins
         self._render_plugins()
@@ -2522,9 +2508,7 @@ class PluginStoreDialog(QDialog):
         if not self._filtered_plugins:
             empty_label = QLabel("没有找到匹配的插件")
             empty_label.setAlignment(Qt.AlignCenter)
-            empty_label.setStyleSheet(
-                "color: #888; font-size: 14px; padding: 40px;"
-            )
+            empty_label.setStyleSheet("color: #888; font-size: 14px; padding: 40px;")
             self.plugins_layout.insertWidget(0, empty_label)
             self.status_label.setText("无结果")
             return
@@ -2537,9 +2521,7 @@ class PluginStoreDialog(QDialog):
             card.update_clicked.connect(self._on_update)
             card.detail_clicked.connect(self._on_show_detail)
 
-            self.plugins_layout.insertWidget(
-                self.plugins_layout.count() - 1, card
-            )
+            self.plugins_layout.insertWidget(self.plugins_layout.count() - 1, card)
 
         self.status_label.setText(
             f"显示 {len(self._filtered_plugins)} / {len(self._all_plugins)} 个插件"
@@ -2550,25 +2532,25 @@ class PluginStoreDialog(QDialog):
     # --------------------------------------------------------
     def _on_install(self, info: PluginInfo):
         """
-        # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
-        _ok, _reason = check_plugin_compatibility(info)
-        if not _ok:
-            QMessageBox.warning(
-                self, "不兼容",
-                "该插件与当前版本不兼容，已取消：\n\n" + _reason)
-            return
-安装插件"""
+                # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
+                _ok, _reason = check_plugin_compatibility(info)
+                if not _ok:
+                    QMessageBox.warning(
+                        self, "不兼容",
+                        "该插件与当前版本不兼容，已取消：\n\n" + _reason)
+                    return
+        安装插件"""
         # 检查依赖
         satisfied, missing = info.get_dependency_status()
         if not satisfied:
-            msg = ("以下 Python 依赖未安装：\n\n"
-                   + "\n".join(f"• {d}" for d in missing)
-                   + "\n\n是否尝试自动安装？")
+            msg = (
+                "以下 Python 依赖未安装：\n\n"
+                + "\n".join(f"• {d}" for d in missing)
+                + "\n\n是否尝试自动安装？"
+            )
 
             reply = QMessageBox.question(
-                self, "缺少依赖", msg,
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                self, "缺少依赖", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
             )
 
             if reply != QMessageBox.Yes:
@@ -2586,9 +2568,7 @@ class PluginStoreDialog(QDialog):
                 return
 
         # 执行安装
-        success, msg = self.client.install_plugin(
-            info, progress_callback=on_progress
-        )
+        success, msg = self.client.install_plugin(info, progress_callback=on_progress)
 
         progress_dlg.close()
 
@@ -2601,8 +2581,7 @@ class PluginStoreDialog(QDialog):
 
             # 通知用户重启
             QMessageBox.information(
-                self, "提示",
-                "插件已安装，请重载插件（插件面板 → 重载）或重启编辑器后生效。"
+                self, "提示", "插件已安装，请重载插件（插件面板 → 重载）或重启编辑器后生效。"
             )
         else:
             QMessageBox.critical(self, "安装失败", msg)
@@ -2610,10 +2589,11 @@ class PluginStoreDialog(QDialog):
     def _on_uninstall(self, info: PluginInfo):
         """卸载插件"""
         reply = QMessageBox.question(
-            self, "确认卸载",
+            self,
+            "确认卸载",
             f"确定要卸载插件 {info.display_title} 吗？",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
 
         if reply != QMessageBox.Yes:
@@ -2630,14 +2610,14 @@ class PluginStoreDialog(QDialog):
 
     def _on_update(self, info: PluginInfo):
         """
-        # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
-        _ok, _reason = check_plugin_compatibility(info)
-        if not _ok:
-            QMessageBox.warning(
-                self, "不兼容",
-                "该插件与当前版本不兼容，已取消：\n\n" + _reason)
-            return
-更新插件"""
+                # 兼容性门控：不兼容直接拒绝（与更新器后端门控一致）
+                _ok, _reason = check_plugin_compatibility(info)
+                if not _ok:
+                    QMessageBox.warning(
+                        self, "不兼容",
+                        "该插件与当前版本不兼容，已取消：\n\n" + _reason)
+                    return
+        更新插件"""
         progress_dlg = InstallProgressDialog(info.display_title, self)
         progress_dlg.show()
 
@@ -2645,9 +2625,7 @@ class PluginStoreDialog(QDialog):
             progress_dlg.update_progress(value, status)
             QApplication.processEvents()
 
-        success, msg = self.client.update_plugin(
-            info, progress_callback=on_progress
-        )
+        success, msg = self.client.update_plugin(info, progress_callback=on_progress)
 
         progress_dlg.close()
 
@@ -2680,17 +2658,18 @@ class PluginStoreDialog(QDialog):
             if updates:
                 msg = f"发现 {len(updates)} 个插件可更新：\n\n"
                 msg += "\n".join(
-                    f"• {p.display_title} "
-                    f"({p.installed_version} → {p.version})"
+                    f"• {p.display_title} ({p.installed_version} → {p.version})"
                     for p in updates[:10]
                 )
                 if len(updates) > 10:
                     msg += f"\n... 及其他 {len(updates) - 10} 个"
 
                 reply = QMessageBox.question(
-                    self, "检查更新", msg + "\n\n是否全部更新？",
+                    self,
+                    "检查更新",
+                    msg + "\n\n是否全部更新？",
                     QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
+                    QMessageBox.Yes,
                 )
 
                 if reply == QMessageBox.Yes:
@@ -2716,11 +2695,11 @@ class PluginStoreDialog(QDialog):
                 _skipped.append((_info, _reason))
         if _skipped:
             QMessageBox.information(
-                self, "跳过不兼容",
+                self,
+                "跳过不兼容",
                 "以下插件与当前应用版本不兼容，已跳过更新：\n\n"
-                + "\n".join(
-                    "• %s：%s" % (i.display_title, r)
-                    for i, r in _skipped))
+                + "\n".join("• %s：%s" % (i.display_title, r) for i, r in _skipped),
+            )
         updates = _compat
         if not updates:
             return
@@ -2728,9 +2707,7 @@ class PluginStoreDialog(QDialog):
         success_count = 0
         failed_count = 0
 
-        progress_dlg = InstallProgressDialog(
-            f"{len(updates)} 个插件", self
-        )
+        progress_dlg = InstallProgressDialog(f"{len(updates)} 个插件", self)
         progress_dlg.show()
 
         for i, info in enumerate(updates):
@@ -2738,8 +2715,7 @@ class PluginStoreDialog(QDialog):
                 break
 
             progress_dlg.update_progress(
-                int((i / len(updates)) * 100),
-                f"更新 {info.display_title}..."
+                int((i / len(updates)) * 100), f"更新 {info.display_title}..."
             )
             QApplication.processEvents()
 
@@ -2753,8 +2729,7 @@ class PluginStoreDialog(QDialog):
         progress_dlg.close()
 
         QMessageBox.information(
-            self, "批量更新完成",
-            f"成功: {success_count} 个\n失败: {failed_count} 个"
+            self, "批量更新完成", f"成功: {success_count} 个\n失败: {failed_count} 个"
         )
 
         self._load_plugins()
@@ -2767,8 +2742,7 @@ class PluginStoreDialog(QDialog):
         from PyQt5.QtWidgets import QFileDialog
 
         filepath, _ = QFileDialog.getOpenFileName(
-            self, "选择插件包", "",
-            "插件包 (*.zip);;所有文件 (*.*)"
+            self, "选择插件包", "", "插件包 (*.zip);;所有文件 (*.*)"
         )
 
         if not filepath:
@@ -2776,7 +2750,7 @@ class PluginStoreDialog(QDialog):
 
         try:
             # 读取文件
-            with open(filepath, 'rb') as f:
+            with open(filepath, "rb") as f:
                 data = f.read()
 
             # 获取插件名
@@ -2789,9 +2763,9 @@ class PluginStoreDialog(QDialog):
 
             if success:
                 QMessageBox.information(
-                    self, "安装成功",
-                    f"插件已从 {os.path.basename(filepath)} 安装。\n"
-                    f"重启编辑器后生效。"
+                    self,
+                    "安装成功",
+                    f"插件已从 {os.path.basename(filepath)} 安装。\n重启编辑器后生效。",
                 )
                 self._load_plugins()
             else:
@@ -2818,8 +2792,10 @@ class PluginStoreDialog(QDialog):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<PluginStoreDialog plugins={len(self._all_plugins)} "
-                f"filtered={len(self._filtered_plugins)}>")
+        return (
+            f"<PluginStoreDialog plugins={len(self._all_plugins)} "
+            f"filtered={len(self._filtered_plugins)}>"
+        )
 
 
 # ============================================================
@@ -2881,6 +2857,7 @@ if __name__ == "__main__":
 
     # 5 秒后退出
     from PyQt5.QtCore import QTimer
+
     QTimer.singleShot(5000, app.quit)
 
     sys.exit(app.exec())

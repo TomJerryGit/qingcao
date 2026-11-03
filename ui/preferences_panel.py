@@ -111,15 +111,11 @@ class GeneralPage(QWidget):
         startup_layout = QVBoxLayout(startup_group)
 
         self.restore_session_cb = QCheckBox("恢复上次的会话")
-        self.restore_session_cb.setChecked(
-            prefs.get("restore_session", True)
-        )
+        self.restore_session_cb.setChecked(prefs.get("restore_session", True))
         startup_layout.addWidget(self.restore_session_cb)
 
         self.reopen_files_cb = QCheckBox("重新打开上次的文件")
-        self.reopen_files_cb.setChecked(
-            prefs.get("reopen_last_files", True)
-        )
+        self.reopen_files_cb.setChecked(prefs.get("reopen_last_files", True))
         startup_layout.addWidget(self.reopen_files_cb)
 
         self.splash_cb = QCheckBox("显示启动画面")
@@ -136,13 +132,9 @@ class GeneralPage(QWidget):
         self.splash_duration_spin.setRange(0, 5000)
         self.splash_duration_spin.setSingleStep(100)
         self.splash_duration_spin.setSuffix(" ms")
-        self.splash_duration_spin.setValue(
-            prefs.get("splash_duration", 800)
-        )
+        self.splash_duration_spin.setValue(prefs.get("splash_duration", 800))
         self.splash_duration_spin.setEnabled(self.splash_cb.isChecked())
-        self.splash_cb.toggled.connect(
-            self.splash_duration_spin.setEnabled
-        )
+        self.splash_cb.toggled.connect(self.splash_duration_spin.setEnabled)
         splash_dur_row.addWidget(self.splash_duration_spin)
         splash_dur_row.addStretch()
         startup_layout.addLayout(splash_dur_row)
@@ -172,9 +164,10 @@ class GeneralPage(QWidget):
         self.ui_scale_spin.setDecimals(1)
         try:
             from PyQt5.QtCore import QSettings as _QS
+
             self.ui_scale_spin.setValue(
-                float(_QS("QingCao", "Editor").value(
-                    "ui_scale", 1.0, type=float) or 1.0))
+                float(_QS("QingCao", "Editor").value("ui_scale", 1.0, type=float) or 1.0)
+            )
         except Exception:
             self.ui_scale_spin.setValue(1.0)
         scale_row.addWidget(self.ui_scale_spin)
@@ -195,16 +188,14 @@ class GeneralPage(QWidget):
         self.max_instances_spin = QSpinBox()
         self.max_instances_spin.setRange(1, 10)
         try:
-            cur = QSettings("QingCao", "Editor").value(
-                "max_new_window_instances", 3, type=int)
+            cur = QSettings("QingCao", "Editor").value("max_new_window_instances", 3, type=int)
         except Exception:
             cur = 3
         self.max_instances_spin.setValue(int(cur or 3))
         inst_row.addWidget(self.max_instances_spin)
         inst_row.addStretch()
         inst_layout.addLayout(inst_row)
-        inst_note = QLabel(
-            "环境变量 QINGCAO_MAX_INSTANCES 优先于该设置；范围 1~10。")
+        inst_note = QLabel("环境变量 QINGCAO_MAX_INSTANCES 优先于该设置；范围 1~10。")
         inst_note.setWordWrap(True)
         inst_layout.addWidget(inst_note)
         layout.addWidget(inst_group)
@@ -216,22 +207,17 @@ class GeneralPage(QWidget):
         # 界面语言：当前版本仅中文，不再写入 language 键
         # （原先会写用户选择的值，但该值对界面毫无影响 —— 假开关）
         self.prefs.set("language", "zh_CN")
-        self.prefs.set("restore_session",
-                       self.restore_session_cb.isChecked())
-        self.prefs.set("reopen_last_files",
-                       self.reopen_files_cb.isChecked())
+        self.prefs.set("restore_session", self.restore_session_cb.isChecked())
+        self.prefs.set("reopen_last_files", self.reopen_files_cb.isChecked())
         self.prefs.set("splash_screen", self.splash_cb.isChecked())
-        self.prefs.set("splash_duration",
-                       self.splash_duration_spin.value())
+        self.prefs.set("splash_duration", self.splash_duration_spin.value())
         self.prefs.set("check_update", self.check_update_cb.isChecked())
         self.prefs.set("telemetry", self.telemetry_cb.isChecked())
         try:
             settings = QSettings("QingCao", "Editor")
-            settings.setValue("max_new_window_instances",
-                              self.max_instances_spin.value())
+            settings.setValue("max_new_window_instances", self.max_instances_spin.value())
             settings.sync()
-            settings.setValue("ui_scale",
-                              self.ui_scale_spin.value())
+            settings.setValue("ui_scale", self.ui_scale_spin.value())
             settings.sync()
         except Exception:
             pass
@@ -243,7 +229,7 @@ class GeneralPage(QWidget):
 class AppearancePage(QWidget):
     """外观设置（主题）"""
 
-    theme_changed = pyqtSignal(str)   # 主题路径
+    theme_changed = pyqtSignal(str)  # 主题路径
 
     def __init__(self, prefs: Preferences, main_window=None, parent=None):
         super().__init__(parent)
@@ -265,9 +251,7 @@ class AppearancePage(QWidget):
         self.theme_combo = QComboBox()
         self.theme_combo.setMinimumWidth(200)
         self._load_theme_list()
-        self.theme_combo.currentIndexChanged.connect(
-            self._on_theme_selected
-        )
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_selected)
         pick_row.addWidget(self.theme_combo, 1)
 
         edit_btn = QPushButton("✏ 编辑")
@@ -286,9 +270,7 @@ class AppearancePage(QWidget):
 
         # 跟随系统
         self.follow_system_cb = QCheckBox("跟随系统主题")
-        self.follow_system_cb.setChecked(
-            prefs.get("theme_follow_system", True)
-        )
+        self.follow_system_cb.setChecked(prefs.get("theme_follow_system", True))
         theme_layout.addWidget(self.follow_system_cb)
 
         # 主题预览
@@ -301,7 +283,7 @@ class AppearancePage(QWidget):
         self.preview.setPlainText(
             "# 示例代码\n"
             "def hello(name):\n"
-            "    \"\"\"打招呼\"\"\"\n"
+            '    """打招呼"""\n'
             "    message = f'Hello, {name}!'\n"
             "    print(message)  # 输出\n"
             "    return True\n\n"
@@ -322,9 +304,7 @@ class AppearancePage(QWidget):
         ui_layout.addWidget(self.show_toolbar_cb)
 
         self.show_statusbar_cb = QCheckBox("显示状态栏")
-        self.show_statusbar_cb.setChecked(
-            prefs.get("statusbar_visible", True)
-        )
+        self.show_statusbar_cb.setChecked(prefs.get("statusbar_visible", True))
         ui_layout.addWidget(self.show_statusbar_cb)
 
         self.show_menubar_cb = QCheckBox("显示菜单栏")
@@ -346,20 +326,17 @@ class AppearancePage(QWidget):
 
         # 扫描目录
         themes_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "themes"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "themes"
         )
         current_theme = self.prefs.get("theme_name", "")
 
         if os.path.isdir(themes_dir):
             for f in sorted(os.listdir(themes_dir)):
-                if f.endswith('.json'):
+                if f.endswith(".json"):
                     name = os.path.splitext(f)[0]
                     self.theme_combo.addItem(name, name)
                     if name == current_theme:
-                        self.theme_combo.setCurrentIndex(
-                            self.theme_combo.count() - 1
-                        )
+                        self.theme_combo.setCurrentIndex(self.theme_combo.count() - 1)
 
     def _on_theme_selected(self, index: int):
         name = self.theme_combo.currentData()
@@ -373,6 +350,7 @@ class AppearancePage(QWidget):
         """刷新预览区"""
         try:
             from infrastructure.theme_loader import ThemeLoader
+
             loader = ThemeLoader()
             name = self.theme_combo.currentData()
             if name == "__system__":
@@ -401,6 +379,7 @@ class AppearancePage(QWidget):
         """打开主题编辑器"""
         try:
             from ui.theme_editor import ThemeEditor
+
             dlg = ThemeEditor(self)
             dlg.exec_()
             # 编辑后刷新列表
@@ -413,13 +392,10 @@ class AppearancePage(QWidget):
         """打开主题市场"""
         try:
             from ui.theme_market import ThemeMarketDialog
+
             dlg = ThemeMarketDialog(self.main_window, self)
-            dlg.theme_installed.connect(
-                lambda name: self._load_theme_list()
-            )
-            dlg.theme_deleted.connect(
-                lambda name: self._load_theme_list()
-            )
+            dlg.theme_installed.connect(lambda name: self._load_theme_list())
+            dlg.theme_deleted.connect(lambda name: self._load_theme_list())
             dlg.exec_()
             self._load_theme_list()
         except Exception as e:
@@ -429,22 +405,18 @@ class AppearancePage(QWidget):
         """打开主题目录"""
         from PyQt5.QtCore import QUrl
         from PyQt5.QtGui import QDesktopServices
+
         themes_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "themes"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "themes"
         )
         QDesktopServices.openUrl(QUrl.fromLocalFile(themes_dir))
 
     def apply(self):
         """保存设置"""
-        self.prefs.set("theme_follow_system",
-                       self.follow_system_cb.isChecked())
-        self.prefs.set("toolbar_visible",
-                       self.show_toolbar_cb.isChecked())
-        self.prefs.set("statusbar_visible",
-                       self.show_statusbar_cb.isChecked())
-        self.prefs.set("menubar_visible",
-                       self.show_menubar_cb.isChecked())
+        self.prefs.set("theme_follow_system", self.follow_system_cb.isChecked())
+        self.prefs.set("toolbar_visible", self.show_toolbar_cb.isChecked())
+        self.prefs.set("statusbar_visible", self.show_statusbar_cb.isChecked())
+        self.prefs.set("menubar_visible", self.show_menubar_cb.isChecked())
 
 
 # ============================================================
@@ -465,9 +437,7 @@ class FontPage(QWidget):
 
         # 字体族
         self.family_combo = QFontComboBox()
-        self.family_combo.setCurrentFont(
-            QFont(prefs.get("font_family", "Consolas"))
-        )
+        self.family_combo.setCurrentFont(QFont(prefs.get("font_family", "Consolas")))
         self.family_combo.currentFontChanged.connect(self._update_preview)
         form.addRow("字体:", self.family_combo)
 
@@ -481,9 +451,7 @@ class FontPage(QWidget):
 
         # 中文回退字体
         self.alt_combo = QFontComboBox()
-        self.alt_combo.setCurrentFont(
-            QFont(prefs.get("font_family_alt", "Microsoft YaHei"))
-        )
+        self.alt_combo.setCurrentFont(QFont(prefs.get("font_family_alt", "Microsoft YaHei")))
         form.addRow("中文回退:", self.alt_combo)
 
         # 连字
@@ -501,10 +469,7 @@ class FontPage(QWidget):
         self.preview.setReadOnly(True)
         self.preview.setMaximumHeight(160)
         self.preview.setPlainText(
-            "def hello(name):\n"
-            "    \"\"\"打招呼\"\"\"\n"
-            "    print(f'Hello, {name}!')\n"
-            "    return 0\n"
+            'def hello(name):\n    """打招呼"""\n    print(f\'Hello, {name}!\')\n    return 0\n'
         )
         preview_layout.addWidget(self.preview)
 
@@ -519,11 +484,9 @@ class FontPage(QWidget):
         self.preview.setFont(font)
 
     def apply(self):
-        self.prefs.set("font_family",
-                       self.family_combo.currentFont().family())
+        self.prefs.set("font_family", self.family_combo.currentFont().family())
         self.prefs.set("font_size", self.size_spin.value())
-        self.prefs.set("font_family_alt",
-                       self.alt_combo.currentFont().family())
+        self.prefs.set("font_family_alt", self.alt_combo.currentFont().family())
         self.prefs.set("font_ligatures", self.ligatures_cb.isChecked())
 
 
@@ -559,9 +522,7 @@ class EditorPage(QWidget):
         indent_form.addRow("", self.auto_indent_cb)
 
         self.indent_guides_cb = QCheckBox("显示缩进辅助线")
-        self.indent_guides_cb.setChecked(
-            prefs.get("indent_guides", True)
-        )
+        self.indent_guides_cb.setChecked(prefs.get("indent_guides", True))
         indent_form.addRow("", self.indent_guides_cb)
 
         self.rainbow_cb = QCheckBox("缩进彩虹线")
@@ -575,9 +536,7 @@ class EditorPage(QWidget):
         edit_layout = QVBoxLayout(edit_group)
 
         self.line_numbers_cb = QCheckBox("显示行号")
-        self.line_numbers_cb.setChecked(
-            prefs.get("show_line_numbers", True)
-        )
+        self.line_numbers_cb.setChecked(prefs.get("show_line_numbers", True))
         edit_layout.addWidget(self.line_numbers_cb)
 
         self.folding_cb = QCheckBox("启用代码折叠")
@@ -585,44 +544,30 @@ class EditorPage(QWidget):
         edit_layout.addWidget(self.folding_cb)
 
         self.current_line_cb = QCheckBox("高亮当前行")
-        self.current_line_cb.setChecked(
-            prefs.get("show_current_line", True)
-        )
+        self.current_line_cb.setChecked(prefs.get("show_current_line", True))
         edit_layout.addWidget(self.current_line_cb)
 
         self.auto_close_cb = QCheckBox("自动闭合括号和引号")
-        self.auto_close_cb.setChecked(
-            prefs.get("auto_close_brackets", True)
-        )
+        self.auto_close_cb.setChecked(prefs.get("auto_close_brackets", True))
         edit_layout.addWidget(self.auto_close_cb)
 
         self.trim_ws_cb = QCheckBox("保存时清理行尾空白")
-        self.trim_ws_cb.setChecked(
-            prefs.get("trim_trailing_whitespace", True)
-        )
+        self.trim_ws_cb.setChecked(prefs.get("trim_trailing_whitespace", True))
         edit_layout.addWidget(self.trim_ws_cb)
 
         # ---- 代码补全（P10：本地补全器接线后补上的 UI）----
         # 这两个键此前只在 ui/editor_view.py 里读取，没有登记也没有面板项，
         # 而补全默认开启 —— 用户无法关闭或调整触发前缀长度。
-        self.local_completion_cb = QCheckBox(
-            "输入时自动提示补全（关键字 / 词频 / 文档词）"
-        )
-        self.local_completion_cb.setChecked(
-            prefs.get("local_completion", True)
-        )
+        self.local_completion_cb = QCheckBox("输入时自动提示补全（关键字 / 词频 / 文档词）")
+        self.local_completion_cb.setChecked(prefs.get("local_completion", True))
         edit_layout.addWidget(self.local_completion_cb)
 
         prefix_row = QHBoxLayout()
         prefix_row.addWidget(QLabel("补全触发前缀长度:"))
         self.completion_prefix_spin = QSpinBox()
         self.completion_prefix_spin.setRange(1, 10)
-        self.completion_prefix_spin.setValue(
-            int(prefs.get("local_completion_min_prefix", 2))
-        )
-        self.completion_prefix_spin.setToolTip(
-            "输入多少个字符后才弹出补全候选（默认 2）"
-        )
+        self.completion_prefix_spin.setValue(int(prefs.get("local_completion_min_prefix", 2)))
+        self.completion_prefix_spin.setToolTip("输入多少个字符后才弹出补全候选（默认 2）")
         prefix_row.addWidget(self.completion_prefix_spin)
         prefix_row.addStretch()
         edit_layout.addLayout(prefix_row)
@@ -638,10 +583,29 @@ class EditorPage(QWidget):
         save_layout.addWidget(self.auto_save_cb)
 
         self.trim_final_cb = QCheckBox("保存时确保末尾换行")
-        self.trim_final_cb.setChecked(
-            prefs.get("insert_final_newline", True)
-        )
+        self.trim_final_cb.setChecked(prefs.get("insert_final_newline", True))
         save_layout.addWidget(self.trim_final_cb)
+
+        # v2.19：大文件相关设置（P1 审计缺口修复）
+        self.mmap_save_cb = QCheckBox("大文件等长修改使用 mmap 增量保存（实验）")
+        self.mmap_save_cb.setChecked(prefs.get("mmap_incremental_save", False))
+        self.mmap_save_cb.setToolTip(
+            "仅当保存内容与磁盘差异为等长字节、且换行结构不变时生效；失败会自动回退全量保存。"
+        )
+        save_layout.addWidget(self.mmap_save_cb)
+
+        threshold_row = QHBoxLayout()
+        threshold_row.addWidget(QLabel("大文件阈值:"))
+        self.large_file_threshold_spin = QSpinBox()
+        self.large_file_threshold_spin.setRange(1, 512)
+        self.large_file_threshold_spin.setSuffix(" MB")
+        self.large_file_threshold_spin.setValue(prefs.get("large_file_threshold", 10))
+        self.large_file_threshold_spin.setToolTip(
+            "超过该大小的文件按大文件处理（大纲/诊断等功能）。"
+        )
+        threshold_row.addWidget(self.large_file_threshold_spin)
+        threshold_row.addStretch()
+        save_layout.addLayout(threshold_row)
 
         layout.addWidget(save_group)
         layout.addStretch()
@@ -653,25 +617,21 @@ class EditorPage(QWidget):
         self.prefs.set("indent_guides", self.indent_guides_cb.isChecked())
         self.prefs.set("indent_rainbow", self.rainbow_cb.isChecked())
 
-        self.prefs.set("show_line_numbers",
-                       self.line_numbers_cb.isChecked())
+        self.prefs.set("show_line_numbers", self.line_numbers_cb.isChecked())
         self.prefs.set("show_folding", self.folding_cb.isChecked())
-        self.prefs.set("show_current_line",
-                       self.current_line_cb.isChecked())
-        self.prefs.set("auto_close_brackets",
-                       self.auto_close_cb.isChecked())
-        self.prefs.set("trim_trailing_whitespace",
-                       self.trim_ws_cb.isChecked())
+        self.prefs.set("show_current_line", self.current_line_cb.isChecked())
+        self.prefs.set("auto_close_brackets", self.auto_close_cb.isChecked())
+        self.prefs.set("trim_trailing_whitespace", self.trim_ws_cb.isChecked())
 
         # 代码补全
-        self.prefs.set("local_completion",
-                       self.local_completion_cb.isChecked())
-        self.prefs.set("local_completion_min_prefix",
-                       self.completion_prefix_spin.value())
+        self.prefs.set("local_completion", self.local_completion_cb.isChecked())
+        self.prefs.set("local_completion_min_prefix", self.completion_prefix_spin.value())
 
         self.prefs.set("auto_save", self.auto_save_cb.isChecked())
-        self.prefs.set("insert_final_newline",
-                       self.trim_final_cb.isChecked())
+        self.prefs.set("insert_final_newline", self.trim_final_cb.isChecked())
+        # v2.19：大文件相关设置
+        self.prefs.set("mmap_incremental_save", self.mmap_save_cb.isChecked())
+        self.prefs.set("large_file_threshold", self.large_file_threshold_spin.value())
 
 
 # ============================================================
@@ -707,25 +667,29 @@ class AdvancedPage(QWidget):
 
         self.portable_cb = QCheckBox("启用便携模式")
         self.portable_cb.setChecked(prefs.get("portable_mode", False))
-        self.portable_cb.setToolTip(
-            "启用后，配置存储在程序目录而非用户目录"
-        )
+        self.portable_cb.setToolTip("启用后，配置存储在程序目录而非用户目录")
         portable_layout.addWidget(self.portable_cb)
 
-        hint = QLabel(
-            "提示：便携模式需要重启编辑器生效。\n"
-            "也可在程序目录创建 portable.txt 文件。"
-        )
+        hint = QLabel("提示：便携模式需要重启编辑器生效。\n也可在程序目录创建 portable.txt 文件。")
         hint.setStyleSheet("color: #888; font-size: 11px;")
         portable_layout.addWidget(hint)
 
         layout.addWidget(portable_group)
 
+        # v2.19：性能与诊断（P1 审计缺口修复）
+        diag_group = QGroupBox("性能与诊断")
+        diag_form = QFormLayout(diag_group)
+        self.live_diag_spin = QSpinBox()
+        self.live_diag_spin.setRange(1, 512)
+        self.live_diag_spin.setSuffix(" MB")
+        self.live_diag_spin.setValue(prefs.get("live_diagnostics_max_mb", 5))
+        self.live_diag_spin.setToolTip("超过该大小的文件跳过实时沙箱诊断（默认 5MB）。")
+        diag_form.addRow("实时诊断大文件阈值:", self.live_diag_spin)
+        layout.addWidget(diag_group)
+
         # 重置按钮
         reset_btn = QPushButton("🔄 恢复所有设置为默认")
-        reset_btn.setStyleSheet(
-            "background-color: #8f1e1e; color: white;"
-        )
+        reset_btn.setStyleSheet("background-color: #8f1e1e; color: white;")
         reset_btn.clicked.connect(self._on_reset_all)
         layout.addWidget(reset_btn)
 
@@ -733,10 +697,11 @@ class AdvancedPage(QWidget):
 
     def _on_reset_all(self):
         reply = QMessageBox.question(
-            self, "确认",
+            self,
+            "确认",
             "确定要将所有设置恢复为默认值吗？",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             self.prefs.reset_to_defaults()
@@ -746,6 +711,8 @@ class AdvancedPage(QWidget):
         self.prefs.set("debug_mode", self.debug_cb.isChecked())
         self.prefs.set("log_to_file", self.log_file_cb.isChecked())
         self.prefs.set("portable_mode", self.portable_cb.isChecked())
+        # v2.19：性能与诊断设置
+        self.prefs.set("live_diagnostics_max_mb", self.live_diag_spin.value())
 
 
 # ============================================================
@@ -760,8 +727,11 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle("首选项")
         self.resize(820, 600)
 
-        self.prefs = Preferences() if main_window is None \
-            else getattr(main_window, 'prefs', None) or Preferences()
+        self.prefs = (
+            Preferences()
+            if main_window is None
+            else getattr(main_window, "prefs", None) or Preferences()
+        )
 
         # 页面实例
         self.pages = {}
@@ -827,18 +797,14 @@ class PreferencesDialog(QDialog):
 
         # 底部按钮
         bottom = QWidget()
-        bottom.setStyleSheet(
-            "background-color: #252526; border-top: 1px solid #3c3c3c;"
-        )
+        bottom.setStyleSheet("background-color: #252526; border-top: 1px solid #3c3c3c;")
         bottom_layout = QHBoxLayout(bottom)
         bottom_layout.setContentsMargins(12, 8, 12, 8)
 
         bottom_layout.addStretch()
 
         ok_btn = QPushButton("确定")
-        ok_btn.setStyleSheet(
-            "background-color: #0e639c; color: white;"
-        )
+        ok_btn.setStyleSheet("background-color: #0e639c; color: white;")
         ok_btn.clicked.connect(self._on_accept)
         bottom_layout.addWidget(ok_btn)
 
@@ -870,11 +836,11 @@ class PreferencesDialog(QDialog):
         appearance.theme_changed.connect(self._on_theme_changed)
 
         self.pages = {
-            'general': general,
-            'appearance': appearance,
-            'font': font,
-            'editor': editor,
-            'advanced': advanced,
+            "general": general,
+            "appearance": appearance,
+            "font": font,
+            "editor": editor,
+            "advanced": advanced,
         }
 
         for key, _, _ in PAGES:
@@ -882,7 +848,7 @@ class PreferencesDialog(QDialog):
 
     def _on_category_changed(self, index: int):
         # 保护：_build_ui 早期 setCurrentRow(0) 时 stack 尚未创建
-        if not hasattr(self, 'stack') or self.stack is None:
+        if not hasattr(self, "stack") or self.stack is None:
             return
         if index < 0 or index >= len(PAGES):
             return
@@ -896,12 +862,12 @@ class PreferencesDialog(QDialog):
             return
         try:
             from infrastructure.theme_loader import ThemeLoader
+
             loader = ThemeLoader()
 
             if theme_name == "__system__":
                 loader.apply_system_theme(
-                    QApplication.instance(),
-                    self.main_window.tabs.currentWidget()
+                    QApplication.instance(), self.main_window.tabs.currentWidget()
                 )
                 return
 
@@ -932,7 +898,7 @@ class PreferencesDialog(QDialog):
             try:
                 for i in range(self.main_window.tabs.count()):
                     editor = self.main_window.tabs.widget(i)
-                    if hasattr(editor, 'apply_preferences'):
+                    if hasattr(editor, "apply_preferences"):
                         editor.apply_preferences()
             except Exception as e:
                 print(f"[PreferencesDialog] 应用失败: {e}")
