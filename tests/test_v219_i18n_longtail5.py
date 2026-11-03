@@ -36,3 +36,26 @@ def test_dictionary_batch5():
     assert len(en) >= 640, len(en)
     for k in ("切换语言失败", "重新打开上次的文件", "插件未声明配置"):
         assert k in en
+
+
+def test_translatable_corpus_coverage():
+    """可翻译语料覆盖率 ≥65%（收口进行中）"""
+    import json as _json
+    import os as _os
+
+    root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    en = _json.load(open(_os.path.join(root, "locale", "en_US", "strings.json"), encoding="utf-8"))
+    corpus = _json.load(
+        open(_os.path.join(root, "locale", "zh_CN", "translatable.json"), encoding="utf-8")
+    )
+
+    def hit(s):
+        if s in en:
+            return True
+        for suf in ("：", ":", "..."):
+            if s.endswith(suf) and s[: -len(suf)].strip() in en:
+                return True
+        return False
+
+    ratio = sum(1 for s in corpus if hit(s)) / len(corpus) * 100
+    assert ratio >= 65.0, "可翻译语料覆盖率 %.1f%% < 65%%" % ratio
