@@ -44,3 +44,15 @@ https://github.com/TomJerryGit/qingcao/releases/download/plugin-registry/registr
 - workflow run `41798754204`：success；
 - Release 资产 14 个（registry.json + 13 zip）；
 - 抽查 3 个插件包：SHA256 3/3、Ed25519 3/3 通过。
+
+
+## 更新插件（发布新版本）
+
+1. 修改插件并提升 `plugins/<name>/plugin.json` 的 `version`（可加 `changelog`）；
+2. 提交后运行发布（secret 已配置，无需再设）：
+
+```powershell
+powershell -File D:\QingCaoEditor\tools\setup_registry_secret.ps1
+```
+
+脚本会重设 secret 并触发 `Publish Plugin Registry`；完成后市场刷新即可看到新版本。
