@@ -194,6 +194,25 @@ def main():
             bad_all += localize(shard, args.log_dir)
         if not bad_all:
             print("[sharded] 原生崩溃为 flaky：逐文件复跑全部通过 ✅（门禁放行）")
+            try:
+                import json as _json
+                import time as _time
+
+                _hist = os.path.join(ROOT, "data", "ci_flaky_history.jsonl")
+                os.makedirs(os.path.dirname(_hist), exist_ok=True)
+                with open(_hist, "a", encoding="utf-8") as _f:
+                    _f.write(
+                        _json.dumps(
+                            {
+                                "ts": _time.time(),
+                                "crash_codes": [f[2] for f in failed],
+                                "files": sum(len(f[1]) for f in failed),
+                            }
+                        )
+                        + "\n"
+                    )
+            except Exception:
+                pass
             return 0
         print("[sharded] 回退复跑仍失败 %d 个文件" % len(bad_all))
         return 1

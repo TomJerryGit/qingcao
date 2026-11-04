@@ -76,5 +76,38 @@ class LocalRatings:
             return True
         return False
 
+    def export_data(self, path):
+        data = self._load()
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        io.open(path, "w", encoding="utf-8", newline="\n").write(
+            json.dumps(data, ensure_ascii=False, indent=2)
+        )
+        return len(data.get("plugins", {}))
+
+    def import_data(self, path, merge=True):
+        data = json.load(io.open(path, encoding="utf-8"))
+        incoming = data.get("plugins") if isinstance(data, dict) else None
+        if not isinstance(incoming, dict):
+            raise ValueError("无效的评分文件")
+        current = self._load()
+        if not merge:
+            current = {"version": 1, "plugins": {}}
+        count = 0
+        for name, rec in incoming.items():
+            if not isinstance(rec, dict):
+                continue
+            try:
+                stars = max(1, min(5, int(rec.get("stars", 0))))
+            except Exception:
+                continue
+            current.setdefault("plugins", {})[name] = {
+                "stars": stars,
+                "comment": str(rec.get("comment") or "")[:500],
+                "updated": float(rec.get("updated") or time.time()),
+            }
+            count += 1
+        self._save(current)
+        return count
+
     def all(self):
         return dict(self._load().get("plugins", {}))

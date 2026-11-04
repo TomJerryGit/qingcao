@@ -78,8 +78,14 @@ def plan_incremental_save(old: bytes, new: bytes, min_size: int = None):
         return None
     spans = diff_spans(old, new)
     for start, end in spans:
-        # 差异区间不得改变换行符位置（否则行结构变化）
-        if b"\n" in old[start:end] or b"\n" in new[start:end]:
+        old_seg = old[start:end]
+        new_seg = new[start:end]
+        # 允许跨行差异，但换行符位置必须完全一致（行结构不变）
+        if old_seg.count(b"\n") != new_seg.count(b"\n"):
+            return None
+        if [i for i, b in enumerate(old_seg) if b == 10] != [
+            i for i, b in enumerate(new_seg) if b == 10
+        ]:
             return None
     return spans
 

@@ -2,6 +2,14 @@
 
 ### 新增
 
+- **mmap 跨行等长扩展**：差异区间内换行位置一致即允许跨行补丁；
+- **插件评分导入导出**：`LocalRatings.export_data/import_data` + CLI `tools/plugin_rating_tool.py`；
+- **CI 原生崩溃 fallback 频率观察**：`data/ci_flaky_history.jsonl` + `tools/ci_flaky_report.py`；
+- **终端功能立项建议**：`docs/terminal_feature_proposal.md`。
+
+
+### 新增
+
 - **i18n 英文 QA**：`tools/i18n_qa.py` 术语一致性检查（术语表规则+变体），报告 `docs/i18n_qa_report.md`。
 
 
