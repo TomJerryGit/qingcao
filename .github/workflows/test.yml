@@ -56,6 +56,7 @@ jobs:
         run: |
           python tools/i18n_coverage.py --check --min-corpus 100
           python tools/i18n_qa.py --check
+          python tools/i18n_coverage.py --check --min-corpus 100 --lang zh_TW
 
       - name: Version check
         shell: powershell

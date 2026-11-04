@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 新增
+
+- **繁体中文语言包（zh_TW）**：基于 OpenCC s2twp + 术语覆盖生成 5227 条；语言菜单新增「繁體中文」；CI 增加 zh_TW 覆盖率 100% 门禁。
+
+
 ### 验证
 
 - 插件在线更新闭环已验证：wordcount_sandbox 1.0.0→1.0.1 经 GitHub Releases 发布，registry 版本/哈希/Ed25519 全部通过。

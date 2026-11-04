@@ -14,7 +14,7 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_LANG = "zh_CN"
-AVAILABLE = {"zh_CN": "简体中文", "en_US": "English"}
+AVAILABLE = {"zh_CN": "简体中文", "zh_TW": "繁體中文", "en_US": "English"}
 _cache = {}
 
 

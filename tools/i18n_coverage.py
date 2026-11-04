@@ -118,12 +118,14 @@ def menu_runtime_coverage():
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--lang", default="en_US")
     ap.add_argument("--check", action="store_true", help="覆盖率不足时退出码 1（CI 门禁）")
     ap.add_argument("--min-corpus", type=float, default=100.0)
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "i18n_coverage_report.md"))
     args = ap.parse_args()
     template = json.load(io.open(TEMPLATE, encoding="utf-8"))
-    en = json.load(io.open(EN, encoding="utf-8"))
+    lang_file = os.path.join(ROOT, "locale", args.lang, "strings.json")
+    en = json.load(io.open(lang_file, encoding="utf-8"))
     menu_cov = menu_runtime_coverage()
     # v2.19 收口：可翻译语料覆盖率（用户可见文本，而非全部源码字符串）
     corpus_path = os.path.join(ROOT, "locale", "zh_CN", "translatable.json")

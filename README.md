@@ -13,7 +13,7 @@
 
 ## 界面语言 / UI Language
 
-English UI is officially supported since v2.20: Settings → UI Language → English (restart required).
+English UI is officially supported since v2.20; 繁體中文 since v2.21: Settings → UI Language → English / 繁體中文 (restart required).
 
 ## ✨ 特性
 
