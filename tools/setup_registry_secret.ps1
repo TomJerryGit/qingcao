@@ -7,9 +7,14 @@ $keyFile = Join-Path $env:USERPROFILE ".qingcao\plugin_sign_key.hex"
 if (-not (Test-Path $keyFile)) {
     throw "缺少密钥：$keyFile（先运行 python tools/sign_plugin.py --keygen）"
 }
-& $gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
-    throw "gh 未登录：请先运行 gh auth login（或设置 GH_TOKEN）"
+$oldEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+& $gh auth status 2>&1 | Out-Null
+$authed = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $oldEap
+if (-not $authed) {
+    Write-Output "gh 未登录：请先运行 gh auth login（或设置 GH_TOKEN），然后重新运行本脚本。"
+    exit 2
 }
 $key = (Get-Content $keyFile -Raw).Trim()
 & $gh secret set QINGCAO_PLUGIN_SIGN_KEY --repo $repo --body $key
