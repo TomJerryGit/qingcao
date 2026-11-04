@@ -20,8 +20,11 @@ jobs:
           QINGCAO_PLUGIN_SIGN_KEY: ${{ secrets.QINGCAO_PLUGIN_SIGN_KEY }}
         run: python tools/publish_registry_release.py --dry-run --out data/registry_github
       - name: Publish
-        if: ${{ secrets.QINGCAO_PLUGIN_SIGN_KEY != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           QINGCAO_PLUGIN_SIGN_KEY: ${{ secrets.QINGCAO_PLUGIN_SIGN_KEY }}
-        run: python tools/publish_registry_release.py --out data/registry_github
+        run: |
+          if [ -z "$QINGCAO_PLUGIN_SIGN_KEY" ]; then
+            echo "缺少 secret QINGCAO_PLUGIN_SIGN_KEY"; exit 1
+          fi
+          python tools/publish_registry_release.py --out data/registry_github
