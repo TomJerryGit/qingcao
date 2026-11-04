@@ -118,6 +118,8 @@ def menu_runtime_coverage():
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--check", action="store_true", help="覆盖率不足时退出码 1（CI 门禁）")
+    ap.add_argument("--min-corpus", type=float, default=100.0)
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "i18n_coverage_report.md"))
     args = ap.parse_args()
     template = json.load(io.open(TEMPLATE, encoding="utf-8"))
@@ -194,6 +196,17 @@ def main():
         "[i18n] template=%d en=%d ui_ratio=%.1f%% -> %s"
         % (len(template), len(en), ui_ratio, args.out)
     )
+    if args.check:
+        if corpus_ratio is None:
+            print("[i18n] 无法计算可翻译语料覆盖率")
+            return 1
+        if corpus_ratio < args.min_corpus:
+            print("[i18n] 覆盖率 %.1f%% < %.1f%%" % (corpus_ratio, args.min_corpus))
+            return 1
+        print(
+            "[i18n] coverage check OK: %.1f%% (corpus %d)"
+            % (corpus_ratio, len(corpus) if os.path.isfile(corpus_path) else 0)
+        )
     return 0
 
 

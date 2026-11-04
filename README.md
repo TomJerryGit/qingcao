@@ -11,6 +11,10 @@
 
 ---
 
+## 界面语言 / UI Language
+
+English UI is officially supported since v2.20: Settings → UI Language → English (restart required).
+
 ## ✨ 特性
 
 ### 编辑体验
