@@ -6,6 +6,7 @@
     .mmap_incremental_save = true 时启用；
     QINGCAO_MMAP_SAVE_MIN_MB 可覆盖最小文件阈值（默认 10MB，测试用）。
 """
+
 import io
 import os
 import struct
@@ -21,8 +22,7 @@ _CHUNK = 1 << 16
 
 def min_bytes():
     try:
-        mb = float(os.environ.get("QINGCAO_MMAP_SAVE_MIN_MB",
-                                  DEFAULT_MIN_MB))
+        mb = float(os.environ.get("QINGCAO_MMAP_SAVE_MIN_MB", DEFAULT_MIN_MB))
     except Exception:
         mb = DEFAULT_MIN_MB
     return int(max(0.0, mb) * 1024 * 1024)
@@ -34,15 +34,14 @@ def enabled():
         return True
     try:
         from PyQt5.QtCore import QSettings
-        return bool(QSettings("QingCao", "Editor").value(
-            "mmap_incremental_save", False, type=bool))
+
+        return bool(QSettings("QingCao", "Editor").value("mmap_incremental_save", False, type=bool))
     except Exception:
         return False
 
 
 def journal_dir():
-    return os.environ.get("QINGCAO_EDIT_JOURNAL_DIR") or os.path.join(
-        ROOT, JOURNAL_REL)
+    return os.environ.get("QINGCAO_EDIT_JOURNAL_DIR") or os.path.join(ROOT, JOURNAL_REL)
 
 
 def diff_spans(old: bytes, new: bytes, chunk: int = _CHUNK):
@@ -85,8 +84,7 @@ def plan_incremental_save(old: bytes, new: bytes, min_size: int = None):
     return spans
 
 
-def can_incremental_save(old: bytes, new: bytes,
-                         min_size: int = None) -> bool:
+def can_incremental_save(old: bytes, new: bytes, min_size: int = None) -> bool:
     return plan_incremental_save(old, new, min_size) is not None
 
 
@@ -94,8 +92,7 @@ def _write_journal(path: str, old: bytes, spans) -> str:
     """只记录差异区间的旧字节（小 journal，崩溃可恢复）"""
     d = journal_dir()
     os.makedirs(d, exist_ok=True)
-    jpath = os.path.join(
-        d, "%s.%d.journal" % (os.path.basename(path), int(time.time() * 1000)))
+    jpath = os.path.join(d, "%s.%d.journal" % (os.path.basename(path), int(time.time() * 1000)))
     buf = bytearray()
     buf += MAGIC
     buf += struct.pack("<I", len(spans))
@@ -120,7 +117,7 @@ def _read_journal(jpath: str):
     for _ in range(count):
         start, length = struct.unpack_from("<QI", data, pos)
         pos += 12
-        records.append((start, data[pos:pos + length]))
+        records.append((start, data[pos : pos + length]))
         pos += length
     return records
 
@@ -136,6 +133,7 @@ def _restore_records(target: str, records):
 
 def _apply_patch(path: str, new: bytes, spans):
     import mmap
+
     with io.open(path, "r+b") as f:
         mm = mmap.mmap(f.fileno(), 0)
         try:
@@ -158,8 +156,33 @@ def _verify_patch(path: str, new: bytes, spans) -> bool:
     return True
 
 
-def maybe_incremental_save(target: str, new_bytes: bytes,
-                           clear_dirty=None):
+_EVAL_FILE = None
+
+
+def _eval_path():
+    # 不缓存：测试/多环境会切换 QINGCAO_MMAP_EVAL_FILE
+    return os.environ.get("QINGCAO_MMAP_EVAL_FILE") or os.path.join(ROOT, "data", "mmap_eval.jsonl")
+
+
+def _record(event, **fields):
+    """本地评估埋点（JSONL，不上传；QINGCAO_MMAP_EVAL=0 关闭）"""
+    if os.environ.get("QINGCAO_MMAP_EVAL", "1") == "0":
+        return
+    try:
+        import json
+        import time
+
+        path = _eval_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        rec = {"ts": time.time(), "event": event}
+        rec.update(fields)
+        with io.open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def maybe_incremental_save(target: str, new_bytes: bytes, clear_dirty=None):
     """尝试 mmap 增量保存。
 
     返回 True  → 已增量保存（调用方跳过全量写盘）
@@ -173,14 +196,19 @@ def maybe_incremental_save(target: str, new_bytes: bytes,
         return None
     spans = plan_incremental_save(old, new_bytes)
     if spans is None:
+        _record("ineligible", size=len(old))
         return None
     if not spans:
+        _record("noop", size=len(old))
         try:
             if clear_dirty:
                 clear_dirty()
         except Exception:
             pass
         return True
+    import time as _time
+
+    _t0 = _time.perf_counter()
     jpath = _write_journal(target, old, spans)
     try:
         _apply_patch(target, new_bytes, spans)
@@ -195,8 +223,16 @@ def maybe_incremental_save(target: str, new_bytes: bytes,
             os.remove(jpath)
         except Exception:
             pass
+        _record(
+            "success",
+            size=len(old),
+            spans=len(spans),
+            changed=sum(e - s for s, e in spans),
+            elapsed_ms=round((_time.perf_counter() - _t0) * 1000, 2),
+        )
         return True
     except Exception as e:
+        _record("fallback", size=len(old), error=str(e)[:200])
         print(f"[mmap-save] 增量保存失败，回退全量: {e}")
         try:
             records = _read_journal(jpath)
@@ -218,8 +254,7 @@ def pending_journals():
     d = journal_dir()
     if not os.path.isdir(d):
         return []
-    return [os.path.join(d, n) for n in sorted(os.listdir(d))
-            if n.endswith(".journal")]
+    return [os.path.join(d, n) for n in sorted(os.listdir(d)) if n.endswith(".journal")]
 
 
 def recover_journal(journal_path: str, repo_root: str = None):
@@ -235,11 +270,13 @@ def recover_journal(journal_path: str, repo_root: str = None):
     if records is None:
         # 兼容旧版全文 journal
         import shutil
+
         with io.open(journal_path, "rb") as f, io.open(target, "wb") as out:
             shutil.copyfileobj(f, out)
     else:
         _restore_records(target, records)
     os.remove(journal_path)
+    _record("recovery", target=target)
     print(f"[mmap-save] 已从 journal 恢复: {target}")
     return True
 
