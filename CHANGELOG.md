@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 验证
+
+- 插件在线更新闭环已验证：wordcount_sandbox 1.0.0→1.0.1 经 GitHub Releases 发布，registry 版本/哈希/Ed25519 全部通过。
+
+
 ### 新增
 
 - **插件市场公网注册表已上线**（GitHub Releases 静态托管）：13 个插件、SHA256+Ed25519 抽查通过；客户端 URL `GITHUB_REGISTRY_URL`。

@@ -56,3 +56,9 @@ powershell -File D:\QingCaoEditor\tools\setup_registry_secret.ps1
 ```
 
 脚本会重设 secret 并触发 `Publish Plugin Registry`；完成后市场刷新即可看到新版本。
+
+## 更新验证记录（2026-11-04）
+
+- workflow run `41799677718`：success；
+- registry 中 `wordcount_sandbox` = **1.0.1**；
+- `wordcount_sandbox-1.0.1.zip`：SHA256 匹配、Ed25519 验签通过。
