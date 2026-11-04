@@ -174,6 +174,7 @@ CATEGORIES = [
 SORT_OPTIONS = [
     ("downloads", "按下载量"),
     ("rating", "按评分"),
+    ("local_rating", "按本地评分"),
     ("updated", "按更新时间"),
     ("name", "按名称"),
     ("trending", "热门趋势"),
@@ -1444,6 +1445,17 @@ class PluginCard(QFrame):
             rating_label = QLabel(f"{stars} {self.info.rating:.1f}")
             rating_label.setStyleSheet("font-size: 10px; color: #f0ad4e;")
             meta_layout.addWidget(rating_label)
+        try:
+            from ui.plugin_rating import LocalRatings
+
+            _lr = LocalRatings().get(self.info.name)
+            if _lr and _lr.get("stars"):
+                _lbl = QLabel("★ %d 本地" % int(_lr["stars"]))
+                _lbl.setStyleSheet("font-size: 10px; color: #7ec850;")
+                _lbl.setToolTip("本地评分（仅本机）")
+                meta_layout.addWidget(_lbl)
+        except Exception:
+            pass
 
         meta_layout.addStretch()
         info_layout.addLayout(meta_layout)
@@ -1661,6 +1673,12 @@ class PluginDetailDialog(QDialog):
         content.setHtml(html)
         layout.addWidget(content, 1)
 
+        # 本地评分（v2.20 P1-3）
+        try:
+            layout.addWidget(self._build_rating_widget())
+        except Exception:
+            pass
+
         # 底部按钮
         btn_layout = QHBoxLayout()
 
@@ -1680,6 +1698,69 @@ class PluginDetailDialog(QDialog):
         layout.addLayout(btn_layout)
 
         self._update_action_button()
+
+    def _build_rating_widget(self):
+        """本地评分控件（仅本机）"""
+        from PyQt5.QtWidgets import QGroupBox
+
+        from ui.plugin_rating import LocalRatings, rating_text
+
+        group = QGroupBox("本地评分（仅本机可见）")
+        vbox = QVBoxLayout(group)
+        row = QHBoxLayout()
+        self.star_buttons = []
+        try:
+            existing = LocalRatings().get(self.info.name) or {}
+        except Exception:
+            existing = {}
+        self._local_stars = int(existing.get("stars") or 0)
+        for i in range(1, 6):
+            btn = QPushButton("★" if i <= self._local_stars else "☆")
+            btn.setFixedSize(30, 30)
+            btn.setFlat(True)
+            btn.clicked.connect(lambda _=False, n=i: self._set_local_stars(n))
+            self.star_buttons.append(btn)
+            row.addWidget(btn)
+        self.rating_label = QLabel(rating_text(self._local_stars))
+        self.rating_label.setStyleSheet("color: #7ec850;")
+        row.addWidget(self.rating_label)
+        row.addStretch()
+        vbox.addLayout(row)
+        self.rating_comment = QLineEdit(str(existing.get("comment") or ""))
+        self.rating_comment.setPlaceholderText("简评（可选，仅本机保存）")
+        vbox.addWidget(self.rating_comment)
+        row2 = QHBoxLayout()
+        save_btn = QPushButton("保存评分")
+        save_btn.clicked.connect(self._save_local_rating)
+        row2.addWidget(save_btn)
+        self.rating_status = QLabel("")
+        self.rating_status.setStyleSheet("color: #888; font-size: 11px;")
+        row2.addWidget(self.rating_status)
+        row2.addStretch()
+        vbox.addLayout(row2)
+        return group
+
+    def _set_local_stars(self, stars):
+        from ui.plugin_rating import rating_text
+
+        self._local_stars = int(stars)
+        for i, btn in enumerate(self.star_buttons, 1):
+            btn.setText("★" if i <= stars else "☆")
+        self.rating_label.setText(rating_text(stars))
+
+    def _save_local_rating(self):
+        from ui.plugin_rating import LocalRatings
+
+        if self._local_stars <= 0:
+            self.rating_status.setText("请先选择星级")
+            return
+        try:
+            LocalRatings().set_rating(
+                self.info.name, self._local_stars, self.rating_comment.text().strip()
+            )
+            self.rating_status.setText("已保存 ✓")
+        except Exception as e:
+            self.rating_status.setText("保存失败: %s" % e)
 
     def _build_header(self) -> QWidget:
         """构建头部"""
@@ -2492,6 +2573,14 @@ class PluginStoreDialog(QDialog):
             plugins.sort(key=lambda p: p.downloads, reverse=True)
         elif self._current_sort == "rating":
             plugins.sort(key=lambda p: p.rating, reverse=True)
+        elif self._current_sort == "local_rating":
+            try:
+                from ui.plugin_rating import LocalRatings
+
+                _lr = LocalRatings().all()
+            except Exception:
+                _lr = {}
+            plugins.sort(key=lambda p: (_lr.get(p.name) or {}).get("stars", 0), reverse=True)
         elif self._current_sort == "updated":
             plugins.sort(key=lambda p: p.updated_at or "", reverse=True)
         elif self._current_sort == "name":
