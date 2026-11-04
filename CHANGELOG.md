@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 新增
+
+- **i18n 英文 QA**：`tools/i18n_qa.py` 术语一致性检查（术语表规则+变体），报告 `docs/i18n_qa_report.md`。
+
+
 （下一版本开发中）
 
 ### 规划
