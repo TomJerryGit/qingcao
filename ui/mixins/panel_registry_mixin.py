@@ -119,14 +119,17 @@ class PanelRegistryMixin:
         """
         try:
             from PyQt5.QtWidgets import QApplication
+
             app = QApplication.instance()
             scr = app.primaryScreen() if app is not None else None
             if scr is not None:
                 geo = scr.availableGeometry()
                 if geo.width() < 1280 or geo.height() < 720:
-                    print("[MainWindow] 逻辑屏幕 %dx%d 偏小（高 DPI/小屏），"
-                          "仅默认打开目录树" % (geo.width(), geo.height()))
-                    return ('dir_tree',)
+                    print(
+                        "[MainWindow] 逻辑屏幕 %dx%d 偏小（高 DPI/小屏），"
+                        "仅默认打开目录树" % (geo.width(), geo.height())
+                    )
+                    return ("dir_tree",)
         except Exception as e:
             print(f"[MainWindow] 检测屏幕尺寸失败: {e}")
         return self._DEFAULT_PANELS
@@ -171,7 +174,7 @@ class PanelRegistryMixin:
             return getattr(self, name, None) is not None
 
         self._panels_built.add(name)
-        builder = getattr(self, f'_build_panel_{name}', None)
+        builder = getattr(self, f"_build_panel_{name}", None)
         if builder is None:
             return False
         try:
@@ -191,6 +194,7 @@ class PanelRegistryMixin:
         """构造基础版大纲面板"""
         try:
             from ui.outline_panel import OutlinePanel
+
             self.outline = OutlinePanel(self)
             self.outline.setObjectName("OutlinePanel")
             self.outline.symbol_clicked.connect(self._on_symbol_clicked)
@@ -208,14 +212,11 @@ class PanelRegistryMixin:
         """
         try:
             from ui.outline_panel import OutlinePanel
+
             self.outline_enhanced = OutlinePanel(self, enhanced=True)
             self.outline_enhanced.setObjectName("OutlineEnhancedDock")
-            self.outline_enhanced.symbol_clicked.connect(
-                self._on_symbol_clicked
-            )
-            self.addDockWidget(
-                Qt.LeftDockWidgetArea, self.outline_enhanced
-            )
+            self.outline_enhanced.symbol_clicked.connect(self._on_symbol_clicked)
+            self.addDockWidget(Qt.LeftDockWidgetArea, self.outline_enhanced)
             # 默认隐藏（避免与基础版重叠）
             self.outline_enhanced.hide()
         except Exception as e:
@@ -226,10 +227,9 @@ class PanelRegistryMixin:
         """构造目录树面板"""
         try:
             from ui.directory_tree import DirectoryTree
+
             self.dir_tree = DirectoryTree()
-            self.dir_tree.file_double_clicked.connect(
-                self._on_file_from_tree
-            )
+            self.dir_tree.file_double_clicked.connect(self._on_file_from_tree)
             self.dir_tree.file_opened.connect(self._on_file_from_tree)
 
             self.dir_tree_dock = QDockWidget("项目", self)
@@ -245,6 +245,7 @@ class PanelRegistryMixin:
         """构造 Minimap 面板（安全模式，失败不影响启动）"""
         try:
             from ui.minimap import Minimap
+
             self.minimap = Minimap()
 
             self.minimap_dock = QDockWidget("Minimap", self)
@@ -262,19 +263,16 @@ class PanelRegistryMixin:
         """构造全局搜索面板"""
         try:
             from ui.global_search_panel import GlobalSearchPanel
+
             self.gsearch = GlobalSearchPanel(self)
             self.gsearch.setObjectName("GlobalSearchPanel")
-            self.gsearch.match_activated.connect(
-                self._on_search_match_activated
-            )
+            self.gsearch.match_activated.connect(self._on_search_match_activated)
             # P2-C5: 连接 replace_requested
             # 原实现只连 match_activated，"全部替换"按钮点了没反应。
             # P0-3: 信号现携带第 4 个参数（SearchOptions）——
             # 面板勾选的"正则/大小写/全词/转义/多行"必须传到替换端，
             # 否则正则搜索会按字面量替换（详见 _on_global_replace）。
-            self.gsearch.replace_requested.connect(
-                self._on_global_replace
-            )
+            self.gsearch.replace_requested.connect(self._on_global_replace)
             self.addDockWidget(Qt.BottomDockWidgetArea, self.gsearch)
             self.gsearch.hide()
         except Exception as e:
@@ -293,6 +291,7 @@ class PanelRegistryMixin:
         """
         try:
             from ui.problems_panel import ProblemsPanel
+
             self.problems = ProblemsPanel(self)
             self.problems.setObjectName("ProblemsPanel")
             self.addDockWidget(Qt.BottomDockWidgetArea, self.problems)
@@ -305,6 +304,7 @@ class PanelRegistryMixin:
         """构造 Python 控制台面板"""
         try:
             from ui.python_console import PythonConsole
+
             self.console = PythonConsole(self)
             self.console.setObjectName("PythonConsole")
             self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
@@ -313,19 +313,30 @@ class PanelRegistryMixin:
             print(f"[MainWindow] PythonConsole 加载失败: {e}")
             self.console = None
 
+    def _build_panel_terminal(self):
+        """构造集成终端面板（v2.21 P1-1）"""
+        try:
+            from ui.terminal_panel import TerminalPanel
+
+            self.terminal = TerminalPanel(self)
+            self.addDockWidget(Qt.BottomDockWidgetArea, self.terminal)
+            self.terminal.hide()
+        except Exception as e:
+            print(f"[MainWindow] TerminalPanel 加载失败: {e}")
+            self.terminal = None
+
     def _build_panel_plugins_panel(self):
         """构造插件面板"""
         try:
             from ui.plugins_panel import PluginsPanel
+
             # plugin_manager 稍后才创建，先创建面板，之后设置
             self.plugins_panel = PluginsPanel(
                 main_window=self,
                 plugin_manager=None,
             )
             self.plugins_panel.setObjectName("PluginsPanel")
-            self.addDockWidget(
-                Qt.RightDockWidgetArea, self.plugins_panel
-            )
+            self.addDockWidget(Qt.RightDockWidgetArea, self.plugins_panel)
             self.plugins_panel.hide()
         except Exception as e:
             print(f"[MainWindow] PluginsPanel 加载失败: {e}")
@@ -335,11 +346,10 @@ class PanelRegistryMixin:
         """构造性能监控面板"""
         try:
             from ui.perf_monitor import PerfMonitor
+
             self.perf_monitor = PerfMonitor(self)
             self.perf_monitor.setObjectName("PerfMonitor")
-            self.addDockWidget(
-                Qt.BottomDockWidgetArea, self.perf_monitor
-            )
+            self.addDockWidget(Qt.BottomDockWidgetArea, self.perf_monitor)
             self.perf_monitor.hide()
         except Exception as e:
             print(f"[MainWindow] PerfMonitor 加载失败: {e}")
@@ -349,6 +359,7 @@ class PanelRegistryMixin:
         """构造搜索栏"""
         try:
             from ui.panels import SearchBar
+
             self.search_bar = SearchBar(self)
             self.search_bar.setObjectName("SearchBar")
             self.addToolBar(Qt.BottomToolBarArea, self.search_bar)
@@ -361,6 +372,7 @@ class PanelRegistryMixin:
         """HC 模式：保存并清空面板自定义 QSS，让系统调色板生效"""
         try:
             from PyQt5.QtWidgets import QWidget
+
             if getattr(self, "_hc_saved_qss", None):
                 return
             saved = []
@@ -389,23 +401,23 @@ class PanelRegistryMixin:
 
     def _toggle_plugins_panel(self, checked):
         """切换插件面板"""
-        if self._ensure_panel('plugins_panel') and self.plugins_panel:
+        if self._ensure_panel("plugins_panel") and self.plugins_panel:
             self.plugins_panel.setVisible(checked)
 
     def _toggle_problems_panel(self, checked):
         """切换问题面板（LSP 诊断列表）"""
-        if self._ensure_panel('problems') and self.problems:
+        if self._ensure_panel("problems") and self.problems:
             self.problems.setVisible(checked)
 
     def _show_plugins_panel(self):
         """显示插件管理面板"""
         try:
             # P1-3: 惰性构造
-            self._ensure_panel('plugins_panel')
+            self._ensure_panel("plugins_panel")
             if self.plugins_panel:
                 self.plugins_panel.show()
                 self.plugins_panel.raise_()
-                if hasattr(self.plugins_panel, 'refresh'):
+                if hasattr(self.plugins_panel, "refresh"):
                     self.plugins_panel.refresh()
         except Exception as e:
             self._show_error("插件面板失败", str(e))

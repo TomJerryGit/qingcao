@@ -30,7 +30,7 @@
 
 ## 三、P1（v2.21.0 必做）
 
-### 1. 终端 MVP 实现
+### 1. 终端 MVP 实现（✅ 已落地：QProcess 面板）
 - 面板：底部 dock `TerminalPanel`（QProcess + 只读输出 + 输入行）；
 - Shell：Windows PowerShell（默认）/cmd 可切换；工作目录 = 项目根或文件目录；
 - 菜单：视图 → 面板 → 终端；可配置快捷键（默认 Ctrl+`）；

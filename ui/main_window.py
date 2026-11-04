@@ -204,6 +204,7 @@ class _TopLevelThemeFilter(QObject):
         try:
             try:
                 import sip
+
                 if sip.isdeleted(self._win) or sip.isdeleted(obj):
                     return False
             except Exception:
@@ -251,6 +252,7 @@ def adapt_widget_styles(root, theme):
     root._qc_theme_key = theme_key
     try:
         from PyQt5.QtWidgets import QWidget
+
         targets = [root] + list(root.findChildren(QWidget))
     except Exception:
         targets = [root]
@@ -265,7 +267,7 @@ def adapt_widget_styles(root, theme):
             qss = w.styleSheet()
             if not qss:
                 continue
-            orig = getattr(w, '_qc_orig_qss', None)
+            orig = getattr(w, "_qc_orig_qss", None)
             if orig is None:
                 w._qc_orig_qss = qss
                 orig = qss
@@ -279,10 +281,18 @@ def adapt_widget_styles(root, theme):
     return count
 
 
-class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
-                 PluginsUIMixin, CapabilityWiringMixin, ProjectMixin,
-                 FileOpsMixin,
-                 EditOpsMixin, StatusBarMixin, QMainWindow):
+class MainWindow(
+    MenuBuilderMixin,
+    PanelRegistryMixin,
+    SandboxUIMixin,
+    PluginsUIMixin,
+    CapabilityWiringMixin,
+    ProjectMixin,
+    FileOpsMixin,
+    EditOpsMixin,
+    StatusBarMixin,
+    QMainWindow,
+):
     # 实时沙箱诊断的大文件阈值（超过则跳过，避免卡顿）
     MAX_LIVE_DIAGNOSTICS_BYTES = 5 * 1024 * 1024
 
@@ -333,6 +343,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 偏好设置
         try:
             from app.preferences import Preferences
+
             self.prefs = Preferences()
         except Exception as e:
             print(f"[MainWindow] Preferences 加载失败: {e}")
@@ -341,6 +352,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 动作管理器
         try:
             from app.actions import ActionManager
+
             self.act_mgr = ActionManager()
         except Exception as e:
             print(f"[MainWindow] ActionManager 加载失败: {e}")
@@ -349,6 +361,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 宏录制
         try:
             from core.macro import MacroManager, MacroRecorder
+
             # P0-1 修复（实测：录制后命令数为 0）：
             #   原实现是 `MacroRecorder()` —— 没有 undo_manager。
             #   `core/macro.py` 的 `_register_hook()` 在
@@ -379,6 +392,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 文档模型
         try:
             from core.document import DocumentModel
+
             self.doc_model = DocumentModel()
         except Exception as e:
             print(f"[MainWindow] DocumentModel 加载失败: {e}")
@@ -387,6 +401,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 会话管理
         try:
             from app.session import SessionManager
+
             self.session = SessionManager()
             self.session.bind_window(self)
         except Exception as e:
@@ -461,6 +476,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 标签管理器
         try:
             from app.tabs import TabManager
+
             self.tabs = TabManager()
         except Exception as e:
             print(f"[MainWindow] TabManager 加载失败: {e}")
@@ -471,32 +487,33 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 欢迎页
         try:
             from ui.welcome_widget import WelcomeWidget
+
             self.welcome = WelcomeWidget(self)
 
             # 兼容不同的信号名
-            if hasattr(self.welcome, 'new_file_requested'):
+            if hasattr(self.welcome, "new_file_requested"):
                 self.welcome.new_file_requested.connect(self._new_file)
-            elif hasattr(self.welcome, 'new_file'):
+            elif hasattr(self.welcome, "new_file"):
                 self.welcome.new_file.connect(self._new_file)
 
-            if hasattr(self.welcome, 'open_file_requested'):
+            if hasattr(self.welcome, "open_file_requested"):
                 self.welcome.open_file_requested.connect(self._open_file)
-            elif hasattr(self.welcome, 'open_file'):
+            elif hasattr(self.welcome, "open_file"):
                 self.welcome.open_file.connect(self._open_file)
 
-            if hasattr(self.welcome, 'open_folder_requested'):
+            if hasattr(self.welcome, "open_folder_requested"):
                 self.welcome.open_folder_requested.connect(self._open_folder)
 
-            if hasattr(self.welcome, 'open_recent_file'):
+            if hasattr(self.welcome, "open_recent_file"):
                 self.welcome.open_recent_file.connect(self._open_recent_file)
 
-            if hasattr(self.welcome, 'open_recent_project'):
+            if hasattr(self.welcome, "open_recent_project"):
                 self.welcome.open_recent_project.connect(self._open_recent_project)
 
-            if hasattr(self.welcome, 'open_plugin_store'):
+            if hasattr(self.welcome, "open_plugin_store"):
                 self.welcome.open_plugin_store.connect(self._show_plugin_store)
 
-            if hasattr(self.welcome, 'open_command_palette'):
+            if hasattr(self.welcome, "open_command_palette"):
                 self.welcome.open_command_palette.connect(self._show_command_palette)
 
             self.central_stack.addWidget(self.welcome)
@@ -507,8 +524,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 默认显示欢迎页（视图 → 显示欢迎页 可关闭；NPP 默认无欢迎页）
         show_welcome = True
         try:
-            show_welcome = bool(
-                self.prefs.get("show_welcome_page", True))
+            show_welcome = bool(self.prefs.get("show_welcome_page", True))
         except Exception:
             pass
         self._welcome_visible_pref = show_welcome
@@ -536,36 +552,35 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 发出，在回调里直接弹模态对话框会重入事件循环，并在窗口销毁阶段
         # 崩溃（实测段错误 0xC0000005）。见 `TabManager._handle_file_change`。
         try:
-            self.tabs.file_changed_externally.connect(
-                self._on_file_changed_externally
-            )
+            self.tabs.file_changed_externally.connect(self._on_file_changed_externally)
         except Exception:
             pass
 
     def _on_file_changed_externally(self, filepath: str):
         """外部文件变更：询问用户是否重新加载"""
-        if getattr(self, '_closing', False):
+        if getattr(self, "_closing", False):
             return
         try:
             editor = None
             for i in range(self.tabs.count()):
                 w = self.tabs.widget(i)
-                proxy = getattr(w, 'proxy', None)
-                doc = getattr(proxy, 'document', None) if proxy else None
-                fp = getattr(doc, 'filepath', None) if doc else None
-                if fp and os.path.normcase(os.path.abspath(fp)) == \
-                        os.path.normcase(os.path.abspath(filepath)):
+                proxy = getattr(w, "proxy", None)
+                doc = getattr(proxy, "document", None) if proxy else None
+                fp = getattr(doc, "filepath", None) if doc else None
+                if fp and os.path.normcase(os.path.abspath(fp)) == os.path.normcase(
+                    os.path.abspath(filepath)
+                ):
                     editor = w
                     break
             if editor is None:
                 return
 
             ret = QMessageBox.question(
-                self, "文件已修改",
-                f"文件已被外部程序修改：\n"
-                f"{os.path.basename(filepath)}\n\n是否重新加载？",
+                self,
+                "文件已修改",
+                f"文件已被外部程序修改：\n{os.path.basename(filepath)}\n\n是否重新加载？",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.Yes,
             )
             if ret == QMessageBox.Yes:
                 self.tabs._reload_file(filepath, editor)
@@ -584,6 +599,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         def add_tab(title="未命名"):
             try:
                 from ui.editor_view import EditorWidget
+
                 editor = EditorWidget()
                 idx = tabs.addTab(editor, title)
                 tabs.setCurrentIndex(idx)
@@ -591,6 +607,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return editor.proxy
             except Exception as e:
                 import traceback
+
                 traceback.print_exc()
                 print(f"[fallback] add_tab 失败: {e}")
                 return None
@@ -603,7 +620,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
         def current_proxy():
             w = tabs.currentWidget()
-            return w.proxy if w and hasattr(w, 'proxy') else None
+            return w.proxy if w and hasattr(w, "proxy") else None
 
         def open_file(path):
             try:
@@ -622,6 +639,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return editor.proxy
             except Exception as e:
                 import traceback
+
                 traceback.print_exc()
                 print(f"[fallback] open_file 失败: {e}")
                 return None
@@ -641,25 +659,20 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
         return tabs
 
-
-
-
-
     def _apply_theme_by_name(self, name: str):
         # 函数内后文有局部 `from PyQt5.QtWidgets import QApplication`，
         # Python 会把 QApplication 当整个函数的局部变量；若在 import
         # 之前使用（如"跟随系统"分支）会抛 UnboundLocalError。
         from PyQt5.QtWidgets import QApplication
+
         """按名称应用主题"""
         try:
             from infrastructure.theme_loader import ThemeLoader
+
             loader = ThemeLoader()
 
             if name == "__system__":
-                loader.apply_system_theme(
-                    QApplication.instance(),
-                    self.tabs.currentWidget()
-                )
+                loader.apply_system_theme(QApplication.instance(), self.tabs.currentWidget())
                 self.status_bar.showMessage("已切换到跟随系统", 2000)
                 return
 
@@ -677,9 +690,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # apply_qss 会在 qss 为空时从 colors 生成 QSS。
             try:
                 from PyQt5.QtWidgets import QApplication
+
                 _app = QApplication.instance()
                 if _app is not None:
-                    _pm = getattr(self, 'plugin_manager', None)
+                    _pm = getattr(self, "plugin_manager", None)
                     if _pm is not None:
                         try:
                             _pm.pause_deferred_activation()
@@ -699,6 +713,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                         if _qss:
                             try:
                                 from ui.accessibility import focus_ring_qss
+
                                 _acc = focus_ring_qss()
                             except Exception:
                                 _acc = ""
@@ -732,10 +747,11 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # 对话框（AI 配置、Git 提交、快捷键编辑器等）不在其中
             try:
                 from PyQt5.QtWidgets import QApplication
+
                 for w in QApplication.topLevelWidgets():
                     if w is self:
                         continue
-                    fn = getattr(w, 'refresh_theme', None)
+                    fn = getattr(w, "refresh_theme", None)
                     if callable(fn):
                         try:
                             fn(theme)
@@ -746,6 +762,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
             # 持久化
             from PyQt5.QtCore import QSettings
+
             settings = QSettings("QingCao", "Editor")
             settings.setValue("theme_name", name)
 
@@ -757,12 +774,14 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """打开主题编辑器（含实时预览）"""
         try:
             from ui.theme_editor import ThemeEditor
+
             dlg = ThemeEditor(self)
 
             # 保存后立即应用 + 刷新主题菜单
             def on_saved(path):
                 try:
                     from infrastructure.theme_loader import ThemeLoader
+
                     loader = ThemeLoader()
                     theme = loader.load(path)
                     if theme:
@@ -785,6 +804,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """打开主题市场"""
         try:
             from ui.theme_market import ThemeMarketDialog
+
             dlg = ThemeMarketDialog(self, self)
 
             def on_installed(name):
@@ -810,15 +830,13 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             from core.theme_pack import ThemePack
 
             path, _ = QFileDialog.getOpenFileName(
-                self, "导入主题包", "",
-                "主题包 (*.zip);;所有文件 (*.*)"
+                self, "导入主题包", "", "主题包 (*.zip);;所有文件 (*.*)"
             )
             if not path:
                 return
 
             themes_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "themes"
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "themes"
             )
             ok, msg = ThemePack.import_theme(path, themes_dir)
             if ok:
@@ -846,8 +864,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return
 
             themes_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "themes"
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "themes"
             )
             source = os.path.join(themes_dir, f"{theme_name}.json")
             if not os.path.exists(source):
@@ -855,9 +872,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return
 
             path, _ = QFileDialog.getSaveFileName(
-                self, "导出主题包",
-                f"{theme_name}.zip",
-                "主题包 (*.zip)"
+                self, "导出主题包", f"{theme_name}.zip", "主题包 (*.zip)"
             )
             if not path:
                 return
@@ -874,9 +889,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """打开主题目录"""
         from PyQt5.QtCore import QUrl
         from PyQt5.QtGui import QDesktopServices
+
         themes_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "themes"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "themes"
         )
         QDesktopServices.openUrl(QUrl.fromLocalFile(themes_dir))
 
@@ -884,14 +899,13 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """打开首选项面板"""
         try:
             from ui.preferences_panel import PreferencesDialog
+
             dlg = PreferencesDialog(self, self)
             dlg.exec_()
         except Exception as e:
             self._show_error("打开首选项失败", str(e))
 
-
-    def _canonical_action_name(self, text: str,
-                              shortcut: Optional[str]) -> Optional[str]:
+    def _canonical_action_name(self, text: str, shortcut: Optional[str]) -> Optional[str]:
         """给一个菜单项决定它在 `ActionManager` 里的名字
 
         两级策略：
@@ -912,11 +926,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             return ACTION_NAME_BY_TEXT[text]
         if not shortcut:
             return None
-        digest = hashlib.md5(
-            ("%s|%s" % (text, shortcut)).encode("utf-8")
-        ).hexdigest()[:10]
+        digest = hashlib.md5(("%s|%s" % (text, shortcut)).encode("utf-8")).hexdigest()[:10]
         return "misc.%s" % digest
-
 
     # ========================================================
     # 运行 / 转到定义 / LSP（P8-2 / P6）
@@ -944,7 +955,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return
 
             # 1) 已激活的调试插件
-            for plugin in (self.plugins or []):
+            for plugin in self.plugins or []:
                 runner = getattr(plugin, "run_current", None)
                 if callable(runner):
                     try:
@@ -952,9 +963,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                         return
                     except Exception as e:
                         logger.error("插件运行当前文件失败: %s", e)
-                        self.status_bar.showMessage(
-                            f"运行失败: {e}", 5000
-                        )
+                        self.status_bar.showMessage(f"运行失败: {e}", 5000)
                         return
 
             # 2) 没有调试插件：给出可操作的提示（不静默失败）
@@ -964,9 +973,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 f"（{os.path.basename(filepath)}）",
                 6000,
             )
-            logger.warning(
-                "运行当前文件：没有可用的调试插件（filepath=%s）", filepath
-            )
+            logger.warning("运行当前文件：没有可用的调试插件（filepath=%s）", filepath)
         except Exception as e:
             logger.error("运行当前文件失败: %s", e)
             try:
@@ -988,9 +995,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return
             self._connect_lsp_signals(proxy)
             if not proxy.goto_definition():
-                self.status_bar.showMessage(
-                    "转到定义不可用（详见状态栏提示 / 日志）", 5000
-                )
+                self.status_bar.showMessage("转到定义不可用（详见状态栏提示 / 日志）", 5000)
         except Exception as e:
             logger.error("转到定义失败: %s", e)
             try:
@@ -1093,13 +1098,17 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """引用列表 → 文本弹窗（点击跳转留待后续）"""
         try:
             lines = []
-            for it in (items or []):
-                path = it.get('path') or ""
+            for it in items or []:
+                path = it.get("path") or ""
                 name = os.path.basename(path) if path else "(未知)"
-                lines.append("%s:%d:%d" % (
-                    name, int(it.get('line', 0)) + 1,
-                    int(it.get('character', 0)) + 1,
-                ))
+                lines.append(
+                    "%s:%d:%d"
+                    % (
+                        name,
+                        int(it.get("line", 0)) + 1,
+                        int(it.get("character", 0)) + 1,
+                    )
+                )
             if not lines:
                 self.status_bar.showMessage("未找到引用", 4000)
                 return
@@ -1117,9 +1126,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         这里明确告知用户"会影响多少处"，而不是假装已经改好。
         """
         try:
-            self.status_bar.showMessage(
-                "重命名将影响 %d 处（跨文件应用尚未实现）" % count, 8000
-            )
+            self.status_bar.showMessage("重命名将影响 %d 处（跨文件应用尚未实现）" % count, 8000)
         except Exception:
             pass
 
@@ -1127,21 +1134,22 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """文档符号 → 列表展示"""
         try:
             lines = []
-            for s in (symbols or []):
-                indent = "  " * int(s.get('depth', 0) or 0)
-                lines.append("%s%s  (行 %d)" % (
-                    indent, s.get('name') or "",
-                    int(s.get('line', 0)) + 1,
-                ))
+            for s in symbols or []:
+                indent = "  " * int(s.get("depth", 0) or 0)
+                lines.append(
+                    "%s%s  (行 %d)"
+                    % (
+                        indent,
+                        s.get("name") or "",
+                        int(s.get("line", 0)) + 1,
+                    )
+                )
             if not lines:
                 self.status_bar.showMessage("未获取到文档符号", 4000)
                 return
-            self._show_info(
-                "文档符号（%d 项）" % len(lines), "\n".join(lines)
-            )
+            self._show_info("文档符号（%d 项）" % len(lines), "\n".join(lines))
         except Exception as e:
             logger.debug("显示文档符号失败: %s", e)
-
 
     def _on_lsp_formatting_applied(self, ok: bool):
         try:
@@ -1189,6 +1197,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         if proxy is None:
             return
         from PyQt5.QtWidgets import QInputDialog
+
         name, ok = QInputDialog.getText(self, "重命名符号", "新名称:")
         if ok and name:
             proxy.rename_symbol(name)
@@ -1197,7 +1206,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         proxy = self._with_proxy("document_symbols", "文档符号")
         if proxy is not None:
             proxy.document_symbols()
-
 
     def _lsp_format(self):
         proxy = self._with_proxy("format_document", "格式化")
@@ -1209,8 +1217,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         if proxy is not None:
             proxy.request_signature()
 
-    def _on_definition_requested(self, filepath: str, line: int,
-                                 character: int):
+    def _on_definition_requested(self, filepath: str, line: int, character: int):
         """P6: 定义位于**别的文件**时打开它。
 
         同一文件内的跳转由 `EditorProxy._on_lsp_definition` 直接完成，
@@ -1230,9 +1237,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             if hasattr(self.tabs, "open_file"):
                 self.tabs.open_file(filepath, line=line)
             else:
-                self.status_bar.showMessage(
-                    f"定义位于: {filepath}:{line + 1}", 6000
-                )
+                self.status_bar.showMessage(f"定义位于: {filepath}:{line + 1}", 6000)
         except Exception as e:
             logger.error("打开定义位置失败: %s", e)
 
@@ -1301,9 +1306,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         try:
             proxy = self.tabs.current_proxy()
             if proxy is None or not hasattr(proxy, "toggle_lsp"):
-                self.status_bar.showMessage(
-                    "没有活动的编辑器，无法启用 LSP", 4000
-                )
+                self.status_bar.showMessage("没有活动的编辑器，无法启用 LSP", 4000)
                 self._set_lsp_checked(False)
                 return
 
@@ -1339,10 +1342,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             except Exception:
                 pass
 
-
-
-
-
     # ========================================================
     # 面板惰性构造（P1-3）
     # ========================================================
@@ -1356,17 +1355,26 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     #   用户第一次打开某个面板（或外部代码首次访问）时才真正
     #   创建 widget。面板属性仍保持原名字与类型，调用方无需改动。
     _LAZY_PANELS = (
-        'outline', 'outline_enhanced',
-        'dir_tree', 'minimap', 'gsearch',
-        'console', 'plugins_panel', 'perf_monitor', 'search_bar',
-        'problems',
+        "outline",
+        "outline_enhanced",
+        "dir_tree",
+        "minimap",
+        "gsearch",
+        "console",
+        "plugins_panel",
+        "perf_monitor",
+        "search_bar",
+        "problems",
         # 本轮接线：两个此前零实例化的孤立面板
         # （`ui/lsp_panel.py` 含语言服务器安装向导；
         #   `ui/undo_history_panel.py` 展示自研撤销栈）
-        'lsp', 'undo_history',
+        "lsp",
+        "undo_history",
         # 项目任务面板（`ui/task_panel.py` + `core/project_tasks.py`
         # 此前零实例化；由 project_mixin 绑定当前项目根）
-        'task',
+        "task",
+        # v2.21 P1-1：终端面板
+        "terminal",
     )
 
     # 启动时构造的面板（**保留**延迟构造，但恢复"开箱即有"的界面）
@@ -1378,13 +1386,11 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     # 用户观感就是"功能不见了"。这里在启动时只构造这几个常用面板
     # （仍少于原先的 9 个），既保住冷启动优化，又让界面开箱可用。
     _DEFAULT_PANELS = (
-        'dir_tree',        # 左侧：项目目录树
-        'gsearch',         # 底部：全局搜索
-        'plugins_panel',   # 右侧：插件
-        'perf_monitor',    # 底部：性能监控
+        "dir_tree",  # 左侧：项目目录树
+        "gsearch",  # 底部：全局搜索
+        "plugins_panel",  # 右侧：插件
+        "perf_monitor",  # 底部：性能监控
     )
-
-
 
     def apply_theme_to_widget(self, widget):
         """把一个控件（及其子控件）套用当前主题（若已确定）
@@ -1392,7 +1398,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         主题是否已知取决于 `apply_startup_theme()` 是否已执行 ——
         惰性面板/插件面板都可能在它之后创建，因此统一走这里。
         """
-        theme = getattr(self, '_startup_theme', None)
+        theme = getattr(self, "_startup_theme", None)
         if theme is None or widget is None:
             return
         for target in [widget]:
@@ -1401,7 +1407,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             except Exception:
                 children = []
             for w in [target] + list(children):
-                fn = getattr(w, 'refresh_theme', None)
+                fn = getattr(w, "refresh_theme", None)
                 if callable(fn):
                     try:
                         fn(theme)
@@ -1412,16 +1418,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             adapt_widget_styles(widget, theme)
         except Exception:
             pass
-
-
-
-
-
-
-
-
-
-
 
     # ========================================================
     # 快捷键
@@ -1463,10 +1459,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         except Exception as e:
             print(f"[MainWindow] 事件总线连接失败: {e}")
 
-
-
-
-
     def _open_language_packs_dir(self):
         """设置 → 打开语言包目录（data/language_packs）"""
         try:
@@ -1474,32 +1466,20 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
             from PyQt5.QtCore import QUrl
             from PyQt5.QtGui import QDesktopServices
-            root = os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)))
+
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             path = os.path.join(root, "data", "language_packs")
             os.makedirs(path, exist_ok=True)
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         except Exception as e:
             self.status_bar.showMessage("打开语言包目录失败: %s" % e, 3000)
 
-
-
-
-
-
-
-
-
-
-
-
     def _local_open_paths(self):
         paths = set()
         try:
             for i in range(self.tabs.count()):
                 ed = self.tabs.widget(i)
-                fp = getattr(getattr(ed, "document", None),
-                             "filepath", "") or ""
+                fp = getattr(getattr(ed, "document", None), "filepath", "") or ""
                 if fp:
                     paths.add(fp)
         except Exception:
@@ -1510,8 +1490,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """打开文件：同一路径只广播一次（v2.12.0 重复事件抑制）"""
         try:
             ed = self.tabs.widget(index)
-            fp = getattr(getattr(ed, "document", None),
-                         "filepath", "") or ""
+            fp = getattr(getattr(ed, "document", None), "filepath", "") or ""
             self._hook_sandbox_live_tab(index)
             if not fp:
                 return
@@ -1522,12 +1501,15 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             if already:
                 return
             from infrastructure.instance_broadcast import notify_file_event
+
             notify_file_event("file_opened", fp)
         except Exception:
             pass
+
     def _on_local_tab_closed(self, index):
         try:
             from infrastructure.instance_broadcast import notify_file_event
+
             current = self._local_open_paths()
             known = getattr(self, "_known_open_paths", set())
             for fp in known - current:
@@ -1539,38 +1521,39 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _on_remote_file_opened(self, path, mtime, pid):
         """其它实例打开了文件：状态栏提示（不自动打开）"""
         import os
+
         if pid == os.getpid():
             return
         try:
-            self.status_bar.showMessage(
-                "其它实例已打开: %s" % os.path.basename(path), 2000)
+            self.status_bar.showMessage("其它实例已打开: %s" % os.path.basename(path), 2000)
         except Exception:
             pass
 
     def _on_remote_file_closed(self, path, mtime, pid):
         import os
+
         if pid == os.getpid():
             return
         try:
-            self.status_bar.showMessage(
-                "其它实例已关闭: %s" % os.path.basename(path), 2000)
+            self.status_bar.showMessage("其它实例已关闭: %s" % os.path.basename(path), 2000)
         except Exception:
             pass
 
     def _follow_system_high_contrast(self) -> bool:
         try:
             from PyQt5.QtCore import QSettings
-            return bool(QSettings("QingCao", "Editor").value(
-                "follow_system_high_contrast", True, type=bool))
+
+            return bool(
+                QSettings("QingCao", "Editor").value("follow_system_high_contrast", True, type=bool)
+            )
         except Exception:
             return True
-
-
 
     def apply_high_contrast_if_needed(self) -> bool:
         """系统高对比度开启时应用系统调色板 QSS（v2.13.0 P0）"""
         try:
             from infrastructure.theme_loader import build_high_contrast_qss, system_high_contrast
+
             hc = system_high_contrast()
             self._system_high_contrast = bool(hc)
             if hc and self._follow_system_high_contrast():
@@ -1579,16 +1562,17 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 self._current_theme_qss = qss
                 self.setStyleSheet(qss)
                 self._apply_theme_to_top_levels(qss)
-                self.status_bar.showMessage(
-                    "已启用高对比度适配（跟随系统）", 3000)
+                self.status_bar.showMessage("已启用高对比度适配（跟随系统）", 3000)
                 return True
             self._restore_panel_qss()
         except Exception:
             pass
         return False
+
     def _set_follow_system_high_contrast(self, enabled):
         try:
             from PyQt5.QtCore import QSettings
+
             s = QSettings("QingCao", "Editor")
             s.setValue("follow_system_high_contrast", bool(enabled))
             s.sync()
@@ -1600,17 +1584,16 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             self._system_high_contrast = False
             self._restore_panel_qss()
             try:
-                self._apply_theme_by_name(
-                    self._current_theme_name or "")
+                self._apply_theme_by_name(self._current_theme_name or "")
             except Exception:
                 pass
-        self.status_bar.showMessage(
-            "跟随系统高对比度: %s" % ("开启" if enabled else "关闭"), 2500)
+        self.status_bar.showMessage("跟随系统高对比度: %s" % ("开启" if enabled else "关闭"), 2500)
 
     def _on_remote_config_changed(self, plugin_name):
         """其它实例修改了插件配置：重新读取并下发（配置变更广播）"""
         try:
             from infrastructure.plugin_sandbox_manager import load_plugin_config
+
             plugins = self._get_sandboxed_plugins() or {}
             sp = plugins.get(plugin_name)
             if sp is None:
@@ -1632,8 +1615,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             self._refresh_sandbox_status()
             self.status_bar.showMessage(
                 "配置已同步（来自其它实例）: %s · %s%s"
-                % (plugin_name, "成功" if ok else "失败",
-                   " · 已刷新菜单/诊断" if ok else ""), 5000)
+                % (plugin_name, "成功" if ok else "失败", " · 已刷新菜单/诊断" if ok else ""),
+                5000,
+            )
         except Exception:
             pass
 
@@ -1643,8 +1627,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             from PyQt5.QtCore import QSettings
 
             from ui.accessibility import apply_accessible_names, apply_font_scale
-            factor = QSettings("QingCao", "Editor").value(
-                "ui_scale", 1.0, type=float)
+
+            factor = QSettings("QingCao", "Editor").value("ui_scale", 1.0, type=float)
             apply_font_scale(self, factor or 1.0)
             apply_accessible_names(self)
         except Exception:
@@ -1654,6 +1638,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """实时沙箱诊断大文件阈值（可配置，v2.17）"""
         try:
             from core.large_file import live_diagnostics_limit_bytes
+
             return live_diagnostics_limit_bytes()
         except Exception:
             return self.MAX_LIVE_DIAGNOSTICS_BYTES
@@ -1662,16 +1647,18 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """多实例协议版本协商结果（v2.15.x）"""
         try:
             from infrastructure.instance_broadcast import PROTOCOL_VERSION
-            bad = {int(p): int(v) for p, v in (versions or {}).items()
-                   if int(v) != PROTOCOL_VERSION}
+
+            bad = {
+                int(p): int(v) for p, v in (versions or {}).items() if int(v) != PROTOCOL_VERSION
+            }
         except Exception:
             return
         if bad and not getattr(self, "_compat_warned", False):
             self._compat_warned = True
             try:
                 self.status_bar.showMessage(
-                    "检测到不同协议版本的实例（%s），已按兼容模式处理" % bad,
-                    5000)
+                    "检测到不同协议版本的实例（%s），已按兼容模式处理" % bad, 5000
+                )
             except Exception:
                 pass
 
@@ -1690,33 +1677,30 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """多实例：启动保存广播并处理远端保存事件（P0）"""
         try:
             from infrastructure.instance_broadcast import start_broadcast
+
             self._broadcast = start_broadcast()
-            self._broadcast.file_saved.connect(
-                self._on_remote_file_saved)
-            self._broadcast.file_opened.connect(
-                self._on_remote_file_opened)
-            self._broadcast.file_closed.connect(
-                self._on_remote_file_closed)
-            self._broadcast.focus_requested.connect(
-                self._on_focus_requested)
-            self._broadcast.config_changed.connect(
-                self._on_remote_config_changed)
+            self._broadcast.file_saved.connect(self._on_remote_file_saved)
+            self._broadcast.file_opened.connect(self._on_remote_file_opened)
+            self._broadcast.file_closed.connect(self._on_remote_file_closed)
+            self._broadcast.focus_requested.connect(self._on_focus_requested)
+            self._broadcast.config_changed.connect(self._on_remote_config_changed)
             try:
                 from PyQt5.QtCore import QTimer as _QTimer
-                self._broadcast.peer_versions_changed.connect(
-                    self._on_peer_versions_changed)
-                _QTimer.singleShot(1500,
-                                   self._broadcast.announce_hello)
+
+                self._broadcast.peer_versions_changed.connect(self._on_peer_versions_changed)
+                _QTimer.singleShot(1500, self._broadcast.announce_hello)
             except Exception:
                 pass
             try:
                 from PyQt5.QtCore import QTimer
+
                 def _deferred_sandbox_ui():
                     try:
                         self._apply_sandbox_configs()
                     except Exception:
                         pass
                     self.refresh_sandbox_plugin_menus(quiet=True)
+
                 QTimer.singleShot(1500, _deferred_sandbox_ui)
             except Exception:
                 pass
@@ -1732,6 +1716,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _on_remote_file_saved(self, path, mtime, pid):
         """其它实例保存了同一文件：冲突检测 + 自动重载/询问（v2.12.0 P0）"""
         import os
+
         if not path or pid == os.getpid():
             return
         try:
@@ -1741,8 +1726,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         for idx in range(count):
             try:
                 editor = self.tabs.widget(idx)
-                fp = getattr(getattr(editor, "document", None),
-                             "filepath", "") or ""
+                fp = getattr(getattr(editor, "document", None), "filepath", "") or ""
                 if not fp or os.path.normcase(fp) != os.path.normcase(path):
                     continue
                 doc = getattr(editor, "document", None)
@@ -1754,21 +1738,23 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                     except TypeError:
                         modified = bool(doc.is_modified())
                 if modified:
-                    self._last_remote_conflict = {
-                        "path": path, "mtime": mtime, "pid": pid}
+                    self._last_remote_conflict = {"path": path, "mtime": mtime, "pid": pid}
                     from PyQt5.QtWidgets import QMessageBox
+
                     ret = QMessageBox.question(
-                        self, "保存冲突",
+                        self,
+                        "保存冲突",
                         "该文件已被其它实例保存，而本地还有未保存修改。\n"
                         "继续保留本地修改可能与对方互相覆盖。\n\n"
                         "是否重新加载磁盘上的最新内容？\n%s" % path,
                         QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.No)
+                        QMessageBox.No,
+                    )
                     if ret != QMessageBox.Yes:
                         try:
                             self.status_bar.showMessage(
-                                "保留本地修改（冲突未解决）: %s"
-                                % os.path.basename(path), 4000)
+                                "保留本地修改（冲突未解决）: %s" % os.path.basename(path), 4000
+                            )
                         except Exception:
                             pass
                         return
@@ -1776,13 +1762,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 if reload_fn is not None:
                     reload_fn(path, editor)
                     self._last_remote_conflict = None
-                    self.status_bar.showMessage(
-                        "已从磁盘重载: %s" % os.path.basename(path), 3000)
+                    self.status_bar.showMessage("已从磁盘重载: %s" % os.path.basename(path), 3000)
                 return
             except Exception:
                 continue
-
-
 
     def _apply_theme_to_top_levels(self, qss=None):
         """把当前主题 QSS 套到所有独立顶层窗口（C-2）"""
@@ -1814,37 +1797,35 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """确保安装了"新窗口显示时套主题"的应用级事件过滤器"""
         try:
             from PyQt5.QtWidgets import QApplication
+
             if getattr(self, "_toplevel_theme_filter", None) is not None:
                 return
             self._toplevel_theme_filter = _TopLevelThemeFilter(self)
-            QApplication.instance().installEventFilter(
-                self._toplevel_theme_filter)
+            QApplication.instance().installEventFilter(self._toplevel_theme_filter)
         except Exception as e:
             print(f"[MainWindow] 安装顶层主题过滤器失败: {e}")
-
-
 
     def _open_dropped_paths(self, paths):
         """打开拖入的文件/目录（供 dropEvent 与测试复用）"""
         import os as _os
+
         opened = 0
         for path in paths or []:
             try:
                 if not path:
                     continue
                 if _os.path.isdir(path):
-                    if hasattr(self, '_open_folder'):
+                    if hasattr(self, "_open_folder"):
                         self._open_folder(path)
                     continue
-                if hasattr(self, 'tabs') and self.tabs is not None:
+                if hasattr(self, "tabs") and self.tabs is not None:
                     self.tabs.open_file(path)
                     opened += 1
             except Exception as e:
                 print(f"[MainWindow] 拖放打开失败({path}): {e}")
         if opened:
             try:
-                self.status_bar.showMessage(
-                    "已打开 %d 个拖入文件" % opened, 2500)
+                self.status_bar.showMessage("已打开 %d 个拖入文件" % opened, 2500)
             except Exception:
                 pass
         return opened
@@ -1872,8 +1853,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             if not event.mimeData().hasUrls():
                 super().dropEvent(event)
                 return
-            paths = [u.toLocalFile() for u in event.mimeData().urls()
-                     if u.isLocalFile()]
+            paths = [u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
             event.acceptProposedAction()
             self._open_dropped_paths(paths)
         except Exception as e:
@@ -1882,6 +1862,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _build_print_document(self):
         """把当前编辑器文本构建为 QTextDocument（供打印/预览复用）"""
         from PyQt5.QtGui import QFont, QTextDocument
+
         proxy = self.tabs.current_proxy()
         text = ""
         try:
@@ -1901,6 +1882,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """文件 → 打印…（NPP 对齐）"""
         try:
             from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
+
             doc, _proxy = self._build_print_document()
             if doc.isEmpty():
                 self.status_bar.showMessage("没有可打印的内容", 2500)
@@ -1918,6 +1900,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """文件 → 打印预览…（NPP 对齐）"""
         try:
             from PyQt5.QtPrintSupport import QPrinter, QPrintPreviewDialog
+
             doc, _proxy = self._build_print_document()
             if doc.isEmpty():
                 self.status_bar.showMessage("没有可打印的内容", 2500)
@@ -1932,17 +1915,28 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             self.status_bar.showMessage("打印预览失败: %s" % e, 3000)
 
     _TOOLBAR_ICONS = (
-        ("新建", "📄"), ("打开", "📂"), ("保存", "💾"),
-        ("撤销", "↶"), ("重做", "↷"), ("查找", "🔍"),
-        ("替换", "🔁"), ("运行", "▶"), ("终端", "🖥"),
-        ("插件", "🧩"), ("主题", "🎨"), ("格式化", "✨"),
-        ("对比", "🔀"), ("书签", "🔖"), ("导出", "📤"),
+        ("新建", "📄"),
+        ("打开", "📂"),
+        ("保存", "💾"),
+        ("撤销", "↶"),
+        ("重做", "↷"),
+        ("查找", "🔍"),
+        ("替换", "🔁"),
+        ("运行", "▶"),
+        ("终端", "🖥"),
+        ("插件", "🧩"),
+        ("主题", "🎨"),
+        ("格式化", "✨"),
+        ("对比", "🔀"),
+        ("书签", "🔖"),
+        ("导出", "📤"),
     )
 
     def _build_emoji_icon(self, text: str):
         """用 emoji 生成工具栏图标（无需图片资源）"""
         from PyQt5.QtCore import Qt as _Qt
         from PyQt5.QtGui import QFont, QPainter, QPixmap
+
         emoji = "🔹"
         for key, e in self._TOOLBAR_ICONS:
             if key in (text or ""):
@@ -1960,7 +1954,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             painter.end()
         return QIcon(pm)
 
-
     def _set_welcome_page_enabled(self, enabled: bool):
         """视图 → 显示欢迎页（持久化偏好；NPP 默认无欢迎页）"""
         enabled = bool(enabled)
@@ -1972,8 +1965,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         try:
             if not enabled:
                 self.central_stack.setCurrentIndex(0)
-            elif (self.tabs.count() == 0
-                  and getattr(self, 'welcome', None) is not None):
+            elif self.tabs.count() == 0 and getattr(self, "welcome", None) is not None:
                 self.central_stack.setCurrentIndex(1)
         except Exception:
             pass
@@ -1982,20 +1974,19 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """语言 → 自动：按当前文件扩展名重新应用词法器"""
         try:
             proxy = self.tabs.current_proxy()
-            sc = getattr(proxy, 'sc', None) if proxy else None
+            sc = getattr(proxy, "sc", None) if proxy else None
             if sc is None:
                 self.status_bar.showMessage("没有打开的编辑器", 2500)
                 return
             path = ""
             try:
-                path = getattr(proxy.document, 'filepath', '') or ""
+                path = getattr(proxy.document, "filepath", "") or ""
             except Exception:
                 pass
             sc._last_lexer_filepath = None
             self._active_language_pack_name = None
             sc.set_lexer_by_filename(path)
-            self.status_bar.showMessage(
-                "语言：已按扩展名自动识别", 2000)
+            self.status_bar.showMessage("语言：已按扩展名自动识别", 2000)
         except Exception as e:
             self.status_bar.showMessage("切换语言失败: %s" % e, 3000)
 
@@ -2003,15 +1994,15 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """语言 → 声明式语言包：对当前编辑器应用通用词法器"""
         try:
             proxy = self.tabs.current_proxy()
-            sc = getattr(proxy, 'sc', None) if proxy else None
+            sc = getattr(proxy, "sc", None) if proxy else None
             if sc is None:
                 self.status_bar.showMessage("没有打开的编辑器", 2500)
                 return
             from ui.generic_lexer import create_generic_lexer
+
             self._active_language_pack_name = pack.name
             sc.set_lexer(create_generic_lexer(pack, sc))
-            self.status_bar.showMessage(
-                "语言：已应用 %s" % (pack.name or "语言包"), 2000)
+            self.status_bar.showMessage("语言：已应用 %s" % (pack.name or "语言包"), 2000)
         except Exception as e:
             self.status_bar.showMessage("应用语言包失败: %s" % e, 3000)
 
@@ -2019,10 +2010,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示搜索栏"""
         try:
             # P1-3: 惰性构造
-            self._ensure_panel('search_bar')
+            self._ensure_panel("search_bar")
             if self.search_bar:
                 self.search_bar.show()
-                if hasattr(self.search_bar, 'show_and_focus'):
+                if hasattr(self.search_bar, "show_and_focus"):
                     self.search_bar.show_and_focus()
         except Exception as e:
             print(f"[MainWindow] 显示搜索栏失败: {e}")
@@ -2031,10 +2022,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示全局搜索"""
         try:
             # P1-3: 惰性构造
-            self._ensure_panel('gsearch')
+            self._ensure_panel("gsearch")
             if self.gsearch:
                 self.gsearch.show()
-                if hasattr(self.gsearch, 'focus_search'):
+                if hasattr(self.gsearch, "focus_search"):
                     self.gsearch.focus_search()
         except Exception as e:
             print(f"[MainWindow] 显示全局搜索失败: {e}")
@@ -2046,15 +2037,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             if not proxy or not proxy.sc:
                 return
 
-            total = proxy.sc.SendScintilla(
-                proxy.sc.SCI_GETLINECOUNT
-            )
+            total = proxy.sc.SendScintilla(proxy.sc.SCI_GETLINECOUNT)
             if total <= 0:
                 total = 1
-            line, ok = QInputDialog.getInt(
-                self, "跳转到行", "行号:",
-                1, 1, total
-            )
+            line, ok = QInputDialog.getInt(self, "跳转到行", "行号:", 1, 1, total)
             if ok:
                 proxy.sc.setCursorPosition(line - 1, 0)
                 proxy.sc.ensureLineVisible(line - 1)
@@ -2082,7 +2068,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             忽略 triggered 传入的 checked 参数。
         """
         try:
-            if hasattr(self, 'column_mode_action'):
+            if hasattr(self, "column_mode_action"):
                 # 修复 P0-C4: 忽略 triggered 的 checked 参数，
                 # 始终基于工具栏 action 的当前状态翻转
                 enabled = not self.column_mode_action.isChecked()
@@ -2091,21 +2077,15 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 self.column_mode_action.blockSignals(False)
             else:
                 # 无工具栏按钮时，退回到 checked 参数
-                enabled = not (checked if isinstance(checked, bool)
-                               else False)
+                enabled = not (checked if isinstance(checked, bool) else False)
 
             proxy = self.tabs.current_proxy()
-            if proxy and hasattr(proxy, 'set_column_mode'):
+            if proxy and hasattr(proxy, "set_column_mode"):
                 proxy.set_column_mode(enabled)
 
-            self.status_bar.showMessage(
-                "列模式" if enabled else "流模式", 2000
-            )
+            self.status_bar.showMessage("列模式" if enabled else "流模式", 2000)
         except Exception as e:
             print(f"[MainWindow] 切换列模式失败: {e}")
-
-
-
 
     def toggle_fullscreen(self):
         """切换全屏"""
@@ -2159,23 +2139,23 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             proxy = self.tabs.current_proxy()
         except Exception:
             proxy = None
-        sc = getattr(proxy, 'sc', None) if proxy is not None else None
+        sc = getattr(proxy, "sc", None) if proxy is not None else None
         if sc is None:
             return
         try:
             # 清掉去重标记，强制重新判定
             sc._last_lexer_filepath = None
-            path = ''
+            path = ""
             try:
-                path = getattr(proxy.document, 'filepath', '') or ''
+                path = getattr(proxy.document, "filepath", "") or ""
             except Exception:
                 pass
             sc.set_lexer_by_filename(path)
             if self.minimap is not None:
                 self.minimap.set_editor(sc)
             self.statusBar().showMessage(
-                "大文件强制高亮：%s" % ("已开启" if checked else "已关闭"),
-                3000)
+                "大文件强制高亮：%s" % ("已开启" if checked else "已关闭"), 3000
+            )
         except Exception as e:
             print(f"[MainWindow] 切换大文件高亮失败: {e}")
 
@@ -2184,43 +2164,41 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     # ========================================================
     def _toggle_outline(self, checked):
         """切换大纲面板（基础版）"""
-        if self._ensure_panel('outline') and self.outline:
+        if self._ensure_panel("outline") and self.outline:
             self.outline.setVisible(checked)
 
     def _toggle_outline_enhanced(self, checked):
         """切换增强版大纲面板"""
-        if self._ensure_panel('outline_enhanced') and self.outline_enhanced:
+        if self._ensure_panel("outline_enhanced") and self.outline_enhanced:
             self.outline_enhanced.setVisible(checked)
 
     def _toggle_directory(self, checked):
         """切换目录树面板"""
-        if self._ensure_panel('dir_tree') and self.dir_tree_dock:
+        if self._ensure_panel("dir_tree") and self.dir_tree_dock:
             self.dir_tree_dock.setVisible(checked)
 
     def _toggle_minimap(self, checked):
         """切换 Minimap"""
-        if self._ensure_panel('minimap') and self.minimap_dock:
+        if self._ensure_panel("minimap") and self.minimap_dock:
             self.minimap_dock.setVisible(checked)
 
     def _toggle_global_search(self, checked):
         """切换全局搜索"""
-        if self._ensure_panel('gsearch') and self.gsearch:
+        if self._ensure_panel("gsearch") and self.gsearch:
             self.gsearch.setVisible(checked)
 
     def _toggle_console(self):
         """切换控制台"""
         try:
-            if self._ensure_panel('console') and self.console:
+            if self._ensure_panel("console") and self.console:
                 self.console.setVisible(not self.console.isVisible())
         except Exception as e:
             print(f"[MainWindow] 控制台切换失败: {e}")
 
-
     def _toggle_perf_monitor(self, checked):
         """切换性能监控"""
-        if self._ensure_panel('perf_monitor') and self.perf_monitor:
+        if self._ensure_panel("perf_monitor") and self.perf_monitor:
             self.perf_monitor.setVisible(checked)
-
 
     # ========================================================
     # 工具
@@ -2229,16 +2207,16 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示命令面板"""
         try:
             from ui.command_palette import create_command_palette
+
             palette = create_command_palette(
-                self.act_mgr, self,
-                tab_mgr=self.tabs,
-                outline=self.outline
+                self.act_mgr, self, tab_mgr=self.tabs, outline=self.outline
             )
-            if hasattr(palette, 'center_on_parent'):
+            if hasattr(palette, "center_on_parent"):
                 palette.center_on_parent()
             palette.exec_()
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             print(f"[MainWindow] 命令面板失败: {e}")
 
@@ -2246,8 +2224,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示文件切换面板"""
         try:
             from ui.command_palette import create_file_palette
+
             palette = create_file_palette(self.act_mgr, self.tabs, self)
-            if hasattr(palette, 'center_on_parent'):
+            if hasattr(palette, "center_on_parent"):
                 palette.center_on_parent()
             palette.exec_()
         except Exception as e:
@@ -2257,10 +2236,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示符号跳转面板"""
         try:
             from ui.command_palette import create_symbol_palette
-            palette = create_symbol_palette(
-                self.act_mgr, self.tabs, self.outline, self
-            )
-            if hasattr(palette, 'center_on_parent'):
+
+            palette = create_symbol_palette(self.act_mgr, self.tabs, self.outline, self)
+            if hasattr(palette, "center_on_parent"):
                 palette.center_on_parent()
             palette.exec_()
         except Exception as e:
@@ -2282,7 +2260,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             return None
         if proxy is None:
             return None
-        return getattr(proxy, 'undo_manager', None)
+        return getattr(proxy, "undo_manager", None)
 
     def _on_macro_error(self, message: str):
         """宏录制/回放错误 → 状态栏（P0-1）
@@ -2304,9 +2282,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         try:
             # 兼容不同版本：使用 recording 属性或 is_recording 方法
             is_recording = False
-            if hasattr(self.macro, 'recording'):
+            if hasattr(self.macro, "recording"):
                 is_recording = bool(self.macro.recording)
-            elif hasattr(self.macro, 'is_recording'):
+            elif hasattr(self.macro, "is_recording"):
                 is_recording = bool(self.macro.is_recording())
 
             if is_recording:
@@ -2316,27 +2294,23 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 # 用户无法察觉"录到 0 条"这种静默失败。
                 count = 0
                 try:
-                    count = len(getattr(macro, 'commands', []) or [])
+                    count = len(getattr(macro, "commands", []) or [])
                 except Exception:
                     count = 0
-                self.status_bar.showMessage(
-                    f"宏录制已停止（{count} 条命令）", 3000
-                )
+                self.status_bar.showMessage(f"宏录制已停止（{count} 条命令）", 3000)
             else:
                 # P0-1: 开始录制前先绑定当前标签的 undo_manager
                 # （标签可能自上次录制后已切换；start() 内部也会再解析一次）
-                if hasattr(self.macro, 'bind_current_undo_manager'):
+                if hasattr(self.macro, "bind_current_undo_manager"):
                     self.macro.bind_current_undo_manager()
                 self.macro.start()
                 self.rec_label.setText("● REC")
                 self.rec_label.show()
                 # 没绑上 = 必然录到 0 条：立刻可见地告诉用户，
                 # 而不是等他录完、回放时才提示"没有可回放的宏"。
-                if (hasattr(self.macro, 'has_hook')
-                        and not self.macro.has_hook):
+                if hasattr(self.macro, "has_hook") and not self.macro.has_hook:
                     self.status_bar.showMessage(
-                        "宏录制已开始，但当前没有可录制的编辑器"
-                        "（请先打开或新建标签）", 5000
+                        "宏录制已开始，但当前没有可录制的编辑器（请先打开或新建标签）", 5000
                     )
                 else:
                     self.status_bar.showMessage("宏录制已开始", 2000)
@@ -2354,9 +2328,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 return
 
             has_commands = False
-            if hasattr(self.macro, 'has_commands'):
+            if hasattr(self.macro, "has_commands"):
                 has_commands = self.macro.has_commands()
-            elif hasattr(self.macro, 'commands'):
+            elif hasattr(self.macro, "commands"):
                 has_commands = bool(self.macro.commands)
 
             if not has_commands:
@@ -2368,12 +2342,11 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         except Exception as e:
             self._show_error("宏回放失败", str(e))
 
-
-
     def _show_keymap_editor(self):
         """显示快捷键编辑器"""
         try:
             from ui.keymap_editor import KeymapEditor
+
             dlg = KeymapEditor(self.act_mgr, self)
             dlg.exec_()
         except Exception as e:
@@ -2383,7 +2356,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """显示性能监控面板"""
         try:
             # P1-3: 惰性构造
-            self._ensure_panel('perf_monitor')
+            self._ensure_panel("perf_monitor")
             if self.perf_monitor:
                 self.perf_monitor.show()
                 self.perf_monitor.raise_()
@@ -2408,24 +2381,19 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             editor = proxy.sc
 
             if checked:
-                vim = getattr(editor, '_vim_mode', None)
+                vim = getattr(editor, "_vim_mode", None)
                 if vim is None:
                     vim = VimMode(editor)
                     editor._vim_mode = vim
 
                 # 首次创建时连接信号（状态栏显示模式）
-                if not getattr(vim, '_signal_connected', False):
+                if not getattr(vim, "_signal_connected", False):
                     try:
                         vim.status_message.connect(
-                            lambda msg:
-                            self.status_bar.showMessage(msg, 2000)
-                            if msg else None
+                            lambda msg: self.status_bar.showMessage(msg, 2000) if msg else None
                         )
                         vim.state_changed.connect(
-                            lambda st:
-                            self.status_bar.showMessage(
-                                f"Vim: {st}", 1500
-                            )
+                            lambda st: self.status_bar.showMessage(f"Vim: {st}", 1500)
                         )
                         vim._signal_connected = True
                     except Exception:
@@ -2444,7 +2412,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 self.status_bar.showMessage("Vim 模式已启用", 1500)
                 print("[MainWindow] Vim 模式已启用")
             else:
-                vim = getattr(editor, '_vim_mode', None)
+                vim = getattr(editor, "_vim_mode", None)
                 if vim is not None:
                     vim.set_enabled(False)
                 self.status_bar.showMessage("Vim 模式已禁用", 2000)
@@ -2452,6 +2420,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         except Exception as e:
             print(f"[MainWindow] Vim 切换失败: {e}")
             import traceback
+
             traceback.print_exc()
             self.status_bar.showMessage(f"Vim 切换失败: {e}", 3000)
 
@@ -2459,6 +2428,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """导出配置"""
         try:
             from app.config_manager import ConfigManager
+
             cm = ConfigManager()
             cm.export_config(self)
         except Exception as e:
@@ -2468,6 +2438,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         """导入配置"""
         try:
             from app.config_manager import ConfigManager
+
             cm = ConfigManager()
             cm.import_config(self)
         except Exception as e:
@@ -2554,6 +2525,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 显示技巧
         try:
             from ui.tips import get_tip
+
             tip = get_tip()
         except Exception:
             tips = [
@@ -2567,6 +2539,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 "按 Ctrl+/ 注释或取消注释当前行。",
             ]
             import random
+
             tip = random.choice(tips)
 
         QMessageBox.information(self, "💡 每日技巧", tip)
@@ -2574,30 +2547,27 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _show_online_docs(self):
         """打开在线文档"""
         try:
-            QDesktopServices.openUrl(
-                QUrl("https://qingcao-editor.github.io/docs")
-            )
+            QDesktopServices.openUrl(QUrl("https://qingcao-editor.github.io/docs"))
         except Exception:
             pass
 
     def _show_github(self):
         """打开 GitHub"""
         try:
-            QDesktopServices.openUrl(
-                QUrl("https://github.com/qingcao-editor/qingcao")
-            )
+            QDesktopServices.openUrl(QUrl("https://github.com/qingcao-editor/qingcao"))
         except Exception:
             pass
 
     def _about(self):
         """关于对话框"""
         QMessageBox.about(
-            self, "关于青草编辑器",
+            self,
+            "关于青草编辑器",
             f"<h2>{APP_NAME} v{APP_VERSION}</h2>"
             "<p>轻量 · 极速 · 可扩展</p>"
             "<p>开发者：TomJerry</p>"
             "<p>联系：1265338136@qq.com</p>"
-            "<p><i>青草枯荣，野火重生。</i></p>"
+            "<p><i>青草枯荣，野火重生。</i></p>",
         )
 
     # ========================================================
@@ -2606,8 +2576,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _on_status_message(self, event):
         """状态消息事件"""
         try:
-            msg = getattr(event, 'message', str(event))
-            timeout = getattr(event, 'timeout', 3000)
+            msg = getattr(event, "message", str(event))
+            timeout = getattr(event, "timeout", 3000)
             self.status_bar.showMessage(msg, timeout)
         except Exception:
             pass
@@ -2615,8 +2585,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _on_cursor_moved(self, event):
         """光标移动"""
         try:
-            line = getattr(event, 'line', 1)
-            col = getattr(event, 'col', 0)
+            line = getattr(event, "line", 1)
+            col = getattr(event, "col", 0)
             self.cursor_label.setText(f"行 {line}, 列 {col}")
         except Exception:
             pass
@@ -2638,9 +2608,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # 大纲（基础版）
             if self.outline:
                 try:
-                    if hasattr(self.outline, 'update_symbols'):
+                    if hasattr(self.outline, "update_symbols"):
                         self.outline.update_symbols(editor)
-                    elif hasattr(self.outline, 'schedule_update'):
+                    elif hasattr(self.outline, "schedule_update"):
                         self.outline.schedule_update()
                 except Exception as e:
                     print(f"[MainWindow] 大纲更新失败: {e}")
@@ -2648,9 +2618,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # 大纲（增强版）
             if self.outline_enhanced:
                 try:
-                    if hasattr(self.outline_enhanced, 'update_symbols'):
+                    if hasattr(self.outline_enhanced, "update_symbols"):
                         self.outline_enhanced.update_symbols(editor)
-                    elif hasattr(self.outline_enhanced, 'schedule_update'):
+                    elif hasattr(self.outline_enhanced, "schedule_update"):
                         self.outline_enhanced.schedule_update()
                 except Exception as e:
                     print(f"[MainWindow] 增强大纲更新失败: {e}")
@@ -2658,7 +2628,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # Minimap（安全调用）
             if self.minimap:
                 try:
-                    if hasattr(self.minimap, 'set_editor'):
+                    if hasattr(self.minimap, "set_editor"):
                         self.minimap.set_editor(editor)
                 except Exception as e:
                     print(f"[MainWindow] Minimap 更新失败: {e}")
@@ -2679,10 +2649,12 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # undo_manager（proxy 是每标签一个）。否则用户在录制过程中
             # 切了标签，之后的编辑一条也录不到，而 UI 仍显示"● REC"。
             try:
-                macro = getattr(self, 'macro', None)
-                if (macro is not None
-                        and getattr(macro, 'recording', False)
-                        and hasattr(macro, 'bind_current_undo_manager')):
+                macro = getattr(self, "macro", None)
+                if (
+                    macro is not None
+                    and getattr(macro, "recording", False)
+                    and hasattr(macro, "bind_current_undo_manager")
+                ):
                     macro.bind_current_undo_manager()
             except Exception as e:
                 print(f"[MainWindow] 切换标签后重绑宏录制失败: {e}")
@@ -2693,11 +2665,11 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
     def _sync_column_mode_state(self):
         """同步工具栏列模式按钮状态（P2-5）"""
         try:
-            if not hasattr(self, 'column_mode_action'):
+            if not hasattr(self, "column_mode_action"):
                 return
 
             proxy = self.tabs.current_proxy()
-            if not proxy or not hasattr(proxy, 'is_column_mode'):
+            if not proxy or not hasattr(proxy, "is_column_mode"):
                 return
 
             is_col = bool(proxy.is_column_mode())
@@ -2729,6 +2701,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 filepath = proxy.document.filepath or ""
             try:
                 from core.editor import lsp_language_for_file
+
                 if not filepath or not lsp_language_for_file(filepath):
                     return
             except Exception:
@@ -2745,7 +2718,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         try:
             self.central_stack.setCurrentIndex(1)
 
-            if self.minimap and hasattr(self.minimap, 'set_editor'):
+            if self.minimap and hasattr(self.minimap, "set_editor"):
                 try:
                     self.minimap.set_editor(None)
                 except Exception:
@@ -2772,8 +2745,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         except Exception as e:
             print(f"[MainWindow] 打开文件失败: {e}")
 
-    def _on_search_match_activated(self, filepath: str, start: int,
-                                     end: int, line: int, col: int):
+    def _on_search_match_activated(self, filepath: str, start: int, end: int, line: int, col: int):
         """全局搜索匹配激活"""
         try:
             proxy = self.tabs.open_file(filepath)
@@ -2803,8 +2775,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         `ui/global_search_panel.py`）。本方法只是"面板不可用"时的兜底，
         行为与修复前一致，不会更差。
         """
-        gsearch = getattr(self, 'gsearch', None)
-        if gsearch is not None and hasattr(gsearch, 'build_options'):
+        gsearch = getattr(self, "gsearch", None)
+        if gsearch is not None and hasattr(gsearch, "build_options"):
             try:
                 options = gsearch.build_options()
                 if options is not None:
@@ -2815,10 +2787,10 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                 print(f"[MainWindow] 读取搜索选项失败: {e}")
 
         from core.search import SearchOptions
+
         return SearchOptions.from_preferences(pattern=pattern)
 
-    def _on_global_replace(self, pattern: str, replace_text: str,
-                            file_results: dict, options=None):
+    def _on_global_replace(self, pattern: str, replace_text: str, file_results: dict, options=None):
         """P2-C5: 全局搜索 → 全部替换。
 
         参数:
@@ -2866,7 +2838,8 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
                         replace_engine = ReplaceEngine(provider)
                         n = replace_engine.replace_all(
-                            result, replace_text,
+                            result,
+                            replace_text,
                             is_regex=options.is_regex,
                             pattern=options.pattern,
                         )
@@ -2880,7 +2853,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             # 刷新已打开的受影响文件
             for i in range(self.tabs.count()):
                 w = self.tabs.widget(i)
-                if not hasattr(w, 'proxy') or not w.proxy:
+                if not hasattr(w, "proxy") or not w.proxy:
                     continue
                 fp = None
                 try:
@@ -2893,9 +2866,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
                         if w.proxy.document:
                             w.proxy.document.reload()
                         if w.proxy.sc and w.proxy.document:
-                            w.proxy.sc.setText(
-                                w.proxy.document.get_text()
-                            )
+                            w.proxy.sc.setText(w.proxy.document.get_text())
                     except Exception:
                         pass
 
@@ -2939,15 +2910,11 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             if self.prefs and not self.prefs.get("restore_session", True):
                 return
 
-            count = self.session.restore(
-                self.tabs, self, confirm_recovery=False
-            )
+            count = self.session.restore(self.tabs, self, confirm_recovery=False)
 
             if count and count > 0:
                 self.central_stack.setCurrentIndex(0)
-                self.status_bar.showMessage(
-                    f"已恢复 {count} 个文件", 3000
-                )
+                self.status_bar.showMessage(f"已恢复 {count} 个文件", 3000)
                 self.session_restored.emit(count)
         except Exception as e:
             print(f"[MainWindow] 恢复会话失败: {e}")
@@ -3006,6 +2973,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         perms = []
         try:
             from app.plugins import ALL_PERMISSIONS
+
             if ALL_PERMISSIONS:
                 perms = list(ALL_PERMISSIONS)
         except Exception:
@@ -3025,9 +2993,6 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             print(f"[MainWindow] 创建主 API 失败: {e}")
             return None
 
-
-
-
     # ========================================================
     # 错误处理
     # ========================================================
@@ -3036,6 +3001,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # P1-2: 音效接线（默认关闭）
         try:
             from infrastructure.sound_manager import SoundEvent, play_sound
+
             play_sound(SoundEvent.NOTIFY_ERROR)
         except Exception:
             pass
@@ -3053,6 +3019,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 否则多窗口/多测试连续创建时可能访问已销毁对象（崩溃）。
         try:
             from PyQt5.QtWidgets import QApplication
+
             filt = getattr(self, "_toplevel_theme_filter", None)
             if filt is not None:
                 QApplication.instance().removeEventFilter(filt)
@@ -3073,7 +3040,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
               以覆盖"关闭主窗口时仍有其他 QDialog/子窗口存活"的
               边缘场景，确保事件循环一定能退出。
         """
-        if getattr(self, '_closing', False):
+        if getattr(self, "_closing", False):
             event.accept()
             return
 
@@ -3098,7 +3065,7 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         #   同时每个标签的 provider 持有文件句柄，不释放会在 Windows 上
         #   阻止文件被外部程序修改。见 `TabManager.dispose` 的说明。
         try:
-            if hasattr(self.tabs, 'dispose'):
+            if hasattr(self.tabs, "dispose"):
                 self.tabs.dispose()
         except Exception as e:
             logger.debug("释放 TabManager 资源失败: %s", e)
@@ -3108,27 +3075,29 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
             modified = []
             for i in range(self.tabs.count()):
                 w = self.tabs.widget(i)
-                if not hasattr(w, 'proxy'):
+                if not hasattr(w, "proxy"):
                     continue
                 proxy = w.proxy
-                if proxy and hasattr(proxy, 'is_modified') and proxy.is_modified:
+                if proxy and hasattr(proxy, "is_modified") and proxy.is_modified:
                     fp = None
                     if proxy.document:
                         fp = proxy.document.filepath
                     modified.append(fp or "(未命名)")
 
             if modified:
-                msg = ("以下文件有未保存的修改：\n\n"
-                       + "\n".join(f"• {os.path.basename(f)}"
-                                    for f in modified[:10]))
+                msg = "以下文件有未保存的修改：\n\n" + "\n".join(
+                    f"• {os.path.basename(f)}" for f in modified[:10]
+                )
                 if len(modified) > 10:
                     msg += f"\n... 及其他 {len(modified) - 10} 个文件"
                 msg += "\n\n是否放弃所有修改并退出？"
 
                 reply = QMessageBox.question(
-                    self, "未保存的修改", msg,
+                    self,
+                    "未保存的修改",
+                    msg,
                     QMessageBox.Discard | QMessageBox.Cancel,
-                    QMessageBox.Cancel
+                    QMessageBox.Cancel,
                 )
 
                 if reply == QMessageBox.Cancel:
@@ -3137,16 +3106,15 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
             # 保存会话
             try:
-                if self.session and (not self.prefs or
-                                      self.prefs.get("restore_session", True)):
+                if self.session and (not self.prefs or self.prefs.get("restore_session", True)):
                     self.session.save(self.tabs, self)
             except Exception:
                 pass
 
             # 停止定时器
-            if hasattr(self, '_status_timer'):
+            if hasattr(self, "_status_timer"):
                 self._status_timer.stop()
-            if hasattr(self, '_session_timer'):
+            if hasattr(self, "_session_timer"):
                 self._session_timer.stop()
 
             # 停止自动备份定时器（P1 收尾）
@@ -3214,22 +3182,22 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
         # 1. 插件线程 + 面板线程
         try:
-            pm = getattr(self, 'plugin_manager', None)
-            loader = getattr(pm, 'loader', None) if pm is not None else None
-            specs = getattr(loader, 'specs', None) or {}
+            pm = getattr(self, "plugin_manager", None)
+            loader = getattr(pm, "loader", None) if pm is not None else None
+            specs = getattr(loader, "specs", None) or {}
             for spec in specs.values():
-                inst = getattr(spec, 'instance', None)
+                inst = getattr(spec, "instance", None)
                 if inst is None:
                     continue
                 # 面板的线程收尾
-                panel = getattr(inst, 'ollama_panel', None)
+                panel = getattr(inst, "ollama_panel", None)
                 if panel is not None:
                     try:
                         panel._stop_threads(timeout_ms)
                     except Exception:
                         pass
                 # 插件自定义的线程收尾钩子（若实现）
-                hook = getattr(inst, 'shutdown_background', None)
+                hook = getattr(inst, "shutdown_background", None)
                 if callable(hook):
                     try:
                         hook()
@@ -3240,9 +3208,9 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
 
         # 2. 插件热重载目录监控
         try:
-            pm = getattr(self, 'plugin_manager', None)
-            loader = getattr(pm, 'loader', None) if pm is not None else None
-            if loader is not None and hasattr(loader, 'stop_watching'):
+            pm = getattr(self, "plugin_manager", None)
+            loader = getattr(pm, "loader", None) if pm is not None else None
+            if loader is not None and hasattr(loader, "stop_watching"):
                 loader.stop_watching()
         except Exception:
             pass
@@ -3250,13 +3218,13 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         # 3. 各标签的编辑器资源（停 LSP 子进程、停草稿定时器、摘文件监听）
         #    注意：这里不弹"未保存"对话框 —— closeEvent 已经在前面问过了。
         try:
-            tabs = getattr(self, 'tabs', None)
-            if tabs is not None and hasattr(tabs, 'count'):
+            tabs = getattr(self, "tabs", None)
+            if tabs is not None and hasattr(tabs, "count"):
                 for i in range(tabs.count()):
                     try:
                         widget = tabs.widget(i)
-                        proxy = getattr(widget, 'proxy', None)
-                        if proxy is not None and hasattr(proxy, 'close'):
+                        proxy = getattr(widget, "proxy", None)
+                        if proxy is not None and hasattr(proxy, "close"):
                             proxy.close()
                     except Exception:
                         pass
@@ -3289,5 +3257,4 @@ class MainWindow(MenuBuilderMixin, PanelRegistryMixin, SandboxUIMixin,
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<MainWindow tabs={self.tabs.count()} "
-                f"current={self.tabs.currentIndex()}>")
+        return f"<MainWindow tabs={self.tabs.count()} current={self.tabs.currentIndex()}>"

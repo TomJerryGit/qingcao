@@ -807,9 +807,20 @@ class CapabilityWiringMixin:
         返回:
             追加后的列表（便于链式调用）
         """
+        panels.append(("终端", "panel.terminal", self._toggle_terminal))
         panels.append(("LSP 状态", "panel.lsp", self._toggle_lsp_panel))
         panels.append(("撤销历史", "panel.undo_history", self._toggle_undo_history_panel))
         return panels
+
+    def _toggle_terminal(self, checked):
+        """切换终端面板"""
+        if self._ensure_panel("terminal") and getattr(self, "terminal", None):
+            self.terminal.setVisible(checked)
+            if checked:
+                try:
+                    self.terminal.input.setFocus()
+                except Exception:
+                    pass
 
     def _toggle_lsp_panel(self, checked):
         """切换 LSP 面板"""
