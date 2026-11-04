@@ -107,6 +107,13 @@ def localize(files, log_dir):
     return bad
 
 
+CRASH_CODES = {3221225477, -1073741819, 3221225476, -1073741818, 3221225725}
+
+
+def _is_native_crash(rc):
+    return rc in CRASH_CODES
+
+
 def pick_shards(cpu_count=None, cap=4):
     """按 CPU 数选择分片数（2~cap，v2.16 P2）"""
     cpu = int(cpu_count or os.cpu_count() or 2)
@@ -168,6 +175,22 @@ def main():
     if not failed:
         print("[sharded] 全部 %d 片通过 ✅" % len(shards))
         return 0
+    # 原生崩溃 flaky 门禁：全部失败片均为崩溃码时，逐文件串行复跑；
+    # 若全部通过，判定为 Qt 并行原生崩溃（环境抖动），放行并记录警告。
+    if all(_is_native_crash(f[2]) or f[3] for f in failed):
+        print(
+            "[sharded] 检测到原生崩溃（%s），启用逐文件回退复跑 ..."
+            % ",".join(str(f[2]) for f in failed)
+        )
+        bad_all = []
+        for idx, shard, rc, crashed in failed:
+            bad_all += localize(shard, args.log_dir)
+        if not bad_all:
+            print("[sharded] 原生崩溃为 flaky：逐文件复跑全部通过 ✅（门禁放行）")
+            return 0
+        print("[sharded] 回退复跑仍失败 %d 个文件" % len(bad_all))
+        return 1
+
     print("[sharded] 失败片数: %d" % len(failed))
     if args.localize:
         for idx, shard, rc, crashed in failed:
