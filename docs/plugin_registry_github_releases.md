@@ -1,5 +1,7 @@
 # 插件市场公网化：GitHub Releases 静态托管（v2.21 P1-3）
 
+> ✅ **已上线（2026-11-04）**：Release `plugin-registry`，13 个插件包，SHA256/Ed25519 抽查通过。
+
 零域名/零证书方案：用 GitHub Release 资产提供 HTTPS 注册表与插件包。
 
 ## 发布
@@ -37,3 +39,8 @@ powershell -File tools/setup_registry_secret.ps1
 客户端设置：` $env:QINGCAO_PLUGIN_PUBKEYS = "1f32f745a66e5b1782f974580f1f919b9970aa26e3be7f8d87b17dff5c2370c0" `（或写入配置），
 然后插件市场注册表 URL 填：
 https://github.com/TomJerryGit/qingcao/releases/download/plugin-registry/registry.json
+## 上线验证记录
+
+- workflow run `41798754204`：success；
+- Release 资产 14 个（registry.json + 13 zip）；
+- 抽查 3 个插件包：SHA256 3/3、Ed25519 3/3 通过。

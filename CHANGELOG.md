@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 新增
+
+- **插件市场公网注册表已上线**（GitHub Releases 静态托管）：13 个插件、SHA256+Ed25519 抽查通过；客户端 URL `GITHUB_REGISTRY_URL`。
+
+
 ### 文档
 
 - 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
