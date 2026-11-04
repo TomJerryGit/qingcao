@@ -51,9 +51,11 @@ jobs:
           python tools/enable_crash_dumps.py --folder "D:/actions-runner/crash_dumps"
           Write-Output "crash dump setup exit=$LASTEXITCODE (best effort)"
 
-      - name: i18n coverage
+      - name: i18n coverage & QA
         shell: powershell
-        run: python tools/i18n_coverage.py --check --min-corpus 100
+        run: |
+          python tools/i18n_coverage.py --check --min-corpus 100
+          python tools/i18n_qa.py --check
 
       - name: Version check
         shell: powershell
