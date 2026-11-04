@@ -123,6 +123,10 @@ except ImportError:  # pragma: no cover
 # 插件市场注册表地址（镜像优先，国内可访问）
 # 优先级：jsDelivr CDN > 用户自定义 > FALLBACK 列表
 # 用户可在"插件市场"的"注册表 URL"输入框中覆盖此默认值
+GITHUB_REGISTRY_URL = (
+    "https://github.com/TomJerryGit/qingcao/releases/download/plugin-registry/registry.json"
+)
+
 DEFAULT_REGISTRY_URL = (
     "https://cdn.jsdelivr.net/gh/qingcao-editor/plugins-registry@main/registry.json"
 )

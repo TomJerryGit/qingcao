@@ -45,7 +45,7 @@
 - 覆盖率/QA 门禁按语言分别检查（zh_TW 语料覆盖 100%）；
 - 验收：繁中界面可用；术语与 `i18n_glossary.md` 一致；CI 通过。
 
-### 3. 市场公网化（GitHub Releases 静态托管）
+### 3. 市场公网化（GitHub Releases 静态托管）（✅ 发布工具/工作流/客户端常量已落地，待真实密钥发布）
 - `tools/publish_registry_release.py`：构建 registry.json + 插件 zip，
   签名后上传到专用 Release（tag 如 `plugin-registry`）；
 - 客户端注册表 URL 指向

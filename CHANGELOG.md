@@ -2,6 +2,11 @@
 
 ### 新增
 
+- **市场公网化（零域名）**：`tools/publish_registry_release.py` 构建/签名/上传 registry.json 与插件包到 GitHub Release（tag `plugin-registry`）；客户端常量 `GITHUB_REGISTRY_URL`；workflow_dispatch 发布工作流；文档 `docs/plugin_registry_github_releases.md`。
+
+
+### 新增
+
 - **mmap 跨行等长扩展**：差异区间内换行位置一致即允许跨行补丁；
 - **插件评分导入导出**：`LocalRatings.export_data/import_data` + CLI `tools/plugin_rating_tool.py`；
 - **CI 原生崩溃 fallback 频率观察**：`data/ci_flaky_history.jsonl` + `tools/ci_flaky_report.py`；
