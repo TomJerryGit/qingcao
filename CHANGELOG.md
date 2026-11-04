@@ -12,6 +12,10 @@
 
 - v2.19.0 roadmap：mmap 增量编辑落地 / i18n 翻译落地 / 市场公网化（`docs/roadmap_v2.19.0.md`）。
 
+### 文档
+
+- 市场公网化（v2.19 P1-3）标记**暂缓**（无域名/托管/证书）；保留本地/内网 MVP，记录 GitHub Releases 零域名替代方案待定。
+
 ### 新增
 
 - i18n 剩余语料分类工具 `tools/i18n_pending_report.py`：B1 长对话框文案 / B2 短句错误详情清单（data/i18n_pending_b1.json、b2.json）。
