@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 新增
 
 - **市场公网化（零域名）**：`tools/publish_registry_release.py` 构建/签名/上传 registry.json 与插件包到 GitHub Release（tag `plugin-registry`）；客户端常量 `GITHUB_REGISTRY_URL`；workflow_dispatch 发布工作流；文档 `docs/plugin_registry_github_releases.md`。
@@ -281,6 +286,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 （下一版本开发中）
 
 ### 规划
@@ -304,6 +314,11 @@
   共 100+ 处；邮箱保持不变）。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 （下一版本开发中）
 
@@ -334,6 +349,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 （下一版本开发中）
 
 ## [2.8.0] - 2026-10-26
@@ -352,6 +372,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 （下一版本开发中）
 
 ## [2.7.0] - 2026-10-26
@@ -369,6 +394,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### UI 修复（C-2：主题覆盖独立顶层对话框）
 
 - 新增 `_TopLevelThemeFilter`（应用级事件过滤器）：**新创建**的独立顶层
@@ -380,6 +410,11 @@
   新对话框经过滤器套主题、菜单不被误改。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 （下一版本开发中）
 
@@ -404,6 +439,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 插件平台（C-1：沙箱受限诊断协议）
 
 - RPC 白名单新增 `diagnostics`：插件只**返回诊断数据**，发布到问题面板
@@ -415,6 +455,11 @@
 - 为后续把 spell_check 等诊断类插件迁移到沙箱铺路。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 （下一版本开发中）
 
@@ -436,6 +481,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 插件平台（B-3b：宿主侧沙箱注册表 + 符号合并）
 
 - `MainWindow` 新增 `_get_sandboxed_plugins()`：按 manifest
@@ -453,6 +503,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 插件平台（B-3a：opt-in 只读沙箱管理）
 
 - 新增 `infrastructure/plugin_sandbox_manager.py`：
@@ -469,6 +524,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 插件平台（B-1/B-2：子进程沙箱 RPC 协议 + 宿主）
 
 - 新增 `infrastructure/plugin_sandbox_rpc.py`：JSON Lines over stdin/stdout；
@@ -484,6 +544,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 性能（主题切换 1s+ → 130-210ms）
 
 - 根因实测：应用级 `QApplication.setStyleSheet` 会触发**全控件样式重算**
@@ -498,6 +563,11 @@
 - 待人工验证：独立非子对话框（若存在）的主题覆盖。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 （下一版本开发中）
 
@@ -518,6 +588,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 性能（输入路径优化，typing 211 → 149 µs/键）
 
 - cProfile（2000 次 insertAt）显示热点在每键的 provider 同步：
@@ -531,6 +606,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
+
 ### 性能（主题切换遍历优化）
 
 - `adapt_widget_styles()` 去掉了重复的 `findChildren` 遍历（原先
@@ -540,6 +620,11 @@
 - 测试同步更新语义：同主题二次调用返回 0，换主题重新适配。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 （下一版本开发中）
 
@@ -555,6 +640,11 @@
 - 新增 tests/test_menu_checks.py（导入顺序回归 + 勾选当前项）。
 
 ## [Unreleased]
+
+### 文档
+
+- 市场公网化准备：生成 Ed25519 签名密钥（本地用户目录）、签名注册表 dry-run 校验（13 插件均带签名）、一键配置脚本 	ools/setup_registry_secret.ps1；待 GitHub 认证后设置 secret 并发布。
+
 
 ### UI 修复（浅色主题下面板仍为黑底）
 

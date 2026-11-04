@@ -18,3 +18,22 @@ python tools/publish_registry_release.py --token $env:GITHUB_TOKEN
 ## 回滚 / 安全
 删除或替换 Release 资产即可回滚；客户端有缓存与离线回退。
 私钥仅存 CI secret；签名覆盖 zip 原始字节；发布前 dry-run 校验。
+
+## 一键配置（需 GitHub 认证）
+
+`powershell
+gh auth login                       # 或 $env:GH_TOKEN = "..."
+powershell -File tools/setup_registry_secret.ps1
+`
+
+脚本会：设置 secret QINGCAO_PLUGIN_SIGN_KEY → 触发 Publish Plugin Registry → 打印公网 URL。
+
+## 签名公钥（客户端信任锚）
+
+`
+1f32f745a66e5b1782f974580f1f919b9970aa26e3be7f8d87b17dff5c2370c0
+`
+
+客户端设置：` $env:QINGCAO_PLUGIN_PUBKEYS = "1f32f745a66e5b1782f974580f1f919b9970aa26e3be7f8d87b17dff5c2370c0" `（或写入配置），
+然后插件市场注册表 URL 填：
+https://github.com/TomJerryGit/qingcao/releases/download/plugin-registry/registry.json
