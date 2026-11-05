@@ -1,51 +1,110 @@
 # -*- coding: utf-8 -*-
-"""v2.22 P1 稳定性：更新检查线程/空闲延迟/网络超时审计"""
+"""v2.22 P1：Qt 主线程异步更新检查 + 空闲延迟 + 网络审计"""
 
 import os
 
 
-def test_updater_timeout_and_no_update(monkeypatch):
-    import requests
-
+def test_handle_data_no_update():
     from core.updater import UpdateChecker
 
-    called = {}
-
-    class _Resp:
-        status_code = 200
-
-        def json(self):
-            return {"tag_name": "v0.0.1", "assets": []}
-
-    def fake_get(url, **kw):
-        called["url"] = url
-        called["timeout"] = kw.get("timeout")
-        return _Resp()
-
-    monkeypatch.setattr(requests, "get", fake_get)
     checker = UpdateChecker("9.9.9")
     got = []
     checker.no_update.connect(lambda v: got.append(v))
-    checker._check()
-    assert called["timeout"] == (3.05, 10)
+    checker._handle_data({"tag_name": "v0.0.1"})
     assert got == ["9.9.9"]
 
 
-def test_updater_cancel(monkeypatch):
-    import requests
-
+def test_handle_data_newer_windows_asset():
     from core.updater import UpdateChecker
 
-    def boom(*a, **k):
-        raise AssertionError("取消后不应发起网络请求")
+    checker = UpdateChecker("1.0.0")
+    got = []
+    checker.check_completed.connect(lambda d: got.append(d))
+    checker._handle_data(
+        {
+            "tag_name": "v99.9.9",
+            "html_url": "https://example/html",
+            "assets": [
+                {
+                    "name": "QingCaoEditor-v99.9.9-windows.zip",
+                    "browser_download_url": "https://example/win.zip",
+                }
+            ],
+        }
+    )
+    assert got and got[0]["latest_version"] == "99.9.9"
+    assert got[0]["download_url"] == "https://example/win.zip"
 
-    monkeypatch.setattr(requests, "get", boom)
-    checker = UpdateChecker("9.9.9")
+
+def test_handle_data_invalid():
+    from core.updater import UpdateChecker
+
+    checker = UpdateChecker("1.0.0")
+    fails = []
+    checker.check_failed.connect(lambda m: fails.append(m))
+    checker._handle_data({})
+    assert fails == ["无效的版本信息"]
+
+
+def test_check_async_qt_network_and_cancel():
+    from core.updater import UpdateChecker
+
+    class _FakeSignal:
+        def connect(self, cb):
+            pass
+
+    class FakeReply:
+        def __init__(self):
+            self.aborted = False
+            self.finished = _FakeSignal()
+
+        def abort(self):
+            self.aborted = True
+
+        def deleteLater(self):
+            pass
+
+    class FakeManager:
+        def __init__(self):
+            self.called = []
+            self.reply = FakeReply()
+
+        def get(self, req):
+            self.called.append(req)
+            return self.reply
+
+    checker = UpdateChecker("1.0.0")
+    fake = FakeManager()
+    checker._manager = fake
+    checker.check_async()
+    assert len(fake.called) == 1
+    assert checker._reply is fake.reply
     checker.cancel()
-    checker._check()  # 不应抛异常
+    assert fake.reply.aborted is True
+    if checker._timeout is not None:
+        checker._timeout.stop()
 
 
-def test_updater_check_when_idle_modal_guard(qapp, monkeypatch):
+def test_check_async_skips_when_cancelled():
+    from core.updater import UpdateChecker
+
+    class FakeManager:
+        def __init__(self):
+            self.called = []
+
+        def get(self, req):
+            self.called.append(req)
+            return None
+
+    checker = UpdateChecker("1.0.0")
+    fake = FakeManager()
+    checker._manager = fake
+    checker.cancel()
+    checker.check_async()
+    assert fake.called == []
+
+
+def test_check_when_idle_modal_guard(qapp, monkeypatch):
     from PyQt5.QtCore import QTimer
     from PyQt5.QtWidgets import QApplication
 
@@ -59,17 +118,16 @@ def test_updater_check_when_idle_modal_guard(qapp, monkeypatch):
         "activeModalWidget",
         staticmethod(lambda self=None: object() if modal[0] else None),
     )
-
     checker = UpdateChecker("9.9.9")
     started = []
     monkeypatch.setattr(checker, "check_async", lambda: started.append(1))
     checker.check_when_idle(delay_ms=0)
     assert scheduled, "应安排延迟检查"
-    scheduled.pop(0)()  # 第一次：有模态框 → 重试
+    scheduled.pop(0)()  # 有模态 → 重试
     assert not started
-    assert scheduled, "应安排重试"
+    assert scheduled
     modal[0] = False
-    scheduled.pop(0)()  # 第二次：空闲 → 启动
+    scheduled.pop(0)()  # 空闲 → 启动
     assert started == [1]
 
 

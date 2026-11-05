@@ -2,6 +2,11 @@
 
 ### 修复
 
+- **更新检查迁移 Qt 主线程异步**：`QNetworkAccessManager` 替代 Python threading+requests（消除后台 DNS/COM 并发风险）；修正更新仓库 URL；关闭窗口取消请求；超时 15s。
+
+
+### 修复
+
 - **启动期崩溃（0x8001010d）时序修复**：更新检查改为界面空闲后启动（默认 15s，模态窗口存在时重试）、支持取消、超时收紧为 (3.05,10)；
 - 新增网络超时审计 `tools/audit_network_threads.py`（AST，0 违规）；崩溃根因文档 `docs/crash_root_cause_0x8001010d.md`。
 

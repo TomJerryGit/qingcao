@@ -4,10 +4,9 @@
 import json
 import logging
 import os
-import threading
-from typing import Any, Dict, Optional
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, QTimer, QUrl, pyqtSignal
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 
 # P1-1: 版本号唯一来源
@@ -17,11 +16,11 @@ except ImportError:  # pragma: no cover - 仅打包异常时触发
     _APP_VERSION = "0.0.0"
 
 
-UPDATE_CHECK_URL = "https://api.github.com/repos/qingcao-editor/qingcao/releases/latest"
+UPDATE_CHECK_URL = "https://api.github.com/repos/TomJerryGit/qingcao/releases/latest"
 
 
 class UpdateChecker(QObject):
-    """更新检查器"""
+    """更新检查器（v2.22：QNetworkAccessManager 主线程异步，无后台 DNS 线程）"""
 
     check_completed = pyqtSignal(dict)  # 更新信息
     check_failed = pyqtSignal(str)
@@ -32,32 +31,105 @@ class UpdateChecker(QObject):
         self.current_version = current_version
         self._cancel = False
         self._log = logging.getLogger("qingcao.updater")
+        self._manager = QNetworkAccessManager(self)
+        self._reply = None
+        self._timeout = None
 
     def cancel(self):
         """取消更新检查（退出/关闭时调用）"""
         self._cancel = True
+        if self._reply is not None:
+            try:
+                self._reply.abort()
+            except Exception:
+                pass
 
     def check_async(self):
-        """异步检查更新"""
-        if self._cancel:
+        """异步检查更新（Qt 事件循环内，主线程发起）"""
+        if self._cancel or self._reply is not None:
             return
-        t = threading.Thread(target=self._check, name="update-check", daemon=True)
-        t.start()
+        self._log.debug("更新检查：开始请求 %s", UPDATE_CHECK_URL)
+        req = QNetworkRequest(QUrl(UPDATE_CHECK_URL))
+        req.setHeader(QNetworkRequest.UserAgentHeader, "QingCaoEditor-update-check")
+        self._reply = self._manager.get(req)
+        self._reply.finished.connect(self._on_finished)
+        self._timeout = QTimer(self)
+        self._timeout.setSingleShot(True)
+        self._timeout.timeout.connect(self._on_timeout)
+        self._timeout.start(15000)
+
+    def _on_timeout(self):
+        if self._reply is not None:
+            self._log.warning("更新检查超时，取消请求")
+            self._cancel = True
+            try:
+                self._reply.abort()
+            except Exception:
+                pass
+
+    def _on_finished(self):
+        reply = self._reply
+        self._reply = None
+        if self._timeout is not None:
+            self._timeout.stop()
+        if reply is None:
+            return
+        try:
+            if self._cancel:
+                self._log.debug("更新检查：已取消，忽略响应")
+                return
+            if reply.error() != QNetworkReply.NoError:
+                self.check_failed.emit(reply.errorString() or "网络错误")
+                return
+            data = json.loads(bytes(reply.readAll()).decode("utf-8"))
+            self._handle_data(data)
+        except Exception as e:
+            self.check_failed.emit(str(e))
+        finally:
+            try:
+                reply.deleteLater()
+            except Exception:
+                pass
+
+    def _handle_data(self, data):
+        """解析 GitHub Release JSON 并发出信号"""
+        latest = data.get("tag_name", "").lstrip("v")
+        if not latest:
+            self.check_failed.emit("无效的版本信息")
+            return
+        if self._is_newer(latest, self.current_version):
+            assets = data.get("assets", [])
+            download_url = data.get("html_url", "")
+            for asset in assets:
+                name = asset.get("name", "").lower()
+                if "windows" in name or "win" in name:
+                    download_url = asset.get("browser_download_url", download_url)
+                    break
+            self.check_completed.emit(
+                {
+                    "latest_version": latest,
+                    "current_version": self.current_version,
+                    "download_url": download_url,
+                    "release_notes": data.get("body", ""),
+                    "published_at": data.get("published_at", ""),
+                }
+            )
+        else:
+            self.no_update.emit(self.current_version)
 
     def check_when_idle(self, delay_ms=15000, retry_ms=3000, max_retries=20):
         """延迟到界面空闲（无模态框）时再检查更新。
 
         背景：Windows 上后台线程 getaddrinfo 与模态对话框并发可能触发
-        fatal exception 0x8001010d（RCE...）；v2.22 起避开该时序。
+        fatal exception 0x8001010d；v2.22 起迁移到 Qt 主线程异步并避开该时序。
         """
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication
-
         self._retries = 0
 
         def _try():
             if self._cancel:
                 return
+            from PyQt5.QtWidgets import QApplication
+
             app = QApplication.instance()
             if app is not None and app.activeModalWidget() is not None:
                 self._retries += 1
@@ -69,60 +141,6 @@ class UpdateChecker(QObject):
             self.check_async()
 
         QTimer.singleShot(delay_ms, _try)
-
-    def _check(self):
-        """实际检查（后台线程；带取消标记与阶段日志）"""
-        try:
-            if self._cancel:
-                return
-            self._log.debug("更新检查：开始请求 %s", UPDATE_CHECK_URL)
-            try:
-                import requests
-
-                resp = requests.get(UPDATE_CHECK_URL, timeout=(3.05, 10))
-                if resp.status_code != 200:
-                    self.check_failed.emit("HTTP " + str(resp.status_code))
-                    return
-                data = resp.json()
-            except ImportError:
-                import urllib.request
-
-                with urllib.request.urlopen(UPDATE_CHECK_URL, timeout=10) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-
-            latest = data.get("tag_name", "").lstrip("v")
-            if self._cancel:
-                self._log.debug("更新检查：已取消，忽略响应")
-                return
-            if not latest:
-                self.check_failed.emit("无效的版本信息")
-                return
-
-            if self._is_newer(latest, self.current_version):
-                # 找到对应平台的下载链接
-                assets = data.get("assets", [])
-                download_url = data.get("html_url", "")
-
-                for asset in assets:
-                    name = asset.get("name", "").lower()
-                    if "windows" in name or "win" in name:
-                        download_url = asset.get("browser_download_url", download_url)
-                        break
-
-                self.check_completed.emit(
-                    {
-                        "latest_version": latest,
-                        "current_version": self.current_version,
-                        "download_url": download_url,
-                        "release_notes": data.get("body", ""),
-                        "published_at": data.get("published_at", ""),
-                    }
-                )
-            else:
-                self.no_update.emit(self.current_version)
-
-        except Exception as e:
-            self.check_failed.emit(str(e))
 
     @staticmethod
     def _is_newer(v1, v2):

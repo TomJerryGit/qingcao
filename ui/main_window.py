@@ -3015,6 +3015,13 @@ class MainWindow(
     # 关闭事件
     # ========================================================
     def closeEvent(self, event):
+        try:
+            checker = getattr(self, "_update_checker", None)
+            if checker is not None:
+                checker.cancel()
+        except Exception:
+            pass
+
         # 主题事件过滤器挂在 QApplication 上：窗口销毁前必须显式移除，
         # 否则多窗口/多测试连续创建时可能访问已销毁对象（崩溃）。
         try:
