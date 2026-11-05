@@ -54,8 +54,7 @@ def check(en):
             if term.lower() in value.lower():
                 continue
             # 例外：命令面板 → Palette；面板 → Pane/Window
-            if key == "面板" and any(
-                    e in value.lower() for e in ("palette", "pane", "window")):
+            if key == "面板" and any(e in value.lower() for e in ("palette", "pane", "window")):
                 continue
             violations.append(("术语", zh, value, term))
         for bad, good in VARIANTS.items():
