@@ -2,6 +2,11 @@
 
 ### 重构
 
+- **`ui/main_window.py` 拆分（v2.23 D2）**：3268 → 244 行；拆出 `main_window_common.py` 与 5 个 Mixin（theme/lsp/remote/actions/session），MRO 与对外 API 不变。
+
+
+### 重构
+
 - **`core/editor.py` 拆分（v2.23 D1）**：3920 → 1818 行；拆出 `editor_common.py` 与 6 个职责 Mixin（save/loading/cursor/editops/bookmarks/search），对外 API 不变。
 
 

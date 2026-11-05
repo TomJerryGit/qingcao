@@ -210,10 +210,16 @@ class TestSoundWiring:
         assert get_sound_manager() is get_sound_manager()
 
     def test_main_window_calls_sound(self):
-        """主窗口/文件操作里必须真的调用 play_sound"""
-        for rel in ("ui/mixins/file_ops_mixin.py", "ui/main_window.py"):
+        """主窗口/文件操作里必须真的调用 play_sound（v2.23 D2 拆分后检查 Mixin）"""
+        for rel in ("ui/mixins/file_ops_mixin.py",):
             src = io.open(os.path.join(ROOT, rel), encoding="utf-8").read()
             assert "play_sound" in src, "%s 未接入音效" % rel
+        mixin_src = ""
+        mixin_dir = os.path.join(ROOT, "ui", "mixins")
+        for name in os.listdir(mixin_dir):
+            if name.startswith("window_") and name.endswith("_mixin.py"):
+                mixin_src += io.open(os.path.join(mixin_dir, name), encoding="utf-8").read()
+        assert "play_sound" in mixin_src, "window mixins 未接入音效"
 
 
 # ============================================================

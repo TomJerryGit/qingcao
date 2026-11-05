@@ -3,6 +3,7 @@ from ui_source_utils import read_main_ui_source
 
 # -*- coding: utf-8 -*-
 """v2.14.1：插件面板主题冒烟与顺序修复"""
+import io
 import os
 import sys
 
@@ -11,7 +12,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_theme_apply_order_adapt_before_notify():
-    src = read_main_ui_source()
+    # v2.23 D2：主题应用逻辑拆入 window_theme_mixin，需在该文件内校验顺序
+    path = os.path.join(ROOT, "ui", "mixins", "window_theme_mixin.py")
+    if os.path.isfile(path):
+        src = io.open(path, encoding="utf-8").read()
+    else:
+        src = read_main_ui_source()
     i_adapt = src.find("adapt_widget_styles(self, theme)")
     i_notify = src.find("loader.notify_widgets(self, theme)")
     assert i_adapt != -1 and i_notify != -1
