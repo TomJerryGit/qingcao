@@ -39,7 +39,7 @@ class FeedbackDialog(QDialog):
 
         layout.addWidget(QLabel("类型"))
         self.category = QComboBox()
-        self.category.addItems(["问题反馈", "功能建议", "其他"])
+        self.category.addItems(["问题反馈", "功能建议", "体验反馈", "其他"])
         layout.addWidget(self.category)
 
         layout.addWidget(QLabel("内容（必填）"))

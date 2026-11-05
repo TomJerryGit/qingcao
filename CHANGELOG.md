@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 新增
+
+- **P2 体验冒烟**：自动冒烟 `tools/smoke_check.py`（10/10 通过）+ 人工清单 `docs/smoke_checklist_v2.22.md`；反馈分类新增「体验反馈」。
+
+
 ### 修复
 
 - **更新检查迁移 Qt 主线程异步**：`QNetworkAccessManager` 替代 Python threading+requests（消除后台 DNS/COM 并发风险）；修正更新仓库 URL；关闭窗口取消请求；超时 15s。
