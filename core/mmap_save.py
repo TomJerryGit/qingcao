@@ -202,10 +202,10 @@ def maybe_incremental_save(target: str, new_bytes: bytes, clear_dirty=None):
         return None
     spans = plan_incremental_save(old, new_bytes)
     if spans is None:
-        _record("ineligible", size=len(old))
+        _record("ineligible", size=len(old), target=str(target))
         return None
     if not spans:
-        _record("noop", size=len(old))
+        _record("noop", size=len(old), target=str(target))
         try:
             if clear_dirty:
                 clear_dirty()
@@ -232,13 +232,14 @@ def maybe_incremental_save(target: str, new_bytes: bytes, clear_dirty=None):
         _record(
             "success",
             size=len(old),
+            target=str(target),
             spans=len(spans),
             changed=sum(e - s for s, e in spans),
             elapsed_ms=round((_time.perf_counter() - _t0) * 1000, 2),
         )
         return True
     except Exception as e:
-        _record("fallback", size=len(old), error=str(e)[:200])
+        _record("fallback", size=len(old), target=str(target), error=str(e)[:200])
         print(f"[mmap-save] 增量保存失败，回退全量: {e}")
         try:
             records = _read_journal(jpath)

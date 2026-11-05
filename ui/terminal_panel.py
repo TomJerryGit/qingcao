@@ -90,6 +90,38 @@ def ansi_to_html(text):
     return "".join(out)
 
 
+class HistoryLineEdit(QLineEdit):
+    """带命令历史（↑/↓）的输入框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._history = []
+        self._hist_idx = 0
+
+    def add_history(self, cmd):
+        cmd = (cmd or "").strip()
+        if cmd and (not self._history or self._history[-1] != cmd):
+            self._history.append(cmd)
+        self._hist_idx = len(self._history)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Up and self._history:
+            self._hist_idx = max(0, self._hist_idx - 1)
+            self.setText(self._history[self._hist_idx])
+            event.accept()
+            return
+        if event.key() == Qt.Key_Down and self._history:
+            if self._hist_idx < len(self._history) - 1:
+                self._hist_idx += 1
+                self.setText(self._history[self._hist_idx])
+            else:
+                self._hist_idx = len(self._history)
+                self.clear()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class TerminalTab(QWidget):
     """单标签终端（独立进程与 cwd）"""
 
@@ -127,7 +159,7 @@ class TerminalTab(QWidget):
         prompt = QLabel("$")
         prompt.setStyleSheet("color: #7ec850; font-weight: bold;")
         inrow.addWidget(prompt)
-        self.input = QLineEdit()
+        self.input = HistoryLineEdit()
         self.input.setPlaceholderText("输入命令，Enter 执行（单命令模式）")
         self.input.returnPressed.connect(self.run_command)
         inrow.addWidget(self.input, 1)
@@ -170,6 +202,7 @@ class TerminalTab(QWidget):
         cmd = self.input.text().strip()
         if not cmd:
             return
+        self.input.add_history(cmd)
         self.input.clear()
         self._append("> " + cmd)
         low = cmd.lower()
