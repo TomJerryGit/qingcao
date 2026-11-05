@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 修复
+
+- **启动期崩溃（0x8001010d）时序修复**：更新检查改为界面空闲后启动（默认 15s，模态窗口存在时重试）、支持取消、超时收紧为 (3.05,10)；
+- 新增网络超时审计 `tools/audit_network_threads.py`（AST，0 违规）；崩溃根因文档 `docs/crash_root_cause_0x8001010d.md`。
+
+
 ### 新增
 
 - **应用内反馈入口**：帮助 → 💬 反馈与建议（本机 JSONL，不上传）；`tools/feedback_report.py` 汇总报告；

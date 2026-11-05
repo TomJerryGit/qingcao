@@ -1610,8 +1610,9 @@ def main():
                             logger.error(f"显示更新对话框失败: {e}")
 
                     checker.check_completed.connect(_on_update)
-                    checker.check_async()
-                    logger.debug("已启动更新检查")
+                    window._update_checker = checker  # 防 GC；退出时可 cancel
+                    checker.check_when_idle()
+                    logger.debug("已安排更新检查（界面空闲后执行）")
             except ImportError:
                 logger.warning("更新模块不可用")
             except Exception as e:

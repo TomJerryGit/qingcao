@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """自动更新检查"""
+
 import json
+import logging
 import os
 import threading
 from typing import Any, Dict, Optional
@@ -15,9 +17,7 @@ except ImportError:  # pragma: no cover - 仅打包异常时触发
     _APP_VERSION = "0.0.0"
 
 
-UPDATE_CHECK_URL = (
-    "https://api.github.com/repos/qingcao-editor/qingcao/releases/latest"
-)
+UPDATE_CHECK_URL = "https://api.github.com/repos/qingcao-editor/qingcao/releases/latest"
 
 
 class UpdateChecker(QObject):
@@ -30,55 +30,94 @@ class UpdateChecker(QObject):
     def __init__(self, current_version: str = _APP_VERSION, parent=None):
         super().__init__(parent)
         self.current_version = current_version
+        self._cancel = False
+        self._log = logging.getLogger("qingcao.updater")
+
+    def cancel(self):
+        """取消更新检查（退出/关闭时调用）"""
+        self._cancel = True
 
     def check_async(self):
         """异步检查更新"""
-        t = threading.Thread(target=self._check, daemon=True)
+        if self._cancel:
+            return
+        t = threading.Thread(target=self._check, name="update-check", daemon=True)
         t.start()
 
+    def check_when_idle(self, delay_ms=15000, retry_ms=3000, max_retries=20):
+        """延迟到界面空闲（无模态框）时再检查更新。
+
+        背景：Windows 上后台线程 getaddrinfo 与模态对话框并发可能触发
+        fatal exception 0x8001010d（RCE...）；v2.22 起避开该时序。
+        """
+        from PyQt5.QtCore import QTimer
+        from PyQt5.QtWidgets import QApplication
+
+        self._retries = 0
+
+        def _try():
+            if self._cancel:
+                return
+            app = QApplication.instance()
+            if app is not None and app.activeModalWidget() is not None:
+                self._retries += 1
+                self._log.debug("更新检查延后：存在模态窗口（第 %d 次）", self._retries)
+                if self._retries <= max_retries:
+                    QTimer.singleShot(retry_ms, _try)
+                return
+            self._log.debug("更新检查开始（界面空闲）")
+            self.check_async()
+
+        QTimer.singleShot(delay_ms, _try)
+
     def _check(self):
-        """实际检查"""
+        """实际检查（后台线程；带取消标记与阶段日志）"""
         try:
+            if self._cancel:
+                return
+            self._log.debug("更新检查：开始请求 %s", UPDATE_CHECK_URL)
             try:
                 import requests
-                resp = requests.get(UPDATE_CHECK_URL, timeout=10)
+
+                resp = requests.get(UPDATE_CHECK_URL, timeout=(3.05, 10))
                 if resp.status_code != 200:
-                    self.check_failed.emit(
-                        "HTTP " + str(resp.status_code)
-                    )
+                    self.check_failed.emit("HTTP " + str(resp.status_code))
                     return
                 data = resp.json()
             except ImportError:
                 import urllib.request
-                with urllib.request.urlopen(
-                    UPDATE_CHECK_URL, timeout=10
-                ) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
 
-            latest = data.get('tag_name', '').lstrip('v')
+                with urllib.request.urlopen(UPDATE_CHECK_URL, timeout=10) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+
+            latest = data.get("tag_name", "").lstrip("v")
+            if self._cancel:
+                self._log.debug("更新检查：已取消，忽略响应")
+                return
             if not latest:
                 self.check_failed.emit("无效的版本信息")
                 return
 
             if self._is_newer(latest, self.current_version):
                 # 找到对应平台的下载链接
-                assets = data.get('assets', [])
-                download_url = data.get('html_url', '')
+                assets = data.get("assets", [])
+                download_url = data.get("html_url", "")
 
                 for asset in assets:
-                    name = asset.get('name', '').lower()
-                    if 'windows' in name or 'win' in name:
-                        download_url = asset.get('browser_download_url',
-                                                 download_url)
+                    name = asset.get("name", "").lower()
+                    if "windows" in name or "win" in name:
+                        download_url = asset.get("browser_download_url", download_url)
                         break
 
-                self.check_completed.emit({
-                    'latest_version': latest,
-                    'current_version': self.current_version,
-                    'download_url': download_url,
-                    'release_notes': data.get('body', ''),
-                    'published_at': data.get('published_at', ''),
-                })
+                self.check_completed.emit(
+                    {
+                        "latest_version": latest,
+                        "current_version": self.current_version,
+                        "download_url": download_url,
+                        "release_notes": data.get("body", ""),
+                        "published_at": data.get("published_at", ""),
+                    }
+                )
             else:
                 self.no_update.emit(self.current_version)
 
@@ -89,9 +128,11 @@ class UpdateChecker(QObject):
     def _is_newer(v1, v2):
         """比较版本号"""
         try:
+
             def parse(v):
-                v = v.split('-')[0]
-                return [int(x) for x in v.split('.')]
+                v = v.split("-")[0]
+                return [int(x) for x in v.split(".")]
+
             return parse(v1) > parse(v2)
         except Exception:
             return v1 > v2
@@ -113,8 +154,7 @@ def show_update_dialog(parent, update_info):
         "<h2>🎉 发现新版本</h2>"
         "<p>当前版本: <b>v%s</b></p>"
         "<p>最新版本: <b style='color: #7ec850;'>v%s</b></p>"
-        % (update_info['current_version'],
-           update_info['latest_version'])
+        % (update_info["current_version"], update_info["latest_version"])
     )
     title.setStyleSheet("color: #d4d4d4;")
     layout.addWidget(title)
@@ -122,10 +162,9 @@ def show_update_dialog(parent, update_info):
     layout.addWidget(QLabel("更新内容:"))
 
     notes = QTextBrowser()
-    notes.setPlainText(update_info.get('release_notes', '(无说明)'))
+    notes.setPlainText(update_info.get("release_notes", "(无说明)"))
     notes.setStyleSheet(
-        "background-color: #1e1e1e; color: #d4d4d4; "
-        "border: 1px solid #3c3c3c; padding: 8px;"
+        "background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 8px;"
     )
     layout.addWidget(notes)
 
@@ -134,13 +173,10 @@ def show_update_dialog(parent, update_info):
 
     download_btn = QPushButton("⬇ 前往下载")
     download_btn.setStyleSheet(
-        "background-color: #7ec850; color: white; "
-        "padding: 8px 16px; border-radius: 4px;"
+        "background-color: #7ec850; color: white; padding: 8px 16px; border-radius: 4px;"
     )
     download_btn.clicked.connect(
-        lambda: QDesktopServices.openUrl(
-            QUrl(update_info['download_url'])
-        )
+        lambda: QDesktopServices.openUrl(QUrl(update_info["download_url"]))
     )
     btn_layout.addWidget(download_btn)
 
