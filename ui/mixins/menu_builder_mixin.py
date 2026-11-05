@@ -238,6 +238,14 @@ class MenuBuilderMixin:
         self._add_action(self.tools_menu, "🔣 符号跳转", "Ctrl+Alt+R", self._show_symbol_palette)
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "🐍 Python 控制台", "Ctrl+`", self._toggle_console)
+        _term_act = self._add_action(
+            self.tools_menu,
+            "💻 终端",
+            "Ctrl+Shift+`",
+            self._toggle_terminal,
+            action_name="panel.terminal",
+        )
+        _term_act.setCheckable(True)
         self.tools_menu.addSeparator()
         self._add_action(self.tools_menu, "⏺ 录制/停止宏", "Ctrl+Shift+R", self._toggle_macro)
         self._add_action(self.tools_menu, "▶ 回放宏", "Ctrl+Shift+M", self._play_macro)
@@ -423,6 +431,8 @@ class MenuBuilderMixin:
             ("Minimap", "panel.minimap", self._toggle_minimap),
             ("全局搜索", "panel.global_search", self._toggle_global_search),
             ("Python 控制台", "panel.console", self._toggle_console),
+            # v2.21 P1-1：终端面板（Ctrl+Shift+`，避开 Python 控制台的 Ctrl+`）
+            ("终端", "panel.terminal", self._toggle_terminal),
             ("插件", "panel.plugins", self._toggle_plugins_panel),
             ("性能监控", "panel.perf_monitor", self._toggle_perf_monitor),
             # 问题面板：显示 LSP 诊断（生产者在 core/editor.py 的

@@ -807,7 +807,6 @@ class CapabilityWiringMixin:
         返回:
             追加后的列表（便于链式调用）
         """
-        panels.append(("终端", "panel.terminal", self._toggle_terminal))
         panels.append(("LSP 状态", "panel.lsp", self._toggle_lsp_panel))
         panels.append(("撤销历史", "panel.undo_history", self._toggle_undo_history_panel))
         return panels

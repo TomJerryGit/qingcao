@@ -58,6 +58,10 @@ def test_wiring_static():
     cap = io.open(
         os.path.join(root, "ui", "mixins", "capability_wiring_mixin.py"), encoding="utf-8"
     ).read()
-    assert "_toggle_terminal" in cap and "panel.terminal" in cap
+    assert "_toggle_terminal" in cap
+    mb = io.open(
+        os.path.join(root, "ui", "mixins", "menu_builder_mixin.py"), encoding="utf-8"
+    ).read()
+    assert "panel.terminal" in mb and "Ctrl+Shift+`" in mb
     assert os.path.isfile(os.path.join(root, "docs", "terminal_mvp.md"))
     assert QProcess is not None
