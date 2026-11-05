@@ -56,3 +56,9 @@ python tools/extract_i18n_strings.py
 2. 实测语料 **597 条**（47 个 ui 文件），而非 5218；
 3. 覆盖率以「可翻译语料覆盖率」为门禁指标，剩余项逐批翻译；
 4. 完成后语言菜单可标记 English 为正式可用。
+
+## v2.21 试点（ja_JP/ko_KR）
+
+- 覆盖核心 UI 术语各 43 条（文件/保存/设置/主题/插件市场/终端等）；
+- 未翻译字符串回退中文；CI 门禁 `--min-corpus 3`；
+- 生成器：`python tools/build_ja_ko_pilot.py`。

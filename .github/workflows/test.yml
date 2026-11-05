@@ -57,6 +57,8 @@ jobs:
           python tools/i18n_coverage.py --check --min-corpus 100
           python tools/i18n_qa.py --check
           python tools/i18n_coverage.py --check --min-corpus 100 --lang zh_TW
+          python tools/i18n_coverage.py --check --min-corpus 3 --lang ja_JP
+          python tools/i18n_coverage.py --check --min-corpus 3 --lang ko_KR
 
       - name: Version check
         shell: powershell

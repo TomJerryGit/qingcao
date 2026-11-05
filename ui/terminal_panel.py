@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""集成终端面板 MVP（v2.21 P1-1）
+"""集成终端面板（v2.21 P2：多标签 + ANSI 色彩）
 
-单命令执行模型：输入命令 -> QProcess 执行 -> 输出回显（异步、可清理）。
-不自动执行命令、不落盘历史；关闭面板/退出时终止进程。
+每标签独立 QProcess/cwd；输出支持基础 ANSI SGR 颜色。
+安全：不自动执行命令、不落盘历史；关闭时 terminate→kill。
 """
 
+import html
 import os
+import re
 import sys
 
-from PyQt5.QtCore import QProcess
+from PyQt5.QtCore import QProcess, Qt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QDockWidget,
@@ -17,28 +19,91 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QTabWidget,
+    QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 
-class TerminalPanel(QDockWidget):
-    def __init__(self, main_window=None):
-        super().__init__("终端", main_window)
-        self.main_window = main_window
-        self.setObjectName("TerminalDock")
-        self._proc = None
-        self._cwd = self._default_cwd()
+_ANSI_RE = re.compile(r"\x1b\[([0-9;]*)m")
+_COLORS = {
+    30: "#1e1e1e",
+    31: "#e06c75",
+    32: "#98c379",
+    33: "#e5c07b",
+    34: "#61afef",
+    35: "#c678dd",
+    36: "#56b6c2",
+    37: "#dcdfe4",
+    90: "#5c6370",
+    91: "#e06c75",
+    92: "#98c379",
+    93: "#e5c07b",
+    94: "#61afef",
+    95: "#c678dd",
+    96: "#56b6c2",
+    97: "#ffffff",
+}
 
-        body = QWidget()
-        vbox = QVBoxLayout(body)
-        vbox.setContentsMargins(6, 6, 6, 6)
+
+def ansi_to_html(text):
+    """把 ANSI SGR 转成 HTML（颜色/粗体），未知码忽略。"""
+    out = []
+    pos = 0
+    color = None
+    bold = False
+    for m in _ANSI_RE.finditer(text):
+        chunk = text[pos : m.start()]
+        if chunk:
+            esc = html.escape(chunk).replace("\n", "<br>")
+            style = []
+            if color:
+                style.append("color:%s" % color)
+            if bold:
+                style.append("font-weight:bold")
+            out.append('<span style="%s">%s</span>' % (";".join(style), esc) if style else esc)
+        codes = [int(x) for x in (m.group(1) or "0").split(";") if x.strip().isdigit()]
+        for c in codes or [0]:
+            if c == 0:
+                color = None
+                bold = False
+            elif c == 1:
+                bold = True
+            elif c == 22:
+                bold = False
+            elif c == 39:
+                color = None
+            elif c in _COLORS:
+                color = _COLORS[c]
+        pos = m.end()
+    tail = text[pos:]
+    if tail:
+        esc = html.escape(tail).replace("\n", "<br>")
+        style = []
+        if color:
+            style.append("color:%s" % color)
+        if bold:
+            style.append("font-weight:bold")
+        out.append('<span style="%s">%s</span>' % (";".join(style), esc) if style else esc)
+    return "".join(out)
+
+
+class TerminalTab(QWidget):
+    """单标签终端（独立进程与 cwd）"""
+
+    def __init__(self, cwd, parent=None):
+        super().__init__(parent)
+        self._cwd = cwd
+        self._proc = None
+        vbox = QVBoxLayout(self)
+        vbox.setContentsMargins(4, 4, 4, 4)
         vbox.setSpacing(4)
 
         row = QHBoxLayout()
         self.cwd_label = QLabel(self._cwd)
         self.cwd_label.setStyleSheet("color: #888; font-size: 11px;")
-        self.cwd_label.setTextInteractionFlags(self.cwd_label.textInteractionFlags())
         row.addWidget(self.cwd_label, 1)
         clear_btn = QPushButton("清屏")
         clear_btn.setFixedWidth(60)
@@ -50,12 +115,11 @@ class TerminalPanel(QDockWidget):
         row.addWidget(copy_btn)
         vbox.addLayout(row)
 
-        self.output = QPlainTextEdit()
+        self.output = QTextEdit()
         self.output.setReadOnly(True)
         self.output.setFont(QFont("Consolas", 10))
         self.output.setStyleSheet(
-            "QPlainTextEdit { background-color: #1e1e1e; color: #d4d4d4;"
-            " border: 1px solid #3c3c3c; }"
+            "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }"
         )
         vbox.addWidget(self.output, 1)
 
@@ -73,26 +137,18 @@ class TerminalPanel(QDockWidget):
         inrow.addWidget(run_btn)
         vbox.addLayout(inrow)
 
-        self.setWidget(body)
-        self.resize(700, 240)
-
-    # ---------------- 基础 ----------------
-    def _default_cwd(self):
-        try:
-            w = self.main_window
-            for attr in ("_current_project", "project_root", "current_project"):
-                proj = getattr(w, attr, None) if w is not None else None
-                root = getattr(proj, "root", None) or (proj if isinstance(proj, str) else None)
-                if root and os.path.isdir(str(root)):
-                    return str(root)
-        except Exception:
-            pass
-        return os.getcwd()
-
     def _append(self, text):
         if not text:
             return
-        self.output.appendPlainText(str(text).rstrip("\n"))
+        escaped = html.escape(str(text).rstrip("\n")).replace("\n", "<br>")
+        self.output.append(escaped)
+
+    def _append_ansi(self, text):
+        if not text:
+            return
+        self.output.moveCursor(self.output.textCursor().End)
+        self.output.insertHtml(ansi_to_html(text))
+        self.output.ensureCursorVisible()
 
     def clear_output(self):
         self.output.clear()
@@ -105,7 +161,6 @@ class TerminalPanel(QDockWidget):
         except Exception:
             pass
 
-    # ---------------- 执行 ----------------
     def _shell(self):
         if sys.platform == "win32":
             return "powershell.exe", ["-NoProfile", "-NonInteractive", "-Command"]
@@ -137,7 +192,9 @@ class TerminalPanel(QDockWidget):
         proc.setWorkingDirectory(self._cwd)
         proc.setProcessChannelMode(QProcess.MergedChannels)
         proc.readyReadStandardOutput.connect(
-            lambda: self._append(bytes(proc.readAllStandardOutput()).decode("utf-8", "replace"))
+            lambda: self._append_ansi(
+                bytes(proc.readAllStandardOutput()).decode("utf-8", "replace")
+            )
         )
         proc.finished.connect(self._on_finished)
         proc.errorOccurred.connect(
@@ -153,21 +210,7 @@ class TerminalPanel(QDockWidget):
         self._append("[退出码 %s]" % code)
         self._clear_proc()
 
-    # ---------------- 主题/清理 ----------------
-    def refresh_theme(self, theme):
-        try:
-            colors = getattr(theme, "colors", {}) or {}
-            bg = colors.get("background") or "#1e1e1e"
-            fg = colors.get("foreground") or "#d4d4d4"
-            border = colors.get("border") or "#3c3c3c"
-            self.output.setStyleSheet(
-                "QPlainTextEdit { background-color: %s; color: %s;"
-                " border: 1px solid %s; }" % (bg, fg, border)
-            )
-        except Exception:
-            pass
-
-    def closeEvent(self, event):
+    def terminate(self):
         try:
             if self._proc is not None and self._proc.state() != QProcess.NotRunning:
                 self._proc.terminate()
@@ -176,4 +219,112 @@ class TerminalPanel(QDockWidget):
         except Exception:
             pass
         self._proc = None
+
+
+class TerminalPanel(QDockWidget):
+    def __init__(self, main_window=None):
+        super().__init__("终端", main_window)
+        self.main_window = main_window
+        self.setObjectName("TerminalDock")
+        self._default = self._default_cwd()
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+        add_btn = QToolButton()
+        add_btn.setText("+")
+        add_btn.setToolTip("新建终端标签")
+        add_btn.clicked.connect(lambda: self.add_tab())
+        self.tabs.setCornerWidget(add_btn, Qt.TopRightCorner)
+        self.setWidget(self.tabs)
+        self.add_tab()
+        self.resize(760, 260)
+
+    # ---------- 兼容单标签 API ----------
+    @property
+    def _tab(self):
+        w = self.tabs.currentWidget()
+        return w
+
+    @property
+    def input(self):
+        return self._tab.input
+
+    @property
+    def output(self):
+        return self._tab.output
+
+    @property
+    def _proc(self):
+        return self._tab._proc if self._tab else None
+
+    @property
+    def _cwd(self):
+        return self._tab._cwd if self._tab else self._default
+
+    @property
+    def cwd_label(self):
+        return self._tab.cwd_label
+
+    def run_command(self):
+        if self._tab:
+            self._tab.run_command()
+
+    def clear_output(self):
+        if self._tab:
+            self._tab.clear_output()
+
+    def copy_output(self):
+        if self._tab:
+            self._tab.copy_output()
+
+    # ---------- 多标签 ----------
+    def add_tab(self, cwd=None):
+        tab = TerminalTab(cwd or self._default)
+        idx = self.tabs.addTab(tab, "终端 %d" % (self.tabs.count() + 1))
+        self.tabs.setCurrentIndex(idx)
+        tab.input.setFocus()
+        return tab
+
+    def close_tab(self, index):
+        if self.tabs.count() <= 1:
+            return
+        w = self.tabs.widget(index)
+        if w is not None:
+            w.terminate()
+        self.tabs.removeTab(index)
+        w.deleteLater()
+
+    def _default_cwd(self):
+        try:
+            w = self.main_window
+            for attr in ("_current_project", "project_root", "current_project"):
+                proj = getattr(w, attr, None) if w is not None else None
+                root = getattr(proj, "root", None) or (proj if isinstance(proj, str) else None)
+                if root and os.path.isdir(str(root)):
+                    return str(root)
+        except Exception:
+            pass
+        return os.getcwd()
+
+    def refresh_theme(self, theme):
+        try:
+            colors = getattr(theme, "colors", {}) or {}
+            bg = colors.get("background") or "#1e1e1e"
+            fg = colors.get("foreground") or "#d4d4d4"
+            border = colors.get("border") or "#3c3c3c"
+            for i in range(self.tabs.count()):
+                tab = self.tabs.widget(i)
+                if tab is not None:
+                    tab.output.setStyleSheet(
+                        "QTextEdit { background-color: %s; color: %s;"
+                        " border: 1px solid %s; }" % (bg, fg, border)
+                    )
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        for i in range(self.tabs.count()):
+            tab = self.tabs.widget(i)
+            if tab is not None:
+                tab.terminate()
         super().closeEvent(event)
