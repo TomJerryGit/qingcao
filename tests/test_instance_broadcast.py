@@ -46,7 +46,10 @@ def test_hook_wired_in_editor():
     import os
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(root, "core", "editor.py"), encoding="utf-8").read()
+    # v2.23 D1：保存逻辑已拆到 core/editor_save.py
+    src = ""
+    for name in ("editor.py", "editor_save.py"):
+        src += open(os.path.join(root, "core", name), encoding="utf-8").read()
     assert "notify_file_saved" in src
 
 

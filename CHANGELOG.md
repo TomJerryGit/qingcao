@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 重构
+
+- **`core/editor.py` 拆分（v2.23 D1）**：3920 → 1818 行；拆出 `editor_common.py` 与 6 个职责 Mixin（save/loading/cursor/editops/bookmarks/search），对外 API 不变。
+
+
 ### 规划
 
 - **v2.23 → v3.0 优化路线图**：减复杂/补终端/扩生态/收反馈四支柱，目标评分 7.6 → 8.8；详见 `docs/optimization_roadmap_v2.23.md`。
