@@ -329,6 +329,7 @@ class MenuBuilderMixin:
         self.help_menu.addSeparator()
         self._add_action(self.help_menu, "📖 在线文档", None, self._show_online_docs)
         self._add_action(self.help_menu, "🐙 GitHub", None, self._show_github)
+        self._add_action(self.help_menu, "💬 反馈与建议", None, self._show_feedback)
         self.help_menu.addSeparator()
         # 崩溃统计：`core/crash_stats.py` 早就有 get_top_exceptions /
         # get_recent_count / should_notify / cleanup_old，但**零引用** ——

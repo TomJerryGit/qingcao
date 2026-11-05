@@ -6,8 +6,8 @@
 
 | 指标 | 数值 |
 |---|---|
-| 扫描 Job 数（完成标记） | 211 |
-| 失败 Job 数（含非崩溃） | 51 |
+| 扫描 Job 数（完成标记） | 338 |
+| 失败 Job 数（含非崩溃） | 54 |
 | 含原生崩溃码 `3221225477` 的 Job | 0 |
 
 ## 崩溃日期分布
@@ -16,8 +16,18 @@
 
 ## 现有证据文件
 
-- WER dump: 0 个
-- faulthandler 崩溃栈: 0 个
+- WER dump: 5 个
+- faulthandler 崩溃栈: 5 个
+  - `D:\actions-runner\crash_dumps\python.exe.11392.dmp`
+  - `D:\actions-runner\crash_dumps\python.exe.11952.dmp`
+  - `D:\actions-runner\crash_dumps\python.exe.12092.dmp`
+  - `D:\actions-runner\crash_dumps\python.exe.7624.dmp`
+  - `D:\actions-runner\crash_dumps\python.exe.9684.dmp`
+  - `D:\QingCaoEditor\logs\crash_dump_1116.log`
+  - `D:\QingCaoEditor\logs\crash_dump_11256.log`
+  - `D:\QingCaoEditor\logs\crash_dump_13316.log`
+  - `D:\QingCaoEditor\logs\crash_dump_13540.log`
+  - `D:\QingCaoEditor\logs\crash_dump_8180.log`
 
 ## 结论与建议
 

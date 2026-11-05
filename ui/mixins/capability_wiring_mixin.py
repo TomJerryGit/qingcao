@@ -811,6 +811,16 @@ class CapabilityWiringMixin:
         panels.append(("撤销历史", "panel.undo_history", self._toggle_undo_history_panel))
         return panels
 
+    def _show_feedback(self, checked=False):
+        """打开反馈与建议对话框（本地保存）"""
+        try:
+            from ui.feedback_dialog import FeedbackDialog
+            from version import __version__
+
+            FeedbackDialog(self, version=__version__).exec_()
+        except Exception as e:
+            print(f"[MainWindow] 反馈对话框打开失败: {e}")
+
     def _toggle_terminal(self, checked):
         """切换终端面板"""
         if self._ensure_panel("terminal") and getattr(self, "terminal", None):
