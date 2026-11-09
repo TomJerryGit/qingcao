@@ -167,7 +167,7 @@ v3.0（第 10 周起）
 | D2 | 拆分 `ui/main_window.py` 初始化/生命周期 + 测试 | ✅ 已完成：3268 → **244 行**（5 Mixin + common），全量绿 |
 | D3 | 拆分 `ui/plugin_store.py` 网络/缓存到 `plugin_client.py` | ✅ 已完成：2964 → **1120 行**（client 1246 / detail 439），全量绿 |
 | D4 | 终端 PTY 依赖验证（pywinpty 打包 + 最小会话） | ✅ 已完成：pywinpty 3.1.2 会话通过，dist 含 DLL/agent |
-| D5 | flaky 面包屑（测试名/阶段写入 dump 名） | dump 可定位 |
+| D5 | flaky 面包屑（测试名/阶段写入 dump 名） | ✅ 已完成：last_stage.json + 报告门禁（近7天>3 降并行） |
 | D6 | 市场静态评分聚合设计 + `ratings.json` schema | 设计文档 + 校验脚本 |
 | D7 | ja/ko 长尾第二批（+40 条/语言） | 覆盖率 ≥8% |
 | D8 | 回归 + 发布 v2.23.0 | CI 全绿 + 反馈 ≥3 |

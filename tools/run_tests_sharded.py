@@ -9,9 +9,11 @@
 
 import argparse
 import glob
+import json
 import os
 import subprocess
 import sys
+import time
 
 
 try:
@@ -23,6 +25,37 @@ except Exception:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR = os.path.join(ROOT, "data", "test_shards")
+
+BREADCRUMB = os.path.join(LOG_DIR, "last_stage.json")
+
+
+def write_breadcrumb(stage, path=None, **fields):
+    """写入阶段面包屑（原子替换）；崩溃后可用它判断卡在哪个阶段。"""
+    path = path or BREADCRUMB
+    rec = {
+        "ts": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "pid": os.getpid(),
+        "stage": stage,
+    }
+    rec.update(fields)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(rec, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
+def read_breadcrumb(path=None):
+    path = path or BREADCRUMB
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
 
 
 def collect_test_files(root=ROOT):
@@ -41,6 +74,7 @@ def _env():
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["PYTHONIOENCODING"] = "utf-8"
+    env.setdefault("PYTHONFAULTHANDLER", "1")
     return env
 
 
@@ -78,6 +112,13 @@ def run_shard(files, retries, name, log_dir):
     log = os.path.join(log_dir, "%s.log" % name)
     last_out = ""
     for attempt in range(1, retries + 1):
+        write_breadcrumb(
+            "shard",
+            part=name,
+            attempt=attempt,
+            files=len(files),
+            names=[os.path.basename(f) for f in files],
+        )
         rc, out, crashed = run_files(files)
         last_out = out
         with open(log, "w", encoding="utf-8", newline="\n") as f:
@@ -96,6 +137,7 @@ def localize(files, log_dir):
     os.makedirs(log_dir, exist_ok=True)
     bad = []
     for f in files:
+        write_breadcrumb("localize", file=os.path.basename(f))
         rc, out, crashed = run_files([f])
         if rc == 5:
             tag = "skip (no tests)"
@@ -152,6 +194,13 @@ def main():
         print("[sharded] 自适应分片数: %d" % args.shards)
     shards = make_shards(files, args.shards)
     print("[sharded] %d 个测试文件 → %d 片" % (len(files), len(shards)))
+    write_breadcrumb(
+        "start",
+        shards=len(shards),
+        files=len(files),
+        parallel=bool(args.parallel),
+        retries=args.retries,
+    )
     failed = []
     if args.parallel and len(shards) > 1:
         from concurrent.futures import ThreadPoolExecutor
@@ -180,6 +229,7 @@ def main():
                 failed.append((idx, shard, rc, crashed))
                 print("[shard part%d] FAILED rc=%s crashed=%s" % (idx, rc, crashed))
     if not failed:
+        write_breadcrumb("done", shards=len(shards), files=len(files))
         print("[sharded] 全部 %d 片通过 ✅" % len(shards))
         return 0
     # 原生崩溃 flaky 门禁：全部失败片均为崩溃码时，逐文件串行复跑；
@@ -205,18 +255,26 @@ def main():
                         _json.dumps(
                             {
                                 "ts": _time.time(),
+                                "iso": _time.strftime("%Y-%m-%d %H:%M:%S"),
+                                "stage": "flaky_fallback",
                                 "crash_codes": [f[2] for f in failed],
                                 "files": sum(len(f[1]) for f in failed),
-                            }
+                                "shard_sizes": [len(f[1]) for f in failed],
+                                "localized": [],
+                                "result": "pass_after_localize",
+                            },
+                            ensure_ascii=False,
                         )
                         + "\n"
                     )
             except Exception:
                 pass
+            write_breadcrumb("flaky_pass", crash_codes=[f[2] for f in failed])
             return 0
         print("[sharded] 回退复跑仍失败 %d 个文件" % len(bad_all))
         return 1
 
+    write_breadcrumb("failed", failed_parts=len(failed), crash_codes=[f[2] for f in failed])
     print("[sharded] 失败片数: %d" % len(failed))
     if args.localize:
         for idx, shard, rc, crashed in failed:

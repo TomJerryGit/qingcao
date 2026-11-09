@@ -2,6 +2,11 @@
 
 ### 新增
 
+- **CI flaky 面包屑与频率门禁（D5）**：`data/test_shards/last_stage.json` 阶段记录；历史含 crash_codes/localized；`ci_flaky_report --check --max-7d 3` 入 CI。
+
+
+### 新增
+
 - **终端 PTY 依赖验证（D4）**：pywinpty 3.1.2 最小交互会话通过；`ui/pty_session.py` 非阻塞封装；requirements/build 打包接入（winpty.dll/agent 已验证入包）；`tools/verify_pty.py`。
 
 
