@@ -59,6 +59,8 @@ python tools/extract_i18n_strings.py
 
 ## v2.21 试点（ja_JP/ko_KR）
 
+- **v2.23 P1-1 批次 2**：日/韩各扩充到 **83 条命中**（覆盖率 5.7%），CI 门禁 3%→5%；目标 15% 需按模板 key 精准补译（下一批）。
+
 - 覆盖核心 UI 术语各 43 条（文件/保存/设置/主题/插件市场/终端等）；
 - 未翻译字符串回退中文；CI 门禁 `--min-corpus 3`；
 - 生成器：`python tools/build_ja_ko_pilot.py`。
