@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 新增
+
+- **终端 PTY 依赖验证（D4）**：pywinpty 3.1.2 最小交互会话通过；`ui/pty_session.py` 非阻塞封装；requirements/build 打包接入（winpty.dll/agent 已验证入包）；`tools/verify_pty.py`。
+
+
 ### 重构
 
 - **`ui/plugin_store.py` 拆分（v2.23 D3）**：2964 → 1120 行；拆出 `plugin_client.py`（常量/工具/PluginInfo/Client/Worker）与 `plugin_detail.py`（详情/安装进度），对外 API 通过 re-export 保持。

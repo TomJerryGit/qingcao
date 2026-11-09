@@ -76,7 +76,7 @@ def _force_utf8_stdio():
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding='utf-8', errors='replace')
+            stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             # Python < 3.7 或流不支持 reconfigure 时忽略（不能因此失败）
             pass
@@ -89,15 +89,15 @@ _force_utf8_stdio()
 # 常量
 # ============================================================
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DIST_DIR = os.path.join(ROOT, 'dist')
-BUILD_DIR = os.path.join(ROOT, 'build')
-SPEC_FILE = os.path.join(ROOT, 'QingCaoEditor.spec')
-VERSION_INFO_FILE = os.path.join(ROOT, 'version_info.txt')
-ICON_SRC = os.path.join(ROOT, 'resources', 'icons', 'qingcao.png')
-ICON_DST = os.path.join(ROOT, 'resources', 'icons', 'qingcao.ico')
+DIST_DIR = os.path.join(ROOT, "dist")
+BUILD_DIR = os.path.join(ROOT, "build")
+SPEC_FILE = os.path.join(ROOT, "QingCaoEditor.spec")
+VERSION_INFO_FILE = os.path.join(ROOT, "version_info.txt")
+ICON_SRC = os.path.join(ROOT, "resources", "icons", "qingcao.png")
+ICON_DST = os.path.join(ROOT, "resources", "icons", "qingcao.ico")
 
-APP_NAME = 'QingCaoEditor'
-APP_DISPLAY_NAME = '青草编辑器'
+APP_NAME = "QingCaoEditor"
+APP_DISPLAY_NAME = "青草编辑器"
 # P1-1: 版本号唯一来源 version.py（避免多处硬编码导致版本漂移）
 #
 # 发布准备时修复：原 except 分支**硬编码** "2.1.0" 作为兜底 ——
@@ -108,9 +108,9 @@ APP_DISPLAY_NAME = '青草编辑器'
 try:
     from version import __version__ as APP_VERSION
 except ImportError:  # pragma: no cover
-    _version_file = os.path.join(ROOT, 'VERSION')
+    _version_file = os.path.join(ROOT, "VERSION")
     try:
-        with open(_version_file, encoding='utf-8') as _f:
+        with open(_version_file, encoding="utf-8") as _f:
             APP_VERSION = _f.read().strip()
     except OSError as _e:
         raise SystemExit(
@@ -119,49 +119,94 @@ except ImportError:  # pragma: no cover
         )
     if not APP_VERSION:
         raise SystemExit("[build] VERSION 文件为空，无法确定版本号")
-APP_AUTHOR = 'TomJerry'
-APP_EMAIL = '1265338136@qq.com'
-APP_DESCRIPTION = 'Lightweight text editor with LSP and plugin system'
-APP_COMPANY = 'TomJerry'
-APP_COPYRIGHT = 'Copyright (C) 2024-2025 TomJerry'
-APP_URL = 'https://github.com/qingcao-editor/qingcao'
+APP_AUTHOR = "TomJerry"
+APP_EMAIL = "1265338136@qq.com"
+APP_DESCRIPTION = "Lightweight text editor with LSP and plugin system"
+APP_COMPANY = "TomJerry"
+APP_COPYRIGHT = "Copyright (C) 2024-2025 TomJerry"
+APP_URL = "https://github.com/qingcao-editor/qingcao"
 
 # 需要打包的数据目录
 DATA_DIRS = [
-    'resources',
-    'themes',
-    'locale',
-    'docs',
-    'plugins',
+    "resources",
+    "themes",
+    "locale",
+    "docs",
+    "plugins",
 ]
 
 # 需要排除的目录（不打包进 exe）
 EXCLUDE_DIRS = {
-    '__pycache__', '.git', '.github', '.idea', '.vscode',
-    'build', 'dist', 'data', 'logs', 'backup', 'installer',
-    'tests', '_archived_tools', 'tools', 'QingCaoEditor_RCWJ',
-    'venv', '.venv', 'env', '.env', 'node_modules',
+    "__pycache__",
+    ".git",
+    ".github",
+    ".idea",
+    ".vscode",
+    "build",
+    "dist",
+    "data",
+    "logs",
+    "backup",
+    "installer",
+    "tests",
+    "_archived_tools",
+    "tools",
+    "QingCaoEditor_RCWJ",
+    "venv",
+    ".venv",
+    "env",
+    ".env",
+    "node_modules",
 }
 
 # 需要排除的模块（减小体积）
 DEFAULT_EXCLUDES = [
     # 其他 Qt 绑定
-    'PySide2', 'PySide6', 'PyQt6', 'PyQt5.QtWebEngineWidgets',
-    'PyQt5.QtWebEngine', 'PyQt5.QtQuick', 'PyQt5.QtQml',
-    'PyQt5.QtBluetooth', 'PyQt5.QtNfc', 'PyQt5.QtPositioning',
-    'PyQt5.QtSensors', 'PyQt5.QtSerialPort', 'PyQt5.QtWebSockets',
-    'PyQt5.QtWebChannel', 'PyQt5.QtXmlPatterns',
+    "PySide2",
+    "PySide6",
+    "PyQt6",
+    "PyQt5.QtWebEngineWidgets",
+    "PyQt5.QtWebEngine",
+    "PyQt5.QtQuick",
+    "PyQt5.QtQml",
+    "PyQt5.QtBluetooth",
+    "PyQt5.QtNfc",
+    "PyQt5.QtPositioning",
+    "PyQt5.QtSensors",
+    "PyQt5.QtSerialPort",
+    "PyQt5.QtWebSockets",
+    "PyQt5.QtWebChannel",
+    "PyQt5.QtXmlPatterns",
     # 科学计算（不用）
-    'numpy', 'scipy', 'pandas', 'matplotlib', 'sklearn',
-    'skimage', 'cv2', 'PIL.ImageQt',
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "sklearn",
+    "skimage",
+    "cv2",
+    "PIL.ImageQt",
     # 测试
-    'test', 'unittest', 'doctest', 'pydoc_data', 'pytest',
-    'nose', 'coverage',
+    "test",
+    "unittest",
+    "doctest",
+    "pydoc_data",
+    "pytest",
+    "nose",
+    "coverage",
     # 开发工具
-    'IPython', 'jupyter', 'notebook', 'ipykernel',
+    "IPython",
+    "jupyter",
+    "notebook",
+    "ipykernel",
     # 其他
-    'tkinter', 'turtle', 'sqlite3.dbapi2',
-    'setuptools', 'pip', 'wheel', 'pkg_resources',
+    "tkinter",
+    "turtle",
+    "sqlite3.dbapi2",
+    "setuptools",
+    "pip",
+    "wheel",
+    "pkg_resources",
 ]
 
 
@@ -218,7 +263,8 @@ def check_pyinstaller() -> bool:
     """检查 PyInstaller"""
     try:
         import PyInstaller
-        version = getattr(PyInstaller, '__version__', '未知')
+
+        version = getattr(PyInstaller, "__version__", "未知")
         print_ok(f"PyInstaller {version}")
         return True
     except ImportError:
@@ -232,15 +278,15 @@ def check_pyinstaller() -> bool:
 def check_core_dependencies() -> Tuple[bool, List[str]]:
     """检查核心依赖"""
     required = [
-        ('PyQt5', 'PyQt5.QtCore'),
-        ('PyQt5-Qsci', 'PyQt5.Qsci'),
+        ("PyQt5", "PyQt5.QtCore"),
+        ("PyQt5-Qsci", "PyQt5.Qsci"),
     ]
 
     optional = [
-        ('chardet', 'chardet'),
-        ('requests', 'requests'),
-        ('psutil', 'psutil'),
-        ('keyring', 'keyring'),
+        ("chardet", "chardet"),
+        ("requests", "requests"),
+        ("psutil", "psutil"),
+        ("keyring", "keyring"),
     ]
 
     missing = []
@@ -288,10 +334,10 @@ def generate_icon() -> Optional[str]:
         # 方法 1: PIL
         try:
             from PIL import Image
+
             img = Image.open(ICON_SRC)
-            sizes = [(16, 16), (24, 24), (32, 32), (48, 48),
-                     (64, 64), (128, 128), (256, 256)]
-            img.save(ICON_DST, format='ICO', sizes=sizes)
+            sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+            img.save(ICON_DST, format="ICO", sizes=sizes)
             print_ok(f"已生成: {ICON_DST}")
             return ICON_DST
         except ImportError:
@@ -302,9 +348,16 @@ def generate_icon() -> Optional[str]:
         # 方法 2: ImageMagick
         try:
             result = subprocess.run(
-                ['magick', 'convert', ICON_SRC, '-define',
-                 'icon:auto-resize=256,128,64,48,32,16', ICON_DST],
-                capture_output=True, timeout=30,
+                [
+                    "magick",
+                    "convert",
+                    ICON_SRC,
+                    "-define",
+                    "icon:auto-resize=256,128,64,48,32,16",
+                    ICON_DST,
+                ],
+                capture_output=True,
+                timeout=30,
             )
             if result.returncode == 0 and os.path.exists(ICON_DST):
                 print_ok(f"已生成 (ImageMagick): {ICON_DST}")
@@ -324,14 +377,14 @@ def generate_icon() -> Optional[str]:
 # ============================================================
 def generate_version_info() -> Optional[str]:
     """生成 Windows 版本信息文件"""
-    if platform.system() != 'Windows':
+    if platform.system() != "Windows":
         return None
 
     # 解析版本号
     try:
-        parts = APP_VERSION.split('.')
+        parts = APP_VERSION.split(".")
         while len(parts) < 4:
-            parts.append('0')
+            parts.append("0")
         version_tuple = tuple(int(p) for p in parts[:4])
     except Exception:
         version_tuple = (2, 0, 0, 0)
@@ -374,7 +427,7 @@ VSVersionInfo(
 """
 
     try:
-        with open(VERSION_INFO_FILE, 'w', encoding='utf-8') as f:
+        with open(VERSION_INFO_FILE, "w", encoding="utf-8") as f:
             f.write(content)
         print_ok(f"版本信息: {VERSION_INFO_FILE}")
         return VERSION_INFO_FILE
@@ -403,14 +456,25 @@ def collect_hidden_imports() -> List[str]:
     # QScintilla
     try:
         import PyQt5.Qsci
-        imports.append('PyQt5.Qsci')
+
+        imports.append("PyQt5.Qsci")
     except ImportError:
         pass
 
     # 可选依赖（按存在性收集）
-    for mod in ['chardet', 'requests', 'psutil', 'keyring',
-                'urllib3', 'certifi', 'idna', 'charset_normalizer',
-                'reportlab', 'pypinyin']:
+    for mod in [
+        "chardet",
+        "requests",
+        "psutil",
+        "keyring",
+        "urllib3",
+        "certifi",
+        "idna",
+        "charset_normalizer",
+        "reportlab",
+        "pypinyin",
+        "winpty",
+    ]:
         try:
             __import__(mod)
             imports.append(mod)
@@ -419,13 +483,13 @@ def collect_hidden_imports() -> List[str]:
 
     # Qt 模块（PyInstaller 有时会漏掉）
     qt_modules = [
-        'PyQt5.QtCore',
-        'PyQt5.QtGui',
-        'PyQt5.QtWidgets',
-        'PyQt5.QtNetwork',
-        'PyQt5.QtPrintSupport',
-        'PyQt5.QtSvg',
-        'PyQt5.QtXml',
+        "PyQt5.QtCore",
+        "PyQt5.QtGui",
+        "PyQt5.QtWidgets",
+        "PyQt5.QtNetwork",
+        "PyQt5.QtPrintSupport",
+        "PyQt5.QtSvg",
+        "PyQt5.QtXml",
     ]
     for m in qt_modules:
         try:
@@ -437,36 +501,72 @@ def collect_hidden_imports() -> List[str]:
     # QtMultimedia（可选，用于音效）
     try:
         import PyQt5.QtMultimedia
-        imports.append('PyQt5.QtMultimedia')
+
+        imports.append("PyQt5.QtMultimedia")
     except ImportError:
         pass
 
     # 项目内部模块
     project_modules = [
-        'app', 'core', 'ui', 'infrastructure',
-        'app.actions', 'app.event_bus', 'app.menus', 'app.plugins',
-        'app.preferences', 'app.session', 'app.tabs', 'app.sync',
-        'app.config_manager', 'app.plugin_manager',
-        'core.commands', 'core.content_provider', 'core.document',
-        'core.editor', 'core.events', 'core.log_lexer',
-        'core.lsp_client', 'core.lsp_installer', 'core.macro',
-        'core.project', 'core.search',
-        'core.undo', 'core.ai_client', 'core.ai_cache',
-        'core.ollama_client',
-        'core.code_metrics', 'core.code_smell', 'core.code_templates',
-        'core.crash_reporter', 'core.exporter',
-        'core.file_merge', 'core.formatter', 'core.git_client',
-        'core.i18n', 'core.key_sequence_manager',
-        'core.keymap_profiles', 'core.local_completer',
-        'core.problems', 'core.profiler', 'core.project_config',
-        'core.project_tasks',
-        'core.snippet_market', 'core.snippets', 'core.snapshot',
-        'core.telemetry', 'core.theme_pack', 'core.updater',
-        'core.vim_mode', 'core.workspace',
-        'infrastructure.file_access', 'infrastructure.icon_manager',
-        'infrastructure.plugin_loader',
-        'infrastructure.plugin_updater', 'infrastructure.sound_manager',
-        'infrastructure.theme_loader',
+        "app",
+        "core",
+        "ui",
+        "infrastructure",
+        "app.actions",
+        "app.event_bus",
+        "app.menus",
+        "app.plugins",
+        "app.preferences",
+        "app.session",
+        "app.tabs",
+        "app.sync",
+        "app.config_manager",
+        "app.plugin_manager",
+        "core.commands",
+        "core.content_provider",
+        "core.document",
+        "core.editor",
+        "core.events",
+        "core.log_lexer",
+        "core.lsp_client",
+        "core.lsp_installer",
+        "core.macro",
+        "core.project",
+        "core.search",
+        "core.undo",
+        "core.ai_client",
+        "core.ai_cache",
+        "core.ollama_client",
+        "core.code_metrics",
+        "core.code_smell",
+        "core.code_templates",
+        "core.crash_reporter",
+        "core.exporter",
+        "core.file_merge",
+        "core.formatter",
+        "core.git_client",
+        "core.i18n",
+        "core.key_sequence_manager",
+        "core.keymap_profiles",
+        "core.local_completer",
+        "core.problems",
+        "core.profiler",
+        "core.project_config",
+        "core.project_tasks",
+        "core.snippet_market",
+        "core.snippets",
+        "core.snapshot",
+        "core.telemetry",
+        "core.theme_pack",
+        "core.updater",
+        "core.vim_mode",
+        "core.workspace",
+        "infrastructure.file_access",
+        "infrastructure.icon_manager",
+        "infrastructure.plugin_loader",
+        "infrastructure.plugin_updater",
+        "infrastructure.sound_manager",
+        "infrastructure.theme_loader",
     ]
 
     # 插件运行时依赖
@@ -481,9 +581,9 @@ def collect_hidden_imports() -> List[str]:
     # 判断方法：扫描 plugins/**/*.py 里 import 的项目内模块，
     # 取差集。详见 CHANGELOG「打包」一节。
     plugin_runtime_deps = [
-        'core.ai_cache',          # 插件：AI 结果缓存
-        'core.ollama_client',     # 插件：Ollama 本地模型管理
-        'ui.ai_inline_completer',  # 插件：AI 行内补全
+        "core.ai_cache",  # 插件：AI 结果缓存
+        "core.ollama_client",  # 插件：Ollama 本地模型管理
+        "ui.ai_inline_completer",  # 插件：AI 行内补全
     ]
     project_modules.extend(plugin_runtime_deps)
 
@@ -497,8 +597,21 @@ def collect_hidden_imports() -> List[str]:
     return sorted(set(imports))
 
 
-def collect_excludes(extra_excludes: Optional[List[str]] = None
-                      ) -> List[str]:
+def collect_winpty_assets():
+    """收集 pywinpty 的 DLL/agent（PyInstaller 静态分析看不到包内二进制）。"""
+    datas, binaries = [], []
+    try:
+        from PyInstaller.utils.hooks import collect_all
+
+        d, b, _h = collect_all("winpty")
+        datas.extend(d)
+        binaries.extend(b)
+    except Exception:
+        pass
+    return datas, binaries
+
+
+def collect_excludes(extra_excludes: Optional[List[str]] = None) -> List[str]:
     """收集排除模块"""
     excludes = list(DEFAULT_EXCLUDES)
     if extra_excludes:
@@ -528,6 +641,8 @@ def generate_spec(
         - 已从模板中删除该行，保持模板干净。
     """
     datas = collect_datas()
+    winpty_datas, winpty_binaries = collect_winpty_assets()
+    datas.extend(winpty_datas)
     hiddenimports = collect_hidden_imports()
     if extra_hidden:
         hiddenimports.extend(extra_hidden)
@@ -539,28 +654,29 @@ def generate_spec(
     version_info = generate_version_info()
 
     # 格式化
-    def fmt_list(items, indent='    '):
+    def fmt_list(items, indent="    "):
         if not items:
-            return '[]'
-        lines = ['[']
+            return "[]"
+        lines = ["["]
         for item in items:
-            lines.append(f'{indent}{repr(item)},')
-        lines.append(']')
-        return '\n'.join(lines)
+            lines.append(f"{indent}{repr(item)},")
+        lines.append("]")
+        return "\n".join(lines)
 
     datas_repr = fmt_list(datas)
+    binaries_repr = fmt_list(winpty_binaries)
     hidden_repr = fmt_list(hiddenimports)
     excludes_repr = fmt_list(excludes)
 
-    icon_repr = repr(icon_path) if icon_path else 'None'
-    version_repr = repr(version_info) if version_info else 'None'
-    console_repr = 'True' if console else 'False'
-    upx_repr = 'True' if upx else 'False'
+    icon_repr = repr(icon_path) if icon_path else "None"
+    version_repr = repr(version_info) if version_info else "None"
+    console_repr = "True" if console else "False"
+    upx_repr = "True" if upx else "False"
 
     # UPX 路径检测
-    upx_dir = ''
+    upx_dir = ""
     if upx:
-        upx_exe = shutil.which('upx')
+        upx_exe = shutil.which("upx")
         if upx_exe:
             upx_dir = os.path.dirname(upx_exe)
 
@@ -654,7 +770,7 @@ upx_dir = {repr(upx_dir)}
 a = Analysis(
     ['main.py'],
     pathex=[ROOT],
-    binaries=[],
+    binaries={binaries_repr},
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -673,7 +789,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 """
 
     try:
-        with open(SPEC_FILE, 'w', encoding='utf-8') as f:
+        with open(SPEC_FILE, "w", encoding="utf-8") as f:
             f.write(spec_content)
         print_ok(f"spec 文件已生成: {SPEC_FILE}")
         return True
@@ -725,13 +841,13 @@ def clean_build(quiet: bool = False, clean_spec: bool = False):
     for root, dirs, files in os.walk(ROOT):
         # 跳过不需要清理的目录
         dirs[:] = [
-            d for d in dirs
-            if d not in ('venv', '.venv', 'env', '.env',
-                          'node_modules', 'QingCaoEditor_RCWJ')
+            d
+            for d in dirs
+            if d not in ("venv", ".venv", "env", ".env", "node_modules", "QingCaoEditor_RCWJ")
         ]
 
-        if '__pycache__' in dirs:
-            path = os.path.join(root, '__pycache__')
+        if "__pycache__" in dirs:
+            path = os.path.join(root, "__pycache__")
             try:
                 shutil.rmtree(path, ignore_errors=True)
             except Exception:
@@ -744,16 +860,18 @@ def clean_build(quiet: bool = False, clean_spec: bool = False):
 def run_pyinstaller(clean: bool = False) -> bool:
     """运行 PyInstaller"""
     cmd = [
-        sys.executable, '-m', 'PyInstaller',
+        sys.executable,
+        "-m",
+        "PyInstaller",
         SPEC_FILE,
-        '--noconfirm',
+        "--noconfirm",
     ]
 
     if clean:
-        cmd.append('--clean')
+        cmd.append("--clean")
 
     print_step("执行 PyInstaller...")
-    print("  命令: " + ' '.join(cmd))
+    print("  命令: " + " ".join(cmd))
     print()
 
     try:
@@ -771,8 +889,8 @@ def post_build(app_name: str = APP_NAME, onefile: bool = False):
     """构建后处理"""
     if onefile:
         # 单文件模式：只需处理 exe
-        exe_path = os.path.join(DIST_DIR, app_name + '.exe')
-        if platform.system() != 'Windows':
+        exe_path = os.path.join(DIST_DIR, app_name + ".exe")
+        if platform.system() != "Windows":
             exe_path = os.path.join(DIST_DIR, app_name)
         if os.path.exists(exe_path):
             print_ok(f"可执行文件: {exe_path}")
@@ -786,22 +904,21 @@ def post_build(app_name: str = APP_NAME, onefile: bool = False):
     print_step("后处理...")
 
     # 创建运行时目录
-    for d in ['data', 'logs', 'backup', 'plugins', 'themes']:
+    for d in ["data", "logs", "backup", "plugins", "themes"]:
         path = os.path.join(exe_dir, d)
         os.makedirs(path, exist_ok=True)
         # 保留目录（.gitkeep）
-        gitkeep = os.path.join(path, '.gitkeep')
+        gitkeep = os.path.join(path, ".gitkeep")
         if not os.path.exists(gitkeep):
             try:
-                open(gitkeep, 'w').close()
+                open(gitkeep, "w").close()
             except Exception:
                 pass
 
     print_ok("运行时目录已创建")
 
     # 复制 README
-    for fname in ['README.md', 'LICENSE', 'CHANGELOG.md',
-                   'VERSION', 'portable.txt.example']:
+    for fname in ["README.md", "LICENSE", "CHANGELOG.md", "VERSION", "portable.txt.example"]:
         src = os.path.join(ROOT, fname)
         if os.path.exists(src):
             try:
@@ -811,15 +928,15 @@ def post_build(app_name: str = APP_NAME, onefile: bool = False):
                 print_warn(f"复制 {fname} 失败: {e}")
 
     # 创建启动脚本（便于调试）
-    if platform.system() == 'Windows':
+    if platform.system() == "Windows":
         # 创建 .bat 便于从命令行启动（保留控制台）
-        bat_path = os.path.join(exe_dir, 'debug.bat')
+        bat_path = os.path.join(exe_dir, "debug.bat")
         try:
-            with open(bat_path, 'w', encoding='gbk') as f:
-                f.write('@echo off\n')
-                f.write('chcp 65001 >nul\n')
+            with open(bat_path, "w", encoding="gbk") as f:
+                f.write("@echo off\n")
+                f.write("chcp 65001 >nul\n")
                 f.write(f'"{app_name}.exe" %*\n')
-                f.write('pause\n')
+                f.write("pause\n")
             print_ok(f"调试脚本: {bat_path}")
         except Exception:
             pass
@@ -836,8 +953,8 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
     print("=" * 60)
 
     if onefile:
-        exe_path = os.path.join(DIST_DIR, app_name + '.exe')
-        if platform.system() != 'Windows':
+        exe_path = os.path.join(DIST_DIR, app_name + ".exe")
+        if platform.system() != "Windows":
             exe_path = os.path.join(DIST_DIR, app_name)
 
         if os.path.exists(exe_path):
@@ -873,7 +990,7 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
                 file_count += 1
 
                 # 按扩展名归类
-                ext = os.path.splitext(f)[1].lower() or '(无扩展名)'
+                ext = os.path.splitext(f)[1].lower() or "(无扩展名)"
                 type_stats[ext] = type_stats.get(ext, 0) + size
             except Exception:
                 pass
@@ -886,7 +1003,7 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
     print(f"  总体积:   {size_mb:.1f} MB")
 
     # 主 exe
-    exe_path = os.path.join(exe_dir, app_name + '.exe')
+    exe_path = os.path.join(exe_dir, app_name + ".exe")
     if not os.path.exists(exe_path):
         exe_path = os.path.join(exe_dir, app_name)
     if os.path.exists(exe_path):
@@ -897,13 +1014,10 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
     if type_stats:
         print()
         print("  体积构成 (Top 5):")
-        sorted_types = sorted(
-            type_stats.items(), key=lambda x: x[1], reverse=True
-        )[:5]
+        sorted_types = sorted(type_stats.items(), key=lambda x: x[1], reverse=True)[:5]
         for ext, size in sorted_types:
             pct = size / total_size * 100
-            print(f"    {ext:15s} {size / 1024 / 1024:7.1f} MB "
-                  f"({pct:5.1f}%)")
+            print(f"    {ext:15s} {size / 1024 / 1024:7.1f} MB ({pct:5.1f}%)")
 
     print("=" * 60)
     print()
@@ -918,7 +1032,7 @@ def report_size(app_name: str = APP_NAME, onefile: bool = False):
 # ============================================================
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='青草编辑器打包脚本',
+        description="青草编辑器打包脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -934,32 +1048,26 @@ def main() -> int:
         """,
     )
 
-    parser.add_argument('--onefile', action='store_true',
-                        help='单文件模式（启动慢，方便分发）')
-    parser.add_argument('--debug', action='store_true',
-                        help='调试模式（等于 --console）')
-    parser.add_argument('--console', action='store_true',
-                        help='保留控制台窗口')
-    parser.add_argument('--no-upx', action='store_true',
-                        help='禁用 UPX 压缩')
-    parser.add_argument('--clean', action='store_true',
-                        help='打包前清理旧构建（保留 .spec）')
-    parser.add_argument('--clean-spec', action='store_true',
-                        help='同时删除生成的 .spec 文件')
-    parser.add_argument('--no-clean', action='store_true',
-                        help='不清理旧构建')
-    parser.add_argument('--icon', type=str, default=None,
-                        help='自定义图标路径')
-    parser.add_argument('--name', type=str, default=APP_NAME,
-                        help='自定义应用名')
-    parser.add_argument('--hidden-import', action='append',
-                        default=[], dest='hidden_imports',
-                        help='追加隐藏导入（可多次）')
-    parser.add_argument('--exclude', action='append',
-                        default=[], dest='excludes',
-                        help='追加排除模块（可多次）')
-    parser.add_argument('--quiet', action='store_true',
-                        help='安静模式')
+    parser.add_argument("--onefile", action="store_true", help="单文件模式（启动慢，方便分发）")
+    parser.add_argument("--debug", action="store_true", help="调试模式（等于 --console）")
+    parser.add_argument("--console", action="store_true", help="保留控制台窗口")
+    parser.add_argument("--no-upx", action="store_true", help="禁用 UPX 压缩")
+    parser.add_argument("--clean", action="store_true", help="打包前清理旧构建（保留 .spec）")
+    parser.add_argument("--clean-spec", action="store_true", help="同时删除生成的 .spec 文件")
+    parser.add_argument("--no-clean", action="store_true", help="不清理旧构建")
+    parser.add_argument("--icon", type=str, default=None, help="自定义图标路径")
+    parser.add_argument("--name", type=str, default=APP_NAME, help="自定义应用名")
+    parser.add_argument(
+        "--hidden-import",
+        action="append",
+        default=[],
+        dest="hidden_imports",
+        help="追加隐藏导入（可多次）",
+    )
+    parser.add_argument(
+        "--exclude", action="append", default=[], dest="excludes", help="追加排除模块（可多次）"
+    )
+    parser.add_argument("--quiet", action="store_true", help="安静模式")
 
     args = parser.parse_args()
 
@@ -1048,7 +1156,7 @@ def main() -> int:
 # ============================================================
 # 入口
 # ============================================================
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
@@ -1059,5 +1167,6 @@ if __name__ == '__main__':
         print()
         print_error(f"打包异常: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
