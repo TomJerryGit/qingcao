@@ -7,6 +7,7 @@ from PyQt5.QtCore import QSettings
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
 
 
 def _close(win):
@@ -124,6 +125,6 @@ def test_instance_cap_spinbox_and_apply(qapp):
 
 
 def test_fallback_uses_local_catalog():
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
+    src = read_market_source()
     assert "def build_market_catalog" in src
     assert "build_market_catalog(" in src.split("_load_fallback_registry", 1)[1]

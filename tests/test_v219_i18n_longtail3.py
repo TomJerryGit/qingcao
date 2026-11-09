@@ -7,6 +7,7 @@ import os
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
 
 
 def _en(monkeypatch):
@@ -52,7 +53,7 @@ def test_panel_labels(monkeypatch, qapp):
 
 
 def test_market_html_wiring_static():
-    src = io.open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
+    src = read_market_source()
     assert "translate_html" in src
     welcome = io.open(os.path.join(ROOT, "ui", "welcome_widget.py"), encoding="utf-8").read()
     assert "_tr(self._current_tip)" in welcome

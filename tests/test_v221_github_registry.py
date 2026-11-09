@@ -4,6 +4,7 @@ import os
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
 
 
 def _load():
@@ -50,5 +51,5 @@ def test_dry_run_build(tmp_path):
 def test_wiring():
     assert os.path.isfile(os.path.join(ROOT, "docs", "plugin_registry_github_releases.md"))
     assert os.path.isfile(os.path.join(ROOT, ".github", "workflows", "publish_registry.yml"))
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
+    src = read_market_source()
     assert "GITHUB_REGISTRY_URL" in src

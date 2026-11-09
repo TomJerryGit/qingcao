@@ -5,6 +5,7 @@ import os
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
 
 
 def _infos():
@@ -71,7 +72,7 @@ def test_card_badges_and_detail_dependency(qapp):
 
 
 def test_market_ui_wiring_static():
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
+    src = read_market_source()
     for key in (
         "SECURITY_FILTERS",
         "security_combo",

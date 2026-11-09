@@ -2,6 +2,11 @@
 
 ### 重构
 
+- **`ui/plugin_store.py` 拆分（v2.23 D3）**：2964 → 1120 行；拆出 `plugin_client.py`（常量/工具/PluginInfo/Client/Worker）与 `plugin_detail.py`（详情/安装进度），对外 API 通过 re-export 保持。
+
+
+### 重构
+
 - **`ui/main_window.py` 拆分（v2.23 D2）**：3268 → 244 行；拆出 `main_window_common.py` 与 5 个 Mixin（theme/lsp/remote/actions/session），MRO 与对外 API 不变。
 
 

@@ -6,6 +6,9 @@ import os
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
+
+
 STORE = os.path.join(ROOT, "ui", "plugin_store.py")
 
 
@@ -30,7 +33,7 @@ def test_check_plugin_compatibility_helper():
 
 
 def test_install_update_paths_are_gated_and_button_exists():
-    src = open(STORE, encoding="utf-8").read()
+    src = read_market_source()
     tree = ast.parse(src)
     fns = [
         n

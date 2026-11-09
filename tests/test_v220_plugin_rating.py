@@ -44,9 +44,12 @@ def test_detail_rating_ui(qapp, tmp_path, monkeypatch):
 
 
 def test_sort_option_wired():
-    src = io.open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
-    assert '("local_rating"' in src
-    assert "_build_rating_widget" in src
+    from ui.plugin_store import SORT_OPTIONS
+
+    assert any(key == "local_rating" for key, _name in SORT_OPTIONS)
+    # v2.23 D3：详情/评分 UI 已拆入 plugin_detail.py
+    detail = io.open(os.path.join(ROOT, "ui", "plugin_detail.py"), encoding="utf-8").read()
+    assert "_build_rating_widget" in detail
 
 
 def test_docs():

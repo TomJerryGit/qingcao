@@ -6,6 +6,9 @@ import os
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from ui_source_utils import read_market_source
+
+
 STORE = os.path.join(ROOT, "ui", "plugin_store.py")
 
 
@@ -18,7 +21,7 @@ def test_plugin_info_has_changelog_and_update_url():
 
 
 def test_detail_html_shows_update_metadata():
-    src = open(STORE, encoding="utf-8").read()
+    src = read_market_source()
     tree = ast.parse(src)
     # 找到构建详情 HTML 的方法（含技术信息片段）
     found = False

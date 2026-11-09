@@ -64,7 +64,7 @@ def test_market_signature_verification(monkeypatch):
 
 
 def test_install_plugin_uses_signature_check():
-    src = open(os.path.join(ROOT, "ui", "plugin_store.py"), encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "ui", "plugin_client.py"), encoding="utf-8").read()
     assert "verify_plugin_signature(" in src
     assert "signature: str" in src
 
