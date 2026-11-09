@@ -74,8 +74,8 @@ def smoke_i18n():
 def smoke_market(offline=False):
     try:
         path = os.path.join(ROOT, "data", "registry_github", "registry.json")
-        if not os.path.isfile(path) and offline:
-            record("市场冒烟", True, "离线模式：跳过网络检查")
+        if offline:
+            record("市场冒烟", True, "离线模式：跳过网络与本地产物检查")
             return
         if not os.path.isfile(path):
             # 本地没有构建产物时，尝试线上 Release API

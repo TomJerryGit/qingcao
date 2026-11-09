@@ -141,6 +141,17 @@ class PluginCard(QFrame):
             rating_label.setStyleSheet("font-size: 10px; color: #f0ad4e;")
             meta_layout.addWidget(rating_label)
         try:
+            from ui.plugin_client import get_community_rating
+
+            _comm = get_community_rating(self.info.name)
+            if _comm and _comm[1] > 0:
+                _c = QLabel("★ %.1f 社区 (%d)" % (_comm[0], _comm[1]))
+                _c.setStyleSheet("font-size: 10px; color: #61afef;")
+                _c.setToolTip("社区平均分（静态聚合，只读）")
+                meta_layout.addWidget(_c)
+        except Exception:
+            pass
+        try:
             from ui.plugin_rating import LocalRatings
 
             _lr = LocalRatings().get(self.info.name)
@@ -660,6 +671,7 @@ class PluginStoreDialog(QDialog):
               2. 后台线程拉远程注册表，完成后通过信号回传刷新
         """
         # ---- 第 1 步：立即显示本地插件 ----
+        self._load_community_ratings()
         self.status_label.setText("正在扫描本地插件...")
         self.refresh_btn.setEnabled(False)
 
@@ -717,6 +729,21 @@ class PluginStoreDialog(QDialog):
         print(f"[PluginStore] 远程注册表不可用: {error}")
         self.status_label.setText(f"共 {len(self._all_plugins)} 个插件（离线模式）")
         self.refresh_btn.setEnabled(True)
+
+    def _load_community_ratings(self):
+        """拉取静态 ratings.json（失败静默回退本地评分）。"""
+        if getattr(self, "_community_ratings", None) is not None:
+            return
+        self._community_ratings = {}
+        try:
+            data = self.client.fetch_ratings() if hasattr(self.client, "fetch_ratings") else None
+            plugins = (data or {}).get("plugins") or {}
+            from ui.plugin_client import set_community_ratings
+
+            set_community_ratings(plugins)
+            self._community_ratings = plugins
+        except Exception:
+            self._community_ratings = {}
 
     def _refresh_plugins(self):
         """刷新插件列表"""

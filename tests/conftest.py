@@ -28,6 +28,7 @@ os.environ.setdefault("QT_API", "pyqt5")
 
 # 已有的环境变量保留
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QINGCAO_NO_COMMUNITY_RATINGS", "1")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 import sys
 

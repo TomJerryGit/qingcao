@@ -196,6 +196,16 @@ class PluginDetailDialog(QDialog):
             rating = QLabel(f"{stars} ({self.info.rating_count})")
             rating.setStyleSheet("color: #f0ad4e; font-size: 11px;")
             stats_layout.addWidget(rating)
+        try:
+            from ui.plugin_client import get_community_rating
+
+            _comm = get_community_rating(self.info.name)
+            if _comm and _comm[1] > 0:
+                c = QLabel("社区 ★ %.1f (%d)" % (_comm[0], _comm[1]))
+                c.setStyleSheet("color: #61afef; font-size: 11px;")
+                stats_layout.addWidget(c)
+        except Exception:
+            pass
 
         stats_layout.addStretch()
         info_layout.addLayout(stats_layout)

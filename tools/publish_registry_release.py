@@ -50,6 +50,18 @@ def build_assets(out_dir, repo=REPO, tag=TAG, only=None, key_hex="", app_version
     return registry, out_json
 
 
+def build_ratings(out_dir, src=None):
+    """聚合本地评分并写入 ratings.json（静态、零服务端）。"""
+    from build_ratings_aggregate import aggregate
+
+    data = aggregate(src) if src else aggregate()
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, "ratings.json")
+    with io.open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+    return path, data
+
+
 def _request(method, url, token, data=None, headers=None):
     import urllib.request
 
@@ -123,14 +135,19 @@ def main():
     registry, out_json = build_assets(
         args.out, args.repo, args.tag, only=only, key_hex=args.key_hex, app_version=args.app_version
     )
+    ratings_path, ratings = build_ratings(args.out)
     print("[registry-release] 构建 %d 个插件 -> %s" % (len(registry["plugins"]), out_json))
+    print(
+        "[registry-release] ratings.json 插件 %d 条 -> %s"
+        % (len(ratings.get("plugins", {})), ratings_path)
+    )
     print("[registry-release] REGISTRY_URL=%s" % registry_url(args.repo, args.tag))
     if args.dry_run or not args.token:
         if not args.dry_run:
             print("[registry-release] 未提供 GITHUB_TOKEN，已跳过上传（dry-run）")
         return 0
     release = ensure_release(args.token, args.repo, args.tag)
-    paths = [out_json] + [
+    paths = [out_json, ratings_path] + [
         os.path.join(args.out, "plugins", n)
         for n in sorted(os.listdir(os.path.join(args.out, "plugins")))
         if n.endswith(".zip")

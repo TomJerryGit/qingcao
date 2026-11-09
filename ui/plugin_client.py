@@ -482,6 +482,25 @@ class PluginInfo:
         return f"<PluginInfo {self.name} v{self.version} state={self.state.name}>"
 
 
+COMMUNITY_RATINGS: Dict[str, Dict[str, Any]] = {}
+
+
+def set_community_ratings(plugins) -> None:
+    COMMUNITY_RATINGS.clear()
+    if isinstance(plugins, dict):
+        COMMUNITY_RATINGS.update(plugins)
+
+
+def get_community_rating(name):
+    rec = COMMUNITY_RATINGS.get(name)
+    if not isinstance(rec, dict):
+        return None
+    try:
+        return (float(rec.get("average", 0)), int(rec.get("count", 0)))
+    except Exception:
+        return None
+
+
 class PluginStoreClient:
     """
     插件市场客户端。
@@ -528,6 +547,29 @@ class PluginStoreClient:
     # --------------------------------------------------------
     # 远程注册表
     # --------------------------------------------------------
+    def fetch_ratings(self, timeout=5):
+        """拉取静态 ratings.json（失败/离线返回 None，不阻塞市场）。"""
+        if os.environ.get("QINGCAO_NO_COMMUNITY_RATINGS") == "1":
+            return None
+        base = self.registry_url.rsplit("/", 1)[0]
+        url = base + "/ratings.json"
+        try:
+            import requests
+
+            resp = requests.get(url, timeout=timeout, headers=self._registry_headers())
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        try:
+            import urllib.request
+
+            req = urllib.request.Request(url, headers=self._registry_headers())
+            with urllib.request.urlopen(req, timeout=timeout) as f:
+                return json.loads(f.read().decode("utf-8"))
+        except Exception:
+            return None
+
     def fetch_registry(
         self, force: bool = False, cache_first: bool = False
     ) -> Optional[Dict[str, Any]]:
