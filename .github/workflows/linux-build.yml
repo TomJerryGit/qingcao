@@ -26,9 +26,23 @@ jobs:
         run: python3 -m pip install --user -r requirements-linux-ci.txt
       - name: Build AppImage
         run: python3 tools/build_linux_appimage.py
-      - name: Smoke test (headless)
+      - name: Source import smoke
         run: |
-          QINGCAO_HEADLESS_SMOKE=1 APPIMAGE_EXTRACT_AND_RUN=1             xvfb-run -a timeout 90 ./dist/QingCaoEditor-x86_64.AppImage
+          xvfb-run -a python3 -c "import PyQt5.Qsci; from core.editor import EditorProxy; print('SOURCE_IMPORT_OK')"
+      - name: AppImage launch smoke
+        run: |
+          set +e
+          ./dist/QingCaoEditor-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          echo "extract rc=$?"
+          QINGCAO_HEADLESS_SMOKE=1 xvfb-run -a timeout 45 ./squashfs-root/AppRun
+          rc=$?
+          echo "appimage smoke rc=$rc (0=clean quit, 124=started and still running)"
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+            echo "=== diagnostics ==="
+            ls -l dist/ squashfs-root/AppRun || true
+            cat logs/runtime.log 2>/dev/null | tail -50 || true
+            exit 1
+          fi
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:

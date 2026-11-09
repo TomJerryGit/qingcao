@@ -17,6 +17,7 @@ def test_linux_build_wiring():
     assert "build_linux_appimage.py" in yml
     assert "QingCaoEditor-x86_64.AppImage" in yml
     assert "python3-pyqt5.qsci" in yml
+    assert "AppImage launch smoke" in yml
 
 
 def test_smoke_hook():
