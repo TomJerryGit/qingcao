@@ -2,6 +2,11 @@
 
 ### 新增
 
+- **终端交互 PTY 模式**：`PTY` 按钮新建持续 shell 标签（输入即写入、ANSI 实时渲染、Ctrl+C 中断、尺寸同步）；无 pywinpty 自动回退单命令；多标签兼容。
+
+
+### 新增
+
 - **CI flaky 面包屑与频率门禁（D5）**：`data/test_shards/last_stage.json` 阶段记录；历史含 crash_codes/localized；`ci_flaky_report --check --max-7d 3` 入 CI。
 
 

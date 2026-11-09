@@ -10,8 +10,16 @@ import os
 import re
 import sys
 
-from PyQt5.QtCore import QProcess, Qt
+from PyQt5.QtCore import QProcess, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont
+
+
+try:
+    from ui.pty_session import HAS_WINPTY, PtySession
+except Exception:  # pragma: no cover
+    HAS_WINPTY = False
+    PtySession = None
+
 from PyQt5.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -123,7 +131,9 @@ class HistoryLineEdit(QLineEdit):
 
 
 class TerminalTab(QWidget):
-    """单标签终端（独立进程与 cwd）"""
+    """单命令终端标签（独立进程与 cwd）"""
+
+    kind = "oneshot"
 
     def __init__(self, cwd, parent=None):
         super().__init__(parent)
@@ -254,6 +264,141 @@ class TerminalTab(QWidget):
         self._proc = None
 
 
+class PtyLineEdit(HistoryLineEdit):
+    """PTY 输入框：Ctrl+C 发送中断（\\x03）。"""
+
+    interrupt_requested = pyqtSignal()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_C and event.modifiers() & Qt.ControlModifier:
+            self.interrupt_requested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
+class PtyTerminalTab(QWidget):
+    """交互式 PTY 终端标签（持续 shell 会话）。"""
+
+    kind = "pty"
+
+    def __init__(self, cwd, parent=None):
+        super().__init__(parent)
+        shell = ["cmd.exe"] if sys.platform == "win32" else ["/bin/sh"]
+        workdir = cwd if cwd and os.path.isdir(cwd) else None
+        self._session = PtySession(argv=shell, cwd=workdir)
+        self._cwd = cwd
+        self._proc = None
+        self.interrupts = 0
+
+        vbox = QVBoxLayout(self)
+        vbox.setContentsMargins(4, 4, 4, 4)
+        vbox.setSpacing(4)
+
+        row = QHBoxLayout()
+        mode = QLabel("交互 PTY")
+        mode.setStyleSheet("color: #7ec850; font-size: 11px;")
+        row.addWidget(mode)
+        self.cwd_label = QLabel(cwd or "")
+        self.cwd_label.setStyleSheet("color: #888; font-size: 11px;")
+        row.addWidget(self.cwd_label, 1)
+        clear_btn = QPushButton("清屏")
+        clear_btn.setFixedWidth(60)
+        clear_btn.clicked.connect(self.clear_output)
+        row.addWidget(clear_btn)
+        copy_btn = QPushButton("复制")
+        copy_btn.setFixedWidth(60)
+        copy_btn.clicked.connect(self.copy_output)
+        row.addWidget(copy_btn)
+        vbox.addLayout(row)
+
+        self.output = QTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setFont(QFont("Consolas", 10))
+        self.output.setStyleSheet(
+            "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }"
+        )
+        vbox.addWidget(self.output, 1)
+
+        inrow = QHBoxLayout()
+        prompt = QLabel("$")
+        prompt.setStyleSheet("color: #7ec850; font-weight: bold;")
+        inrow.addWidget(prompt)
+        self.input = PtyLineEdit()
+        self.input.setPlaceholderText("交互模式：输入命令回车，Ctrl+C 中断")
+        self.input.returnPressed.connect(self.run_command)
+        self.input.interrupt_requested.connect(self.send_interrupt)
+        inrow.addWidget(self.input, 1)
+        run_btn = QPushButton("发送")
+        run_btn.setFixedWidth(60)
+        run_btn.clicked.connect(self.run_command)
+        inrow.addWidget(run_btn)
+        vbox.addLayout(inrow)
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._drain)
+        self._timer.start(50)
+
+    def _append_ansi(self, text):
+        if not text:
+            return
+        self.output.moveCursor(self.output.textCursor().End)
+        self.output.insertHtml(ansi_to_html(text))
+        self.output.ensureCursorVisible()
+
+    def _drain(self):
+        try:
+            data = self._session.read_available()
+        except Exception:
+            return
+        if data:
+            self._append_ansi(data)
+
+    def run_command(self):
+        text = self.input.text()
+        self.input.add_history(text)
+        self.input.clear()
+        self._session.write(text + "\r\n")
+
+    def send_interrupt(self):
+        self.interrupts += 1
+        try:
+            self._session.write("\x03")
+        except Exception:
+            pass
+
+    def clear_output(self):
+        self.output.clear()
+
+    def copy_output(self):
+        try:
+            from PyQt5.QtWidgets import QApplication
+
+            QApplication.clipboard().setText(self.output.toPlainText())
+        except Exception:
+            pass
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        try:
+            fm = self.output.fontMetrics()
+            rows = max(5, self.output.height() // max(1, fm.height()))
+            cols = max(20, self.output.width() // max(1, fm.horizontalAdvance("M")))
+            self._session._proc.setwinsize(rows, cols)
+        except Exception:
+            pass
+
+    def terminate(self):
+        try:
+            self._timer.stop()
+        except Exception:
+            pass
+        try:
+            self._session.close()
+        except Exception:
+            pass
+
+
 class TerminalPanel(QDockWidget):
     def __init__(self, main_window=None):
         super().__init__("终端", main_window)
@@ -263,11 +408,21 @@ class TerminalPanel(QDockWidget):
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
+        corner = QWidget()
+        corner_row = QHBoxLayout(corner)
+        corner_row.setContentsMargins(0, 0, 4, 0)
+        corner_row.setSpacing(2)
         add_btn = QToolButton()
         add_btn.setText("+")
-        add_btn.setToolTip("新建终端标签")
+        add_btn.setToolTip("新建单命令终端标签")
         add_btn.clicked.connect(lambda: self.add_tab())
-        self.tabs.setCornerWidget(add_btn, Qt.TopRightCorner)
+        corner_row.addWidget(add_btn)
+        pty_btn = QToolButton()
+        pty_btn.setText("PTY")
+        pty_btn.setToolTip("新建交互式 PTY 标签（不可用时回退单命令）")
+        pty_btn.clicked.connect(lambda: self.add_tab(pty=True))
+        corner_row.addWidget(pty_btn)
+        self.tabs.setCornerWidget(corner, Qt.TopRightCorner)
         self.setWidget(self.tabs)
         self.add_tab()
         self.resize(760, 260)
@@ -311,9 +466,25 @@ class TerminalPanel(QDockWidget):
             self._tab.copy_output()
 
     # ---------- 多标签 ----------
-    def add_tab(self, cwd=None):
-        tab = TerminalTab(cwd or self._default)
-        idx = self.tabs.addTab(tab, "终端 %d" % (self.tabs.count() + 1))
+    def add_tab(self, cwd=None, pty=False):
+        """新增标签；pty=True 时创建交互式 PTY（不可用自动回退）。"""
+        tab = None
+        label = None
+        if pty:
+            if HAS_WINPTY and PtySession is not None:
+                try:
+                    tab = PtyTerminalTab(cwd or self._default)
+                    label = "PTY %d" % (self.tabs.count() + 1)
+                except Exception as e:
+                    print("[terminal] PTY 启动失败，回退单命令模式:", e)
+            if tab is None:
+                tab = TerminalTab(cwd or self._default)
+                tab.setToolTip("PTY 不可用，已回退单命令模式")
+                label = "终端 %d（回退）" % (self.tabs.count() + 1)
+        else:
+            tab = TerminalTab(cwd or self._default)
+            label = "终端 %d" % (self.tabs.count() + 1)
+        idx = self.tabs.addTab(tab, label)
         self.tabs.setCurrentIndex(idx)
         tab.input.setFocus()
         return tab
