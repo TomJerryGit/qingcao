@@ -1789,6 +1789,12 @@ def main():
     # 20. 进入事件循环
     # --------------------------------------------------------
     logger.info("即将进入事件循环")
+    if os.environ.get("QINGCAO_HEADLESS_SMOKE") == "1":
+        # CI/AppImage 冒烟：启动流程跑通后自动退出
+        from PyQt5.QtCore import QTimer
+
+        QTimer.singleShot(2500, app.quit)
+
     exit_code = app.exec_()
     logger.info(f"事件循环结束，exit_code={exit_code}")
 

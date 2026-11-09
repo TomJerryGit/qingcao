@@ -1,4 +1,4 @@
-## [Unreleased]
+## [Unreleased]\n\n### 新增\n\n- **Linux AppImage 构建（P1-3）**：Ubuntu 22.04 工作流 + PyInstaller/AppImage 打包 + 无头冒烟；产物 `QingCaoEditor-x86_64.AppImage`（CI artifact / tag 自动上传）。\n
 
 ### 新增
 

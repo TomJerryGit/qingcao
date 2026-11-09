@@ -1,0 +1,41 @@
+name: Linux Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/build_linux_appimage.py"
+      - ".github/workflows/linux-build.yml"
+      - "main.py"
+      - "requirements-linux-ci.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pyqt5 python3-pyqt5.qsci             python3-pyqt5.qtmultimedia xvfb libgl1 libegl1             libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0             libxcb-keysyms1 libxcb-randr0 libxcb-render-util0             libxcb-shape0 libxcb-xinerama0 libxcb-cursor0 fonts-dejavu-core
+      - name: Install Python deps
+        run: python3 -m pip install --user -r requirements-linux-ci.txt
+      - name: Build AppImage
+        run: python3 tools/build_linux_appimage.py
+      - name: Smoke test (headless)
+        run: |
+          QINGCAO_HEADLESS_SMOKE=1 APPIMAGE_EXTRACT_AND_RUN=1             xvfb-run -a timeout 90 ./dist/QingCaoEditor-x86_64.AppImage
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QingCaoEditor-x86_64.AppImage
+          path: dist/QingCaoEditor-x86_64.AppImage
+      - name: Attach to release (tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/QingCaoEditor-x86_64.AppImage --clobber
