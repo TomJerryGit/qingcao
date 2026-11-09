@@ -33,8 +33,8 @@
 | `core/editor.py` | 3,920 行 | ≤1,500 | `editor_core.py`（文本/光标）、`editor_syntax.py`（高亮/折叠）、`editor_save.py`（保存/mmap 接线）、`editor_diag.py`（诊断/LSP） |
 | `ui/main_window.py` | 3,267 行 | ≤1,200 | 菜单→`menu_builder_mixin`（已部分）、面板→`panel_registry_mixin`、窗口生命周期→`window_lifecycle_mixin`、初始化→`startup_mixin` |
 | `ui/plugin_store.py` | 2,963 行 | ≤1,500 | `plugin_client.py`（网络/缓存/签名）、`plugin_detail.py`（详情/评分 UI）、`plugin_store.py`（列表/安装/更新） |
-| `app/plugins.py` | 2,553 行 | ≤1,200 | 注册表/生命周期/加载器分离 |
-| `infrastructure/theme_loader.py` | 2,354 行 | ≤1,200 | 主题模型/加载/应用/校验分离 |
+| `app/plugins.py` | 2,553 → **217 行** ✅ | ≤1,200 | PluginAPI → `app/plugin_api.py`（2109） |
+| `infrastructure/theme_loader.py` | 2,355 → **1,314 行** ✅ | ≤1,200 | 模型/内置主题 → `theme_model.py`（828） |
 
 **验收**：拆分后单文件行数达标；对外 API 不变；全量测试绿；新增拆分模块边界测试；性能无回归。
 **风险**：Mixin 方法引用链断裂 → 先加"符号引用"测试，分文件提交，每步跑全量。

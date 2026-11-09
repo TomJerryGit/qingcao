@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 重构
+
+- **`app/plugins.py` 拆分**：2553 → 217 行（PluginAPI → `app/plugin_api.py`）；
+- **`infrastructure/theme_loader.py` 拆分**：2355 → 1314 行（模型/内置主题 → `theme_model.py` 828 行）；巨石拆分目标全部完成。
+
+
 ### 新增
 
 - **终端交互 PTY 模式**：`PTY` 按钮新建持续 shell 标签（输入即写入、ANSI 实时渲染、Ctrl+C 中断、尺寸同步）；无 pywinpty 自动回退单命令；多标签兼容。
