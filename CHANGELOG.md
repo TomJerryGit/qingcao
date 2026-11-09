@@ -1,4 +1,9 @@
-## [Unreleased]\n\n### 新增\n\n- **Linux AppImage 构建（P1-3）**：Ubuntu 22.04 工作流 + PyInstaller/AppImage 打包 + 无头冒烟；产物 `QingCaoEditor-x86_64.AppImage`（CI artifact / tag 自动上传）。\n
+## [Unreleased]
+
+### 文档
+
+- **v2.23.0 审计与评价报告**：综合 8.0/10；无 P0；5 项 P1（注册表重发、性能门禁、插件信任边界、巨型文件回潮、上传重试）。详见 `docs/audit_v2.23.0.md`。
+\n\n### 新增\n\n- **Linux AppImage 构建（P1-3）**：Ubuntu 22.04 工作流 + PyInstaller/AppImage 打包 + 无头冒烟；产物 `QingCaoEditor-x86_64.AppImage`（CI artifact / tag 自动上传）。\n
 
 ### 新增
 

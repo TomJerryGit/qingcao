@@ -8,7 +8,9 @@
 
 ## 最近阶段面包屑
 
-暂无 `data/test_shards/last_stage.json`。
+| 时间 | 阶段 | 详情 |
+|---|---|---|
+| 2026-11-09 15:02:59 | done | shards=2, files=156 |
 
 ## 可疑文件 Top
 
