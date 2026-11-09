@@ -116,11 +116,33 @@ def compose_body(body: str, zip_path: str, sha_path: str, prev_size: float = Non
     return body.rstrip() + "\n" + "\n".join(lines) + "\n"
 
 
-def needed_asset_names(version: str):
-    return [
+def sign_release_zip(zip_path: str):
+    """有签名私钥时生成 <zip>.sig；无密钥返回 None（保持兼容）。"""
+    key = (os.environ.get("QINGCAO_PLUGIN_SIGN_KEY") or "").strip()
+    if not key or not os.path.exists(zip_path):
+        return None
+    try:
+        from sign_plugin import sign_bytes
+
+        data = open(zip_path, "rb").read()
+        sig_path = zip_path + ".sig"
+        with open(sig_path, "w", encoding="ascii", newline="\n") as f:
+            f.write(sign_bytes(data, key))
+        print("[release] 已签名安装包: %s" % os.path.basename(sig_path))
+        return sig_path
+    except Exception as e:
+        print("[release] 安装包签名失败（跳过）:", e)
+        return None
+
+
+def needed_asset_names(version: str, signed: bool = False):
+    names = [
         "QingCaoEditor-v%s-windows.zip" % version,
         "QingCaoEditor-v%s-windows.zip.sha256.txt" % version,
     ]
+    if signed:
+        names.append("QingCaoEditor-v%s-windows.zip.sig" % version)
+    return names
 
 
 def api_request(
@@ -207,9 +229,11 @@ def main():
     tag = args.tag or ("v" + version)
     notes = notes_path(tag)
     zip_path, sha_path = asset_paths(version)
+    sig_path = sign_release_zip(zip_path)
+    assets = [p for p in (zip_path, sha_path, sig_path) if p]
     print("[release] version=%s tag=%s" % (version, tag))
     print("[release] notes=%s" % os.path.relpath(notes, ROOT))
-    for p in (zip_path, sha_path):
+    for p in assets:
         print("[release] asset %s 存在=%s" % (os.path.basename(p), os.path.exists(p)))
     if args.dry_run:
         print("[release] dry-run 结束")
@@ -218,7 +242,7 @@ def main():
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     if not token or not repo:
         raise SystemExit("[release] 缺少 GH_TOKEN / GITHUB_REPOSITORY")
-    for p in (zip_path, sha_path):
+    for p in assets:
         if not os.path.exists(p):
             raise SystemExit("[release] 缺少资产: %s" % p)
     with open(notes, encoding="utf-8") as f:
@@ -251,8 +275,8 @@ def main():
     if not rel_id:
         raise SystemExit("[release] Release id 缺失: %r" % (rel,))
     existing = {a.get("name") for a in (rel.get("assets") or []) if int(a.get("size") or 0) > 0}
-    needed = needed_asset_names(version)
-    for p in (zip_path, sha_path):
+    needed = needed_asset_names(version, signed=bool(sig_path))
+    for p in assets:
         name = os.path.basename(p)
         if name in existing:
             print("[release] 资产已存在，跳过: %s" % name)

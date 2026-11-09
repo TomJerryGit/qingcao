@@ -81,6 +81,7 @@ jobs:
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
+          QINGCAO_PLUGIN_SIGN_KEY: ${{ secrets.QINGCAO_PLUGIN_SIGN_KEY }}
         run: |
           $ErrorActionPreference = "Continue"
           $out = "D:\actions-runner\publish_utf8.log"

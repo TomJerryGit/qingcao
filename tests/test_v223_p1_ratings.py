@@ -16,7 +16,8 @@ def _load(name, rel):
 
 def test_publish_builds_ratings(tmp_path):
     mod, root = _load("qc_pub_rat", "tools/publish_registry_release.py")
-    path, data = mod.build_ratings(str(tmp_path))
+    path, data, sig = mod.build_ratings(str(tmp_path))
+    assert sig is None
     assert path.endswith("ratings.json")
     assert os.path.isfile(path)
     assert data["version"] == 1
@@ -25,17 +26,29 @@ def test_publish_builds_ratings(tmp_path):
 
 
 def test_client_fetch_and_cache(monkeypatch):
+    import json as _json
+
+    from sign_plugin import generate_keypair, sign_bytes
+
     from ui import plugin_client as pc
+
+    payload = _json.dumps({"plugins": {"demo": {"average": 4.5, "count": 2}}}).encode("utf-8")
+    priv, pub = generate_keypair()
+    sig = sign_bytes(payload, priv).encode("ascii")
+    monkeypatch.setenv("QINGCAO_PLUGIN_PUBKEYS", pub)
 
     class Resp:
         status_code = 200
 
-        def json(self):
-            return {"plugins": {"demo": {"average": 4.5, "count": 2}}}
+        def __init__(self, content):
+            self.content = content
 
     import requests
 
-    monkeypatch.setattr(requests, "get", lambda *a, **k: Resp())
+    def fake_get(url, **kw):
+        return Resp(sig if url.endswith(".sig") else payload)
+
+    monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.delenv("QINGCAO_NO_COMMUNITY_RATINGS", raising=False)
     client = pc.PluginStoreClient("https://example/reg/registry.json")
     data = client.fetch_ratings()

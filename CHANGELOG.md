@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### 安全
+
+- **插件安装/更新风险分级确认**：高权限（process/terminal/debugger）默认拒绝，需显式确认；
+- **ratings.json 签名闭环**：发布端自动签名，客户端 fail-closed 验签；
+- **安装包 Ed25519 签名**：`tools/sign_update_asset.py` + CI 自动签名上传 `.sig`；
+- **CI pip-audit 安全扫描**（非阻断初版）；权限矩阵测试。
+
+
 ### 优化
 
 - **性能门禁收紧**：有效容差 2×~4×（原最低 5×、最高 20×）+ 分级硬上限；

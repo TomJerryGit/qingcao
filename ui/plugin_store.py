@@ -871,6 +871,9 @@ class PluginStoreDialog(QDialog):
                         "该插件与当前版本不兼容，已取消：\n\n" + _reason)
                     return
         安装插件"""
+        if not self._confirm_risk(info, "安装"):
+            return
+
         # 检查依赖
         satisfied, missing = info.get_dependency_status()
         if not satisfied:
@@ -917,6 +920,26 @@ class PluginStoreDialog(QDialog):
         else:
             QMessageBox.critical(self, "安装失败", msg)
 
+    def _confirm_risk(self, info, action="安装"):
+        """高权限插件安装/更新前的显式确认（默认拒绝高风险）。"""
+        try:
+            from core.plugin_risk import classify_plugin_risk, risk_message
+
+            level = classify_plugin_risk(
+                getattr(info, "permissions", []),
+                sandboxed=bool(getattr(info, "sandbox", False)),
+            )
+            if level == "low":
+                return True
+            title, msg, _level = risk_message(info, action)
+            default = QMessageBox.No if level == "high" else QMessageBox.Yes
+            reply = QMessageBox.question(
+                self, title, msg, QMessageBox.Yes | QMessageBox.No, default
+            )
+            return reply == QMessageBox.Yes
+        except Exception:
+            return False
+
     def _on_uninstall(self, info: PluginInfo):
         """卸载插件"""
         reply = QMessageBox.question(
@@ -949,6 +972,8 @@ class PluginStoreDialog(QDialog):
                         "该插件与当前版本不兼容，已取消：\n\n" + _reason)
                     return
         更新插件"""
+        if not self._confirm_risk(info, "更新"):
+            return
         progress_dlg = InstallProgressDialog(info.display_title, self)
         progress_dlg.show()
 

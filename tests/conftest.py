@@ -19,6 +19,9 @@ import sys as _sys
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in _sys.path:
     _sys.path.insert(0, _TESTS_DIR)
+_TOOLS_DIR = os.path.join(os.path.dirname(_TESTS_DIR), "tools")
+if _TOOLS_DIR not in _sys.path:
+    _sys.path.insert(0, _TOOLS_DIR)
 
 
 # 关键：让 pytest-qt 使用 PyQt5，与项目代码一致

@@ -548,25 +548,43 @@ class PluginStoreClient:
     # 远程注册表
     # --------------------------------------------------------
     def fetch_ratings(self, timeout=5):
-        """拉取静态 ratings.json（失败/离线返回 None，不阻塞市场）。"""
+        """拉取并验签静态 ratings.json；失败/无效返回 None（fail-closed）。"""
         if os.environ.get("QINGCAO_NO_COMMUNITY_RATINGS") == "1":
             return None
         base = self.registry_url.rsplit("/", 1)[0]
         url = base + "/ratings.json"
-        try:
-            import requests
 
-            resp = requests.get(url, timeout=timeout, headers=self._registry_headers())
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-        try:
-            import urllib.request
+        def _get(target):
+            try:
+                import requests
 
-            req = urllib.request.Request(url, headers=self._registry_headers())
-            with urllib.request.urlopen(req, timeout=timeout) as f:
-                return json.loads(f.read().decode("utf-8"))
+                resp = requests.get(target, timeout=timeout, headers=self._registry_headers())
+                if resp.status_code == 200:
+                    return resp.content
+            except Exception:
+                pass
+            try:
+                import urllib.request
+
+                req = urllib.request.Request(target, headers=self._registry_headers())
+                with urllib.request.urlopen(req, timeout=timeout) as f:
+                    return f.read()
+            except Exception:
+                return None
+
+        raw = _get(url)
+        if not raw:
+            return None
+        sig = _get(url + ".sig")
+        if not sig:
+            return None
+        try:
+            from core.plugin_signature import verify_ed25519
+
+            ok, _msg = verify_ed25519(raw, sig.decode("ascii", "ignore").strip())
+            if not ok:
+                return None
+            return json.loads(raw.decode("utf-8"))
         except Exception:
             return None
 
