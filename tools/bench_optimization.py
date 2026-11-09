@@ -142,6 +142,38 @@ def system_load_factor() -> float:
         return 1.0
 
 
+MIN_EFFECTIVE_FACTOR = 2.0
+MAX_EFFECTIVE_FACTOR = 4.0
+
+HARD_LIMITS = {
+    "mainwindow": 1.5,
+    "plugin_ready_after": 3.0,
+    "open_50mb": 8.0,
+    "session_save": 1.0,
+    "theme_notify": 2.0,
+}
+
+
+def effective_factor(requested, auto):
+    """有效容差：最低 2×，最高 4×（避免自动负载系数无限放大门禁）。"""
+    base = max(float(requested), MIN_EFFECTIVE_FACTOR)
+    return round(min(base * float(auto), MAX_EFFECTIVE_FACTOR), 2)
+
+
+def evaluate_results(results, factor, hard_limits=None):
+    """返回超限项 (name, value, limit, kind)。"""
+    problems = []
+    for name, limit in {k: v * factor for k, v in THRESHOLDS.items()}.items():
+        val = results.get(name)
+        if val is not None and val > limit:
+            problems.append((name, val, limit, "threshold"))
+    for name, cap in (hard_limits or HARD_LIMITS).items():
+        val = results.get(name)
+        if val is not None and val > cap:
+            problems.append((name, val, cap, "hard"))
+    return problems
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="超阈值返回非零退出码")
@@ -156,8 +188,7 @@ def main():
 
     if args.auto:
         auto = system_load_factor()
-        base = max(args.factor, 5.0)  # 最低有效容差 5×，避免空闲 Runner 噪声误报
-        args.factor = round(base * auto, 2)
+        args.factor = effective_factor(args.factor, auto)
         print("  [auto] 系统负载系数 %.2f -> 有效容差 %.2f" % (auto, args.factor))
 
     from ui.main_window import MainWindow  # noqa: E402
@@ -356,16 +387,20 @@ def main():
         pass
 
     section("结果汇总")
-    problems = []
+    problems = evaluate_results(RESULTS, args.factor)
+    hard = {p[0] for p in problems if p[3] == "hard"}
     for name, limit in {k: v * args.factor for k, v in THRESHOLDS.items()}.items():
         val = RESULTS.get(name)
         if val is None:
             continue
         mark = "OK"
-        if val > limit:
+        if any(p[0] == name for p in problems):
             mark = "FAIL"
-            problems.append((name, val, limit))
         print("  %-24s %8.3f s   阈值 %5.2f s   %s" % (name, val, limit, mark))
+    for name, cap in HARD_LIMITS.items():
+        if name in RESULTS:
+            mark = "FAIL" if name in hard else "OK"
+            print("  %-24s 硬上限 %5.2f s   %s" % (name, cap, mark))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as f:
@@ -376,8 +411,8 @@ def main():
 
     if problems:
         print("\n  性能回归 %d 项:" % len(problems))
-        for name, val, limit in problems:
-            print("    - %s: %.3f s > %.2f s" % (name, val, limit))
+        for name, val, limit, kind in problems:
+            print("    - %s: %.3f s > %.2f s (%s)" % (name, val, limit, kind))
         return 1 if args.check else 0
     print("\n  全部在阈值内")
     return 0

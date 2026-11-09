@@ -122,6 +122,19 @@ class EditorLoadingMixin:
         self._load_aborted = False
         self._load_cursor = 0
         self._load_total = total
+        self._viewport_ready = False
+        self._deferred_loading = False
+        self._viewport_prefix_blocks = 0
+
+        # ---- 策略 0：视口优先加载（原型，显式开启）----
+        if os.environ.get("QINGCAO_VIEWPORT_LOAD") == "1":
+            try:
+                _vmb = int(os.environ.get("QINGCAO_VIEWPORT_THRESHOLD_MB", "8"))
+            except ValueError:
+                _vmb = 8
+            if provider.size > _vmb * 1024 * 1024:
+                self._load_viewport_prefix(provider, total)
+                return
 
         # ---- 策略 1：中小文件一次性 setText（最快）----
         if provider.size <= self._SYNC_LOAD_LIMIT:
@@ -150,6 +163,7 @@ class EditorLoadingMixin:
                         except (TypeError, RuntimeError):
                             pass
                 self._load_cursor = total
+                self._viewport_ready = True
                 self.load_progress.emit(total, total)
                 return
             except Exception as e:
@@ -158,6 +172,76 @@ class EditorLoadingMixin:
         # ---- 策略 2：超大文件几何递增批量 append（O(log n) 次）----
         self._load_batch_blocks = 1  # 以"块数"为批量单位
         QTimer.singleShot(0, self._load_chunk_slice)
+
+    _VIEWPORT_PREFIX_BYTES = 2 * 1024 * 1024
+
+    def _load_viewport_prefix(self, provider, total):
+        """视口优先：只同步加载前 N 块立即显示，其余后台补齐（原型）。"""
+        try:
+            _pmb = int(os.environ.get("QINGCAO_VIEWPORT_PREFIX_MB", "2"))
+        except ValueError:
+            _pmb = 2
+        target = max(1, _pmb) * 1024 * 1024
+        bs = max(1, int(getattr(provider, "block_size", 65536)))
+        n = max(1, min(int(total), (target + bs - 1) // bs))
+        parts = [provider.decode(provider.read_block(i)) for i in range(n)]
+        text = "".join(parts)
+        _disc = False
+        try:
+            self.sc.SCN_MODIFIED.disconnect(self._on_scintilla_modified)
+            _disc = True
+        except (TypeError, RuntimeError):
+            pass
+        try:
+            self.sc.setText(text)
+        finally:
+            if _disc:
+                try:
+                    self.sc.SCN_MODIFIED.connect(self._on_scintilla_modified)
+                except (TypeError, RuntimeError):
+                    pass
+        self._load_cursor = n
+        self._viewport_prefix_blocks = n
+        self._viewport_ready = True
+        self._deferred_loading = True
+        self.load_progress.emit(n, int(total))
+        QTimer.singleShot(0, self._finish_viewport_load)
+
+    def _finish_viewport_load(self):
+        """视口首屏后一次性补齐剩余内容（原型）。"""
+        try:
+            provider = self.document.provider
+            total = int(getattr(self, "_load_total", 0) or 0)
+            current = int(getattr(self, "_load_cursor", 0) or 0)
+            if not total or current >= total:
+                self._deferred_loading = False
+                return
+            parts = [provider.decode(provider.read_block(i)) for i in range(current, total)]
+            _disc = False
+            try:
+                self.sc.SCN_MODIFIED.disconnect(self._on_scintilla_modified)
+                _disc = True
+            except (TypeError, RuntimeError):
+                pass
+            try:
+                self.sc.append("".join(parts))
+            finally:
+                if _disc:
+                    try:
+                        self.sc.SCN_MODIFIED.connect(self._on_scintilla_modified)
+                    except (TypeError, RuntimeError):
+                        pass
+            self._load_cursor = total
+            self._deferred_loading = False
+            self._modified = False
+            try:
+                self.sc.setModified(False)
+            except Exception:
+                pass
+            self.load_progress.emit(total, total)
+        except Exception as e:
+            self._deferred_loading = False
+            print("[viewport] 补齐失败:", e)
 
     def _load_chunk_slice(self):
         """时间片 + **几何递增批量** append（超大文件专用）
@@ -191,7 +275,24 @@ class EditorLoadingMixin:
                 parts = []
                 for i in range(current, current + n):
                     parts.append(provider.decode(provider.read_block(i)))
-                self.sc.append("".join(parts))
+                chunk = "".join(parts)
+                if getattr(self, "_deferred_loading", False):
+                    _disc = False
+                    try:
+                        self.sc.SCN_MODIFIED.disconnect(self._on_scintilla_modified)
+                        _disc = True
+                    except (TypeError, RuntimeError):
+                        pass
+                    try:
+                        self.sc.append(chunk)
+                    finally:
+                        if _disc:
+                            try:
+                                self.sc.SCN_MODIFIED.connect(self._on_scintilla_modified)
+                            except (TypeError, RuntimeError):
+                                pass
+                else:
+                    self.sc.append(chunk)
                 current += n
                 self._load_cursor = current
                 # 下一轮批量翻倍（上限见常量），把 append 次数压到 O(log n)
@@ -199,6 +300,13 @@ class EditorLoadingMixin:
                 if time.perf_counter() - slice_start >= self._LOAD_SLICE_SECONDS:
                     break
             self.load_progress.emit(current, total)
+            if current >= total and getattr(self, "_deferred_loading", False):
+                self._deferred_loading = False
+                self._modified = False
+                try:
+                    self.sc.setModified(False)
+                except Exception:
+                    pass
             if current < total:
                 QTimer.singleShot(0, self._load_chunk_slice)
         except Exception as e:

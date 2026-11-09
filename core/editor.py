@@ -474,6 +474,8 @@ class EditorProxy(
         """
         if self._undoing or self._restoring:
             return
+        if getattr(self, "_deferred_loading", False):
+            return
 
         # 删除**之前**的通知：此时缓冲区里还有被删内容，先暂存下来。
         #
