@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+（下一版本开发中）
+
+## [2.23.0] - 2026-11-09
+
 ### 重构
 
 - **`app/plugins.py` 拆分**：2553 → 217 行（PluginAPI → `app/plugin_api.py`）；
