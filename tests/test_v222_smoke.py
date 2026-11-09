@@ -20,7 +20,7 @@ def test_smoke_i18n_and_market():
     mod, _root = _load()
     mod.results.clear()
     mod.smoke_i18n()
-    mod.smoke_market()
+    mod.smoke_market(offline=True)
     assert mod.results
     assert all(ok for _, ok, _ in mod.results), mod.results
 
