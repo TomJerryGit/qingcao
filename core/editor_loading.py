@@ -126,15 +126,16 @@ class EditorLoadingMixin:
         self._deferred_loading = False
         self._viewport_prefix_blocks = 0
 
-        # ---- 策略 0：视口优先加载（原型，显式开启）----
-        if os.environ.get("QINGCAO_VIEWPORT_LOAD") == "1":
-            try:
-                _vmb = int(os.environ.get("QINGCAO_VIEWPORT_THRESHOLD_MB", "8"))
-            except ValueError:
-                _vmb = 8
-            if provider.size > _vmb * 1024 * 1024:
-                self._load_viewport_prefix(provider, total)
-                return
+        # ---- 策略 0：视口优先加载（v2.24.x 默认自动开启）----
+        # QINGCAO_VIEWPORT_LOAD=0 可禁用；默认对 >32MB 文件启用。
+        _vflag = os.environ.get("QINGCAO_VIEWPORT_LOAD", "auto")
+        try:
+            _vmb = int(os.environ.get("QINGCAO_VIEWPORT_THRESHOLD_MB", "32"))
+        except ValueError:
+            _vmb = 32
+        if _vflag != "0" and provider.size > _vmb * 1024 * 1024:
+            self._load_viewport_prefix(provider, total)
+            return
 
         # ---- 策略 1：中小文件一次性 setText（最快）----
         if provider.size <= self._SYNC_LOAD_LIMIT:
