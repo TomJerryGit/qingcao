@@ -296,6 +296,16 @@ def main():
     # --------------------------------------------------------
     # 17. 显示主窗口
     # --------------------------------------------------------
+    # 菜单默认快捷键兜底（v2.24.x UX）
+    try:
+        from ui.default_shortcuts import apply_default_shortcuts
+
+        _n = apply_default_shortcuts(window)
+        if _n:
+            logger.info("已补齐 %d 个默认快捷键", _n)
+    except Exception:
+        pass
+
     window.show()
 
     # 首启向导（v2.24.x UX；无头冒烟时跳过）
