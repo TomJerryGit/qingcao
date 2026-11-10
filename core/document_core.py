@@ -1,0 +1,1415 @@
+# -*- coding: utf-8 -*-
+# ruff: noqa: F401, F403, F405, UP006, UP045, UP035, UP007
+"""Document 核心类（v2.24 从 document.py 拆出）。"""
+
+from __future__ import annotations
+
+from core.document_common import *  # noqa: F401,F403,F405
+
+
+class Document(QObject):
+    """
+    文档对象。
+
+    封装一个内容提供者（ContentProvider）和文档元数据。
+    提供行索引、书签、折叠、修改追踪等高级功能。
+
+    信号:
+        modified_changed(bool): 修改状态变更
+        saved(str): 保存成功（文件路径）
+        reloaded(str): 重新加载（文件路径）
+        encoding_changed(str, str): 编码变更（旧, 新）
+        external_change_detected(str): 检测到外部修改
+        bookmarks_changed(): 书签变更
+        folds_changed(): 折叠状态变更
+    """
+
+    modified_changed = pyqtSignal(bool)
+    saved = pyqtSignal(str)
+    reloaded = pyqtSignal(str)
+    encoding_changed = pyqtSignal(str, str)
+    external_change_detected = pyqtSignal(str)
+    # 文档关联的文件路径发生变化（另存为）
+    #
+    # 为什么需要（INV-L1/L2 修复）：
+    #   另存为会更新 `meta.filepath`，但**依赖路径的外部状态**（例如
+    #   EditorProxy 的 LSP document URI）必须同步更新。原先没有任何通知
+    #   机制，只能在某个具体入口里手动补 —— 而"另存为"存在多条入口
+    #   （`EditorProxy.save_file(path)`、`Document.save(path)`），
+    #   漏掉任何一条就会出现"内容存到新文件、LSP 仍操作旧文档"。
+    #   改为由 Document 在路径真正变化时**统一广播**，调用方无需各自记得。
+    filepath_changed = pyqtSignal(str)
+    bookmarks_changed = pyqtSignal()
+    folds_changed = pyqtSignal()
+
+    def __init__(
+        self, provider: Optional[ContentProvider] = None, parent: Optional[QObject] = None
+    ):
+        super().__init__(parent)
+
+        # 内容提供者
+        self.provider: Optional[ContentProvider] = provider
+
+        # 元数据
+        self.meta: DocumentMetadata = DocumentMetadata()
+
+        # 状态
+        self._state: DocumentState = DocumentState.NEW
+
+        # 书签（行号集合）
+        self._bookmarks: set = set()
+
+        # 折叠状态（行号集合）
+        self._folded_lines: set = set()
+
+        # 行索引缓存（行号 -> 起始字符位置）
+        self._line_index: Optional[List[int]] = None
+        self._line_index_dirty: bool = True
+
+        # 文件监听器
+        self._file_watcher: Optional[QFileSystemWatcher] = None
+
+        # 草稿自动保存定时器
+        self._draft_timer = QTimer(self)
+        self._draft_timer.setInterval(AUTO_SAVE_DRAFT_INTERVAL * 1000)
+        self._draft_timer.timeout.connect(self._save_draft)
+
+        # 关联的编辑器（弱引用）
+        self._editors: List[Any] = []
+
+    # ========================================================
+    # 打开与关闭
+    # ========================================================
+    def open(
+        self,
+        filepath: str,
+        encoding: Optional[str] = None,
+        readonly: bool = False,
+        detect_encoding: bool = True,
+    ) -> bool:
+        """
+        打开文件。
+
+        参数:
+            filepath: 文件路径
+            encoding: 指定编码
+            readonly: 只读模式
+            detect_encoding: 是否自动检测编码
+
+        返回:
+            是否成功
+        """
+        self._state = DocumentState.LOADING
+
+        try:
+            # 创建本地文件提供者
+            provider = LocalFileProvider()
+            provider.open(
+                filepath, encoding=encoding, readonly=readonly, detect_encoding=detect_encoding
+            )
+            # 释放旧 provider
+            #
+            # 修复（句柄/映射泄漏）：原先直接覆盖 `self.provider`，**从不
+            # 关闭旧的** —— 旧 provider 的文件句柄与内存映射一直存活。
+            # Windows 上这会**阻止外部程序覆盖该文件**，从而让"外部变更
+            # 检测"永远不可用；反复打开文件还会持续累积句柄。
+            _old_provider = self.provider
+            self.provider = provider
+            if _old_provider is not None and _old_provider is not provider:
+                try:
+                    _old_provider.close()
+                except Exception as e:
+                    print(f"[Document] 关闭旧 provider 失败: {e}")
+
+            # 更新元数据
+            self.meta = DocumentMetadata()
+            self.meta.filepath = os.path.abspath(filepath)
+            self.meta.title = os.path.basename(filepath)
+            self.meta.encoding = provider.encoding
+            self.meta.eol = provider.eol
+            self.meta.has_bom = provider.has_bom
+            self.meta.size = provider.size
+            self.meta.mtime = provider.mtime
+            self.meta.readonly = provider.readonly
+            self.meta.writable = not provider.readonly
+            self.meta.language = self._detect_language(filepath)
+
+            # 更新状态
+            self._state = DocumentState.READONLY if provider.readonly else DocumentState.CLEAN
+
+            # 初始化监听器
+            self._setup_file_watcher(filepath)
+
+            # 清空缓存
+            self._invalidate_line_index()
+            self._bookmarks.clear()
+            self._folded_lines.clear()
+
+            return True
+
+        except Exception as e:
+            self._state = DocumentState.ERROR
+            print(f"[Document] 打开失败: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+
+    def open_from_text(
+        self, text: str, title: str = "未命名", encoding: str = DEFAULT_ENCODING
+    ) -> bool:
+        """
+        从文本创建新文档（未保存）。
+
+        参数:
+            text: 初始文本
+            title: 文档标题
+            encoding: 编码
+        """
+        self._state = DocumentState.NEW
+
+        provider = MemoryProvider()
+        provider.open(initial_text=text, encoding=encoding)
+        self.provider = provider
+
+        self.meta = DocumentMetadata()
+        self.meta.filepath = None
+        self.meta.title = title
+        self.meta.encoding = encoding
+        self.meta.eol = DEFAULT_EOL
+        self.meta.size = len(text.encode(encoding))
+        self.meta.writable = True
+        self.meta.modified = bool(text)
+
+        self._invalidate_line_index()
+
+        if text:
+            self._state = DocumentState.MODIFIED
+            self.meta.modified = True
+
+        return True
+
+    def close(self):
+        """关闭文档并释放资源"""
+        # 停止定时器
+        self._draft_timer.stop()
+
+        # 移除文件监听
+        self._remove_file_watcher()
+
+        # 关闭提供者
+        if self.provider:
+            try:
+                self.provider.close()
+            except Exception:
+                pass
+            self.provider = None
+
+        # 清空缓存
+        self._bookmarks.clear()
+        self._folded_lines.clear()
+        self._invalidate_line_index()
+
+        self._state = DocumentState.CLOSED
+
+    # ========================================================
+    # 保存
+    # ========================================================
+    def save(self, filepath: Optional[str] = None) -> bool:
+        """
+        保存文档。
+
+        参数:
+            filepath: 另存为路径（None 则保存到原路径）
+
+        返回:
+            是否成功
+
+        修复说明:
+            - 显式将目标路径传给 provider，避免 MemoryProvider
+              在 filepath=None 时静默不写盘。
+        """
+        if not self.provider:
+            print("[Document] 保存失败: provider 为 None")
+            return False
+
+        # 确定目标路径
+        target = filepath or self.meta.filepath
+        if not target:
+            print("[Document] 保存失败: 无目标路径")
+            return False
+
+        target = os.path.abspath(target)
+
+        self._state = DocumentState.SAVING
+
+        try:
+            # 更新编码到 provider
+            self.provider.encoding = self.meta.encoding
+
+            # v2.19 M1：大文件等长修改优先走 mmap 增量保存（默认关闭灰度）
+            _incremental = None
+            try:
+                if (
+                    filepath is None
+                    and self.meta.filepath
+                    and os.path.abspath(self.meta.filepath) == target
+                ):
+                    from core.mmap_save import maybe_incremental_save
+
+                    _incremental = maybe_incremental_save(
+                        target,
+                        self.provider.encode(self.provider.read_text()),
+                        clear_dirty=getattr(self.provider, "clear_dirty", None),
+                    )
+            except Exception as _e:
+                print(f"[Document] mmap 增量保存尝试失败: {_e}")
+                _incremental = None
+
+            # 关键修复：把 target 传给 provider
+            # - 若 target 与原路径相同：写脏块
+            # - 若 target 不同：另存为完整文件
+            if _incremental is True:
+                success = True
+            else:
+                success = self.provider.save(target)
+
+            if success:
+                # 更新元数据
+                is_save_as = (
+                    self.meta.filepath is None or os.path.abspath(self.meta.filepath) != target
+                )
+
+                if is_save_as:
+                    self.meta.filepath = target
+                    self.meta.title = os.path.basename(target)
+                    self.meta.language = self._detect_language(target)
+                    self._setup_file_watcher(target)
+                    # 统一广播路径变化：依赖路径的外部状态（LSP URI 等）
+                    # 必须跟着换。原先无通知机制，只能由各调用点自行补，
+                    # 漏掉任一条入口就会出现"内容存新文件、LSP 操作旧文档"。
+                    try:
+                        self.filepath_changed.emit(target)
+                    except Exception:
+                        pass
+
+                self.meta.modified = False
+                self.meta.last_saved_at = time.time()
+                self.meta.size = self.provider.size
+
+                try:
+                    self.meta.mtime = os.path.getmtime(target)
+                except Exception:
+                    pass
+
+                # 更新状态
+                self._state = DocumentState.READONLY if self.meta.readonly else DocumentState.CLEAN
+
+                # 停止草稿定时器
+                self._draft_timer.stop()
+
+                # 删除草稿
+                try:
+                    self.delete_draft()
+                except Exception:
+                    pass
+
+                # 发射信号
+                self.modified_changed.emit(False)
+                self.saved.emit(self.meta.filepath or "")
+
+                return True
+            else:
+                self._state = DocumentState.MODIFIED
+                print("[Document] provider.save 返回 False")
+                return False
+
+        except Exception as e:
+            self._state = DocumentState.MODIFIED
+            print(f"[Document] 保存失败: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+
+    def save_as(self, filepath: str) -> bool:
+        """另存为"""
+        return self.save(filepath)
+
+    # ========================================================
+    # 重新加载
+    # ========================================================
+    def reload(self) -> bool:
+        """重新加载文件"""
+        if not self.meta.filepath:
+            return False
+
+        try:
+            # 双保险：检查 provider 是否有 reload 方法
+            if not hasattr(self.provider, "reload"):
+                return False
+
+            success = self.provider.reload()
+            if success:
+                self.meta.modified = False
+                self.meta.encoding = self.provider.encoding
+                self.meta.eol = self.provider.eol
+                self.meta.size = self.provider.size
+                self.meta.mtime = self.provider.mtime
+
+                self._state = DocumentState.READONLY if self.meta.readonly else DocumentState.CLEAN
+
+                self._invalidate_line_index()
+
+                self.modified_changed.emit(False)
+                self.reloaded.emit(self.meta.filepath)
+
+                return True
+        except Exception as e:
+            print(f"[Document] 重新加载失败: {e}")
+
+        return False
+
+    # ========================================================
+    # 修改追踪
+    # ========================================================
+    def mark_modified(self):
+        """标记为已修改"""
+        if self._state in (DocumentState.READONLY, DocumentState.CLOSED):
+            return
+
+        if not self.meta.modified:
+            self.meta.modified = True
+            self.meta.last_modified_at = time.time()
+            self._state = DocumentState.MODIFIED
+            self.modified_changed.emit(True)
+
+            # 启动草稿保存
+            if not self._draft_timer.isActive():
+                self._draft_timer.start()
+
+            # 发射事件
+            try:
+                bus.emit_event(FileModifiedEvent(path=self.meta.filepath or ""))
+            except Exception:
+                pass
+
+    def mark_saved(self):
+        """标记为已保存"""
+        if self.meta.modified:
+            self.meta.modified = False
+            self.meta.last_saved_at = time.time()
+            self._state = DocumentState.READONLY if self.meta.readonly else DocumentState.CLEAN
+            self.modified_changed.emit(False)
+
+            # 停止草稿定时器
+            self._draft_timer.stop()
+
+    @property
+    def is_modified(self) -> bool:
+        return self.meta.modified
+
+    @property
+    def state(self) -> DocumentState:
+        return self._state
+
+    @property
+    def is_readonly(self) -> bool:
+        return self.meta.readonly
+
+    @property
+    def is_new(self) -> bool:
+        """是否为新文档（未保存过）"""
+        return self.meta.filepath is None
+
+    @property
+    def filepath(self) -> Optional[str]:
+        return self.meta.filepath
+
+    @property
+    def title(self) -> str:
+        return self.meta.title
+
+    @property
+    def encoding(self) -> str:
+        return self.meta.encoding
+
+    @encoding.setter
+    def encoding(self, value: str):
+        if self.meta.encoding != value:
+            old = self.meta.encoding
+            self.meta.encoding = value
+            if self.provider:
+                self.provider.encoding = value
+            self.encoding_changed.emit(old, value)
+
+    @property
+    def enc(self) -> str:
+        """
+        [已弃用] 兼容旧 API：编码别名。
+
+        早期代码通过 `document.enc` 访问编码，
+        新代码应使用 `document.encoding`。
+        """
+        return self.meta.encoding
+
+    @enc.setter
+    def enc(self, value: str):
+        """[已弃用] 兼容旧 API：编码别名 setter。"""
+        self.encoding = value
+
+    # ========================================================
+    # 编码检测
+    # ========================================================
+    def detect_encoding(self) -> str:
+        """重新检测文件编码"""
+        if not self.meta.filepath:
+            return self.meta.encoding
+
+        new_encoding = detect_file_encoding(self.meta.filepath)
+        if new_encoding != self.meta.encoding:
+            old = self.meta.encoding
+            self.meta.encoding = new_encoding
+            self.encoding_changed.emit(old, new_encoding)
+        return new_encoding
+
+    def would_lose_text(self, encoding: str) -> bool:
+        """用 `encoding` 重新解释现有字节是否会**丢失文本**
+
+        判据：新编码能否无损解码全部字节。不能则说明"换解释"会把原文变成
+        替换字符（U+FFFD）或问号 —— 此时若用户保存，原字节就被永久改写。
+
+        ⚠️ 关键例外（否则会拦掉"修正误判编码"这一正常需求）：
+            若**当前**显示已经含替换字符 U+FFFD，说明文件在现有编码下本来
+            就是乱码（编码判定错了）。此时切换到能正确解码的编码是**修正**，
+            不是损坏 —— 因此返回 False（不阻断）。
+
+        用途见 `change_encoding` 的说明（实测过的静默损坏场景）。
+        """
+        if not self.provider:
+            return False
+        try:
+            raw = self.provider.read_all()
+        except Exception:
+            return False
+        if not raw:
+            return False
+
+        # 当前显示是否已经不可靠（乱码或空）？是则本次切换属于"修正"，
+        # 不应被当作"丢失文本"而阻断。
+        try:
+            current = raw.decode(self.meta.encoding or "utf-8", errors="replace")
+            if not current or "\ufffd" in current:
+                return False
+        except Exception:
+            pass
+
+        try:
+            raw.decode(encoding, errors="strict")
+            return False  # 能无损解码 → 不丢文本
+        except (UnicodeDecodeError, LookupError):
+            return True
+        except Exception:
+            return False
+
+    def change_encoding(
+        self,
+        encoding: str,
+        reload: bool = True,
+        mode: str = "reinterpret",
+        require_lossless: bool = False,
+    ) -> bool:
+        """切换编码。
+
+        参数:
+            encoding: 目标编码
+            reload: 是否重新读取文件内容
+            mode:
+                ``"reinterpret"``（默认）—— 用新编码**重新解释**同一份磁盘
+                字节。文本语义会改变（这正是用户"换一种解释看看"的意图），
+                但**不转码**。
+                ``"convert"`` —— 把当前文本**按新编码写回**（真正的转码，
+                文本语义不变、磁盘字节改变）。
+            require_lossless:
+                仅对 ``reinterpret`` 有意义。为 True 时，若新编码无法无损
+                解码现有字节，则**拒绝切换**并返回 False —— 供 UI 在
+                "用户只是看一眼"的路径上做防护。
+
+        缺陷背景（已实测复现的**静默数据损坏**）：
+            UTF-8 文件「中文内容测试」→ 用户切到 GBK 只看一眼（界面显示
+            「涓�鏂囧唴瀹规祴璇�」）→ 顺手按 Ctrl+S → **磁盘被改写**：
+
+                原: b'\\xe4\\xb8\\xad\\xe6\\x96\\x87...'  (中文内容测试)
+                新: b'\\xe4\\xb8?\\xe6\\x96\\x87...'        → 读回 '�?文内容测�?'
+
+            原字节永久丢失。不保存则无损（关闭重开正常），所以危险恰恰在于
+            "看一眼 + 保存"这个极其自然的操作序列。
+
+            根因是**把两种语义混成了一个动作**（Notepad++ 明确区分
+            "Character sets 改解释" 与 "Convert to ... 转码"）。本方法现在
+            通过 `mode` 显式区分，并由 `require_lossless` 提供失败关闭
+            （fail-closed）语义。
+        """
+        old = self.meta.encoding
+
+        # 只对"重新解释"做无损校验：转换是用户明确要求的转码，允许有损
+        if mode == "reinterpret" and require_lossless and self.provider:
+            if self.would_lose_text(encoding):
+                return False
+
+        self.meta.encoding = encoding
+
+        if self.provider:
+            self.provider.encoding = encoding
+
+        if reload and self.meta.filepath:
+            try:
+                if hasattr(self.provider, "reload"):
+                    re_ok = self.provider.reload()
+            except Exception:
+                re_ok = False
+            else:
+                # 关键（INV-C 修复）：重载之后必须**通知编辑器刷新**。
+                #
+                # 缺陷背景（审计测试复现）：
+                #   `change_encoding` 重载了 provider（文本已按新编码正确
+                #   解码），但没有任何代码把新文本写回 `EditorProxy.sc`
+                #   —— 于是编辑器**继续显示旧编码解出的乱码**，而 provider
+                #   已是正确文本。两者不一致时，任何基于 provider 的功能
+                #   （查找/替换/另存为/全局替换）看到的是另一份内容。
+                #
+                #   发出 `reloaded` 信号，由 EditorProxy 负责把文本同步回
+                #   编辑器（core 层不应直接操作 QScintilla）。
+                if re_ok:
+                    try:
+                        self.reloaded.emit(self.meta.filepath or "")
+                    except Exception:
+                        pass
+
+        self.encoding_changed.emit(old, encoding)
+        return True
+
+    # ========================================================
+    # 行尾符
+    # ========================================================
+    def set_eol(self, eol: str):
+        """设置行尾符（用户显式切换；实际转换在保存时由 provider 完成）
+
+        修复（INV-E1，审计测试复现）：
+            原先只改 `meta.eol` + 标脏。而保存路径写入时读的是
+            **`provider._eol`**（见 `ContentProvider._apply_eol`），
+            两者不同步 → 用户在状态栏切了 LF→CRLF，保存后磁盘仍是 LF。
+
+            这里显式同步到 provider，并**标记为"用户显式指定"**：
+            只有显式指定过才在保存时做行尾转换。否则会影响那些
+            "探测结果本身不可靠"的文件（例如整篇没有换行的文件，
+            `_detect_eol` 在 0 比 0 时默认取 CRLF，若照样转换，
+            保存会把**原文没有的换行**也改写掉）。
+        """
+        self.meta.eol = eol
+        try:
+            if self.provider is not None:
+                self.provider._eol = eol
+                self.provider._eol_explicit = True
+        except Exception as e:
+            print(f"[Document] 同步行尾符到 provider 失败: {e}")
+        self.mark_modified()
+
+    def detect_eol(self) -> str:
+        """检测文件行尾符"""
+        if not self.meta.filepath:
+            return self.meta.eol
+        self.meta.eol = detect_file_eol(self.meta.filepath)
+        return self.meta.eol
+
+    def convert_eol(self, target: str) -> int:
+        """
+        转换行尾符。
+
+        参数:
+            target: 目标行尾符（'\\n' / '\\r\\n' / '\\r'）
+
+        返回:
+            替换的数量
+        """
+        if not self.provider:
+            return 0
+
+        current = self.meta.eol
+        if current == target:
+            return 0
+
+        try:
+            text = self.provider.read_text()
+            # 规范化后转换
+            text = text.replace("\r\n", "\n").replace("\r", "\n")
+            if target == "\r\n":
+                text = text.replace("\n", "\r\n")
+            elif target == "\r":
+                text = text.replace("\n", "\r")
+
+            # 写回
+            self._replace_full_content(text)
+            self.meta.eol = target
+            self.mark_modified()
+
+            return text.count(target)
+        except Exception as e:
+            print(f"[Document] 转换行尾符失败: {e}")
+            return 0
+
+    # ========================================================
+    # 内容操作
+    # ========================================================
+    def get_text(self) -> str:
+        """获取全文"""
+        if not self.provider:
+            return ""
+        return self.provider.read_text()
+
+    def set_text(self, text: str):
+        """
+        设置全文（原地更新 provider 内容，不替换 provider）。
+
+        修复说明:
+            旧实现用 MemoryProvider 替换现有 provider，导致：
+            - LocalFileProvider 被丢弃
+            - 后续 save() 无法写回原文件
+            新实现直接在现有 provider 上写内容。
+        """
+        if self.provider is None:
+            # 无 provider：新建内存 provider
+            provider = MemoryProvider()
+            provider.open(initial_text=text, encoding=self.meta.encoding)
+            self.provider = provider
+        else:
+            # 有 provider：原地更新内容
+            self._replace_full_content(text)
+
+        self.mark_modified()
+        self._invalidate_line_index()
+
+    def _replace_full_content(self, text: str):
+        """
+        替换 provider 的全部内容（内部用）。
+
+        分块写入 + 更新 provider 元数据。
+        """
+        if not self.provider:
+            return
+
+        encoded = self.provider.encode(text)
+        new_size = len(encoded)
+
+        # 清空旧脏块
+        self.provider.clear_dirty()
+
+        # 计算块数
+        block_size = self.provider.block_size
+        total_blocks = max(1, (new_size + block_size - 1) // block_size)
+
+        # A5 修复：先更新 provider 元数据，再写块。
+        # write_block 会校验 `block_id < self._total_blocks`，
+        # 若元数据仍是旧值（例如内容从 1 块变长到 2 块），
+        # 新块会被**静默拒绝** → 内容被截断为旧长度。
+        if hasattr(self.provider, "_total_blocks"):
+            self.provider._total_blocks = total_blocks
+        if hasattr(self.provider, "_size"):
+            self.provider._size = new_size
+
+        # 分块写入
+        for bid in range(total_blocks):
+            start = bid * block_size
+            end = min(start + block_size, new_size)
+            self.provider.write_block(bid, encoded[start:end])
+
+        # 更新 meta
+        self.meta.size = new_size
+
+        self._invalidate_line_index()
+
+    # ========================================================
+    # 行索引
+    # ========================================================
+    def _invalidate_line_index(self):
+        """使行索引失效"""
+        self._line_index = None
+        self._line_index_dirty = True
+
+    def build_line_index(self) -> List[int]:
+        """
+        构建行索引（每行起始字符位置）。
+
+        返回:
+            行索引列表，索引 i 表示第 i 行在文本中的起始位置
+
+        ★ 修复（真实压测发现）：纯 CR（老式 Mac）换行文件被算成 **1 行**
+
+            原实现只认 `'\\n'`，于是 `"line1\\rline2\\rline3\\r"` 的行索引是
+            `[0]` —— `get_line_count()` 返回 1。文本本身没丢，但：
+
+            * 「跳转到行」失效（第 2 行不存在）；
+            * 行级 diff / 列编辑器 / 书签 / LSP 行列位置全部错位；
+            * 状态栏行号永远是 1。
+
+            修复逻辑（兼容 CRLF，且不产生重复断行）：
+
+                * `\\r\\n` 视为**一个**换行，行首取 `\\n` 之后（i+2）；
+                * 单独 `\\r`（后面不是 `\\n`）也视为换行，行首取 i+1；
+                * 单独 `\\n` 照旧。
+
+            只改索引、**不改文本内容**，所以保存仍保真。
+        """
+        if self._line_index is not None and not self._line_index_dirty:
+            return self._line_index
+
+        if not self.provider:
+            self._line_index = [0]
+            self._line_index_dirty = False
+            return self._line_index
+
+        text = self.provider.read_text()
+        index = [0]
+        n = len(text)
+        i = 0
+        while i < n:
+            ch = text[i]
+            if ch == "\n":
+                index.append(i + 1)
+            elif ch == "\r":
+                if i + 1 < n and text[i + 1] == "\n":
+                    index.append(i + 2)  # CRLF 只算一个换行
+                    i += 1
+                else:
+                    index.append(i + 1)  # 纯 CR
+            i += 1
+
+        self._line_index = index
+        self._line_index_dirty = False
+        self.meta.line_count = len(index)
+
+        return index
+
+    def get_line_count(self) -> int:
+        """获取总行数"""
+        return len(self.build_line_index())
+
+    def get_line_start(self, line: int) -> int:
+        """获取指定行的起始字符位置"""
+        index = self.build_line_index()
+        if 0 <= line < len(index):
+            return index[line]
+        return -1
+
+    def get_line_end(self, line: int) -> int:
+        """获取指定行的结束位置（不含换行符）"""
+        index = self.build_line_index()
+        if 0 <= line < len(index) - 1:
+            return index[line + 1] - 1
+        elif line == len(index) - 1 and self.provider:
+            return self.provider.size
+        return -1
+
+    def get_line_text(self, line: int) -> str:
+        """获取指定行的文本（**不含行尾换行符**）
+
+        ★ 修复（真实压测发现）：CRLF 行返回了多余的 '\\r'
+
+            `get_line_end()` 对非末行返回 `index[line+1] - 1`。
+            对 CRLF 文件，`index[line+1]` 指向 `\\n` **之后**，
+            所以 `-1` 落在 `\\n` 上、切片 `[start:end]` 恰好排除 `\\n` ——
+            但 `\\r` 仍留在行内，于是返回 `'b\\r'` 而不是 `'b'`。
+
+            后果：列编辑器/搜索替换/书签等按"行文本"工作的逻辑
+            会把 `\\r` 当成正文的一部分（例如行尾匹配、列位置偏移）。
+
+            修复：仅当末尾确实是 `\\r` 时剥掉**一个**（不误删正文里的 `\\r`）。
+        """
+        start = self.get_line_start(line)
+        end = self.get_line_end(line)
+        if start < 0 or end < 0:
+            return ""
+        text = self.get_text()
+        line_text = text[start:end]
+        if line_text.endswith("\r"):
+            line_text = line_text[:-1]
+        return line_text
+
+    def get_position_line_col(self, position: int) -> Tuple[int, int]:
+        """
+        将字符位置转换为 (行, 列)。
+
+        参数:
+            position: 字符偏移
+
+        返回:
+            (行号, 列号)，均从 0 开始
+        """
+        index = self.build_line_index()
+        if position <= 0:
+            return (0, 0)
+
+        # 二分查找
+        import bisect
+
+        line = bisect.bisect_right(index, position) - 1
+        col = position - index[line]
+        return (line, col)
+
+    def get_position(self, line: int, col: int) -> int:
+        """将 (行, 列) 转换为字符位置"""
+        index = self.build_line_index()
+        if line < 0:
+            return 0
+        if line >= len(index):
+            return self.provider.size if self.provider else 0
+        return index[line] + col
+
+    # ========================================================
+    # 书签管理
+    # ========================================================
+    def add_bookmark(self, line: int):
+        """添加书签"""
+        self._bookmarks.add(line)
+        self.bookmarks_changed.emit()
+
+    def remove_bookmark(self, line: int):
+        """移除书签"""
+        self._bookmarks.discard(line)
+        self.bookmarks_changed.emit()
+
+    def toggle_bookmark(self, line: int) -> bool:
+        """
+        切换书签状态。
+
+        返回:
+            True 表示已添加，False 表示已移除
+        """
+        if line in self._bookmarks:
+            self._bookmarks.discard(line)
+            self.bookmarks_changed.emit()
+            return False
+        else:
+            self._bookmarks.add(line)
+            self.bookmarks_changed.emit()
+            return True
+
+    def has_bookmark(self, line: int) -> bool:
+        """检查指定行是否有书签"""
+        return line in self._bookmarks
+
+    def clear_bookmarks(self):
+        """清除所有书签"""
+        self._bookmarks.clear()
+        self.bookmarks_changed.emit()
+
+    def get_bookmarks(self) -> List[int]:
+        """获取所有书签行号（排序）"""
+        return sorted(self._bookmarks)
+
+    def next_bookmark(self, from_line: int) -> Optional[int]:
+        """获取下一个书签行号"""
+        for line in sorted(self._bookmarks):
+            if line > from_line:
+                return line
+        # 循环
+        if self._bookmarks:
+            return min(self._bookmarks)
+        return None
+
+    def prev_bookmark(self, from_line: int) -> Optional[int]:
+        """获取上一个书签行号"""
+        for line in sorted(self._bookmarks, reverse=True):
+            if line < from_line:
+                return line
+        # 循环
+        if self._bookmarks:
+            return max(self._bookmarks)
+        return None
+
+    # ========================================================
+    # 折叠状态管理
+    # ========================================================
+    def set_folded_lines(self, lines: List[int]):
+        """设置折叠行列表"""
+        self._folded_lines = set(lines)
+        self.folds_changed.emit()
+
+    def get_folded_lines(self) -> List[int]:
+        """获取折叠行列表"""
+        return sorted(self._folded_lines)
+
+    def add_fold(self, line: int):
+        """添加折叠"""
+        self._folded_lines.add(line)
+        self.folds_changed.emit()
+
+    def remove_fold(self, line: int):
+        """移除折叠"""
+        self._folded_lines.discard(line)
+        self.folds_changed.emit()
+
+    def toggle_fold(self, line: int) -> bool:
+        """切换折叠状态"""
+        if line in self._folded_lines:
+            self._folded_lines.discard(line)
+            self.folds_changed.emit()
+            return False
+        else:
+            self._folded_lines.add(line)
+            self.folds_changed.emit()
+            return True
+
+    def is_folded(self, line: int) -> bool:
+        """检查指定行是否折叠"""
+        return line in self._folded_lines
+
+    def clear_folds(self):
+        """清除所有折叠"""
+        self._folded_lines.clear()
+        self.folds_changed.emit()
+
+    # ========================================================
+    # 光标记忆
+    # ========================================================
+    def remember_cursor(
+        self, line: int, col: int, position: int = 0, first_visible_line: int = 0, scroll_x: int = 0
+    ):
+        """记住光标位置"""
+        self.meta.cursor_line = line
+        self.meta.cursor_col = col
+        self.meta.cursor_pos = position
+        self.meta.first_visible_line = first_visible_line
+        self.meta.scroll_x = scroll_x
+
+    def get_remembered_cursor(self) -> Tuple[int, int, int]:
+        """获取记住的光标位置"""
+        return (self.meta.cursor_line, self.meta.cursor_col, self.meta.cursor_pos)
+
+    def get_remembered_view(self) -> Tuple[int, int]:
+        """获取记住的视图位置"""
+        return (self.meta.first_visible_line, self.meta.scroll_x)
+
+    # ========================================================
+    # 文件监听
+    # ========================================================
+    def _setup_file_watcher(self, filepath: str):
+        """设置文件变更监听"""
+        self._remove_file_watcher()
+
+        if not filepath or not os.path.exists(filepath):
+            return
+
+        try:
+            self._file_watcher = QFileSystemWatcher(self)
+            self._file_watcher.addPath(filepath)
+            self._file_watcher.fileChanged.connect(self._on_file_changed)
+        except Exception as e:
+            print(f"[Document] 设置文件监听失败: {e}")
+
+    def _remove_file_watcher(self):
+        """移除文件监听"""
+        if self._file_watcher:
+            try:
+                self._file_watcher.deleteLater()
+            except Exception:
+                pass
+            self._file_watcher = None
+
+    def _on_file_changed(self, path: str):
+        """
+        文件变更回调。
+
+        修复说明:
+            - 使用 hasattr 双保险，即使 provider 未实现
+              check_external_change 也不会崩溃
+        """
+        # 重新添加监听（某些系统上文件变更后需要重新添加）
+        if self._file_watcher and path not in self._file_watcher.files():
+            try:
+                self._file_watcher.addPath(path)
+            except Exception:
+                pass
+
+        # 检查 mtime（双保险）
+        try:
+            if not self.provider:
+                return
+
+            # 基类提供默认实现，子类可覆盖
+            if hasattr(self.provider, "check_external_change"):
+                if self.provider.check_external_change():
+                    self.external_change_detected.emit(path)
+            # 若方法不存在，静默忽略（内存 provider 无外部文件）
+        except Exception as e:
+            print(f"[Document] 检查外部变更失败: {e}")
+
+    # ========================================================
+    # 草稿自动保存
+    # ========================================================
+    # ========================================================
+    # 草稿目录（P1 修复：统一路径 + 补齐读取端）
+    # ========================================================
+    @staticmethod
+    def _draft_dir() -> str:
+        """草稿目录（**绝对路径**，全模块唯一来源）
+
+        缺陷背景（已核实）：
+            原先 `_save_draft` 与 `delete_draft` 各自拼一份相对路径
+            `<仓库>/backup/drafts`，而 `main.py` 的 ensure_directories
+            建的是 `<DATA_DIR>/drafts`（即 `data/drafts`）——
+            两套路径互不相认。改为统一走应用根目录。
+        """
+        try:
+            from infrastructure.plugin_loader import app_root_dir
+
+            base = app_root_dir()
+        except Exception:  # pragma: no cover
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base, "backup", "drafts")
+
+    @staticmethod
+    def _draft_name(filepath: Optional[str]) -> str:
+        """由文件路径推导草稿文件名（无路径时返回空串）"""
+        if not filepath:
+            return ""
+        return hashlib.md5(filepath.encode("utf-8")).hexdigest()[:16] + ".draft"
+
+    def draft_path(self) -> Optional[str]:
+        """当前文档的草稿文件路径（未命名文档返回 None）"""
+        name = self._draft_name(self.meta.filepath)
+        if not name:
+            return None
+        return os.path.join(self._draft_dir(), name)
+
+    @staticmethod
+    def read_draft(path: str):
+        """读取草稿文件，返回 (原文路径, 正文) ；无法解析时返回 (None, None)
+
+        格式（由 `_save_draft` 写入）::
+
+            # QingCao Draft
+            # Original: <路径或 (未命名)>
+            # Saved: <ISO 时间>
+            # Encoding: <编码>
+            # ---
+            <正文>
+
+        返回:
+            (original_path_or_empty, text) 或 (None, None)
+        """
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                head = [f.readline() for _ in range(5)]
+                text = f.read()
+        except Exception:
+            return None, None
+
+        if not head or not head[0].startswith("# QingCao Draft"):
+            return None, None
+
+        original = ""
+        for line in head[1:4]:
+            if line.startswith("# Original:"):
+                original = line.split(":", 1)[1].strip()
+        if original == "(未命名)":
+            original = ""
+        return original, text
+
+    @classmethod
+    def list_drafts(cls) -> list:
+        """列出所有草稿，返回 [(路径, 原文路径, 正文, mtime)]（按时间倒序）"""
+        out = []
+        d = cls._draft_dir()
+        if not os.path.isdir(d):
+            return out
+        for name in os.listdir(d):
+            if not name.endswith(".draft"):
+                continue
+            p = os.path.join(d, name)
+            original, text = cls.read_draft(p)
+            if text is None:
+                continue
+            try:
+                mt = os.path.getmtime(p)
+            except OSError:
+                mt = 0.0
+            out.append((p, original or "", text, mt))
+        out.sort(key=lambda x: x[3], reverse=True)
+        return out
+
+    def _save_draft(self):
+        """保存草稿到临时目录"""
+        if not self.meta.modified:
+            self._draft_timer.stop()
+            return
+
+        # 防御：provider 未打开时静默跳过，避免无意义的错误日志
+        if not self.provider or not self.provider.is_open:
+            self._draft_timer.stop()
+            return
+
+        try:
+            draft_dir = self._draft_dir()
+            os.makedirs(draft_dir, exist_ok=True)
+
+            # 使用文件路径哈希作为草稿名
+            # 未命名文档：原先用 `id(self)`（内存地址，每次运行都变）会被
+            # `delete_draft()`（无 filepath 直接 return）永久遗弃成孤儿。
+            # 现改为按标签序号稳定命名，与 autosave 的 untitled_N 对齐。
+            if self.meta.filepath:
+                name = self._draft_name(self.meta.filepath)
+            else:
+                name = "untitled_%d.draft" % getattr(self, "_untitled_index", 0)
+
+            draft_file = os.path.join(draft_dir, name)
+
+            # 原子写：先前缀临时文件，成功后替换，避免写一半留下坏草稿
+            tmp_file = draft_file + ".tmp"
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                f.write("# QingCao Draft\n")
+                f.write(f"# Original: {self.meta.filepath or '(未命名)'}\n")
+                f.write(f"# Saved: {datetime.datetime.now().isoformat()}\n")
+                f.write(f"# Encoding: {self.meta.encoding}\n")
+                f.write("# ---\n")
+                f.write(self.get_text())
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, draft_file)
+
+        except Exception as e:
+            print(f"[Document] 草稿保存失败: {e}")
+
+    def delete_draft(self):
+        """删除当前文档的草稿文件
+
+        注意：调用方必须确保"内容已确实保存成功"，否则会丢掉唯一的
+        崩溃恢复副本（见 `close_document` 的修复说明）。
+        """
+        draft_file = self.draft_path()
+        if not draft_file:
+            return
+        try:
+            if os.path.exists(draft_file):
+                os.remove(draft_file)
+        except Exception:
+            pass
+
+    # ========================================================
+    # 语言识别
+    # ========================================================
+    def _detect_language(self, filepath: str) -> str:
+        """根据文件扩展名检测语言"""
+        if not filepath:
+            return ""
+
+        ext = os.path.splitext(filepath)[1].lower()
+        language_map = {
+            ".py": "Python",
+            ".pyw": "Python",
+            ".js": "JavaScript",
+            ".ts": "TypeScript",
+            ".jsx": "JavaScript React",
+            ".tsx": "TypeScript React",
+            ".java": "Java",
+            ".c": "C",
+            ".cpp": "C++",
+            ".cc": "C++",
+            ".cxx": "C++",
+            ".h": "C/C++ Header",
+            ".hpp": "C++ Header",
+            ".cs": "C#",
+            ".go": "Go",
+            ".rs": "Rust",
+            ".rb": "Ruby",
+            ".php": "PHP",
+            ".swift": "Swift",
+            ".kt": "Kotlin",
+            ".scala": "Scala",
+            ".m": "Objective-C",
+            ".sh": "Shell",
+            ".bat": "Batch",
+            ".ps1": "PowerShell",
+            ".html": "HTML",
+            ".htm": "HTML",
+            ".css": "CSS",
+            ".scss": "SCSS",
+            ".less": "Less",
+            ".json": "JSON",
+            ".xml": "XML",
+            ".yaml": "YAML",
+            ".yml": "YAML",
+            ".toml": "TOML",
+            ".ini": "INI",
+            ".md": "Markdown",
+            ".rst": "reStructuredText",
+            ".tex": "LaTeX",
+            ".sql": "SQL",
+            ".log": "Log",
+            ".csv": "CSV",
+            ".txt": "Plain Text",
+        }
+        return language_map.get(ext, "")
+
+    @property
+    def language(self) -> str:
+        return self.meta.language
+
+    # ========================================================
+    # 编辑器关联
+    # ========================================================
+    def add_editor(self, editor):
+        """关联编辑器（弱引用）"""
+        if editor not in self._editors:
+            self._editors.append(editor)
+
+    def remove_editor(self, editor):
+        """取消关联编辑器"""
+        if editor in self._editors:
+            self._editors.remove(editor)
+
+    def get_editors(self) -> List[Any]:
+        """获取所有关联的编辑器"""
+        return list(self._editors)
+
+    def has_editors(self) -> bool:
+        """是否有关联的编辑器"""
+        return len(self._editors) > 0
+
+    # ========================================================
+    # 统计与信息
+    # ========================================================
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取文档统计信息"""
+        text = self.get_text()
+        lines = text.splitlines()
+        words = len(text.split())
+        chars = len(text)
+        chars_no_space = len("".join(text.split()))
+
+        return {
+            "lines": len(lines),
+            "words": words,
+            "chars": chars,
+            "chars_no_space": chars_no_space,
+            "paragraphs": len([l for l in lines if l.strip()]),
+            "bookmarks": len(self._bookmarks),
+            "folded": len(self._folded_lines),
+            "modified": self.meta.modified,
+            "encoding": self.meta.encoding,
+            "eol": repr(self.meta.eol),
+            "size": self.meta.size,
+            "size_kb": round(self.meta.size / 1024, 2),
+        }
+
+    def get_info(self) -> Dict[str, Any]:
+        """获取文档信息"""
+        return {
+            "title": self.meta.title,
+            "filepath": self.meta.filepath,
+            "encoding": self.meta.encoding,
+            "eol": repr(self.meta.eol),
+            "size": self.meta.size,
+            "modified": self.meta.modified,
+            "readonly": self.meta.readonly,
+            "state": self._state.name,
+            "language": self.meta.language,
+            "line_count": self.meta.line_count,
+            "char_count": self.meta.char_count,
+        }
+
+    def get_hash(self) -> Optional[str]:
+        """获取文档内容哈希"""
+        if not self.meta.filepath:
+            return None
+        return get_file_hash(self.meta.filepath)
+
+    # ========================================================
+    # 文件变更检测
+    # ========================================================
+    def has_external_change(self) -> bool:
+        """检查是否有外部修改"""
+        if self.provider:
+            try:
+                if hasattr(self.provider, "check_external_change"):
+                    return self.provider.check_external_change()
+            except Exception:
+                pass
+        return False
+
+    # ========================================================
+    # 只读控制
+    # ========================================================
+    def set_readonly(self, readonly: bool) -> bool:
+        """设置只读状态"""
+        if readonly:
+            self.meta.readonly = True
+            self._state = DocumentState.READONLY
+            if self.provider:
+                try:
+                    if hasattr(self.provider, "set_readonly"):
+                        self.provider.set_readonly(True)
+                except Exception:
+                    pass
+            return True
+        else:
+            try:
+                if self.provider:
+                    if hasattr(self.provider, "set_readonly"):
+                        if self.provider.set_readonly(False):
+                            self.meta.readonly = False
+                            self._state = (
+                                DocumentState.MODIFIED
+                                if self.meta.modified
+                                else DocumentState.CLEAN
+                            )
+                            return True
+                        return False
+                    else:
+                        # provider 无此方法，直接改标志
+                        self.meta.readonly = False
+                        self._state = (
+                            DocumentState.MODIFIED if self.meta.modified else DocumentState.CLEAN
+                        )
+                        return True
+            except Exception:
+                pass
+            return False
+
+    # ========================================================
+    # 调试
+    # ========================================================
+    def dump(self) -> str:
+        """导出文档信息"""
+        info = self.get_info()
+        stats = self.get_statistics()
+
+        lines = [f"文档: {info['title']}", "=" * 60]
+        lines.append(f"路径: {info['filepath'] or '(未保存)'}")
+        lines.append(f"编码: {info['encoding']}")
+        lines.append(f"行尾符: {info['eol']}")
+        lines.append(f"大小: {stats['size_kb']} KB")
+        lines.append(f"状态: {info['state']}")
+        lines.append(f"语言: {info['language'] or '(未知)'}")
+        lines.append("")
+        lines.append(f"行数: {stats['lines']}")
+        lines.append(f"词数: {stats['words']}")
+        lines.append(f"字符数: {stats['chars']}")
+        lines.append(f"段落数: {stats['paragraphs']}")
+        lines.append(f"书签: {stats['bookmarks']}")
+        lines.append(f"折叠: {stats['folded']}")
+
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return (
+            f"<Document title={self.meta.title!r} "
+            f"path={self.meta.filepath!r} "
+            f"state={self._state.name} "
+            f"modified={self.meta.modified}>"
+        )
+
+
+# ============================================================
+# 文档模型（多文档管理）
+# ============================================================

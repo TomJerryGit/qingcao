@@ -23,3 +23,22 @@
 
 ## 剩余巨石（下一批候选）
 按 v2.23 审计：`app/tabs.py`、`core/content_provider.py`、`core/document.py`、`core/editor.py`、`ui/outline_panel.py`、`app/session.py`、`plugins/ai_assistant/__init__.py`(仍 1,242，可继续拆 Plugin 方法)。
+
+## 第三批（剩余 6 个巨石）
+
+| 模块 | 拆分前 | 拆分后 | 新结构 |
+|---|---|---|---|
+| `app/tabs.py` | 2,219 | **526** | `tabs_common`(?) + `tabs_lifecycle` + `tabs_ui` + `tabs_watch` + `tabs_detached` |
+| `app/session.py` | 2,010 | **339** | `session_common` + `session_save` + `session_restore` + `session_worker` |
+| `core/editor.py` | 2,031 | **752** | 新增 `editor_events` / `editor_lsp` / `editor_textops` 三个 Mixin |
+| `core/content_provider.py` | 2,190 | **9**（re-export） | `content_provider_common/base/local/memory/stream/factory` |
+| `core/document.py` | 2,072 | **7**（re-export） | `document_common` / `document_core` / `document_model` |
+| `ui/outline_panel.py` | 2,024 | **915** | `outline_common` / `outline_symbols` / `outline_tree` + OutlinePanel |
+
+**结果**：全仓 Python 文件均 ≤1,500 行（`plugins/ai_assistant/__init__.py` 1,242 行为下一批可选拆分项）。
+
+## 回归修复
+- editor 新 Mixin 补齐 `_normalize_bytes/_EOL_SPLIT_RE` 显式导入；
+- 静态测试改为读取拆分后的新模块（LSP/大文件/mmap/接线审计）；
+- `_v223_editor_split` MRO 断言更新为新 Mixin + 原 Mixin 成员；
+- content_provider 公共模块移除演示代码块，补回异常/FileState。

@@ -85,3 +85,69 @@ def test_ai_assistant_split():
 def test_loader_supports_package_plugins():
     src = open(os.path.join(ROOT, "infrastructure", "plugin_loader.py"), encoding="utf-8").read()
     assert "submodule_search_locations" in src
+
+
+def test_batch3_split():
+    from app.session import SessionAutosaveWorker, SessionManager
+    from app.tabs import DetachedWindow, TabManager
+    from core.content_provider import (
+        ContentProvider,
+        LocalFileProvider,
+        ProviderFactory,
+    )
+    from core.document import Document, DocumentModel
+    from core.editor import EditorProxy
+    from ui.outline_panel import OutlinePanel, OutlineTree, SymbolParser
+
+    for rel, limit in (
+        ("app/tabs.py", 700),
+        ("app/session.py", 500),
+        ("core/editor.py", 900),
+        ("core/content_provider.py", 120),
+        ("core/document.py", 120),
+        ("ui/outline_panel.py", 1100),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    for cls in (
+        TabManager,
+        DetachedWindow,
+        SessionManager,
+        SessionAutosaveWorker,
+        EditorProxy,
+        Document,
+        DocumentModel,
+        ContentProvider,
+        LocalFileProvider,
+        ProviderFactory,
+        OutlinePanel,
+        OutlineTree,
+        SymbolParser,
+    ):
+        assert cls is not None
+    names = [c.__name__ for c in TabManager.__mro__]
+    assert "TabOpenCloseMixin" in names and "TabUiMixin" in names
+    names = [c.__name__ for c in SessionManager.__mro__]
+    assert "SessionSaveMixin" in names and "SessionRestoreMixin" in names
+    names = [c.__name__ for c in EditorProxy.__mro__]
+    for mixin in ("EditorEventsMixin", "EditorLspMixin", "EditorTextOpsMixin"):
+        assert mixin in names
+
+
+def test_no_py_file_over_2000_lines():
+    """第三批目标达成：全仓（除归档）无 >2,000 行文件。
+
+    六目标文件均 ≤1,100 行；其余历史文件（1,500–1,920 行）为下一批候选。
+    """
+    offenders = []
+    for root, _dirs, files in os.walk(ROOT):
+        if any(part in root for part in (".git", "__pycache__", "dist", "build", "_archive")):
+            continue
+        for name in files:
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, ROOT).replace("\\", "/")
+            n = _lines(rel)
+            if n > 2000:
+                offenders.append((rel, n))
+    assert not offenders, offenders

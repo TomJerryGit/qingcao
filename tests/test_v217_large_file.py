@@ -68,7 +68,7 @@ def test_apply_large_file_mode_real_widget(qapp):
 
 
 def test_wiring_and_bench():
-    tabs = open(os.path.join(ROOT, "app", "tabs.py"), encoding="utf-8").read()
+    tabs = open(os.path.join(ROOT, "app", "tabs_lifecycle.py"), encoding="utf-8").read()
     assert "apply_large_file_mode" in tabs
     win = read_main_ui_source()
     assert "_live_diag_limit" in win

@@ -22,15 +22,19 @@ def test_editor_split_structure():
         assert os.path.isfile(os.path.join(ROOT, "core", name + ".py"))
     from core.editor import EditorProxy
 
-    bases = [c.__name__ for c in EditorProxy.__mro__[1:7]]
-    assert bases == [
+    bases = [c.__name__ for c in EditorProxy.__mro__]
+    for name in (
         "EditorSaveMixin",
         "EditorLoadingMixin",
         "EditorCursorMixin",
         "EditorEditOpsMixin",
         "EditorBookmarksMixin",
         "EditorSearchMixin",
-    ], bases
+        "EditorEventsMixin",
+        "EditorLspMixin",
+        "EditorTextOpsMixin",
+    ):
+        assert name in bases, (name, bases)
     for name in (
         "save_file",
         "open_file",

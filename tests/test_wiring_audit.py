@@ -266,7 +266,9 @@ class TestKeyApiWiring:
 
     def test_goto_definition_exists_on_proxy(self):
         """P6: main_window 调用的 EditorProxy.goto_definition 必须真的存在"""
-        editor_src = _read(os.path.join(ROOT, "core", "editor.py"))
+        editor_src = "\n".join(
+            _read(os.path.join(ROOT, "core", name)) for name in ("editor.py", "editor_lsp.py")
+        )
         assert re.search(r"^\s*def\s+goto_definition\b", editor_src, re.M), (
             "core/editor.py 中不存在 EditorProxy.goto_definition()，"
             "但 ui/main_window.py 会调用它 → 转到定义永远不可用。"
@@ -284,7 +286,9 @@ class TestKeyApiWiring:
             本测试要求：每个请求方法在 `core/editor.py` 里都有对应的
             `xxx_ready.connect(...)`，防止将来加请求时忘记接结果。
         """
-        editor_src = _read(os.path.join(ROOT, "core", "editor.py"))
+        editor_src = "\n".join(
+            _read(os.path.join(ROOT, "core", name)) for name in ("editor.py", "editor_lsp.py")
+        )
         # 请求方法 → 结果信号
         pairs = {
             "request_hover": "hover_ready",

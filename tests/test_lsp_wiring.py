@@ -168,12 +168,18 @@ def window(qapp):
 class TestStaticWiring:
     def test_sources_are_syntactically_valid(self):
         """pytest 兼作语法哨兵（不需要 import 就能发现语法错误）。"""
-        for rel in ("core/editor.py", "ui/main_window.py", "core/lsp_client.py"):
+        for rel in (
+            "core/editor.py",
+            "core/editor_lsp.py",
+            "core/editor_events.py",
+            "ui/main_window.py",
+            "core/lsp_client.py",
+        ):
             parse_ok(rel)
 
     def test_lsp_start_always_passes_command(self):
         """核心缺陷 1：lsp_client.start() 必须传 command。"""
-        source = read_source("core/editor.py")
+        source = read_source("core/editor_lsp.py")
         starts = [
             node
             for node in calls_to(source, "start")
@@ -199,7 +205,7 @@ class TestStaticWiring:
         描述历史缺陷（本身就包含 ``'.py', '.pyw'``），字符串搜索会
         把自己的说明文字当成违规。
         """
-        source = read_source("core/editor.py")
+        source = read_source("core/editor_lsp.py")
         func = get_function_node(source, "toggle_lsp")
         assert func is not None, "core/editor.py 里找不到 toggle_lsp"
 
@@ -216,7 +222,7 @@ class TestStaticWiring:
 
     def test_request_definition_has_production_call_site(self):
         """核心缺陷 3：request_definition 必须被生产代码调用。"""
-        source = read_source("core/editor.py")
+        source = read_source("core/editor_lsp.py")
         calls = calls_to(source, "request_definition")
         assert calls, "core/editor.py 里没有 request_definition 的调用点 （此前是零调用方的死方法）"
 
@@ -248,7 +254,7 @@ class TestToggleLsp:
     def test_start_receives_registry_command_and_working_dir(
         self, tmp_path, monkeypatch, make_proxy
     ):
-        import core.editor as editor_mod
+        import core.editor_lsp as editor_mod
         from core.lsp_client import LspServerRegistry
 
         target = tmp_path / "demo.py"
@@ -287,7 +293,7 @@ class TestToggleLsp:
 
     def test_non_python_file_now_supported(self, tmp_path, monkeypatch, make_proxy):
         """核心缺陷 2 的运行时证明：.js 也能走通启动路径。"""
-        import core.editor as editor_mod
+        import core.editor_lsp as editor_mod
         from core.lsp_client import LspServerRegistry
 
         target = tmp_path / "app.js"
@@ -345,7 +351,7 @@ class TestToggleLsp:
 
     def test_missing_server_message_is_actionable(self, tmp_path, monkeypatch, make_proxy):
         """失败提示必须具体到"装什么"（P6 要求 ④）。"""
-        import core.editor as editor_mod
+        import core.editor_lsp as editor_mod
 
         target = tmp_path / "demo.py"
         target.write_text("x = 1\n", encoding="utf-8")
@@ -368,7 +374,7 @@ class TestToggleLsp:
         assert recorder.instances == [], "服务器不可用时不应创建 LspClient"
 
     def test_toggle_off_cleans_up(self, tmp_path, monkeypatch, make_proxy):
-        import core.editor as editor_mod
+        import core.editor_lsp as editor_mod
 
         target = tmp_path / "demo.py"
         target.write_text("x = 1\n", encoding="utf-8")

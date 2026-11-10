@@ -1,1102 +1,12 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-青草编辑器 (QingCao Editor)
-============================
-开发者：TomJerry
-邮箱：1265338136@qq.com
-青草枯荣，野火重生。
+# ruff: noqa: F401, F403, F405,F811
+"""大纲面板（v2.24 拆分：common/symbols/tree/panel）。"""
 
-本文件为符号大纲面板模块，包含：
-- OutlinePanel：符号大纲面板（QDockWidget，基础/增强两种模式）
-- OutlineTree：符号树控件（QTreeWidget）
-- SymbolParser：符号解析器（正则 + 简单语法分析）
-- SymbolNode：符号节点数据类
-- SymbolType：符号类型枚举
-- 多语言符号解析（Python/JS/TS/C++/Java/Go/Rust 等）
-- 层级结构展示
-- 符号类型图标
-- 搜索过滤
-- 类型筛选（增强模式）
-- 排序切换（增强模式）
-- 面包屑导航（增强模式）
-- 跟随光标高亮（增强模式）
-- 双击跳转
-- 右键菜单
-- 自动更新
-- 折叠/展开
-- 符号统计
+from ui.outline_common import *  # noqa: F401,F403,F405
+from ui.outline_symbols import *  # noqa: F401,F403,F405
+from ui.outline_tree import OutlineTree  # noqa: F401
 
-合并说明（P3-8）:
-    原文件 ui/outline_panel.py 与 ui/outline_panel_enhanced.py 已合并到
-    本文件。通过 OutlinePanel(enhanced=True) 启用增强功能（面包屑、
-    筛选、排序、跟随光标）。原 OutlinePanelEnhanced 类已删除。
-    调用方（如 ui/main_window.py）请使用 OutlinePanel(..., enhanced=True)。
-"""
 
-import os
-import re
-import time
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
-
-from PyQt5.QtCore import QPoint, QSettings, QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import (
-    QBrush,
-    QColor,
-    QFont,
-    QIcon,
-    QKeySequence,
-    QPainter,
-    QPen,
-    QPixmap,
-)
-from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QAction,
-    QApplication,
-    QComboBox,
-    QDockWidget,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QPushButton,
-    QStyle,
-    QToolButton,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
-
-from app.event_bus import CursorEvent, EditorChangedEvent, FileOpenedEvent, StatusMessageEvent, bus
-
-
-# ============================================================
-# 常量
-# ============================================================
-# 自动更新延迟（毫秒）
-UPDATE_DELAY_MS = 500
-
-# 最大解析行数（防止超大文件卡顿）
-MAX_PARSE_LINES = 50000
-
-# 符号类型
-SYMBOL_TYPES = {
-    'class': '类',
-    'function': '函数',
-    'method': '方法',
-    'variable': '变量',
-    'constant': '常量',
-    'module': '模块',
-    'import': '导入',
-    'interface': '接口',
-    'struct': '结构体',
-    'enum': '枚举',
-    'namespace': '命名空间',
-    'property': '属性',
-    'field': '字段',
-    'constructor': '构造函数',
-    'decorator': '装饰器',
-    'macro': '宏',
-    'type': '类型',
-}
-
-# 符号类型颜色（用于标识）
-SYMBOL_TYPE_COLORS = {
-    'class': QColor("#4EC9B0"),
-    'function': QColor("#DCDCAA"),
-    'method': QColor("#DCDCAA"),
-    'variable': QColor("#9CDCFE"),
-    'constant': QColor("#4FC1FF"),
-    'module': QColor("#C586C0"),
-    'import': QColor("#808080"),
-    'interface': QColor("#4EC9B0"),
-    'struct': QColor("#4EC9B0"),
-    'enum': QColor("#4EC9B0"),
-    'namespace': QColor("#C586C0"),
-    'property': QColor("#9CDCFE"),
-    'field': QColor("#9CDCFE"),
-    'constructor': QColor("#DCDCAA"),
-    'decorator': QColor("#C586C0"),
-    'macro': QColor("#C586C0"),
-    'type': QColor("#4EC9B0"),
-}
-
-# 符号类型图标（Unicode 符号）
-SYMBOL_TYPE_ICONS = {
-    'class': '🔷',
-    'function': '🔧',
-    'method': '⚙',
-    'variable': '📦',
-    'constant': '🔒',
-    'module': '📁',
-    'import': '📥',
-    'interface': '🔶',
-    'struct': '🔸',
-    'enum': '🔹',
-    'namespace': '📂',
-    'property': '🏷',
-    'field': '📌',
-    'constructor': '🏗',
-    'decorator': '✨',
-    'macro': '⚡',
-    'type': '🔺',
-}
-
-# 树列索引
-COL_SYMBOL = 0
-COL_LINE = 1
-COL_TYPE = 2
-
-# 增强模式：筛选类别（合并自 outline_panel_enhanced.py）
-FILTER_CATEGORIES = {
-    'all':       '全部',
-    'class':     '类/接口',
-    'function':  '函数',
-    'method':    '方法',
-    'variable':  '变量',
-    'constant':  '常量',
-}
-
-# 增强模式：排序选项（合并自 outline_panel_enhanced.py）
-SORT_OPTIONS = {
-    'line':      '按行号',
-    'name':      '按名称',
-    'type':      '按类型',
-}
-
-
-# ============================================================
-# 符号类型枚举
-# ============================================================
-class SymbolType(Enum):
-    """符号类型枚举"""
-    CLASS = "class"
-    FUNCTION = "function"
-    METHOD = "method"
-    VARIABLE = "variable"
-    CONSTANT = "constant"
-    MODULE = "module"
-    IMPORT = "import"
-    INTERFACE = "interface"
-    STRUCT = "struct"
-    ENUM = "enum"
-    NAMESPACE = "namespace"
-    PROPERTY = "property"
-    FIELD = "field"
-    CONSTRUCTOR = "constructor"
-    DECORATOR = "decorator"
-    MACRO = "macro"
-    TYPE = "type"
-    UNKNOWN = "unknown"
-
-
-# ============================================================
-# 符号节点数据类
-# ============================================================
-@dataclass
-class SymbolNode:
-    """
-    符号节点。
-
-    表示一个函数、类、变量等符号。
-    """
-
-    name: str = ""                          # 符号名称
-    type: str = "unknown"                   # 符号类型（class/function/...）
-    line: int = 0                           # 起始行号（0 开始）
-    col: int = 0                            # 起始列（0 开始）
-    end_line: int = 0                       # 结束行号（0 开始）
-    indent: int = 0                         # 缩进层级
-    parent_name: Optional[str] = None       # 父符号名称
-    signature: str = ""                     # 签名（如参数列表）
-    doc: str = ""                           # 文档字符串
-    children: List['SymbolNode'] = field(default_factory=list)
-
-    def add_child(self, child: 'SymbolNode'):
-        """添加子节点"""
-        child.parent_name = self.name
-        self.children.append(child)
-
-    @property
-    def display_name(self) -> str:
-        """显示名称"""
-        icon = SYMBOL_TYPE_ICONS.get(self.type, '•')
-        if self.signature:
-            return f"{icon} {self.name}{self.signature}"
-        return f"{icon} {self.name}"
-
-    @property
-    def line_display(self) -> str:
-        """行号显示（1 开始）"""
-        return str(self.line + 1)
-
-    def has_children(self) -> bool:
-        """是否有子节点"""
-        return len(self.children) > 0
-
-    def get_depth(self) -> int:
-        """获取深度"""
-        return self.indent
-
-    def __repr__(self) -> str:
-        return (f"<SymbolNode {self.type} {self.name} "
-                f"line={self.line} children={len(self.children)}>")
-
-
-# ============================================================
-# 符号解析器
-# ============================================================
-class SymbolParser:
-    """
-    符号解析器。
-
-    使用正则表达式 + 简单语法分析解析各类语言的符号。
-
-    支持语言:
-    - Python
-    - JavaScript / TypeScript
-    - C / C++
-    - Java
-    - Go
-    - Rust
-    - Ruby
-    - PHP
-    - 通用（fallback）
-    """
-
-    def __init__(self):
-        # 语言 -> 解析函数映射
-        self._parsers = {
-            'Python': self._parse_python,
-            'JavaScript': self._parse_javascript,
-            'TypeScript': self._parse_typescript,
-            'JavaScript React': self._parse_javascript,
-            'TypeScript React': self._parse_typescript,
-            'C': self._parse_c_cpp,
-            'C++': self._parse_c_cpp,
-            'Java': self._parse_java,
-            'Go': self._parse_go,
-            'Rust': self._parse_rust,
-            'Ruby': self._parse_ruby,
-            'PHP': self._parse_php,
-        }
-
-    # --------------------------------------------------------
-    # 主入口
-    # --------------------------------------------------------
-    def parse(self, text: str, language: str,
-              filepath: Optional[str] = None) -> List[SymbolNode]:
-        """
-        解析文本中的符号。
-
-        参数:
-            text: 文件内容
-            language: 语言名称
-            filepath: 文件路径（用于更精细的判断）
-
-        返回:
-            符号节点列表（顶层）
-        """
-        if not text or not language:
-            return []
-
-        # 限制解析行数
-        lines = text.splitlines()
-        if len(lines) > MAX_PARSE_LINES:
-            lines = lines[:MAX_PARSE_LINES]
-            text = '\n'.join(lines)
-
-        # 获取对应语言的解析器
-        parser = self._parsers.get(language, self._parse_generic)
-        if parser is None:
-            parser = self._parse_generic
-
-        try:
-            symbols = parser(text, lines)
-            # 构建层级
-            symbols = self._build_hierarchy(symbols)
-            return symbols
-        except Exception as e:
-            print(f"[SymbolParser] 解析失败: {e}")
-            return []
-
-    # --------------------------------------------------------
-    # Python 解析
-    # --------------------------------------------------------
-    def _parse_python(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 Python 符号"""
-        symbols = []
-
-        # 类定义
-        class_pattern = re.compile(
-            r'^(\s*)class\s+(\w+)(?:\s*\(([^)]*)\))?\s*:'
-        )
-
-        # 函数/方法定义
-        def_pattern = re.compile(
-            r'^(\s*)(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)'
-        )
-
-        # 装饰器
-        decorator_pattern = re.compile(r'^(\s*)@(\w+)')
-
-        # 模块级常量（大写字母）
-        constant_pattern = re.compile(
-            r'^([A-Z][A-Z0-9_]*)\s*=\s*'
-        )
-
-        # 模块级变量
-        variable_pattern = re.compile(
-            r'^(\w+)\s*=\s*'
-        )
-
-        pending_decorators = []
-
-        for i, line in enumerate(lines):
-            # 装饰器
-            dec_match = decorator_pattern.match(line)
-            if dec_match:
-                pending_decorators.append(dec_match.group(2))
-                continue
-
-            # 类
-            class_match = class_pattern.match(line)
-            if class_match:
-                indent = len(class_match.group(1))
-                name = class_match.group(2)
-                bases = class_match.group(3) or ""
-
-                signature = f"({bases})" if bases else ""
-
-                node = SymbolNode(
-                    name=name,
-                    type='class',
-                    line=i,
-                    col=indent,
-                    indent=indent,
-                    signature=signature,
-                )
-                if pending_decorators:
-                    node.doc = f"@{', @'.join(pending_decorators)}"
-                symbols.append(node)
-                pending_decorators = []
-                continue
-
-            # 函数/方法
-            def_match = def_pattern.match(line)
-            if def_match:
-                indent = len(def_match.group(1))
-                name = def_match.group(2)
-                params = def_match.group(3) or ""
-
-                # 简化参数
-                if len(params) > 40:
-                    params = params[:37] + "..."
-
-                signature = f"({params})"
-
-                # 判断是方法还是函数（根据缩进判断是否在类中）
-                symbol_type = 'method' if indent > 0 else 'function'
-
-                node = SymbolNode(
-                    name=name,
-                    type=symbol_type,
-                    line=i,
-                    col=indent,
-                    indent=indent,
-                    signature=signature,
-                )
-                if pending_decorators:
-                    node.doc = f"@{', @'.join(pending_decorators)}"
-                symbols.append(node)
-                pending_decorators = []
-                continue
-
-            # 常量
-            const_match = constant_pattern.match(line)
-            if const_match and not line.strip().startswith('#'):
-                name = const_match.group(1)
-                if not any(s.name == name and s.line == i for s in symbols):
-                    node = SymbolNode(
-                        name=name,
-                        type='constant',
-                        line=i,
-                        col=0,
-                        indent=0,
-                    )
-                    symbols.append(node)
-                continue
-
-            # 重置装饰器
-            if line.strip() and not line.strip().startswith('@'):
-                pending_decorators = []
-
-        return symbols
-
-    # --------------------------------------------------------
-    # JavaScript 解析
-    # --------------------------------------------------------
-    def _parse_javascript(self, text: str,
-                          lines: List[str]) -> List[SymbolNode]:
-        """解析 JavaScript 符号"""
-        return self._parse_js_like(text, lines, is_ts=False)
-
-    def _parse_typescript(self, text: str,
-                          lines: List[str]) -> List[SymbolNode]:
-        """解析 TypeScript 符号"""
-        return self._parse_js_like(text, lines, is_ts=True)
-
-    def _parse_js_like(self, text: str, lines: List[str],
-                       is_ts: bool) -> List[SymbolNode]:
-        """解析类 JavaScript 语言"""
-        symbols = []
-
-        patterns = [
-            # class Foo {  /  class Foo extends Bar {
-            (re.compile(r'^(\s*)class\s+(\w+)(?:\s+extends\s+(\w+))?'),
-             'class'),
-            # function foo() {  /  async function foo() {
-            (re.compile(r'^(\s*)(?:async\s+)?function\s+(\w+)\s*\('),
-             'function'),
-            # const foo = () => {  /  const foo = function() {
-            (re.compile(r'^(\s*)(?:const|let|var)\s+(\w+)\s*=\s*'
-                        r'(?:async\s+)?(?:function|\()'),
-             'function'),
-            # foo() {  (class method)
-            (re.compile(r'^(\s{2,})(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{'),
-             'method'),
-            # interface Foo {
-            (re.compile(r'^(\s*)interface\s+(\w+)'), 'interface'),
-            # type Foo =
-            (re.compile(r'^(\s*)type\s+(\w+)'), 'type'),
-            # enum Foo {
-            (re.compile(r'^(\s*)enum\s+(\w+)'), 'enum'),
-        ]
-
-        for i, line in enumerate(lines):
-            for pattern, symbol_type in patterns:
-                match = pattern.match(line)
-                if match:
-                    indent = len(match.group(1))
-                    name = match.group(2)
-
-                    node = SymbolNode(
-                        name=name,
-                        type=symbol_type,
-                        line=i,
-                        col=indent,
-                        indent=indent,
-                    )
-                    symbols.append(node)
-                    break
-
-        return symbols
-
-    # --------------------------------------------------------
-    # C/C++ 解析
-    # --------------------------------------------------------
-    def _parse_c_cpp(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 C/C++ 符号"""
-        symbols = []
-
-        # 类/结构体
-        class_pattern = re.compile(
-            r'^\s*(class|struct|union)\s+(\w+)'
-        )
-
-        # 函数（简单匹配）
-        func_pattern = re.compile(
-            r'^(\w[\w\s\*&:<>]*?)\s+(\w+)\s*\([^)]*\)\s*(?:const)?\s*\{?'
-        )
-
-        # 命名空间
-        namespace_pattern = re.compile(r'^\s*namespace\s+(\w+)')
-
-        # #define 宏
-        macro_pattern = re.compile(r'^\s*#define\s+(\w+)')
-
-        # 枚举
-        enum_pattern = re.compile(r'^\s*enum\s+(?:class\s+)?(\w+)')
-
-        for i, line in enumerate(lines):
-            # 跳过注释
-            stripped = line.strip()
-            if stripped.startswith('//') or stripped.startswith('/*'):
-                continue
-
-            # 宏
-            macro_match = macro_pattern.match(line)
-            if macro_match:
-                node = SymbolNode(
-                    name=macro_match.group(1),
-                    type='macro',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            # 类
-            class_match = class_pattern.match(line)
-            if class_match:
-                node = SymbolNode(
-                    name=class_match.group(2),
-                    type=class_match.group(1),
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            # 命名空间
-            ns_match = namespace_pattern.match(line)
-            if ns_match:
-                node = SymbolNode(
-                    name=ns_match.group(1),
-                    type='namespace',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            # 枚举
-            enum_match = enum_pattern.match(line)
-            if enum_match:
-                node = SymbolNode(
-                    name=enum_match.group(1),
-                    type='enum',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            # 函数（简单匹配，避免误判）
-            func_match = func_pattern.match(line)
-            if func_match:
-                name = func_match.group(2)
-                # 排除关键字
-                if name not in ('if', 'else', 'for', 'while', 'switch',
-                                'return', 'case', 'break', 'continue'):
-                    node = SymbolNode(
-                        name=name,
-                        type='function',
-                        line=i,
-                        col=0,
-                        indent=0,
-                    )
-                    symbols.append(node)
-
-        return symbols
-
-    # --------------------------------------------------------
-    # Java 解析
-    # --------------------------------------------------------
-    def _parse_java(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 Java 符号"""
-        symbols = []
-
-        class_pattern = re.compile(
-            r'^\s*(?:public|private|protected)?\s*'
-            r'(?:abstract|final|static)?\s*'
-            r'(class|interface|enum)\s+(\w+)'
-        )
-
-        method_pattern = re.compile(
-            r'^\s*(?:public|private|protected|static|final|abstract|'
-            r'synchronized|native|\s)+\s*'
-            r'(\w+(?:<[^>]+>)?)\s+(\w+)\s*\([^)]*\)'
-        )
-
-        field_pattern = re.compile(
-            r'^\s*(?:public|private|protected|static|final|'
-            r'transient|volatile|\s)+\s*'
-            r'(\w+(?:<[^>]+>)?)\s+(\w+)\s*(?:=|;)'
-        )
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('//') or stripped.startswith('*'):
-                continue
-
-            class_match = class_pattern.match(line)
-            if class_match:
-                node = SymbolNode(
-                    name=class_match.group(2),
-                    type=class_match.group(1),
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            method_match = method_pattern.match(line)
-            if method_match:
-                name = method_match.group(2)
-                if name not in ('if', 'else', 'for', 'while', 'switch'):
-                    node = SymbolNode(
-                        name=name,
-                        type='method',
-                        line=i,
-                        col=0,
-                        indent=0,
-                    )
-                    symbols.append(node)
-                continue
-
-            field_match = field_pattern.match(line)
-            if field_match:
-                node = SymbolNode(
-                    name=field_match.group(2),
-                    type='field',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-
-        return symbols
-
-    # --------------------------------------------------------
-    # Go 解析
-    # --------------------------------------------------------
-    def _parse_go(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 Go 符号"""
-        symbols = []
-
-        func_pattern = re.compile(
-            r'^\s*func\s+(?:\([^)]+\)\s+)?(\w+)\s*\([^)]*\)'
-        )
-
-        type_pattern = re.compile(r'^\s*type\s+(\w+)\s+(struct|interface)')
-
-        var_pattern = re.compile(r'^\s*(?:var|const)\s+(\w+)')
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('//'):
-                continue
-
-            func_match = func_pattern.match(line)
-            if func_match:
-                name = func_match.group(1)
-                # 判断是否为方法（带接收者）
-                is_method = ')' in line.split('func')[1].split('(')[0] if 'func' in line else False
-                node = SymbolNode(
-                    name=name,
-                    type='method' if is_method else 'function',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            type_match = type_pattern.match(line)
-            if type_match:
-                node = SymbolNode(
-                    name=type_match.group(1),
-                    type=type_match.group(2),
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-                continue
-
-            var_match = var_pattern.match(line)
-            if var_match:
-                node = SymbolNode(
-                    name=var_match.group(1),
-                    type='variable',
-                    line=i,
-                    col=0,
-                    indent=0,
-                )
-                symbols.append(node)
-
-        return symbols
-
-    # --------------------------------------------------------
-    # Rust 解析
-    # --------------------------------------------------------
-    def _parse_rust(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 Rust 符号"""
-        symbols = []
-
-        patterns = [
-            (re.compile(r'^\s*(?:pub\s+)?fn\s+(\w+)'), 'function'),
-            (re.compile(r'^\s*(?:pub\s+)?struct\s+(\w+)'), 'struct'),
-            (re.compile(r'^\s*(?:pub\s+)?enum\s+(\w+)'), 'enum'),
-            (re.compile(r'^\s*(?:pub\s+)?trait\s+(\w+)'), 'interface'),
-            (re.compile(r'^\s*(?:pub\s+)?mod\s+(\w+)'), 'namespace'),
-            (re.compile(r'^\s*(?:pub\s+)?type\s+(\w+)'), 'type'),
-            (re.compile(r'^\s*(?:pub\s+)?const\s+(\w+)'), 'constant'),
-            (re.compile(r'^\s*(?:pub\s+)?static\s+(\w+)'), 'variable'),
-            (re.compile(r'^\s*impl\s+(?:<[^>]*>\s+)?(\w+)'), 'class'),
-            (re.compile(r'^\s*macro_rules!\s+(\w+)'), 'macro'),
-        ]
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('//') or stripped.startswith('/*'):
-                continue
-
-            for pattern, symbol_type in patterns:
-                match = pattern.match(line)
-                if match:
-                    indent = len(line) - len(line.lstrip())
-                    node = SymbolNode(
-                        name=match.group(1),
-                        type=symbol_type,
-                        line=i,
-                        col=indent,
-                        indent=indent,
-                    )
-                    symbols.append(node)
-                    break
-
-        return symbols
-
-    # --------------------------------------------------------
-    # Ruby 解析
-    # --------------------------------------------------------
-    def _parse_ruby(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 Ruby 符号"""
-        symbols = []
-
-        patterns = [
-            (re.compile(r'^\s*class\s+(\w+)'), 'class'),
-            (re.compile(r'^\s*module\s+(\w+)'), 'module'),
-            (re.compile(r'^\s*def\s+(\w+[?!]?)'), 'method'),
-        ]
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('#'):
-                continue
-
-            for pattern, symbol_type in patterns:
-                match = pattern.match(line)
-                if match:
-                    indent = len(line) - len(line.lstrip())
-                    node = SymbolNode(
-                        name=match.group(1),
-                        type=symbol_type,
-                        line=i,
-                        col=indent,
-                        indent=indent,
-                    )
-                    symbols.append(node)
-                    break
-
-        return symbols
-
-    # --------------------------------------------------------
-    # PHP 解析
-    # --------------------------------------------------------
-    def _parse_php(self, text: str, lines: List[str]) -> List[SymbolNode]:
-        """解析 PHP 符号"""
-        symbols = []
-
-        patterns = [
-            (re.compile(r'^\s*(?:abstract\s+|final\s+)?class\s+(\w+)'),
-             'class'),
-            (re.compile(r'^\s*interface\s+(\w+)'), 'interface'),
-            (re.compile(r'^\s*trait\s+(\w+)'), 'interface'),
-            (re.compile(r'^\s*(?:public|private|protected|static|\s)*'
-                        r'function\s+(\w+)'), 'function'),
-            (re.compile(r'^\s*(?:public|private|protected)?\s*'
-                        r'\$(\w+)\s*='), 'variable'),
-        ]
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('//') or stripped.startswith('/*'):
-                continue
-
-            for pattern, symbol_type in patterns:
-                match = pattern.match(line)
-                if match:
-                    indent = len(line) - len(line.lstrip())
-                    node = SymbolNode(
-                        name=match.group(1),
-                        type=symbol_type,
-                        line=i,
-                        col=indent,
-                        indent=indent,
-                    )
-                    symbols.append(node)
-                    break
-
-        return symbols
-
-    # --------------------------------------------------------
-    # 通用解析
-    # --------------------------------------------------------
-    def _parse_generic(self, text: str,
-                        lines: List[str]) -> List[SymbolNode]:
-        """通用解析（fallback）"""
-        symbols = []
-
-        # 尝试匹配常见的函数/类定义
-        patterns = [
-            (re.compile(r'^\s*(?:class|struct)\s+(\w+)'), 'class'),
-            (re.compile(r'^\s*def\s+(\w+)'), 'function'),
-            (re.compile(r'^\s*function\s+(\w+)'), 'function'),
-        ]
-
-        for i, line in enumerate(lines):
-            for pattern, symbol_type in patterns:
-                match = pattern.match(line)
-                if match:
-                    indent = len(line) - len(line.lstrip())
-                    node = SymbolNode(
-                        name=match.group(1),
-                        type=symbol_type,
-                        line=i,
-                        col=indent,
-                        indent=indent,
-                    )
-                    symbols.append(node)
-                    break
-
-        return symbols
-
-    # --------------------------------------------------------
-    # 层级构建
-    # --------------------------------------------------------
-    def _build_hierarchy(self, flat_symbols: List[SymbolNode]
-                          ) -> List[SymbolNode]:
-        """
-        从扁平符号列表构建层级结构。
-
-        基于缩进判断父子关系。
-        """
-        if not flat_symbols:
-            return []
-
-        # 计算每个符号的结束行
-        self._compute_end_lines(flat_symbols)
-
-        # 构建层级
-        root_symbols = []
-        stack = []  # 栈：存放 (indent, symbol)
-
-        for symbol in flat_symbols:
-            # 弹出比当前缩进大或相等的符号
-            while stack and stack[-1][0] >= symbol.indent:
-                stack.pop()
-
-            if stack:
-                # 有父节点
-                parent = stack[-1][1]
-                parent.add_child(symbol)
-            else:
-                # 顶层
-                root_symbols.append(symbol)
-
-            # 当前符号入栈
-            stack.append((symbol.indent, symbol))
-
-        return root_symbols
-
-    def _compute_end_lines(self, symbols: List[SymbolNode]):
-        """计算每个符号的结束行。
-
-        修复说明（P1-B2）:
-            原实现只看"下一个符号的缩进"：
-              - 有子节点的符号，end_line 被设为子节点起始行（错）
-              - 最后一个符号 end_line = 自己起始行（错）
-            结果：跟随光标高亮时命中错误的符号。
-
-            修复：向后扫描第一个缩进 <= 自己的符号，
-                 其前一行为自己的 end_line。最后一个符号延伸
-                 到文件最末符号的位置。
-        """
-        if not symbols:
-            return
-
-        # P1-B2: 计算 end_line 的正确方式
-        max_line = max(s.line for s in symbols)
-        n = len(symbols)
-
-        for i, symbol in enumerate(symbols):
-            end_line = max_line
-            for j in range(i + 1, n):
-                if symbols[j].indent <= symbol.indent:
-                    end_line = symbols[j].line - 1
-                    break
-            symbol.end_line = max(symbol.line, end_line)
-
-
-# ============================================================
-# 符号树控件
-# ============================================================
-class OutlineTree(QTreeWidget):
-    """
-    符号树控件。
-
-    展示符号层级结构，支持:
-    - 双击跳转
-    - 右键菜单
-
-    注意:
-        渲染逻辑（筛选、排序、图标、颜色）由 OutlinePanel 负责，
-        本类只负责树控件本身的行为与信号。
-    """
-
-    # 信号
-    symbol_activated = pyqtSignal(int)  # 跳转到行号
-
-    def __init__(self, parent=None, enhanced: bool = False):
-        super().__init__(parent)
-
-        self._enhanced = bool(enhanced)
-
-        # 配置
-        self.setHeaderHidden(False)
-        if self._enhanced:
-            self.setColumnCount(3)
-            self.setHeaderLabels(["符号", "行", "类型"])
-        else:
-            self.setColumnCount(2)
-            self.setHeaderLabels(["符号", "行"])
-
-        self.setIndentation(14)
-        self.setAnimated(True)
-        self.setUniformRowHeights(True)
-        self.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.setExpandsOnDoubleClick(False)
-
-        # 列宽
-        header = self.header()
-        header.setStretchLastSection(False)
-        header.setSectionResizeMode(COL_SYMBOL, QHeaderView.Stretch)
-        header.setSectionResizeMode(COL_LINE, QHeaderView.ResizeToContents)
-        if self._enhanced:
-            header.setSectionResizeMode(COL_TYPE, QHeaderView.ResizeToContents)
-
-        # 应用样式
-        self._apply_style()
-
-        # 连接信号
-        self.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self.customContextMenuRequested.connect(self._show_context_menu)
-
-    def _apply_style(self):
-        """应用样式"""
-        self.setStyleSheet("""
-            QTreeWidget {
-                background-color: #252526;
-                color: #d4d4d4;
-                border: none;
-                font-size: 12px;
-                outline: none;
-            }
-            QTreeWidget::item {
-                padding: 2px 4px;
-                border-radius: 2px;
-            }
-            QTreeWidget::item:hover {
-                background-color: #2a2d2e;
-            }
-            QTreeWidget::item:selected {
-                background-color: #094771;
-                color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #252526;
-                color: #888;
-                border: none;
-                padding: 2px 4px;
-                font-size: 11px;
-            }
-        """)
-
-    # --------------------------------------------------------
-    # 交互
-    # --------------------------------------------------------
-    def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
-        """双击跳转"""
-        line = item.data(COL_SYMBOL, Qt.UserRole + 1)
-        if line is not None:
-            self.symbol_activated.emit(line)
-
-    def _show_context_menu(self, pos: QPoint):
-        """右键菜单"""
-        item = self.itemAt(pos)
-        if item is None:
-            # 空白区域
-            menu = QMenu(self)
-            expand_all = menu.addAction("⊞ 全部展开")
-            expand_all.triggered.connect(self.expandAll)
-
-            collapse_all = menu.addAction("⊟ 全部折叠")
-            collapse_all.triggered.connect(self.collapseAll)
-
-            menu.exec_(self.viewport().mapToGlobal(pos))
-            return
-
-        menu = QMenu(self)
-
-        # 跳转
-        goto_act = menu.addAction("➡ 跳转到定义")
-        goto_act.triggered.connect(
-            lambda: self._on_item_double_clicked(item, 0)
-        )
-
-        menu.addSeparator()
-
-        # 复制符号名
-        symbol = item.data(COL_SYMBOL, Qt.UserRole)
-        if symbol:
-            copy_name = menu.addAction("📋 复制符号名称")
-            copy_name.triggered.connect(
-                lambda: QApplication.clipboard().setText(symbol.name)
-            )
-
-            copy_line = menu.addAction(f"📋 复制行号 ({symbol.line + 1})")
-            copy_line.triggered.connect(
-                lambda: QApplication.clipboard().setText(str(symbol.line + 1))
-            )
-
-        menu.addSeparator()
-
-        # 展开/折叠
-        if item.isExpanded():
-            collapse_act = menu.addAction("⊟ 折叠")
-            collapse_act.triggered.connect(lambda: item.setExpanded(False))
-        else:
-            expand_act = menu.addAction("⊞ 展开")
-            expand_act.triggered.connect(lambda: item.setExpanded(True))
-
-        menu.addSeparator()
-
-        expand_all = menu.addAction("⊞ 全部展开")
-        expand_all.triggered.connect(self.expandAll)
-
-        collapse_all = menu.addAction("⊟ 全部折叠")
-        collapse_all.triggered.connect(self.collapseAll)
-
-        menu.exec_(self.viewport().mapToGlobal(pos))
-
-
-# ============================================================
-# 大纲面板（合并版）
-# ============================================================
 class OutlinePanel(QDockWidget):
     """
     符号大纲面板（合并版，P3-8）。
@@ -1122,8 +32,7 @@ class OutlinePanel(QDockWidget):
     symbol_clicked = pyqtSignal(int)
     symbol_selected = pyqtSignal(str, int)
 
-    def __init__(self, main_window=None, parent=None,
-                 enhanced: bool = False):
+    def __init__(self, main_window=None, parent=None, enhanced: bool = False):
         super().__init__("大纲", parent or main_window)
 
         self.main_window = main_window
@@ -1144,8 +53,8 @@ class OutlinePanel(QDockWidget):
         self._current_symbols: List[SymbolNode] = []
 
         # 筛选与排序（仅增强模式使用）
-        self._current_filter: str = 'all'
-        self._current_sort: str = 'line'
+        self._current_filter: str = "all"
+        self._current_sort: str = "line"
 
         # 更新定时器（防抖）
         self._update_timer = QTimer(self)
@@ -1154,9 +63,7 @@ class OutlinePanel(QDockWidget):
         self._update_timer.timeout.connect(self._do_update)
 
         # 设置属性
-        self.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
-        )
+        self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.setObjectName("OutlinePanel")
 
         # 构建 UI
@@ -1177,9 +84,7 @@ class OutlinePanel(QDockWidget):
 
         # 顶部工具栏
         toolbar = QWidget()
-        toolbar.setStyleSheet(
-            "background-color: #2d2d2d; border-bottom: 1px solid #3c3c3c;"
-        )
+        toolbar.setStyleSheet("background-color: #2d2d2d; border-bottom: 1px solid #3c3c3c;")
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(4, 4, 4, 4)
         toolbar_layout.setSpacing(4)
@@ -1218,9 +123,7 @@ class OutlinePanel(QDockWidget):
             self.filter_combo.setFixedWidth(90)
             for key, name in FILTER_CATEGORIES.items():
                 self.filter_combo.addItem(name, key)
-            self.filter_combo.currentIndexChanged.connect(
-                self._on_filter_changed
-            )
+            self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
             toolbar_layout.addWidget(self.filter_combo)
 
         # 排序下拉（仅增强模式）
@@ -1231,18 +134,14 @@ class OutlinePanel(QDockWidget):
             self.sort_combo.setFixedWidth(90)
             for key, name in SORT_OPTIONS.items():
                 self.sort_combo.addItem(name, key)
-            self.sort_combo.currentIndexChanged.connect(
-                self._on_sort_changed
-            )
+            self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
             toolbar_layout.addWidget(self.sort_combo)
 
         layout.addWidget(toolbar)
 
         # 搜索栏
         search_bar = QWidget()
-        search_bar.setStyleSheet(
-            "background-color: #2d2d2d; border-bottom: 1px solid #3c3c3c;"
-        )
+        search_bar.setStyleSheet("background-color: #2d2d2d; border-bottom: 1px solid #3c3c3c;")
         sb_layout = QHBoxLayout(search_bar)
         sb_layout.setContentsMargins(4, 2, 4, 2)
         sb_layout.setSpacing(4)
@@ -1265,9 +164,7 @@ class OutlinePanel(QDockWidget):
                 "padding: 4px 8px; "
                 "border-bottom: 1px solid #3c3c3c;"
             )
-            self.breadcrumb_label.setTextInteractionFlags(
-                Qt.TextSelectableByMouse
-            )
+            self.breadcrumb_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             layout.addWidget(self.breadcrumb_label)
 
         # 符号树
@@ -1296,7 +193,8 @@ class OutlinePanel(QDockWidget):
         """主题变更时刷新样式（v3.0）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
-            if not hasattr(self, '_original_qss') or not self._original_qss:
+
+            if not hasattr(self, "_original_qss") or not self._original_qss:
                 self._original_qss = self.styleSheet()
             if self._original_qss:
                 qss = adapt_qss_colors(self._original_qss, theme)
@@ -1409,12 +307,12 @@ class OutlinePanel(QDockWidget):
             # 文件/语言变化，或插件 symbol provider 数量变化 → 重新解析
             # （后者修复两个真实场景：插件晚于文件加载才激活；插件卸载后
             #   符号必须从大纲移除）。
-            provider_count = len(getattr(
-                self.main_window, '_plugin_symbol_providers', []) or [])
-            if (filepath != self._current_filepath or
-                    language != self._current_language or
-                    provider_count != getattr(
-                        self, '_provider_count', -1)):
+            provider_count = len(getattr(self.main_window, "_plugin_symbol_providers", []) or [])
+            if (
+                filepath != self._current_filepath
+                or language != self._current_language
+                or provider_count != getattr(self, "_provider_count", -1)
+            ):
                 self._current_filepath = filepath
                 self._current_language = language
 
@@ -1423,9 +321,7 @@ class OutlinePanel(QDockWidget):
                 # 允许用户在首选项里调整（默认 10MB，按 50
                 # 字节/行估算最大行数）。
                 try:
-                    threshold_mb = self.main_window.prefs.get(
-                        "large_file_threshold", 10
-                    )
+                    threshold_mb = self.main_window.prefs.get("large_file_threshold", 10)
                     max_lines = int(threshold_mb * 1024 * 1024 / 50)
                     max_lines = max(5000, min(max_lines, 200000))
                 except Exception:
@@ -1433,7 +329,7 @@ class OutlinePanel(QDockWidget):
 
                 text = ""
                 try:
-                    sc = getattr(proxy, 'sc', None)
+                    sc = getattr(proxy, "sc", None)
                     if sc is not None:
                         total = sc.SendScintilla(sc.SCI_GETLINECOUNT)
                         n = min(max_lines, total)
@@ -1447,12 +343,9 @@ class OutlinePanel(QDockWidget):
                     except Exception:
                         text = ""
 
-                self._current_symbols = self.parser.parse(
-                    text, language, filepath
-                )
+                self._current_symbols = self.parser.parse(text, language, filepath)
 
-                self._merge_plugin_symbols(
-                    text, filepath, language)
+                self._merge_plugin_symbols(text, filepath, language)
                 self._provider_count = provider_count
 
             # 兜底：大纲定时器可能在文件**加载中途**触发，把空符号缓存
@@ -1460,17 +353,17 @@ class OutlinePanel(QDockWidget):
             # 内容已就绪但符号仍为空时补一次解析（含插件符号合并）。
             if not self._current_symbols and self._current_filepath:
                 try:
-                    sc = getattr(proxy, 'sc', None)
+                    sc = getattr(proxy, "sc", None)
                     if sc is not None and sc.length() > 0:
                         total = sc.SendScintilla(sc.SCI_GETLINECOUNT)
                         n = min(50000, total)
                         _text = "\n".join(sc.text(i) for i in range(n))
                         self._current_symbols = self.parser.parse(
-                            _text, self._current_language,
-                            self._current_filepath)
+                            _text, self._current_language, self._current_filepath
+                        )
                         self._merge_plugin_symbols(
-                            _text, self._current_filepath,
-                            self._current_language)
+                            _text, self._current_filepath, self._current_language
+                        )
                 except Exception:
                     pass
 
@@ -1483,8 +376,7 @@ class OutlinePanel(QDockWidget):
     def _merge_plugin_symbols(self, text, filepath, language):
         """合并插件 symbol provider（v2.3，NPP functionList 等价）"""
         try:
-            collector = getattr(
-                self.main_window, 'collect_plugin_symbols', None)
+            collector = getattr(self.main_window, "collect_plugin_symbols", None)
             if not callable(collector):
                 return
             items = collector(text, filepath or "", language)
@@ -1496,16 +388,15 @@ class OutlinePanel(QDockWidget):
                 for it in raw or []:
                     try:
                         node = SymbolNode(
-                            name=str(it.get('name') or '?'),
-                            type=str(it.get('type') or 'unknown'),
-                            line=int(it.get('line') or 0),
-                            col=int(it.get('col') or 0),
-                            end_line=int(it.get('end_line') or 0),
-                            indent=int(it.get('indent') or depth),
-                            signature=str(it.get('signature') or ''),
+                            name=str(it.get("name") or "?"),
+                            type=str(it.get("type") or "unknown"),
+                            line=int(it.get("line") or 0),
+                            col=int(it.get("col") or 0),
+                            end_line=int(it.get("end_line") or 0),
+                            indent=int(it.get("indent") or depth),
+                            signature=str(it.get("signature") or ""),
                         )
-                        for child in _to_nodes(
-                                it.get('children') or [], depth + 1):
+                        for child in _to_nodes(it.get("children") or [], depth + 1):
                             node.add_child(child)
                         nodes.append(node)
                     except Exception:
@@ -1539,7 +430,7 @@ class OutlinePanel(QDockWidget):
     def _render(self):
         """渲染符号树"""
         keyword = self.search_edit.text().strip().lower()
-        filter_key = self._current_filter if self._enhanced else 'all'
+        filter_key = self._current_filter if self._enhanced else "all"
 
         self.tree.setUpdatesEnabled(False)
         try:
@@ -1555,35 +446,37 @@ class OutlinePanel(QDockWidget):
         finally:
             self.tree.setUpdatesEnabled(True)
 
-    def _add_symbol_item(self, parent_item, symbol,
-                          keyword: str, filter_key: str) -> bool:
+    def _add_symbol_item(self, parent_item, symbol, keyword: str, filter_key: str) -> bool:
         """
         递归添加符号项。
 
         返回: 是否添加了该项（用于搜索过滤的父节点保留判断）
         """
         # 类型筛选
-        if filter_key != 'all':
-            if filter_key == 'class' and symbol.type not in (
-                'class', 'interface', 'struct', 'enum'
+        if filter_key != "all":
+            if filter_key == "class" and symbol.type not in (
+                "class",
+                "interface",
+                "struct",
+                "enum",
             ):
                 if not symbol.children:
                     return False
-            elif filter_key == 'function' and symbol.type != 'function':
+            elif filter_key == "function" and symbol.type != "function":
                 if not symbol.children:
                     return False
-            elif filter_key == 'method' and symbol.type != 'method':
+            elif filter_key == "method" and symbol.type != "method":
                 if not symbol.children:
                     return False
-            elif filter_key == 'variable' and symbol.type != 'variable':
+            elif filter_key == "variable" and symbol.type != "variable":
                 if not symbol.children:
                     return False
-            elif filter_key == 'constant' and symbol.type != 'constant':
+            elif filter_key == "constant" and symbol.type != "constant":
                 if not symbol.children:
                     return False
 
         # 搜索匹配
-        text = (symbol.name + ' ' + symbol.signature).lower()
+        text = (symbol.name + " " + symbol.signature).lower()
         self_match = (not keyword) or (keyword in text)
 
         # 创建项
@@ -1593,9 +486,8 @@ class OutlinePanel(QDockWidget):
             item = QTreeWidgetItem(self.tree)
 
         # 图标 + 名称
-        icon = SYMBOL_TYPE_ICONS.get(symbol.type, '•')
-        item.setText(COL_SYMBOL,
-                     f"{icon} {symbol.name}{symbol.signature or ''}")
+        icon = SYMBOL_TYPE_ICONS.get(symbol.type, "•")
+        item.setText(COL_SYMBOL, f"{icon} {symbol.name}{symbol.signature or ''}")
         item.setText(COL_LINE, str(symbol.line + 1))
 
         # 类型列（仅增强模式）
@@ -1613,7 +505,7 @@ class OutlinePanel(QDockWidget):
             item.setForeground(COL_SYMBOL, QBrush(color))
 
         # 加粗类/接口
-        if symbol.type in ('class', 'interface', 'struct', 'namespace'):
+        if symbol.type in ("class", "interface", "struct", "namespace"):
             font = item.font(COL_SYMBOL)
             font.setBold(True)
             item.setFont(COL_SYMBOL, font)
@@ -1629,9 +521,7 @@ class OutlinePanel(QDockWidget):
             if parent_item:
                 parent_item.removeChild(item)
             else:
-                self.tree.takeTopLevelItem(
-                    self.tree.indexOfTopLevelItem(item)
-                )
+                self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(item))
             return False
 
         # 有子节点匹配时展开
@@ -1648,26 +538,26 @@ class OutlinePanel(QDockWidget):
         ext = os.path.splitext(filepath)[1].lower()
 
         language_map = {
-            '.py': 'Python',
-            '.pyw': 'Python',
-            '.js': 'JavaScript',
-            '.jsx': 'JavaScript React',
-            '.ts': 'TypeScript',
-            '.tsx': 'TypeScript React',
-            '.c': 'C',
-            '.cpp': 'C++',
-            '.cc': 'C++',
-            '.cxx': 'C++',
-            '.h': 'C',
-            '.hpp': 'C++',
-            '.java': 'Java',
-            '.go': 'Go',
-            '.rs': 'Rust',
-            '.rb': 'Ruby',
-            '.php': 'PHP',
+            ".py": "Python",
+            ".pyw": "Python",
+            ".js": "JavaScript",
+            ".jsx": "JavaScript React",
+            ".ts": "TypeScript",
+            ".tsx": "TypeScript React",
+            ".c": "C",
+            ".cpp": "C++",
+            ".cc": "C++",
+            ".cxx": "C++",
+            ".h": "C",
+            ".hpp": "C++",
+            ".java": "Java",
+            ".go": "Go",
+            ".rs": "Rust",
+            ".rb": "Ruby",
+            ".php": "PHP",
         }
 
-        return language_map.get(ext, '')
+        return language_map.get(ext, "")
 
     # ========================================================
     # 跟随光标高亮（增强）
@@ -1765,24 +655,24 @@ class OutlinePanel(QDockWidget):
         """筛选变化（增强模式）"""
         if not self.filter_combo:
             return
-        self._current_filter = self.filter_combo.currentData() or 'all'
+        self._current_filter = self.filter_combo.currentData() or "all"
         self._render()
 
     def _on_sort_changed(self, index: int):
         """排序变化（增强模式）"""
         if not self.sort_combo:
             return
-        self._current_sort = self.sort_combo.currentData() or 'line'
+        self._current_sort = self.sort_combo.currentData() or "line"
         self._apply_sort()
         self._render()
 
     def _apply_sort(self):
         """对顶层符号列表排序"""
-        if self._current_sort == 'line':
+        if self._current_sort == "line":
             self._current_symbols.sort(key=lambda s: s.line)
-        elif self._current_sort == 'name':
+        elif self._current_sort == "name":
             self._current_symbols.sort(key=lambda s: s.name.lower())
-        elif self._current_sort == 'type':
+        elif self._current_sort == "type":
             self._current_symbols.sort(key=lambda s: (s.type, s.line))
 
     def _collapse_all(self):
@@ -1822,17 +712,13 @@ class OutlinePanel(QDockWidget):
         total = sum(counts.values())
 
         if total == 0:
-            self.status_label.setText(
-                f"{self._current_language or '未知'} · 无符号"
-            )
+            self.status_label.setText(f"{self._current_language or '未知'} · 无符号")
         else:
             parts = [f"{self._current_language or '?'} · {total} 符号"]
             if self._enhanced:
-                for t in ('class', 'function', 'method'):
+                for t in ("class", "function", "method"):
                     if t in counts:
-                        parts.append(
-                            f"{SYMBOL_TYPES.get(t, t)}: {counts[t]}"
-                        )
+                        parts.append(f"{SYMBOL_TYPES.get(t, t)}: {counts[t]}")
             self.status_label.setText(" · ".join(parts))
 
     # ========================================================
@@ -1906,14 +792,18 @@ class OutlinePanel(QDockWidget):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<OutlinePanel file={self._current_filepath!r} "
-                f"symbols={self.get_symbol_count()} "
-                f"enhanced={self._enhanced}>")
+        return (
+            f"<OutlinePanel file={self._current_filepath!r} "
+            f"symbols={self.get_symbol_count()} "
+            f"enhanced={self._enhanced}>"
+        )
 
 
 # ============================================================
 # 模块测试
 # ============================================================
+
+
 if __name__ == "__main__":
     import sys
 
@@ -1968,7 +858,7 @@ if __name__ == '__main__':
 
     print("=== 测试符号解析器 ===")
     parser = SymbolParser()
-    symbols = parser.parse(test_python, 'Python')
+    symbols = parser.parse(test_python, "Python")
 
     def print_symbols(nodes, indent=0):
         for node in nodes:
@@ -2005,20 +895,21 @@ if __name__ == '__main__':
 
     # 测试筛选
     print("=== 测试筛选 '类/接口' ===")
-    panel_enhanced._current_filter = 'class'
+    panel_enhanced._current_filter = "class"
     panel_enhanced._render()
     print("筛选后（应该只显示类）")
     print()
 
     # 测试搜索
     print("=== 测试搜索 'value' ===")
-    panel_enhanced._current_filter = 'all'
+    panel_enhanced._current_filter = "all"
     panel_enhanced.search_edit.setText("value")
     print("搜索后（应该只显示含 'value' 的符号）")
     print()
 
     # 定时退出
     from PyQt5.QtCore import QTimer
+
     QTimer.singleShot(2000, app.quit)
 
     sys.exit(app.exec())

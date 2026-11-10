@@ -102,7 +102,7 @@ def test_recover_pending_journal(tmp_path, monkeypatch):
 
 
 def test_document_and_main_wiring_static():
-    doc = io.open(os.path.join(ROOT, "core", "document.py"), encoding="utf-8").read()
+    doc = io.open(os.path.join(ROOT, "core", "document_core.py"), encoding="utf-8").read()
     assert "maybe_incremental_save" in doc
     main = io.open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
     assert "recover_pending_journals" in main

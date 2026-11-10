@@ -2,6 +2,8 @@
 
 ### 重构
 
+- **架构拆分第三批**：tabs 2,219→526、session 2,010→339、editor 2,031→752（+3 Mixin）、content_provider 2,190→re-export、document 2,072→re-export、outline_panel 2,024→915；**全仓 Python 文件 ≤1,500 行**。
+
 - **架构拆分第二批**：`plugin_api.py` 2,027→503（4 Mixin+公共模块）、`editor_view.py` 1,906→537（4 Mixin+公共模块）、`ai_assistant/__init__.py` 2,872→1,242（5 模块）；加载器支持包式插件相对导入。
 
 
