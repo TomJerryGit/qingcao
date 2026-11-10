@@ -128,9 +128,11 @@ def test_production_code_calls_local_completer():
 
 
 def test_editor_imports_local_completer_singleton():
-    src = (inspect.getsource(editor_view)
-           + inspect.getsource(editor_completion)
-           + inspect.getsource(editor_common))
+    src = (
+        inspect.getsource(editor_view)
+        + inspect.getsource(editor_completion)
+        + inspect.getsource(editor_common)
+    )
     assert "from core.local_completer import get_local_completer" in src
     assert "get_local_completer()" in src
 
