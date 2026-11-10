@@ -818,6 +818,15 @@ class PreferencesDialog(QDialog):
         bottom_layout = QHBoxLayout(bottom)
         bottom_layout.setContentsMargins(12, 8, 12, 8)
 
+        self.advanced_check = QCheckBox("显示高级设置")
+        self.advanced_check.setObjectName("prefs_advanced_toggle")
+        try:
+            _show = bool(self.prefs.get("show_advanced_settings", False))
+        except Exception:
+            _show = False
+        self.advanced_check.setChecked(_show)
+        self.advanced_check.toggled.connect(self._toggle_advanced)
+        bottom_layout.addWidget(self.advanced_check)
         bottom_layout.addStretch()
 
         ok_btn = QPushButton("确定")
@@ -838,6 +847,7 @@ class PreferencesDialog(QDialog):
 
         # 全部控件建好后再设置默认选中分类
         self.category_list.setCurrentRow(0)
+        self._toggle_advanced(self.advanced_check.isChecked())
 
     def _create_pages(self):
         """创建所有分类页"""
@@ -862,6 +872,22 @@ class PreferencesDialog(QDialog):
 
         for key, _, _ in PAGES:
             self.stack.addWidget(self.pages[key])
+
+    def _toggle_advanced(self, checked: bool):
+        """基础/高级分层：默认隐藏“高级”分类，勾选后显示并持久化。"""
+        try:
+            idx = next(i for i, (k, _n, _ic) in enumerate(PAGES) if k == "advanced")
+        except StopIteration:
+            return
+        item = self.category_list.item(idx)
+        if item is not None:
+            item.setHidden(not checked)
+        if not checked and self.category_list.currentRow() == idx:
+            self.category_list.setCurrentRow(0)
+        try:
+            self.prefs.set("show_advanced_settings", bool(checked))
+        except Exception:
+            pass
 
     def _on_category_changed(self, index: int):
         # 保护：_build_ui 早期 setCurrentRow(0) 时 stack 尚未创建
