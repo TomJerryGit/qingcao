@@ -298,6 +298,17 @@ def main():
     # --------------------------------------------------------
     window.show()
 
+    # 首启向导（v2.24.x UX；无头冒烟时跳过）
+    try:
+        import os as _os
+
+        if _os.environ.get("QINGCAO_HEADLESS_SMOKE") != "1":
+            from ui.onboarding import maybe_show_onboarding
+
+            maybe_show_onboarding(window)
+    except Exception:
+        pass
+
     # 诊断钩子（仅在 QINGCAO_STARTUP_DIAG=1 时写文件；不影响正常运行）
     #
     # 用途：排查"打包版状态栏/面板样式与源码版不一致"这类**只在打包产物中
