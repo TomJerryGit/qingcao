@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 重构
+
+- **架构拆分第二批**：`plugin_api.py` 2,027→503（4 Mixin+公共模块）、`editor_view.py` 1,906→537（4 Mixin+公共模块）、`ai_assistant/__init__.py` 2,872→1,242（5 模块）；加载器支持包式插件相对导入。
+
+
 ### 安全
 
 - **插件安装/更新风险分级确认**：高权限（process/terminal/debugger）默认拒绝，需显式确认；

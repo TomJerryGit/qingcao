@@ -104,8 +104,8 @@ def resolve_plugin_dir(plugin_dir: Optional[str] = None) -> str:
         pass
     try:
         candidates.append(
-            os.path.join(os.path.dirname(os.path.abspath(sys.executable)),
-                         plugin_dir))
+            os.path.join(os.path.dirname(os.path.abspath(sys.executable)), plugin_dir)
+        )
     except Exception:
         pass
     candidates.append(os.path.abspath(plugin_dir))
@@ -115,6 +115,7 @@ def resolve_plugin_dir(plugin_dir: Optional[str] = None) -> str:
         if os.path.isdir(c):
             return c
     return candidates[0]
+
 
 # 插件清单文件名
 PLUGIN_MANIFEST = "plugin.json"
@@ -173,13 +174,14 @@ DANGEROUS_PERMISSIONS = {
 # ============================================================
 class PluginState(Enum):
     """插件状态"""
-    DISCOVERED = auto()      # 已发现
-    LOADING = auto()         # 加载中
-    LOADED = auto()          # 已加载
-    ACTIVATED = auto()       # 已激活
-    ERROR = auto()           # 错误
-    DISABLED = auto()        # 已禁用
-    UNLOADED = auto()        # 已卸载
+
+    DISCOVERED = auto()  # 已发现
+    LOADING = auto()  # 加载中
+    LOADED = auto()  # 已加载
+    ACTIVATED = auto()  # 已激活
+    ERROR = auto()  # 错误
+    DISABLED = auto()  # 已禁用
+    UNLOADED = auto()  # 已卸载
 
 
 # ============================================================
@@ -194,25 +196,25 @@ class PluginMeta:
     """
 
     # 基本信息
-    name: str = ""                          # 内部名称（唯一）
-    display_name: str = ""                  # 显示名称
-    version: str = "0.0.0"                  # 版本
-    description: str = ""                   # 简短描述
-    long_description: str = ""              # 详细描述
-    author: str = ""                        # 作者
-    author_email: str = ""                  # 作者邮箱
-    homepage: str = ""                      # 主页
-    repository: str = ""                    # 仓库地址
-    license: str = "MIT"                    # 许可证
+    name: str = ""  # 内部名称（唯一）
+    display_name: str = ""  # 显示名称
+    version: str = "0.0.0"  # 版本
+    description: str = ""  # 简短描述
+    long_description: str = ""  # 详细描述
+    author: str = ""  # 作者
+    author_email: str = ""  # 作者邮箱
+    homepage: str = ""  # 主页
+    repository: str = ""  # 仓库地址
+    license: str = "MIT"  # 许可证
 
     # 类型分类
-    type: str = "plugin"                    # plugin / theme / language / tool
-    category: str = "other"                 # 分类
+    type: str = "plugin"  # plugin / theme / language / tool
+    category: str = "other"  # 分类
     tags: List[str] = field(default_factory=list)
 
     # 版本兼容
-    min_app_version: str = ""               # 最低应用版本
-    max_app_version: str = ""               # 最高应用版本
+    min_app_version: str = ""  # 最低应用版本
+    max_app_version: str = ""  # 最高应用版本
     api_version: str = CURRENT_API_VERSION  # API 版本
 
     # 依赖
@@ -223,19 +225,19 @@ class PluginMeta:
     permissions: List[str] = field(default_factory=list)
 
     # 入口
-    entry_point: str = PLUGIN_ENTRY         # 入口文件名
-    main_class: str = "Plugin"              # 主类名
+    entry_point: str = PLUGIN_ENTRY  # 入口文件名
+    main_class: str = "Plugin"  # 主类名
 
     # 其他
-    enabled: bool = True                    # 是否启用
-    auto_load: bool = True                  # 是否自动加载
-    load_order: int = 100                   # 加载顺序（越小越先）
+    enabled: bool = True  # 是否启用
+    auto_load: bool = True  # 是否自动加载
+    load_order: int = 100  # 加载顺序（越小越先）
 
     # P1-2: 保留原始 plugin.json 内容，供 hot_reload 等扩展字段使用
     raw: Dict[str, Any] = field(default_factory=dict)
 
     # 校验字段
-    valid: bool = True                      # 是否通过校验
+    valid: bool = True  # 是否通过校验
     errors: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -243,7 +245,7 @@ class PluginMeta:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> 'PluginMeta':
+    def from_dict(cls, d: Dict[str, Any]) -> "PluginMeta":
         """从字典反序列化"""
         meta = cls()
         for key, value in d.items():
@@ -284,10 +286,9 @@ class PluginMeta:
         else:
             # 名称格式校验
             import re
-            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', self.name):
-                self.errors.append(
-                    "name 必须是合法的标识符（字母、数字、下划线）"
-                )
+
+            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", self.name):
+                self.errors.append("name 必须是合法的标识符（字母、数字、下划线）")
                 self.valid = False
 
         # 版本格式
@@ -298,9 +299,7 @@ class PluginMeta:
         # 权限校验
         invalid_perms = set(self.permissions) - ALLOWED_PERMISSIONS
         if invalid_perms:
-            self.errors.append(
-                f"未知权限: {', '.join(invalid_perms)}"
-            )
+            self.errors.append(f"未知权限: {', '.join(invalid_perms)}")
             self.valid = False
 
         return self.valid
@@ -309,21 +308,13 @@ class PluginMeta:
         """检查应用版本兼容性"""
         try:
             if self.min_app_version:
-                if self._compare_version(
-                    CURRENT_APP_VERSION, self.min_app_version
-                ) < 0:
-                    self.errors.append(
-                        f"需要应用版本 >= {self.min_app_version}"
-                    )
+                if self._compare_version(CURRENT_APP_VERSION, self.min_app_version) < 0:
+                    self.errors.append(f"需要应用版本 >= {self.min_app_version}")
                     return False
 
             if self.max_app_version:
-                if self._compare_version(
-                    CURRENT_APP_VERSION, self.max_app_version
-                ) > 0:
-                    self.errors.append(
-                        f"支持的最高应用版本为 {self.max_app_version}"
-                    )
+                if self._compare_version(CURRENT_APP_VERSION, self.max_app_version) > 0:
+                    self.errors.append(f"支持的最高应用版本为 {self.max_app_version}")
                     return False
 
             return True
@@ -335,17 +326,17 @@ class PluginMeta:
     def _is_valid_version(version: str) -> bool:
         """检查版本号格式"""
         import re
-        return bool(re.match(
-            r'^\d+\.\d+\.\d+(?:[-+][\w\.]+)?$', version
-        ))
+
+        return bool(re.match(r"^\d+\.\d+\.\d+(?:[-+][\w\.]+)?$", version))
 
     @staticmethod
     def _compare_version(v1: str, v2: str) -> int:
         """比较版本号"""
         try:
+
             def parse(v):
-                v = v.split('-')[0].split('+')[0]
-                return [int(x) for x in v.split('.')]
+                v = v.split("-")[0].split("+")[0]
+                return [int(x) for x in v.split(".")]
 
             p1 = parse(v1)
             p2 = parse(v2)
@@ -367,8 +358,7 @@ class PluginMeta:
             return 0
 
     def __repr__(self) -> str:
-        return (f"<PluginMeta {self.name} v{self.version} "
-                f"valid={self.valid}>")
+        return f"<PluginMeta {self.name} v{self.version} valid={self.valid}>"
 
 
 # ============================================================
@@ -383,23 +373,23 @@ class PluginSpec:
     """
 
     # 路径信息
-    directory: str = ""             # 插件目录
-    manifest_path: str = ""         # manifest 路径
-    entry_path: str = ""            # 入口文件路径
+    directory: str = ""  # 插件目录
+    manifest_path: str = ""  # manifest 路径
+    entry_path: str = ""  # 入口文件路径
 
     # 元数据
     meta: PluginMeta = field(default_factory=PluginMeta)
 
     # 模块与实例
-    module: Any = None              # 加载的模块
-    instance: Any = None            # 插件实例
-    api: Any = None                 # 插件 API
+    module: Any = None  # 加载的模块
+    instance: Any = None  # 插件实例
+    api: Any = None  # 插件 API
 
     # 状态
     state: PluginState = PluginState.DISCOVERED
-    error: str = ""                 # 错误信息
-    load_time_ms: float = 0.0       # 加载耗时
-    activated_at: float = 0.0       # 激活时间
+    error: str = ""  # 错误信息
+    load_time_ms: float = 0.0  # 加载耗时
+    activated_at: float = 0.0  # 激活时间
 
     @property
     def name(self) -> str:
@@ -427,19 +417,18 @@ class PluginSpec:
     def to_dict(self) -> Dict[str, Any]:
         """序列化为字典"""
         return {
-            'directory': self.directory,
-            'manifest_path': self.manifest_path,
-            'entry_path': self.entry_path,
-            'meta': self.meta.to_dict(),
-            'state': self.state.name,
-            'error': self.error,
-            'load_time_ms': self.load_time_ms,
-            'activated_at': self.activated_at,
+            "directory": self.directory,
+            "manifest_path": self.manifest_path,
+            "entry_path": self.entry_path,
+            "meta": self.meta.to_dict(),
+            "state": self.state.name,
+            "error": self.error,
+            "load_time_ms": self.load_time_ms,
+            "activated_at": self.activated_at,
         }
 
     def __repr__(self) -> str:
-        return (f"<PluginSpec {self.name} v{self.version} "
-                f"state={self.state.name}>")
+        return f"<PluginSpec {self.name} v{self.version} state={self.state.name}>"
 
 
 # ============================================================
@@ -449,12 +438,12 @@ class PluginSpec:
 class LoadResult:
     """插件加载结果"""
 
-    total: int = 0                          # 发现的插件总数
-    loaded: int = 0                         # 成功加载数
-    activated: int = 0                      # 成功激活数
-    failed: int = 0                         # 失败数
-    skipped: int = 0                        # 跳过数
-    disabled: int = 0                       # 禁用数
+    total: int = 0  # 发现的插件总数
+    loaded: int = 0  # 成功加载数
+    activated: int = 0  # 成功激活数
+    failed: int = 0  # 失败数
+    skipped: int = 0  # 跳过数
+    disabled: int = 0  # 禁用数
 
     specs: List[PluginSpec] = field(default_factory=list)
     # 被延后加载的插件（manifest 声明 defer_activation，等启动完成后
@@ -463,15 +452,17 @@ class LoadResult:
     errors: List[Tuple[str, str]] = field(default_factory=list)
     warnings: List[Tuple[str, str]] = field(default_factory=list)
 
-    elapsed_ms: float = 0.0                 # 总耗时
+    elapsed_ms: float = 0.0  # 总耗时
 
     def get_summary(self) -> str:
         """获取摘要"""
-        return (f"发现 {self.total} 个插件，"
-                f"激活 {self.activated} 个，"
-                f"失败 {self.failed} 个，"
-                f"禁用 {self.disabled} 个 "
-                f"({self.elapsed_ms:.0f} ms)")
+        return (
+            f"发现 {self.total} 个插件，"
+            f"激活 {self.activated} 个，"
+            f"失败 {self.failed} 个，"
+            f"禁用 {self.disabled} 个 "
+            f"({self.elapsed_ms:.0f} ms)"
+        )
 
     def __repr__(self) -> str:
         return f"<LoadResult {self.get_summary()}>"
@@ -509,10 +500,13 @@ class PluginLoader(QObject):
     plugin_error = pyqtSignal(str, str)
     load_finished = pyqtSignal(object)
 
-    def __init__(self, parent: Optional[QObject] = None,
-                 plugin_dir: str = DEFAULT_PLUGIN_DIR,
-                 enable_watcher: bool = False,
-                 hot_reload_enabled: bool = True):
+    def __init__(
+        self,
+        parent: Optional[QObject] = None,
+        plugin_dir: str = DEFAULT_PLUGIN_DIR,
+        enable_watcher: bool = False,
+        hot_reload_enabled: bool = True,
+    ):
         """
         参数:
             parent: 父 QObject
@@ -550,9 +544,9 @@ class PluginLoader(QObject):
     # ========================================================
     # 发现插件
     # ========================================================
-    def discover(self, plugin_dir: Optional[str] = None,
-                 exclude_names: Optional[set] = None
-                 ) -> List[PluginSpec]:
+    def discover(
+        self, plugin_dir: Optional[str] = None, exclude_names: Optional[set] = None
+    ) -> List[PluginSpec]:
         """
         扫描插件目录，发现所有插件。
 
@@ -573,7 +567,7 @@ class PluginLoader(QObject):
         try:
             for name in sorted(os.listdir(self.plugin_dir)):
                 # 跳过隐藏目录
-                if name.startswith('.'):
+                if name.startswith("."):
                     continue
 
                 plugin_path = os.path.join(self.plugin_dir, name)
@@ -583,7 +577,7 @@ class PluginLoader(QObject):
                     continue
 
                 # 跳过模板目录
-                if name.startswith('_'):
+                if name.startswith("_"):
                     continue
 
                 # B-3c：导入级排除（沙箱插件由子进程加载，主进程不 import）
@@ -602,8 +596,7 @@ class PluginLoader(QObject):
 
         return specs
 
-    def _parse_plugin(self, plugin_path: str,
-                       dir_name: str) -> Optional[PluginSpec]:
+    def _parse_plugin(self, plugin_path: str, dir_name: str) -> Optional[PluginSpec]:
         """
         解析单个插件。
 
@@ -635,7 +628,7 @@ class PluginLoader(QObject):
 
         # 解析 manifest
         try:
-            with open(manifest_path, encoding='utf-8') as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = json.load(f)
 
             if not isinstance(manifest, dict):
@@ -688,11 +681,14 @@ class PluginLoader(QObject):
     # ========================================================
     # 加载插件
     # ========================================================
-    def load_all(self, plugin_dir: Optional[str] = None,
-                 api_factory: Optional[Callable] = None,
-                 auto_activate: bool = True,
-                 defer_names: Optional[set] = None,
-                 exclude_names: Optional[set] = None) -> LoadResult:
+    def load_all(
+        self,
+        plugin_dir: Optional[str] = None,
+        api_factory: Optional[Callable] = None,
+        auto_activate: bool = True,
+        defer_names: Optional[set] = None,
+        exclude_names: Optional[set] = None,
+    ) -> LoadResult:
         """
         加载所有插件。
 
@@ -754,10 +750,8 @@ class PluginLoader(QObject):
         # 把这类插件从首轮移出，启动后 0.6s 再加载，窗口出现即响应。
         deferred_specs: List[PluginSpec] = []
         if defer_names:
-            deferred_specs = [s for s in sorted_specs
-                              if s.name in defer_names]
-            sorted_specs = [s for s in sorted_specs
-                            if s.name not in defer_names]
+            deferred_specs = [s for s in sorted_specs if s.name in defer_names]
+            sorted_specs = [s for s in sorted_specs if s.name not in defer_names]
 
         # 加载每个插件
         for spec in sorted_specs:
@@ -772,14 +766,10 @@ class PluginLoader(QObject):
                             result.activated += 1
                         else:
                             result.failed += 1
-                            result.errors.append(
-                                (spec.name, spec.error or "激活失败")
-                            )
+                            result.errors.append((spec.name, spec.error or "激活失败"))
                 else:
                     result.failed += 1
-                    result.errors.append(
-                        (spec.name, spec.error or "加载失败")
-                    )
+                    result.errors.append((spec.name, spec.error or "加载失败"))
 
             except Exception as e:
                 spec.state = PluginState.ERROR
@@ -798,9 +788,7 @@ class PluginLoader(QObject):
             elif spec.state == PluginState.ERROR:
                 if (spec.name, spec.error) not in result.errors:
                     result.failed += 1
-                    result.errors.append(
-                        (spec.name, spec.error)
-                    )
+                    result.errors.append((spec.name, spec.error))
 
         result.deferred = deferred_specs
         result.elapsed_ms = (time.time() - start_time) * 1000
@@ -886,16 +874,17 @@ class PluginLoader(QObject):
             # 生成唯一的模块名
             module_name = f"qingcao_plugin_{spec.name}"
 
-            # 加载入口文件
+            # 加载入口文件（v2.24：包式插件支持相对导入）
+            entry_path = spec.entry_path
+            is_package = os.path.basename(entry_path) == "__init__.py"
             loader = importlib.util.spec_from_file_location(
-                module_name, spec.entry_path
+                module_name,
+                entry_path,
+                submodule_search_locations=([os.path.dirname(entry_path)] if is_package else None),
             )
 
             if loader is None:
-                print(
-                    f"[PluginLoader] 无法创建模块加载器: "
-                    f"{spec.entry_path}"
-                )
+                print(f"[PluginLoader] 无法创建模块加载器: {spec.entry_path}")
                 return None
 
             module = importlib.util.module_from_spec(loader)
@@ -909,17 +898,13 @@ class PluginLoader(QObject):
             except SyntaxError as e:
                 # 修复：为 GBK 编码错误提供更清晰的提示
                 error_msg = str(e)
-                if 'invalid character' in error_msg or \
-                        'unicode error' in error_msg.lower():
+                if "invalid character" in error_msg or "unicode error" in error_msg.lower():
                     error_msg += (
                         "\n提示：插件源文件可能不是 UTF-8 编码。"
                         "\n请运行 python fix_gbk.py 转换编码，"
                         "或用 VSCode 将文件另存为 UTF-8。"
                     )
-                print(
-                    f"[PluginLoader] 语法/编码错误 "
-                    f"({spec.name}): {error_msg}"
-                )
+                print(f"[PluginLoader] 语法/编码错误 ({spec.name}): {error_msg}")
                 # 清理 sys.modules 中的残留
                 sys.modules.pop(module_name, None)
                 spec.error = error_msg
@@ -957,18 +942,15 @@ class PluginLoader(QObject):
                     continue
                 if not self._load_plugin(spec):
                     result.failed += 1
-                    result.errors.append(
-                        (spec.name, spec.error or "加载失败"))
-                    self.plugin_error.emit(
-                        spec.name, spec.error or "加载失败")
+                    result.errors.append((spec.name, spec.error or "加载失败"))
+                    self.plugin_error.emit(spec.name, spec.error or "加载失败")
                     continue
                 result.loaded += 1
                 if spec.meta.auto_load and self._activate_plugin(spec):
                     result.activated += 1
                 else:
                     result.failed += 1
-                    result.errors.append(
-                        (spec.name, spec.error or "激活失败"))
+                    result.errors.append((spec.name, spec.error or "激活失败"))
             except Exception as e:
                 spec.state = PluginState.ERROR
                 spec.error = str(e)
@@ -1008,15 +990,11 @@ class PluginLoader(QObject):
 
         try:
             # 获取 Plugin 类
-            plugin_class = getattr(
-                spec.module, spec.meta.main_class, None
-            )
+            plugin_class = getattr(spec.module, spec.meta.main_class, None)
 
             if plugin_class is None:
                 spec.state = PluginState.ERROR
-                spec.error = (
-                    f"未找到 {spec.meta.main_class} 类"
-                )
+                spec.error = f"未找到 {spec.meta.main_class} 类"
                 self.plugin_error.emit(spec.name, spec.error)
                 return False
 
@@ -1026,9 +1004,7 @@ class PluginLoader(QObject):
             # 修复：显式检查 api
             if api is None:
                 spec.state = PluginState.ERROR
-                spec.error = (
-                    "无法创建插件 API（api_factory 返回 None）"
-                )
+                spec.error = "无法创建插件 API（api_factory 返回 None）"
                 self.plugin_error.emit(spec.name, spec.error)
                 return False
 
@@ -1057,7 +1033,7 @@ class PluginLoader(QObject):
 
                 # 尝试回滚
                 try:
-                    if hasattr(plugin_instance, 'deactivate'):
+                    if hasattr(plugin_instance, "deactivate"):
                         plugin_instance.deactivate()
                 except Exception:
                     pass
@@ -1073,11 +1049,14 @@ class PluginLoader(QObject):
             # 发布事件
             try:
                 from app.event_bus import PluginLoadedEvent, bus
-                bus.emit_event(PluginLoadedEvent(
-                    plugin_name=spec.name,
-                    version=spec.version,
-                    load_time_ms=spec.load_time_ms,
-                ))
+
+                bus.emit_event(
+                    PluginLoadedEvent(
+                        plugin_name=spec.name,
+                        version=spec.version,
+                        load_time_ms=spec.load_time_ms,
+                    )
+                )
             except Exception:
                 pass
 
@@ -1106,16 +1085,10 @@ class PluginLoader(QObject):
             try:
                 api = self._api_factory(spec)
                 if api is None:
-                    print(
-                        f"[PluginLoader] api_factory 返回 None "
-                        f"({spec.name})"
-                    )
+                    print(f"[PluginLoader] api_factory 返回 None ({spec.name})")
                 return api
             except Exception as e:
-                print(
-                    f"[PluginLoader] 创建 API 失败 "
-                    f"({spec.name}): {e}"
-                )
+                print(f"[PluginLoader] 创建 API 失败 ({spec.name}): {e}")
                 traceback.print_exc()
 
         # 回退：返回 None
@@ -1144,15 +1117,12 @@ class PluginLoader(QObject):
                     if dep_spec is None:
                         spec.error = f"缺少插件依赖: {dep_name}"
                     else:
-                        spec.error = (
-                            f"依赖插件 {dep_name} 未激活"
-                        )
+                        spec.error = f"依赖插件 {dep_name} 未激活"
                     return False
 
         return True
 
-    def _sort_by_dependencies(self,
-                                specs: List[PluginSpec]) -> List[PluginSpec]:
+    def _sort_by_dependencies(self, specs: List[PluginSpec]) -> List[PluginSpec]:
         """
         按依赖关系拓扑排序。
 
@@ -1194,9 +1164,7 @@ class PluginLoader(QObject):
                 result.append(spec)
 
         # 按 load_order 排序
-        sorted_specs = sorted(
-            specs, key=lambda s: s.meta.load_order
-        )
+        sorted_specs = sorted(specs, key=lambda s: s.meta.load_order)
 
         for spec in sorted_specs:
             visit(spec)
@@ -1206,10 +1174,7 @@ class PluginLoader(QObject):
     def _update_load_order(self):
         """更新加载顺序列表"""
         with self._lock:
-            activated = [
-                name for name, spec in self.specs.items()
-                if spec.is_active
-            ]
+            activated = [name for name, spec in self.specs.items() if spec.is_active]
             self._load_order = activated
 
     # ========================================================
@@ -1233,17 +1198,14 @@ class PluginLoader(QObject):
 
         try:
             # 调用 deactivate
-            if spec.instance and hasattr(spec.instance, 'deactivate'):
+            if spec.instance and hasattr(spec.instance, "deactivate"):
                 try:
                     spec.instance.deactivate()
                 except Exception as e:
-                    print(
-                        f"[PluginLoader] deactivate 失败 "
-                        f"({name}): {e}"
-                    )
+                    print(f"[PluginLoader] deactivate 失败 ({name}): {e}")
 
             # 清理 API 资源
-            if spec.api and hasattr(spec.api, 'cleanup'):
+            if spec.api and hasattr(spec.api, "cleanup"):
                 try:
                     spec.api.cleanup()
                 except Exception as e:
@@ -1264,10 +1226,13 @@ class PluginLoader(QObject):
             # 发布事件
             try:
                 from app.event_bus import PluginUnloadedEvent, bus
-                bus.emit_event(PluginUnloadedEvent(
-                    plugin_name=name,
-                    version=spec.version,
-                ))
+
+                bus.emit_event(
+                    PluginUnloadedEvent(
+                        plugin_name=name,
+                        version=spec.version,
+                    )
+                )
             except Exception:
                 pass
 
@@ -1351,10 +1316,7 @@ class PluginLoader(QObject):
     def get_activated_plugins(self) -> List[PluginSpec]:
         """获取所有已激活的插件"""
         with self._lock:
-            return [
-                s for s in self.specs.values()
-                if s.is_active
-            ]
+            return [s for s in self.specs.values() if s.is_active]
 
     def get_plugin_names(self) -> List[str]:
         """获取所有插件名称"""
@@ -1407,16 +1369,10 @@ class PluginLoader(QObject):
             self._watch_timer = QTimer(self)
             self._watch_timer.setSingleShot(True)
             self._watch_timer.setInterval(RELOAD_DEBOUNCE_MS)
-            self._watch_timer.timeout.connect(
-                self._on_directory_changed
-            )
+            self._watch_timer.timeout.connect(self._on_directory_changed)
 
-            self._watcher.directoryChanged.connect(
-                lambda p: self._watch_timer.start()
-            )
-            self._watcher.fileChanged.connect(
-                lambda p: self._watch_timer.start()
-            )
+            self._watcher.directoryChanged.connect(lambda p: self._watch_timer.start())
+            self._watcher.fileChanged.connect(lambda p: self._watch_timer.start())
 
         except Exception as e:
             print(f"[PluginLoader] 启动监控失败: {e}")
@@ -1428,7 +1384,7 @@ class PluginLoader(QObject):
         path = os.path.abspath(path)
         if not os.path.exists(path):
             return
-        if not hasattr(self, '_watch_paths'):
+        if not hasattr(self, "_watch_paths"):
             self._watch_paths = set()
         if path in self._watch_paths:
             return
@@ -1451,7 +1407,7 @@ class PluginLoader(QObject):
                 self._add_watch_path(d)
                 for fname in os.listdir(d):
                     # 只监控源码与清单，避免 __pycache__ 噪声
-                    if fname.endswith(('.py', '.json')):
+                    if fname.endswith((".py", ".json")):
                         self._add_watch_path(os.path.join(d, fname))
         except Exception as e:
             print(f"[PluginLoader] 刷新监控路径失败: {e}")
@@ -1522,13 +1478,10 @@ class PluginLoader(QObject):
                     continue
                 latest = 0.0
                 for fname in os.listdir(d):
-                    if not fname.endswith(('.py', '.json')):
+                    if not fname.endswith((".py", ".json")):
                         continue
                     try:
-                        latest = max(
-                            latest,
-                            os.path.getmtime(os.path.join(d, fname))
-                        )
+                        latest = max(latest, os.path.getmtime(os.path.join(d, fname)))
                     except OSError:
                         continue
                 prev = self._plugin_mtimes.get(name)
@@ -1544,8 +1497,8 @@ class PluginLoader(QObject):
     def _is_hot_reload_allowed(self, spec) -> bool:
         """插件是否允许热重载（plugin.json 的 hot_reload 字段）"""
         try:
-            raw = getattr(spec.meta, 'raw', None) or {}
-            return bool(raw.get('hot_reload', True))
+            raw = getattr(spec.meta, "raw", None) or {}
+            return bool(raw.get("hot_reload", True))
         except Exception:
             return True
 
@@ -1557,9 +1510,7 @@ class PluginLoader(QObject):
         lines = ["PluginLoader", "=" * 60]
         lines.append(f"插件目录: {self.plugin_dir}")
         lines.append(f"插件数量: {len(self.specs)}")
-        lines.append(
-            f"激活数量: {len(self.get_activated_plugins())}"
-        )
+        lines.append(f"激活数量: {len(self.get_activated_plugins())}")
         lines.append(f"加载顺序: {self._load_order}")
         lines.append("")
 
@@ -1574,11 +1525,7 @@ class PluginLoader(QObject):
                     PluginState.UNLOADED: "−",
                 }.get(spec.state, "?")
 
-                lines.append(
-                    f"  {state_marker} {name:25s} "
-                    f"v{spec.version:10s} "
-                    f"{spec.state.name}"
-                )
+                lines.append(f"  {state_marker} {name:25s} v{spec.version:10s} {spec.state.name}")
 
                 if spec.error:
                     lines.append(f"      错误: {spec.error}")
@@ -1586,8 +1533,10 @@ class PluginLoader(QObject):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<PluginLoader plugins={len(self.specs)} "
-                f"activated={len(self.get_activated_plugins())}>")
+        return (
+            f"<PluginLoader plugins={len(self.specs)} "
+            f"activated={len(self.get_activated_plugins())}>"
+        )
 
 
 # ============================================================
@@ -1612,8 +1561,9 @@ def discover_plugins(plugin_dir: str = DEFAULT_PLUGIN_DIR) -> List[PluginSpec]:
     return loader.discover()
 
 
-def load_plugins(plugin_dir: str = DEFAULT_PLUGIN_DIR,
-                  api_factory: Optional[Callable] = None) -> LoadResult:
+def load_plugins(
+    plugin_dir: str = DEFAULT_PLUGIN_DIR, api_factory: Optional[Callable] = None
+) -> LoadResult:
     """
     快速加载所有插件。
 
@@ -1647,21 +1597,24 @@ if __name__ == "__main__":
         plugin1_dir = os.path.join(tmp_dir, "demo_plugin")
         os.makedirs(plugin1_dir)
 
-        with open(os.path.join(plugin1_dir, "plugin.json"),
-                   'w', encoding='utf-8') as f:
-            json.dump({
-                "name": "demo_plugin",
-                "display_name": "示例插件",
-                "version": "1.0.0",
-                "description": "这是一个示例插件",
-                "author": "TomJerry",
-                "permissions": ["filesystem"],
-                "dependencies": [],
-            }, f, indent=2, ensure_ascii=False)
+        with open(os.path.join(plugin1_dir, "plugin.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "name": "demo_plugin",
+                    "display_name": "示例插件",
+                    "version": "1.0.0",
+                    "description": "这是一个示例插件",
+                    "author": "TomJerry",
+                    "permissions": ["filesystem"],
+                    "dependencies": [],
+                },
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
 
-        with open(os.path.join(plugin1_dir, "__init__.py"),
-                   'w', encoding='utf-8') as f:
-            f.write('''
+        with open(os.path.join(plugin1_dir, "__init__.py"), "w", encoding="utf-8") as f:
+            f.write("""
 class Plugin:
     def __init__(self):
         self.name = "demo_plugin"
@@ -1672,7 +1625,7 @@ class Plugin:
 
     def deactivate(self):
         print(f"[{self.name}] 插件已停用")
-''')
+""")
 
         # 创建插件 2（无 manifest，测试错误处理）
         plugin2_dir = os.path.join(tmp_dir, "broken_plugin")
@@ -1682,54 +1635,42 @@ class Plugin:
         plugin3_dir = os.path.join(tmp_dir, "disabled_plugin")
         os.makedirs(plugin3_dir)
 
-        with open(os.path.join(plugin3_dir, "plugin.json"),
-                   'w', encoding='utf-8') as f:
-            json.dump({
-                "name": "disabled_plugin",
-                "version": "1.0.0",
-                "enabled": False,
-            }, f, indent=2)
-
-        with open(os.path.join(plugin3_dir, "__init__.py"),
-                   'w', encoding='utf-8') as f:
-            f.write(
-                'class Plugin:\n'
-                '    def activate(self, api): pass\n'
+        with open(os.path.join(plugin3_dir, "plugin.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "name": "disabled_plugin",
+                    "version": "1.0.0",
+                    "enabled": False,
+                },
+                f,
+                indent=2,
             )
+
+        with open(os.path.join(plugin3_dir, "__init__.py"), "w", encoding="utf-8") as f:
+            f.write("class Plugin:\n    def activate(self, api): pass\n")
 
         # 创建加载器
         print("=== 测试 PluginLoader ===")
         loader = PluginLoader(plugin_dir=tmp_dir)
 
         # 连接信号
-        loader.plugin_discovered.connect(
-            lambda name: print(f"[信号] 发现: {name}")
-        )
-        loader.plugin_loaded.connect(
-            lambda name: print(f"[信号] 加载: {name}")
-        )
-        loader.plugin_activated.connect(
-            lambda name: print(f"[信号] 激活: {name}")
-        )
-        loader.plugin_error.connect(
-            lambda name, err: print(
-                f"[信号] 错误: {name} - {err}"
-            )
-        )
+        loader.plugin_discovered.connect(lambda name: print(f"[信号] 发现: {name}"))
+        loader.plugin_loaded.connect(lambda name: print(f"[信号] 加载: {name}"))
+        loader.plugin_activated.connect(lambda name: print(f"[信号] 激活: {name}"))
+        loader.plugin_error.connect(lambda name, err: print(f"[信号] 错误: {name} - {err}"))
 
         print()
         print("=== 发现插件 ===")
         specs = loader.discover()
         for spec in specs:
-            print(f"  {spec.name} v{spec.version} "
-                  f"状态={spec.state.name} "
-                  f"有效={spec.meta.valid}")
+            print(f"  {spec.name} v{spec.version} 状态={spec.state.name} 有效={spec.meta.valid}")
         print()
 
         print("=== 加载所有插件 ===")
 
         def api_factory(spec):
             """测试用的 API 工厂"""
+
             class TestAPI:
                 def __init__(self, spec_obj):
                     self.spec = spec_obj
@@ -1769,10 +1710,7 @@ class Plugin:
         # 测试卸载
         print("=== 测试卸载 ===")
         loader.unload_plugin("demo_plugin")
-        print(
-            f"卸载后已激活: "
-            f"{len(loader.get_activated_plugins())}"
-        )
+        print(f"卸载后已激活: {len(loader.get_activated_plugins())}")
         print()
 
         # 测试重新加载

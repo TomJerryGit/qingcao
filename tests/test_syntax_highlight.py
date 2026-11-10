@@ -23,6 +23,8 @@ from PyQt5.QtGui import QFontDatabase
 from PyQt5.QtWidgets import QMainWindow
 
 import ui.editor_view as editor_view
+import ui.editor_view_common as editor_common
+import ui.editor_view_lexer as editor_lexer
 from ui.editor_view import (
     LEXER_BY_EXTENSION,
     EditorWidget,
@@ -303,7 +305,7 @@ def test_set_lexer_by_filename_uses_the_font_applying_override():
 # ============================================================
 def test_missing_lexer_class_degrades_to_none(editor, monkeypatch):
     """模拟"某些 QScintilla 构建缺少该词法器" -> 零高亮但不崩"""
-    monkeypatch.setattr(editor_view, "resolve_lexer_class", lambda name: None)
+    monkeypatch.setattr(editor_common, "resolve_lexer_class", lambda name: None)
 
     editor.set_lexer_by_filename("data.json")
     assert editor.lexer() is None
@@ -319,7 +321,7 @@ def test_lexer_constructor_failure_degrades_to_none(editor, monkeypatch):
 
     monkeypatch.setitem(editor_view.LEXER_BY_EXTENSION, ".boom", "QsciLexerBoom")
     monkeypatch.setattr(
-        editor_view,
+        editor_common,
         "resolve_lexer_class",
         lambda name: _BoomLexer if name == "QsciLexerBoom" else None,
     )
