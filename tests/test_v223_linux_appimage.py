@@ -21,6 +21,9 @@ def test_linux_build_wiring():
 
 
 def test_smoke_hook():
-    main = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_helpers.py", "app/main_run.py"))
+    main = "".join(
+        open(os.path.join(ROOT, _p), encoding="utf-8").read()
+        for _p in ("main.py", "app/main_helpers.py", "app/main_run.py")
+    )
     assert "QINGCAO_HEADLESS_SMOKE" in main
     assert os.path.isfile(os.path.join(ROOT, "docs", "linux_appimage.md"))

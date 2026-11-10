@@ -70,7 +70,10 @@ def test_keyboard_audit_strict_pass():
 
 
 def test_a11y_wiring_and_docs():
-    main = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_common.py", "app/main_helpers.py", "app/main_run.py"))
+    main = "".join(
+        open(os.path.join(ROOT, _p), encoding="utf-8").read()
+        for _p in ("main.py", "app/main_common.py", "app/main_helpers.py", "app/main_run.py")
+    )
     assert "apply_accessibility_settings" in main
     win = read_main_ui_source()
     assert "focus_ring_qss" in win

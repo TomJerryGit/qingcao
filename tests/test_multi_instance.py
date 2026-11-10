@@ -87,7 +87,10 @@ def test_single_instance_focus_wired():
     import os
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_src = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_helpers.py", "app/main_run.py"))
+    main_src = "".join(
+        open(os.path.join(ROOT, _p), encoding="utf-8").read()
+        for _p in ("main.py", "app/main_helpers.py", "app/main_run.py")
+    )
     win_src = read_main_ui_source()
     assert "try_focus_existing" in main_src
     assert "MAX_NEW_WINDOW_INSTANCES" in main_src

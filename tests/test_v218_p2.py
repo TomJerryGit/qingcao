@@ -70,5 +70,8 @@ def test_ci_and_docs_wiring():
     assert "analyze_crash_dumps.py" in yml
     assert os.path.exists(os.path.join(ROOT, "docs", "perf_trend_report.md"))
     assert os.path.exists(os.path.join(ROOT, "docs", "crash_analysis_v2.18.md"))
-    main = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_helpers.py", "app/main_run.py"))
+    main = "".join(
+        open(os.path.join(ROOT, _p), encoding="utf-8").read()
+        for _p in ("main.py", "app/main_helpers.py", "app/main_run.py")
+    )
     assert "apply_accessible_descriptions" in main
