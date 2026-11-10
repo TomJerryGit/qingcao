@@ -22,5 +22,5 @@ def test_ja_ko_batch3_counts_and_coverage():
 
 def test_ci_gate_current():
     yml = open(os.path.join(ROOT, ".github", "workflows", "test.yml"), encoding="utf-8").read()
-    assert "--min-corpus 40 --lang ja_JP" in yml
-    assert "--min-corpus 40 --lang ko_KR" in yml
+    assert "--min-corpus 50 --lang ja_JP" in yml
+    assert "--min-corpus 50 --lang ko_KR" in yml
