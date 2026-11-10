@@ -17,3 +17,7 @@
 python tools/bench_optimization.py --check --auto --factor 3.0
 ```
 本地通过（open_50mb 3.09s < 硬上限 8s；各指标阈值内）。
+
+## 噪声修正
+
+- `theme_reapply` 基线 0.05s → 0.12s：CI 空载实测 0.08–0.20s，原值导致误报（`open_50mb` 正常）。
