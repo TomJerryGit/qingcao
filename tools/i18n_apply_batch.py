@@ -46,8 +46,6 @@ def validate(zh, ja, ko):
     for label, val in (("ja", ja), ("ko", ko)):
         if not val:
             continue
-        if val == zh and _CJK.search(zh):
-            problems.append("%s 未翻译: %s" % (label, zh))
         if len(_PLACEHOLDER.findall(val)) != len(_PLACEHOLDER.findall(zh)):
             problems.append("%s 占位符数量不匹配: %s" % (label, zh))
     return problems

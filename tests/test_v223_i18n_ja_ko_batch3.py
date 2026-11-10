@@ -20,7 +20,7 @@ def test_ja_ko_batch3_counts_and_coverage():
         assert ratio >= 15.0, (lang, ratio)
 
 
-def test_ci_gate_15():
+def test_ci_gate_current():
     yml = open(os.path.join(ROOT, ".github", "workflows", "test.yml"), encoding="utf-8").read()
-    assert "--min-corpus 15 --lang ja_JP" in yml
-    assert "--min-corpus 15 --lang ko_KR" in yml
+    assert "--min-corpus 25 --lang ja_JP" in yml
+    assert "--min-corpus 25 --lang ko_KR" in yml
