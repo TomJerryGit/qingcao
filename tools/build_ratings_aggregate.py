@@ -16,6 +16,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data", "plugin_ratings.json")
 OUT = os.path.join(ROOT, "data", "registry_github", "ratings.json")
+COMMUNITY = os.path.join(ROOT, "data", "ratings_community.json")
 
 
 def aggregate(local_path=SRC):
@@ -35,6 +36,30 @@ def aggregate(local_path=SRC):
         except Exception:
             continue
         data["plugins"][name] = {"average": float(stars), "count": 1, "sources": ["local"]}
+    # v2.24：并入真实用户提交的社区聚合（加权平均）
+    try:
+        community = json.load(io.open(COMMUNITY, encoding="utf-8"))
+    except Exception:
+        community = {}
+    for name, rec in (community.get("plugins") or {}).items():
+        try:
+            avg = max(1.0, min(5.0, float(rec.get("average", 0))))
+            cnt = max(1, int(rec.get("count", 1)))
+        except Exception:
+            continue
+        cur = data["plugins"].get(name)
+        if cur:
+            total = cur["count"] + cnt
+            cur["average"] = round((cur["average"] * cur["count"] + avg * cnt) / total, 2)
+            cur["count"] = total
+            cur["sources"] = sorted(set(cur.get("sources", [])) | {"community"})
+        else:
+            data["plugins"][name] = {
+                "average": avg,
+                "count": cnt,
+                "sources": sorted(set(rec.get("sources") or [])) + ["community"],
+            }
+    data["source"] = "local+community" if community.get("plugins") else "local-export"
     return data
 
 

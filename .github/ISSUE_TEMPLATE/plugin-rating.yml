@@ -1,0 +1,16 @@
+name: 插件评分提交
+description: 提交你在插件市场中的真实评分（用于生成社区评分）
+title: "[评分] "
+labels: ["plugin-rating"]
+body:
+  - type: markdown
+    attributes:
+      value: "评分文件来自应用「插件市场 → 详情 → 保存评分」后的 `data/plugin_ratings.json`，请勿编造。"
+  - type: textarea
+    id: ratings
+    attributes:
+      label: 评分 JSON
+      description: 粘贴 data/plugin_ratings.json 内容
+      render: json
+    validations:
+      required: true
