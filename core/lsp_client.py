@@ -1,166 +1,10 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-青草编辑器 (QingCao Editor)
-============================
-开发者：TomJerry
-邮箱：1265338136@qq.com
-青草枯荣，野火重生。
+# ruff: noqa: F401, F403, F405
+"""LSP 客户端（v2.24 拆分：common/client/registry）。"""
 
-本文件为 LSP（Language Server Protocol）客户端模块，包含：
-- LspClient：语言服务器客户端（JSON-RPC over stdio）
-- QProcess 进程管理
-- 消息分帧与解析（Content-Length 头）
-- 请求/响应关联
-- 通知订阅
-- 生命周期管理（initialize/shutdown/exit）
-- 文档同步（didOpen/didChange/didClose/didSave）
-- 诊断（publishDiagnostics）
-- 补全（completion）
-- 悬停（hover）
-- 跳转定义（definition）
-- 查找引用（references）
-- 重命名（rename）
-- 文档符号（documentSymbol）
-- 代码操作（codeAction）
-- 格式化（formatting）
-- 签名帮助（signatureHelp）
-- 崩溃自动重启
-- 服务器能力查询
-- 进度报告
-- 错误处理与日志
-
-修复记录:
-- path_to_uri: 删除多余的盘符加斜杠逻辑，修复 Windows 路径
-  变成 "file:////C:/..." 的 bug（P1-7）
-"""
-
-import json
-import os
-import sys
-import threading
-import time
-from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import unquote, urlparse
-
-from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
+from core.lsp_client_common import *  # noqa: F401,F403
 
 
-# ============================================================
-# 常量
-# ============================================================
-# JSON-RPC 协议版本
-JSONRPC_VERSION = "2.0"
-
-# LSP 默认超时（毫秒）
-DEFAULT_REQUEST_TIMEOUT = 30000
-DEFAULT_INIT_TIMEOUT = 15000
-DEFAULT_SHUTDOWN_TIMEOUT = 3000
-
-# 自动重启最大次数
-MAX_RESTART_ATTEMPTS = 3
-RESTART_DELAY_MS = 2000
-
-# 消息大小上限（防止恶意大消息）
-MAX_MESSAGE_SIZE = 50 * 1024 * 1024  # 50MB
-
-
-# ============================================================
-# LSP 状态枚举
-# ============================================================
-class LspState(Enum):
-    """LSP 客户端状态"""
-    STOPPED = auto()       # 未启动
-    STARTING = auto()      # 启动中
-    INITIALIZING = auto()  # 初始化中
-    RUNNING = auto()       # 正常运行
-    SHUTTING_DOWN = auto() # 关闭中
-    ERROR = auto()         # 错误
-    RESTARTING = auto()    # 重启中
-
-
-# ============================================================
-# LSP 错误码
-# ============================================================
-class LspErrorCode:
-    """JSON-RPC 标准错误码"""
-    ParseError = -32700
-    InvalidRequest = -32600
-    MethodNotFound = -32601
-    InvalidParams = -32602
-    InternalError = -32603
-    ServerNotInitialized = -32002
-    UnknownErrorCode = -32001
-    RequestCancelled = -32800
-    ContentModified = -32801
-    RequestFailed = -32803
-
-
-# ============================================================
-# LSP 异常
-# ============================================================
-class LspError(Exception):
-    """LSP 异常基类"""
-
-    def __init__(self, code: int, message: str, data: Any = None):
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.data = data
-
-    def __repr__(self):
-        return f"LspError(code={self.code}, message={self.message!r})"
-
-
-class LspTimeoutError(LspError):
-    """LSP 请求超时"""
-
-    def __init__(self, method: str):
-        super().__init__(-1, f"请求超时: {method}")
-        self.method = method
-
-
-class LspNotRunningError(LspError):
-    """LSP 未运行"""
-
-    def __init__(self):
-        super().__init__(-1, "LSP 客户端未运行")
-
-
-# ============================================================
-# 待处理请求
-# ============================================================
-class PendingRequest:
-    """待处理请求"""
-
-    def __init__(self, request_id: int, method: str,
-                 callback: Optional[Callable] = None,
-                 timeout_ms: int = DEFAULT_REQUEST_TIMEOUT):
-        self.id = request_id
-        self.method = method
-        self.callback = callback
-        self.timeout_ms = timeout_ms
-        self.created_at = time.time()
-        self.completed = False
-        self.result: Any = None
-        self.error: Optional[LspError] = None
-
-    def is_expired(self) -> bool:
-        return (time.time() - self.created_at) * 1000 > self.timeout_ms
-
-    def complete(self, result: Any):
-        self.result = result
-        self.completed = True
-
-    def fail(self, error: LspError):
-        self.error = error
-        self.completed = True
-
-
-# ============================================================
-# LSP 客户端
-# ============================================================
 class LspClient(QObject):
     """
     LSP 客户端。
@@ -227,10 +71,10 @@ class LspClient(QObject):
         self._env: Optional[Dict[str, str]] = None
 
         # 消息缓冲
-        self._buffer: bytes = b''
+        self._buffer: bytes = b""
         self._content_length: int = 0
         self._reading_header: bool = True
-        self._header_buffer: bytes = b''
+        self._header_buffer: bytes = b""
 
         # 请求 ID 计数器
         self._next_id: int = 1
@@ -295,9 +139,12 @@ class LspClient(QObject):
     # ========================================================
     # 启动与停止
     # ========================================================
-    def start(self, command: List[str],
-              working_dir: Optional[str] = None,
-              env: Optional[Dict[str, str]] = None):
+    def start(
+        self,
+        command: List[str],
+        working_dir: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ):
         """
         启动语言服务器。
 
@@ -351,9 +198,7 @@ class LspClient(QObject):
             self._process.start(command[0], command[1:])
             if not self._process.waitForStarted(5000):
                 self._set_state(LspState.ERROR)
-                self.error_occurred.emit(
-                    f"无法启动语言服务器: {command[0]}"
-                )
+                self.error_occurred.emit(f"无法启动语言服务器: {command[0]}")
                 return
         except Exception as e:
             self._set_state(LspState.ERROR)
@@ -398,9 +243,7 @@ class LspClient(QObject):
         """重启语言服务器"""
         if self._restart_count >= MAX_RESTART_ATTEMPTS:
             self._set_state(LspState.ERROR)
-            self.error_occurred.emit(
-                f"重启次数超过上限 ({MAX_RESTART_ATTEMPTS})"
-            )
+            self.error_occurred.emit(f"重启次数超过上限 ({MAX_RESTART_ATTEMPTS})")
             return
 
         self._restart_count += 1
@@ -439,8 +282,8 @@ class LspClient(QObject):
         self._pending.clear()
 
         # 清空缓冲
-        self._buffer = b''
-        self._header_buffer = b''
+        self._buffer = b""
+        self._header_buffer = b""
         self._content_length = 0
         self._reading_header = True
 
@@ -467,9 +310,12 @@ class LspClient(QObject):
     # ========================================================
     # 生命周期
     # ========================================================
-    def initialize(self, root_uri: str,
-                   capabilities: Optional[Dict[str, Any]] = None,
-                   initialization_options: Optional[Dict[str, Any]] = None):
+    def initialize(
+        self,
+        root_uri: str,
+        capabilities: Optional[Dict[str, Any]] = None,
+        initialization_options: Optional[Dict[str, Any]] = None,
+    ):
         """
         初始化语言服务器。
 
@@ -504,9 +350,10 @@ class LspClient(QObject):
 
         # 发送 initialize 请求
         self._send_request(
-            "initialize", params,
+            "initialize",
+            params,
             callback=self._on_initialize_response,
-            timeout_ms=DEFAULT_INIT_TIMEOUT
+            timeout_ms=DEFAULT_INIT_TIMEOUT,
         )
 
     def _default_capabilities(self) -> Dict[str, Any]:
@@ -656,8 +503,7 @@ class LspClient(QObject):
     # ========================================================
     # 文档同步
     # ========================================================
-    def did_open(self, uri: str, language_id: str, text: str,
-                 version: int = 1):
+    def did_open(self, uri: str, language_id: str, text: str, version: int = 1):
         """
         通知服务器文档已打开。
 
@@ -683,8 +529,7 @@ class LspClient(QObject):
         """
         # ---- 输入防御（P0-2）----
         if text is None:
-            print("[LspClient] did_open: text 为 None，按空文档处理"
-                  "（请检查调用方参数顺序）")
+            print("[LspClient] did_open: text 为 None，按空文档处理（请检查调用方参数顺序）")
             text = ""
 
         try:
@@ -695,10 +540,9 @@ class LspClient(QObject):
 
         if not isinstance(language_id, str) or not language_id:
             language_id = "plaintext"
-        elif len(language_id) > 64 or '\n' in language_id:
+        elif len(language_id) > 64 or "\n" in language_id:
             # 典型症状：调用方把整份文件内容传给了 language_id
-            print("[LspClient] did_open: language_id 非法（疑似参数错位），"
-                  "回退 plaintext")
+            print("[LspClient] did_open: language_id 非法（疑似参数错位），回退 plaintext")
             language_id = "plaintext"
 
         self._doc_versions[uri] = version
@@ -715,9 +559,9 @@ class LspClient(QObject):
 
         self._send_notification("textDocument/didOpen", params)
 
-    def did_change(self, uri: str, text: str,
-                   version: Optional[int] = None,
-                   range_data: Optional[Dict] = None):
+    def did_change(
+        self, uri: str, text: str, version: Optional[int] = None, range_data: Optional[Dict] = None
+    ):
         """
         通知服务器文档已变更。
 
@@ -798,15 +642,14 @@ class LspClient(QObject):
     def did_change_watched_files(self, changes: List[Dict[str, Any]]):
         """通知服务器监视文件变更"""
         params = {"changes": changes}
-        self._send_notification(
-            "workspace/didChangeWatchedFiles", params
-        )
+        self._send_notification("workspace/didChangeWatchedFiles", params)
 
     # ========================================================
     # 语言功能请求
     # ========================================================
-    def request_completion(self, uri: str, line: int, character: int,
-                           context: Optional[Dict] = None):
+    def request_completion(
+        self, uri: str, line: int, character: int, context: Optional[Dict] = None
+    ):
         """
         请求补全。
 
@@ -828,7 +671,8 @@ class LspClient(QObject):
             params["context"] = context
 
         self._send_request(
-            "textDocument/completion", params,
+            "textDocument/completion",
+            params,
             callback=self._on_completion_response,
             timeout_ms=5000,
         )
@@ -857,7 +701,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/hover", params,
+            "textDocument/hover",
+            params,
             callback=self._on_hover_response,
             timeout_ms=5000,
         )
@@ -877,7 +722,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/definition", params,
+            "textDocument/definition",
+            params,
             callback=self._on_definition_response,
             timeout_ms=5000,
         )
@@ -895,8 +741,9 @@ class LspClient(QObject):
 
         self.definition_ready.emit(locations)
 
-    def request_references(self, uri: str, line: int, character: int,
-                           include_declaration: bool = True):
+    def request_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ):
         """请求查找引用"""
         if not self.is_running:
             return
@@ -910,7 +757,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/references", params,
+            "textDocument/references",
+            params,
             callback=self._on_references_response,
             timeout_ms=10000,
         )
@@ -919,8 +767,7 @@ class LspClient(QObject):
         """引用响应回调"""
         self.references_ready.emit(result if isinstance(result, list) else [])
 
-    def request_rename(self, uri: str, line: int, character: int,
-                       new_name: str):
+    def request_rename(self, uri: str, line: int, character: int, new_name: str):
         """请求重命名"""
         if not self.is_running:
             return
@@ -932,7 +779,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/rename", params,
+            "textDocument/rename",
+            params,
             callback=self._on_rename_response,
             timeout_ms=10000,
         )
@@ -951,7 +799,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/documentSymbol", params,
+            "textDocument/documentSymbol",
+            params,
             callback=self._on_document_symbols_response,
             timeout_ms=10000,
         )
@@ -960,9 +809,7 @@ class LspClient(QObject):
         """文档符号响应回调"""
         self.document_symbols_ready.emit(result if isinstance(result, list) else [])
 
-    def request_code_actions(self, uri: str,
-                             range_data: Dict[str, Any],
-                             context: Dict[str, Any]):
+    def request_code_actions(self, uri: str, range_data: Dict[str, Any], context: Dict[str, Any]):
         """请求代码操作"""
         if not self.is_running:
             return
@@ -974,7 +821,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/codeAction", params,
+            "textDocument/codeAction",
+            params,
             callback=self._on_code_actions_response,
             timeout_ms=10000,
         )
@@ -983,8 +831,7 @@ class LspClient(QObject):
         """代码操作响应回调"""
         self.code_actions_ready.emit(result if isinstance(result, list) else [])
 
-    def request_formatting(self, uri: str,
-                           options: Optional[Dict] = None):
+    def request_formatting(self, uri: str, options: Optional[Dict] = None):
         """请求格式化整个文档"""
         if not self.is_running:
             return
@@ -1001,7 +848,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/formatting", params,
+            "textDocument/formatting",
+            params,
             callback=self._on_formatting_response,
             timeout_ms=15000,
         )
@@ -1021,7 +869,8 @@ class LspClient(QObject):
         }
 
         self._send_request(
-            "textDocument/signatureHelp", params,
+            "textDocument/signatureHelp",
+            params,
             callback=self._on_signature_help_response,
             timeout_ms=5000,
         )
@@ -1040,9 +889,13 @@ class LspClient(QObject):
             self._next_id += 1
             return rid
 
-    def _send_request(self, method: str, params: Any,
-                      callback: Optional[Callable] = None,
-                      timeout_ms: int = DEFAULT_REQUEST_TIMEOUT) -> Optional[int]:
+    def _send_request(
+        self,
+        method: str,
+        params: Any,
+        callback: Optional[Callable] = None,
+        timeout_ms: int = DEFAULT_REQUEST_TIMEOUT,
+    ) -> Optional[int]:
         """
         发送请求（需要响应）。
 
@@ -1124,11 +977,11 @@ class LspClient(QObject):
         try:
             # 序列化 JSON
             body = json.dumps(message, ensure_ascii=False)
-            body_bytes = body.encode('utf-8')
+            body_bytes = body.encode("utf-8")
 
             # 构建消息
             header = f"Content-Length: {len(body_bytes)}\r\n\r\n"
-            header_bytes = header.encode('ascii')
+            header_bytes = header.encode("ascii")
 
             full_message = header_bytes + body_bytes
 
@@ -1169,7 +1022,7 @@ class LspClient(QObject):
         try:
             data = self._process.readAllStandardError().data()
             if data:
-                text = data.decode('utf-8', errors='replace')
+                text = data.decode("utf-8", errors="replace")
                 self.log_message.emit(text.strip(), 1)
         except Exception:
             pass
@@ -1196,22 +1049,21 @@ class LspClient(QObject):
         while True:
             if self._reading_header:
                 # 丢弃协议头之前的所有噪声
-                marker = b'Content-Length:'
+                marker = b"Content-Length:"
                 pos = self._buffer.lower().find(marker.lower())
                 if pos < 0:
                     # 还没有头：保留可能是不完整的 marker 前缀
                     keep = len(marker) - 1
                     if len(self._buffer) > 8192:
                         self.error_occurred.emit("消息头异常")
-                        self._buffer = b''
+                        self._buffer = b""
                     elif len(self._buffer) > keep:
                         # 保留尾部，避免把跨包的头切掉
                         tail = self._buffer[-keep:]
-                        if marker.lower().startswith(
-                                tail.lower()) or b'\r' not in tail:
+                        if marker.lower().startswith(tail.lower()) or b"\r" not in tail:
                             self._buffer = tail
                         else:
-                            self._buffer = b''
+                            self._buffer = b""
                     return
                 if pos > 0:
                     # 丢弃噪声，重新从头解析
@@ -1219,39 +1071,35 @@ class LspClient(QObject):
                     continue
 
                 # 寻找 \r\n\r\n
-                idx = self._buffer.find(b'\r\n\r\n')
+                idx = self._buffer.find(b"\r\n\r\n")
                 if idx < 0:
                     # 头还不完整
                     if len(self._buffer) > 8192:
                         self.error_occurred.emit("消息头异常")
-                        self._buffer = b''
+                        self._buffer = b""
                     return
 
-                header = self._buffer[:idx].decode('ascii', errors='replace')
+                header = self._buffer[:idx].decode("ascii", errors="replace")
                 content_length = 0
-                for line in header.replace('\r\n', '\n').split('\n'):
-                    if line.lower().startswith('content-length:'):
+                for line in header.replace("\r\n", "\n").split("\n"):
+                    if line.lower().startswith("content-length:"):
                         try:
-                            content_length = int(
-                                line.split(':', 1)[1].strip()
-                            )
+                            content_length = int(line.split(":", 1)[1].strip())
                         except (ValueError, IndexError):
                             content_length = 0
                         break
 
                 if content_length <= 0:
                     # 头非法：丢掉这一个分隔符，继续找下一个头
-                    self._buffer = self._buffer[idx + 4:]
+                    self._buffer = self._buffer[idx + 4 :]
                     continue
 
-                self._buffer = self._buffer[idx + 4:]
+                self._buffer = self._buffer[idx + 4 :]
                 self._content_length = content_length
 
                 if self._content_length > MAX_MESSAGE_SIZE:
-                    self.error_occurred.emit(
-                        f"消息过大: {self._content_length} 字节"
-                    )
-                    self._buffer = b''
+                    self.error_occurred.emit(f"消息过大: {self._content_length} 字节")
+                    self._buffer = b""
                     self._reading_header = True
                     continue
 
@@ -1262,13 +1110,13 @@ class LspClient(QObject):
                 if len(self._buffer) < self._content_length:
                     return
 
-                body = self._buffer[:self._content_length]
-                self._buffer = self._buffer[self._content_length:]
+                body = self._buffer[: self._content_length]
+                self._buffer = self._buffer[self._content_length :]
                 self._reading_header = True
 
                 # 解析 JSON
                 try:
-                    message = json.loads(body.decode('utf-8'))
+                    message = json.loads(body.decode("utf-8"))
                     self._handle_message(message)
                 except json.JSONDecodeError as e:
                     self.error_occurred.emit(f"JSON 解析失败: {e}")
@@ -1327,9 +1175,7 @@ class LspClient(QObject):
                 except Exception:
                     pass
 
-            self.error_occurred.emit(
-                f"请求 {pending.method} 失败: {error.message}"
-            )
+            self.error_occurred.emit(f"请求 {pending.method} 失败: {error.message}")
         else:
             result = message.get("result")
             pending.complete(result)
@@ -1420,8 +1266,7 @@ class LspClient(QObject):
     # ========================================================
     # 通知订阅
     # ========================================================
-    def register_notification_handler(self, method: str,
-                                       handler: Callable[[Dict], None]):
+    def register_notification_handler(self, method: str, handler: Callable[[Dict], None]):
         """
         注册自定义通知处理器。
 
@@ -1431,8 +1276,7 @@ class LspClient(QObject):
         """
         self._notification_handlers.setdefault(method, []).append(handler)
 
-    def unregister_notification_handler(self, method: str,
-                                         handler: Callable):
+    def unregister_notification_handler(self, method: str, handler: Callable):
         """注销通知处理器"""
         handlers = self._notification_handlers.get(method, [])
         if handler in handlers:
@@ -1460,9 +1304,7 @@ class LspClient(QObject):
                     except Exception:
                         pass
 
-                self.error_occurred.emit(
-                    f"请求超时: {pending.method}"
-                )
+                self.error_occurred.emit(f"请求超时: {pending.method}")
 
     # ========================================================
     # 进程事件
@@ -1475,9 +1317,7 @@ class LspClient(QObject):
 
         if was_running:
             self.server_crashed.emit(exit_code)
-            self.error_occurred.emit(
-                f"语言服务器意外退出 (退出码: {exit_code})"
-            )
+            self.error_occurred.emit(f"语言服务器意外退出 (退出码: {exit_code})")
 
             # 自动重启
             if self._restart_count < MAX_RESTART_ATTEMPTS:
@@ -1522,15 +1362,16 @@ class LspClient(QObject):
             return ""
 
         # Windows 路径处理
-        if sys.platform == 'win32':
-            filepath = filepath.replace('\\', '/')
-            if not filepath.startswith('/'):
-                filepath = '/' + filepath
+        if sys.platform == "win32":
+            filepath = filepath.replace("\\", "/")
+            if not filepath.startswith("/"):
+                filepath = "/" + filepath
 
         # URL 编码
         from urllib.parse import quote
+
         # 只编码路径部分，保留 /:
-        encoded = quote(filepath, safe='/:')
+        encoded = quote(filepath, safe="/:")
 
         return f"file://{encoded}"
 
@@ -1553,8 +1394,8 @@ class LspClient(QObject):
             path = unquote(parsed.path)
 
             # Windows 路径处理
-            if sys.platform == 'win32':
-                if path.startswith('/') and len(path) > 2 and path[2] == ':':
+            if sys.platform == "win32":
+                if path.startswith("/") and len(path) > 2 and path[2] == ":":
                     path = path[1:]
 
             return path
@@ -1567,13 +1408,13 @@ class LspClient(QObject):
     def get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
         return {
-            'state': self._state.name,
-            'initialized': self._init_completed,
-            'capabilities': self.capabilities,
-            'server_info': self.server_info,
-            'pending_requests': len(self._pending),
-            'open_documents': len(self._open_documents),
-            'restart_count': self._restart_count,
+            "state": self._state.name,
+            "initialized": self._init_completed,
+            "capabilities": self.capabilities,
+            "server_info": self.server_info,
+            "pending_requests": len(self._pending),
+            "open_documents": len(self._open_documents),
+            "restart_count": self._restart_count,
         }
 
     def supports(self, capability: str) -> bool:
@@ -1587,7 +1428,7 @@ class LspClient(QObject):
         返回:
             是否支持
         """
-        parts = capability.split('.')
+        parts = capability.split(".")
         current = self.capabilities
 
         for part in parts:
@@ -1633,8 +1474,8 @@ class LspClient(QObject):
         lines.append("")
 
         if self.server_info:
-            name = self.server_info.get('name', '未知')
-            version = self.server_info.get('version', '?')
+            name = self.server_info.get("name", "未知")
+            version = self.server_info.get("version", "?")
             lines.append(f"服务器: {name} v{version}")
 
         lines.append("")
@@ -1645,201 +1486,15 @@ class LspClient(QObject):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<LspClient state={self._state.name} "
-                f"initialized={self._init_completed} "
-                f"pending={len(self._pending)}>")
+        return (
+            f"<LspClient state={self._state.name} "
+            f"initialized={self._init_completed} "
+            f"pending={len(self._pending)}>"
+        )
 
 
 # ============================================================
 # LSP 服务器注册表
 # ============================================================
-class LspServerRegistry:
-    """
-    LSP 服务器注册表。
 
-    管理不同语言的 LSP 服务器命令。
-    """
-
-    _servers: Dict[str, Dict[str, Any]] = {
-        'python': {
-            'command': ['pylsp'],
-            'extensions': ['.py', '.pyw'],
-            'install': [sys.executable, '-m', 'pip', 'install',
-                        'python-lsp-server'],
-            'language_id': 'python',
-        },
-        'javascript': {
-            'command': ['typescript-language-server', '--stdio'],
-            'extensions': ['.js', '.jsx', '.ts', '.tsx'],
-            'install': ['npm', 'install', '-g',
-                        'typescript-language-server', 'typescript'],
-            'language_id': 'javascript',
-        },
-        'rust': {
-            'command': ['rust-analyzer'],
-            'extensions': ['.rs'],
-            'install': ['rustup', 'component', 'add', 'rust-analyzer'],
-            'language_id': 'rust',
-        },
-        'go': {
-            'command': ['gopls'],
-            'extensions': ['.go'],
-            'install': ['go', 'install',
-                        'golang.org/x/tools/gopls@latest'],
-            'language_id': 'go',
-        },
-        'cpp': {
-            'command': ['clangd'],
-            'extensions': ['.cpp', '.cc', '.cxx', '.h', '.hpp', '.c'],
-            'install': [],  # 需手动安装
-            'language_id': 'cpp',
-        },
-        'java': {
-            'command': ['jdtls'],
-            'extensions': ['.java'],
-            'install': [],
-            'language_id': 'java',
-        },
-    }
-
-    @classmethod
-    def register(cls, language: str, config: Dict[str, Any]):
-        """注册语言服务器"""
-        cls._servers[language] = config
-
-    @classmethod
-    def get(cls, language: str) -> Optional[Dict[str, Any]]:
-        """获取语言服务器配置"""
-        return cls._servers.get(language)
-
-    @classmethod
-    def detect_language(cls, filepath: str) -> Optional[str]:
-        """
-        根据文件路径检测语言。
-
-        参数:
-            filepath: 文件路径
-
-        返回:
-            语言标识或 None
-        """
-        if not filepath:
-            return None
-
-        ext = os.path.splitext(filepath)[1].lower()
-
-        for lang, config in cls._servers.items():
-            if ext in config.get('extensions', []):
-                return lang
-
-        return None
-
-    @classmethod
-    def get_command(cls, language: str) -> Optional[List[str]]:
-        """获取指定语言的启动命令"""
-        config = cls._servers.get(language)
-        if config:
-            return config.get('command')
-        return None
-
-    @classmethod
-    def list_languages(cls) -> List[str]:
-        """列出所有支持的语言"""
-        return list(cls._servers.keys())
-
-
-# ============================================================
-# 模块测试
-# ============================================================
-if __name__ == "__main__":
-    import sys
-
-    from PyQt5.QtCore import QTimer
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication(sys.argv)
-
-    print("=== 测试 LspClient ===")
-
-    client = LspClient()
-
-    # 连接信号
-    client.state_changed.connect(
-        lambda s: print(f"[状态] {s}")
-    )
-    client.initialized.connect(
-        lambda c: print(f"[初始化] 服务器能力: {len(c)} 项")
-    )
-    client.log_message.connect(
-        lambda msg, t: print(f"[日志 {t}] {msg[:100]}")
-    )
-    client.error_occurred.connect(
-        lambda e: print(f"[错误] {e}")
-    )
-    client.diagnostics_updated.connect(
-        lambda uri, diags: print(f"[诊断] {uri}: {len(diags)} 条")
-    )
-    client.completion_ready.connect(
-        lambda items: print(f"[补全] {len(items)} 项")
-    )
-
-    # 检测 Python 语言
-    lang = LspServerRegistry.detect_language(__file__)
-    print(f"检测到的语言: {lang}")
-
-    command = LspServerRegistry.get_command(lang)
-    print(f"启动命令: {command}")
-
-    # 检查 pylsp 是否已安装
-    import shutil
-    if command and shutil.which(command[0]):
-        print("pylsp 已安装，可以测试完整流程")
-
-        # 启动
-        client.start(command)
-
-        # 延迟初始化
-        def do_init():
-            if client.is_running or client.state == LspState.INITIALIZING:
-                root_uri = LspClient.path_to_uri(os.path.dirname(__file__))
-                print(f"根 URI: {root_uri}")
-                client.initialize(root_uri)
-
-        QTimer.singleShot(2000, do_init)
-
-        # 延迟关闭
-        def do_stop():
-            print()
-            print(client.dump())
-            client.stop()
-            app.quit()
-
-        QTimer.singleShot(8000, do_stop)
-    else:
-        print("pylsp 未安装，跳过实际连接测试")
-        print("安装命令: pip install python-lsp-server")
-
-        # 测试 URI 工具
-        print()
-        print("=== 测试 URI 工具 ===")
-        test_paths = [
-            '/home/user/test.py',
-            'C:\\Users\\test\\file.py' if sys.platform == 'win32'
-            else '/tmp/file.py',
-            '/path with space/file.py',
-        ]
-        for p in test_paths:
-            uri = LspClient.path_to_uri(p)
-            back = LspClient.uri_to_path(uri)
-            print(f"  {p} -> {uri} -> {back}")
-
-        print()
-        print("=== 测试服务器注册表 ===")
-        for lang in LspServerRegistry.list_languages():
-            config = LspServerRegistry.get(lang)
-            cmd = config.get('command', [])
-            print(f"  {lang}: {' '.join(cmd)}")
-
-        app.quit()
-
-    sys.exit(app.exec())
+from core.lsp_registry import LspServerRegistry  # noqa: E402,F401

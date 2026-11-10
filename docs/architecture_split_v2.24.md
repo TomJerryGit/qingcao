@@ -42,3 +42,21 @@
 - 静态测试改为读取拆分后的新模块（LSP/大文件/mmap/接线审计）；
 - `_v223_editor_split` MRO 断言更新为新 Mixin + 原 Mixin 成员；
 - content_provider 公共模块移除演示代码块，补回异常/FileState。
+
+## 第四批（1,500–1,920 行文件）
+
+| 模块 | 拆分前 | 拆分后 | 说明 |
+|---|---|---|---|
+| `ui/file_merge_dialog.py` | 1,917 | **8**（re-export） | common + base/diff/3way |
+| `ui/directory_tree.py` | 1,859 | **1,478** | model 拆出 |
+| `main.py` | 1,856 | **1,855（保留）** | 入口文件：测试与启动脚本依赖 main 模块级函数，作为架构例外 |
+| `core/lsp_client.py` | 1,845 | **1,500** | common + registry 拆出 |
+| `infrastructure/plugin_updater.py` | 1,822 | **1,365** | common 数据类/SemVer |
+| `core/search.py` | 1,805 | **99**（re-export） | common + engine + replace（顶层函数留主入口） |
+| `infrastructure/plugin_loader.py` | 1,730 | **1,119** | common + loader |
+| `infrastructure/sound_manager.py` | 1,689 | **675** | common + assets |
+| `ui/panels.py` | 1,674 | **20**（re-export） | search_bar + dialogs + widgets |
+| `ui/column_editor_dialog.py` | 1,606 | **275** | common |
+| `ui/python_console.py` | 1,568 | **955** | console_widgets |
+
+**结果**：11 个目标中 10 个 ≤1,500 行；`main.py` 作为启动入口保留 1,855 行（低风险例外，后续可用"main 仅保留启动接线 + 全部 helper 移出"的方式再拆，但需同步更新大量静态测试）。

@@ -9,6 +9,7 @@
 
 作者: TomJerry
 """
+
 import os
 
 from PyQt5.QtCore import Qt, QTimer
@@ -42,9 +43,7 @@ class LspPanel(QDockWidget):
         super().__init__("语言服务器", parent or main_window)
         self.main_window = main_window
         self.setObjectName("LspPanel")
-        self.setAllowedAreas(
-            Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea
-        )
+        self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
 
         self.installer = get_lsp_installer()
 
@@ -76,9 +75,7 @@ class LspPanel(QDockWidget):
         toolbar.addStretch()
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet(
-            "color: #888; font-size: 11px;"
-        )
+        self.status_label.setStyleSheet("color: #888; font-size: 11px;")
         toolbar.addWidget(self.status_label)
 
         layout.addLayout(toolbar)
@@ -96,8 +93,7 @@ class LspPanel(QDockWidget):
         layout.addWidget(QLabel("当前文件:"))
         self.current_label = QLabel("")
         self.current_label.setStyleSheet(
-            "background-color: #2d2d2d; color: #d4d4d4; "
-            "padding: 6px; border-radius: 3px;"
+            "background-color: #2d2d2d; color: #d4d4d4; padding: 6px; border-radius: 3px;"
         )
         layout.addWidget(self.current_label)
 
@@ -107,7 +103,8 @@ class LspPanel(QDockWidget):
         """主题变更时刷新样式（v3.0）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
-            if not hasattr(self, '_original_qss') or not self._original_qss:
+
+            if not hasattr(self, "_original_qss") or not self._original_qss:
                 self._original_qss = self.styleSheet()
             if self._original_qss:
                 qss = adapt_qss_colors(self._original_qss, theme)
@@ -169,24 +166,20 @@ class LspPanel(QDockWidget):
             info = self.installer.get_server_info(lang)
 
             item = QTreeWidgetItem(self.tree)
-            item.setText(0, "✓" if info['installed'] else "✗")
-            item.setForeground(0, QColor(
-                "#7ec850" if info['installed'] else "#f14c4c"
-            ))
+            item.setText(0, "✓" if info["installed"] else "✗")
+            item.setForeground(0, QColor("#7ec850" if info["installed"] else "#f14c4c"))
 
             item.setText(1, lang)
-            item.setText(2, "已安装" if info['installed'] else "未安装")
-            item.setText(3, info['version'] or "-")
+            item.setText(2, "已安装" if info["installed"] else "未安装")
+            item.setText(3, info["version"] or "-")
 
             item.setData(0, Qt.UserRole, info)
             item.setData(0, Qt.UserRole + 1, lang)
 
-            if info['installed']:
+            if info["installed"]:
                 active_count += 1
 
-        self.status_label.setText(
-            f"{active_count}/{len(languages)} 已安装"
-        )
+        self.status_label.setText(f"{active_count}/{len(languages)} 已安装")
 
         # 当前文件
         self._update_current()
@@ -219,7 +212,7 @@ class LspPanel(QDockWidget):
             if lang:
                 installed = self.installer.is_installed(lang)
                 # P6: 区分"装了服务器"与"当前文件真的连上了 LSP"
-                active = bool(getattr(proxy, 'lsp_active', False))
+                active = bool(getattr(proxy, "lsp_active", False))
                 if active:
                     status = "已连接"
                     color = "#7ec850"
@@ -231,13 +224,11 @@ class LspPanel(QDockWidget):
                     color = "#f0ad4e"
                 self.current_label.setText(
                     f'<span style="color:{color};">'
-                    f'{os.path.basename(filepath)} · {lang} · {status}'
-                    f'</span>'
+                    f"{os.path.basename(filepath)} · {lang} · {status}"
+                    f"</span>"
                 )
             else:
-                self.current_label.setText(
-                    f"{os.path.basename(filepath)} · (无 LSP)"
-                )
+                self.current_label.setText(f"{os.path.basename(filepath)} · (无 LSP)")
         except Exception as e:
             self.current_label.setText(f"(错误: {e})")
 
@@ -246,7 +237,7 @@ class LspPanel(QDockWidget):
         result = {}
         for lang in self.installer.list_languages():
             info = self.installer.get_server_info(lang)
-            result[lang] = info['extensions']
+            result[lang] = info["extensions"]
         return result
 
     def _on_item_double_clicked(self, item, column):
@@ -256,13 +247,12 @@ class LspPanel(QDockWidget):
         if not lang or not info:
             return
 
-        if info['installed']:
+        if info["installed"]:
             # 已安装：询问是否重装/更新
             reply = QMessageBox.question(
-                self, "LSP 已安装",
-                f"{info['name']} 已安装。\n\n"
-                f"版本: {info['version']}\n\n"
-                f"是否重新安装/更新？",
+                self,
+                "LSP 已安装",
+                f"{info['name']} 已安装。\n\n版本: {info['version']}\n\n是否重新安装/更新？",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -271,9 +261,9 @@ class LspPanel(QDockWidget):
         else:
             # 未安装：询问安装
             reply = QMessageBox.question(
-                self, "安装 LSP",
-                f"{info['name']} 未安装。\n\n"
-                f"是否自动安装？",
+                self,
+                "安装 LSP",
+                f"{info['name']} 未安装。\n\n是否自动安装？",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.Yes,
             )
@@ -285,18 +275,14 @@ class LspPanel(QDockWidget):
         info = self.installer.get_server_info(language)
 
         # 检查是否有安装方法
-        if not info['install_method']:
+        if not info["install_method"]:
             QMessageBox.information(
-                self, "手动安装",
-                self.installer.get_manual_install_hint(language)
+                self, "手动安装", self.installer.get_manual_install_hint(language)
             )
             return
 
         # 创建进度对话框
-        progress = QProgressDialog(
-            f"正在安装 {info['name']}...", "取消",
-            0, 0, self
-        )
+        progress = QProgressDialog(f"正在安装 {info['name']}...", "取消", 0, 0, self)
         progress.setWindowTitle("安装语言服务器")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
@@ -313,14 +299,10 @@ class LspPanel(QDockWidget):
             progress.close()
             if success:
                 QMessageBox.information(
-                    self, "安装成功",
-                    f"{info['name']} 安装成功！\n\n"
-                    f"重启编辑器后生效。"
+                    self, "安装成功", f"{info['name']} 安装成功！\n\n重启编辑器后生效。"
                 )
             else:
-                QMessageBox.critical(
-                    self, "安装失败", msg
-                )
+                QMessageBox.critical(self, "安装失败", msg)
             self.refresh()
 
         # 修复说明（P2-4）: 原实现 disconnect() 不带参数会断开
@@ -361,31 +343,16 @@ class LspInstallerDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel(
-            "青草编辑器通过 LSP 为各种语言提供智能提示。\n"
-            "双击行安装或更新。"
-        ))
+        layout.addWidget(QLabel("青草编辑器通过 LSP 为各种语言提供智能提示。\n双击行安装或更新。"))
 
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "状态", "语言", "服务器", "版本", "操作"
-        ])
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeToContents
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeToContents
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.Stretch
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.ResizeToContents
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            4, QHeaderView.ResizeToContents
-        )
+        self.table.setHorizontalHeaderLabels(["状态", "语言", "服务器", "版本", "操作"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.table)
@@ -452,46 +419,31 @@ class LspInstallerDialog(QDialog):
             info = self.installer.get_server_info(lang)
 
             # 状态
-            status_item = QTableWidgetItem(
-                "✓" if info['installed'] else "✗"
-            )
-            status_item.setForeground(QColor(
-                "#7ec850" if info['installed'] else "#f14c4c"
-            ))
+            status_item = QTableWidgetItem("✓" if info["installed"] else "✗")
+            status_item.setForeground(QColor("#7ec850" if info["installed"] else "#f14c4c"))
             self.table.setItem(i, 0, status_item)
 
             self.table.setItem(i, 1, QTableWidgetItem(lang))
-            self.table.setItem(i, 2, QTableWidgetItem(info['name']))
-            self.table.setItem(
-                i, 3,
-                QTableWidgetItem(info['version'] or "-")
-            )
+            self.table.setItem(i, 2, QTableWidgetItem(info["name"]))
+            self.table.setItem(i, 3, QTableWidgetItem(info["version"] or "-"))
 
             # 操作按钮
-            btn = QPushButton(
-                "更新" if info['installed'] else "安装"
-            )
+            btn = QPushButton("更新" if info["installed"] else "安装")
             btn.setProperty("lang", lang)
-            btn.clicked.connect(
-                lambda checked=False, l=lang: self._install(l)
-            )
+            btn.clicked.connect(lambda checked=False, l=lang: self._install(l))
             self.table.setCellWidget(i, 4, btn)
 
     def _install(self, language):
         """安装"""
         info = self.installer.get_server_info(language)
 
-        if not info['install_method']:
+        if not info["install_method"]:
             QMessageBox.information(
-                self, "手动安装",
-                self.installer.get_manual_install_hint(language)
+                self, "手动安装", self.installer.get_manual_install_hint(language)
             )
             return
 
-        progress = QProgressDialog(
-            f"正在安装 {info['name']}...", "取消",
-            0, 0, self
-        )
+        progress = QProgressDialog(f"正在安装 {info['name']}...", "取消", 0, 0, self)
         progress.setWindowTitle("安装")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
@@ -500,10 +452,7 @@ class LspInstallerDialog(QDialog):
         def on_finished(lang, success, msg):
             progress.close()
             if success:
-                QMessageBox.information(
-                    self, "成功",
-                    f"{info['name']} 安装成功！"
-                )
+                QMessageBox.information(self, "成功", f"{info['name']} 安装成功！")
             else:
                 QMessageBox.critical(self, "失败", msg)
             self.refresh()
@@ -519,19 +468,19 @@ class LspInstallerDialog(QDialog):
     def _install_all(self):
         """全部安装"""
         languages = [
-            l for l in self.installer.list_languages()
+            l
+            for l in self.installer.list_languages()
             if not self.installer.is_installed(l)
-            and self.installer.get_server_info(l)['install_method']
+            and self.installer.get_server_info(l)["install_method"]
         ]
 
         if not languages:
-            QMessageBox.information(
-                self, "提示", "没有需要安装的 LSP 服务器"
-            )
+            QMessageBox.information(self, "提示", "没有需要安装的 LSP 服务器")
             return
 
         reply = QMessageBox.question(
-            self, "批量安装",
+            self,
+            "批量安装",
             f"将安装以下 {len(languages)} 个服务器:\n\n"
             + "\n".join(f"  • {l}" for l in languages)
             + "\n\n是否继续？",

@@ -66,7 +66,7 @@
 
 ## 三、工作流与验收标准
 
-### W1 架构：第二轮拆分 + 依赖治理（✅ 第三批：全仓单文件 ≤1,500 行）
+### W1 架构：第二轮拆分 + 依赖治理（✅ 第四批：1,500–1,920 行文件完成，main.py 例外保留）
 **动作**
 1. 拆分 `plugins/ai_assistant/__init__.py`（3258）→ `ai_client.py` / `ai_ui.py` / `ai_actions.py`；
 2. 拆分 `app/plugin_api.py`（2294）→ `plugin_api_core.py` / `plugin_api_editor.py` / `plugin_api_ui.py`（按权限域）；

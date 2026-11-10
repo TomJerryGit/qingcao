@@ -151,3 +151,48 @@ def test_no_py_file_over_2000_lines():
             if n > 2000:
                 offenders.append((rel, n))
     assert not offenders, offenders
+
+
+def test_batch4_split():
+    from core.lsp_client import LspClient, LspServerRegistry
+    from core.search import FileSearcher, ReplaceEngine, SearchEngine
+    from infrastructure.plugin_loader import PluginLoader
+    from infrastructure.plugin_updater import PluginUpdater
+    from infrastructure.sound_manager import SoundManager
+    from ui.column_editor_dialog import ColumnEditorDialog
+    from ui.directory_tree import DirectoryTree
+    from ui.file_merge_dialog import FileDiffDialog
+    from ui.panels import SearchBar
+    from ui.python_console import PythonConsole
+
+    for rel, limit in (
+        ("ui/file_merge_dialog.py", 120),
+        ("ui/directory_tree.py", 1550),
+        ("core/lsp_client.py", 1550),
+        ("infrastructure/plugin_updater.py", 1450),
+        ("core/search.py", 200),
+        ("infrastructure/plugin_loader.py", 1250),
+        ("infrastructure/sound_manager.py", 780),
+        ("ui/panels.py", 120),
+        ("ui/column_editor_dialog.py", 400),
+        ("ui/python_console.py", 1050),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    for cls in (
+        LspClient,
+        LspServerRegistry,
+        SearchEngine,
+        FileSearcher,
+        ReplaceEngine,
+        PluginLoader,
+        PluginUpdater,
+        SoundManager,
+        SearchBar,
+        ColumnEditorDialog,
+        FileDiffDialog,
+        DirectoryTree,
+        PythonConsole,
+    ):
+        assert cls is not None
+    # main.py 作为启动入口保留（测试大量依赖 main 的模块级函数）
+    assert _lines("main.py") < 2000

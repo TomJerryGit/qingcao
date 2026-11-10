@@ -1,169 +1,14 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-青草编辑器 (QingCao Editor)
-============================
-开发者：TomJerry
-邮箱：1265338136@qq.com
-青草枯荣，野火重生。
+# ruff: noqa: F401, F403, F405
+"""directory_tree（v2.24 拆分）。"""
 
-本文件为项目目录树模块，包含：
-- DirectoryTree：项目目录树面板
-- DirectoryTreeModel：目录树数据模型
-- FileSystemWatcher：文件系统监听
-- 目录递归加载与懒加载
-- 文件/文件夹增删改操作
-- Git 状态着色
-- 多选与批量操作
-- 右键上下文菜单
-- 文件过滤（隐藏文件、排除规则）
-- 文件图标
-- 拖放支持
-- 搜索过滤
-- 路径收藏与书签
-- 刷新与自动刷新
-- 打开方式集成
-"""
-
-import fnmatch
-import os
-import shutil
-import subprocess
-import sys
-import time
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-from PyQt5.QtCore import (
-    QDir,
-    QFileInfo,
-    QFileSystemWatcher,
-    QMimeData,
-    QModelIndex,
-    Qt,
-    QTimer,
-    QUrl,
-    pyqtSignal,
-)
-from PyQt5.QtGui import (
-    QBrush,
-    QColor,
-    QDrag,
-    QFont,
-    QIcon,
-    QKeySequence,
-)
-from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QAction,
-    QApplication,
-    QFileDialog,
-    QFileIconProvider,
-    QHBoxLayout,
-    QHeaderView,
-    QInputDialog,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QStyle,
-    QToolBar,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
+from ui.directory_tree_common import *  # noqa: F401,F403
+from ui.directory_tree_model import DirectoryTreeModel  # noqa: F401
 
 
-# ============================================================
-# 常量
-# ============================================================
-# 默认排除目录
-DEFAULT_EXCLUDE_DIRS = {
-    '.git', '.svn', '.hg', '.bzr',
-    '__pycache__', '__MACOSX',
-    'node_modules', '.npm', '.yarn',
-    '.venv', 'venv', 'env', '.env',
-    '.idea', '.vscode', '.vs',
-    'build', 'dist', 'target', 'out',
-    '.pytest_cache', '.mypy_cache', '.tox',
-    'bin', 'obj',
-}
-
-# Git 状态颜色
-GIT_STATUS_COLORS = {
-    'M': QColor("#E5A72D"),   # 已修改（橙）
-    'A': QColor("#6A9955"),   # 新增（绿）
-    'D': QColor("#F14C4C"),   # 删除（红）
-    '?': QColor("#808080"),   # 未跟踪（灰）
-    'R': QColor("#4DABF7"),   # 重命名（蓝）
-    'C': QColor("#4DABF7"),   # 复制（蓝）
-    'U': QColor("#FF6B6B"),   # 冲突（红）
-}
-
-# 文件类型图标颜色（用作彩色小方块）
-FILE_TYPE_COLORS = {
-    '.py': QColor("#3572A5"),
-    '.pyw': QColor("#3572A5"),
-    '.js': QColor("#F1E05A"),
-    '.ts': QColor("#2B7489"),
-    '.jsx': QColor("#61DAFB"),
-    '.tsx': QColor("#61DAFB"),
-    '.java': QColor("#B07219"),
-    '.cpp': QColor("#F34B7D"),
-    '.cc': QColor("#F34B7D"),
-    '.cxx': QColor("#F34B7D"),
-    '.h': QColor("#F34B7D"),
-    '.hpp': QColor("#F34B7D"),
-    '.c': QColor("#555555"),
-    '.rs': QColor("#DEA584"),
-    '.go': QColor("#00ADD8"),
-    '.rb': QColor("#701516"),
-    '.php': QColor("#4F5D95"),
-    '.swift': QColor("#FFAC45"),
-    '.kt': QColor("#A97BFF"),
-    '.html': QColor("#E34C26"),
-    '.htm': QColor("#E34C26"),
-    '.css': QColor("#563D7C"),
-    '.scss': QColor("#C6538C"),
-    '.json': QColor("#F1E05A"),
-    '.xml': QColor("#0060AC"),
-    '.yaml': QColor("#CB171E"),
-    '.yml': QColor("#CB171E"),
-    '.toml': QColor("#9C4221"),
-    '.md': QColor("#083FA1"),
-    '.rst': QColor("#141414"),
-    '.txt': QColor("#999999"),
-    '.log': QColor("#C0C0C0"),
-    '.csv': QColor("#1E8E3E"),
-    '.sql': QColor("#E38C00"),
-    '.sh': QColor("#89E051"),
-    '.bat': QColor("#C1F12E"),
-    '.ps1': QColor("#012456"),
-    '.ini': QColor("#999999"),
-    '.cfg': QColor("#999999"),
-    '.conf': QColor("#999999"),
-}
-
-# 文件排序优先级
-FILE_SORT_PRIORITY = {
-    'dir': 0,
-    'file': 1,
-}
-
-# 节点类型
-NODE_TYPE_DIR = 0
-NODE_TYPE_FILE = 1
-NODE_TYPE_ROOT = 2
-
-
-# ============================================================
-# 节点类型枚举
-# ============================================================
 class NodeType(Enum):
     """节点类型"""
+
     ROOT = auto()
     DIRECTORY = auto()
     FILE = auto()
@@ -173,173 +18,8 @@ class NodeType(Enum):
 # ============================================================
 # 目录树数据模型
 # ============================================================
-class DirectoryTreeModel:
-    """
-    目录树数据模型。
-
-    管理目录树的数据结构，负责:
-    - 目录扫描与缓存
-    - 路径信息查询
-    - 文件过滤
-    """
-
-    def __init__(self):
-        self.root_path: str = ""
-        self.exclude_dirs: Set[str] = set(DEFAULT_EXCLUDE_DIRS)
-        self.exclude_patterns: List[str] = []
-        self.show_hidden: bool = False
-        self.follow_symlinks: bool = False
-        self._dir_cache: Dict[str, List[str]] = {}
-
-    # --------------------------------------------------------
-    # 根目录
-    # --------------------------------------------------------
-    def set_root(self, path: str):
-        """设置根目录"""
-        self.root_path = os.path.abspath(path) if path else ""
-        self._dir_cache.clear()
-
-    def get_root(self) -> str:
-        """获取根目录"""
-        return self.root_path
-
-    # --------------------------------------------------------
-    # 目录扫描
-    # --------------------------------------------------------
-    def list_directory(self, path: str,
-                        use_cache: bool = False) -> List[Tuple[str, bool]]:
-        """
-        列出目录内容。
-
-        参数:
-            path: 目录路径
-            use_cache: 是否使用缓存
-
-        返回:
-            [(名称, 是否目录), ...] 已排序
-        """
-        if use_cache and path in self._dir_cache:
-            return self._dir_cache[path]
-
-        result = []
-
-        try:
-            entries = os.listdir(path)
-        except (PermissionError, FileNotFoundError, NotADirectoryError):
-            return result
-
-        dirs = []
-        files = []
-
-        for name in entries:
-            # 隐藏文件过滤
-            if not self.show_hidden and name.startswith('.'):
-                continue
-
-            # 排除目录
-            if name in self.exclude_dirs:
-                continue
-
-            # 排除模式
-            if self._matches_exclude(name):
-                continue
-
-            full_path = os.path.join(path, name)
-
-            try:
-                is_dir = os.path.isdir(full_path)
-
-                # 符号链接处理
-                if os.path.islink(full_path):
-                    if not self.follow_symlinks:
-                        # 符号链接显示为文件
-                        is_dir = False
-
-                if is_dir:
-                    dirs.append(name)
-                else:
-                    files.append(name)
-
-            except OSError:
-                continue
-
-        # 排序：目录优先，然后按名称
-        dirs.sort(key=str.lower)
-        files.sort(key=str.lower)
-
-        for d in dirs:
-            result.append((d, True))
-        for f in files:
-            result.append((f, False))
-
-        if use_cache:
-            self._dir_cache[path] = result
-
-        return result
-
-    def _matches_exclude(self, name: str) -> bool:
-        """检查是否匹配排除模式"""
-        for pattern in self.exclude_patterns:
-            if fnmatch.fnmatch(name, pattern):
-                return True
-        return False
-
-    # --------------------------------------------------------
-    # 文件信息
-    # --------------------------------------------------------
-    def get_file_info(self, path: str) -> Dict[str, Any]:
-        """获取文件信息"""
-        try:
-            stat = os.stat(path)
-            return {
-                'path': path,
-                'name': os.path.basename(path),
-                'size': stat.st_size,
-                'mtime': stat.st_mtime,
-                'ctime': stat.st_ctime,
-                'is_dir': os.path.isdir(path),
-                'is_file': os.path.isfile(path),
-                'is_link': os.path.islink(path),
-                'readable': os.access(path, os.R_OK),
-                'writable': os.access(path, os.W_OK),
-                'executable': os.access(path, os.X_OK),
-            }
-        except OSError:
-            return {}
-
-    def get_relative_path(self, full_path: str) -> str:
-        """获取相对于根目录的路径"""
-        if not self.root_path:
-            return full_path
-        try:
-            return os.path.relpath(full_path, self.root_path)
-        except ValueError:
-            return full_path
-
-    def get_depth(self, path: str) -> int:
-        """获取路径深度"""
-        if not self.root_path:
-            return 0
-        rel = self.get_relative_path(path)
-        if rel == '.':
-            return 0
-        return rel.count(os.sep) + 1
-
-    # --------------------------------------------------------
-    # 清理
-    # --------------------------------------------------------
-    def clear_cache(self):
-        """清空缓存"""
-        self._dir_cache.clear()
-
-    def clear_cache_for(self, path: str):
-        """清空指定路径的缓存"""
-        self._dir_cache.pop(path, None)
 
 
-# ============================================================
-# 目录树面板
-# ============================================================
 class DirectoryTree(QWidget):
     """
     项目目录树面板。
@@ -392,10 +72,9 @@ class DirectoryTree(QWidget):
         #       "git_status_cache_ttl", 60.0)
         try:
             from PyQt5.QtCore import QSettings
+
             _s = QSettings("QingCao", "Editor")
-            self._git_cache_ttl = _s.value(
-                "git_status_cache_ttl", 30.0, type=float
-            )
+            self._git_cache_ttl = _s.value("git_status_cache_ttl", 30.0, type=float)
             if self._git_cache_ttl < 1.0:
                 self._git_cache_ttl = 30.0
         except Exception:
@@ -496,20 +175,18 @@ class DirectoryTree(QWidget):
         self._empty_hint = QTreeWidgetItem(self.tree)
         self._empty_hint.setText(0, "（未打开文件夹）")
         self._empty_hint.setDisabled(True)
-        self._empty_hint.setToolTip(
-            0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」"
-        )
+        self._empty_hint.setToolTip(0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」")
 
         # 应用样式
         self._apply_style()
-
 
     def refresh_theme(self, theme):
         """主题变更时刷新样式（v3.0）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
+
             # 保存原始 QSS（只保存一次）
-            if not hasattr(self, '_original_qss') or not self._original_qss:
+            if not hasattr(self, "_original_qss") or not self._original_qss:
                 self._original_qss = self.styleSheet()
             if self._original_qss:
                 qss = adapt_qss_colors(self._original_qss, theme)
@@ -638,9 +315,7 @@ class DirectoryTree(QWidget):
             self._empty_hint = QTreeWidgetItem(self.tree)
             self._empty_hint.setText(0, "（未打开文件夹）")
             self._empty_hint.setDisabled(True)
-            self._empty_hint.setToolTip(
-                0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」"
-            )
+            self._empty_hint.setToolTip(0, "用「文件 → 打开文件夹」，或「项目 → 打开项目…」")
         except Exception:
             pass
 
@@ -651,8 +326,7 @@ class DirectoryTree(QWidget):
     # ========================================================
     # 目录填充
     # ========================================================
-    def _populate_item(self, parent_item: QTreeWidgetItem,
-                        dir_path: str, lazy: bool = True):
+    def _populate_item(self, parent_item: QTreeWidgetItem, dir_path: str, lazy: bool = True):
         """
         填充目录节点的子项。
 
@@ -676,8 +350,7 @@ class DirectoryTree(QWidget):
 
             item = QTreeWidgetItem(parent_item, [name])
             item.setData(0, Qt.UserRole, full_path)
-            item.setData(0, Qt.UserRole + 1,
-                         NODE_TYPE_DIR if is_dir else NODE_TYPE_FILE)
+            item.setData(0, Qt.UserRole + 1, NODE_TYPE_DIR if is_dir else NODE_TYPE_FILE)
 
             if is_dir:
                 item.setIcon(0, self._get_folder_icon())
@@ -702,7 +375,7 @@ class DirectoryTree(QWidget):
         """检查目录是否有子目录"""
         try:
             for name in os.listdir(dir_path):
-                if not self.model.show_hidden and name.startswith('.'):
+                if not self.model.show_hidden and name.startswith("."):
                     continue
                 if name in self.model.exclude_dirs:
                     continue
@@ -748,11 +421,10 @@ class DirectoryTree(QWidget):
         try:
             git_root = self._find_git_root(filepath)
             if not git_root:
-                return ''
+                return ""
 
             now = time.time()
-            if (self._git_root == git_root and
-                    now - self._git_cache_time < self._git_cache_ttl):
+            if self._git_root == git_root and now - self._git_cache_time < self._git_cache_ttl:
                 return self._lookup_git_status(filepath, git_root)
 
             self._git_root = git_root
@@ -761,16 +433,15 @@ class DirectoryTree(QWidget):
 
             return self._lookup_git_status(filepath, git_root)
         except Exception:
-            return ''
+            return ""
 
     def _find_git_root(self, filepath: str) -> Optional[str]:
         """查找文件的 git 根目录"""
         try:
-            dirpath = (os.path.dirname(filepath)
-                       if os.path.isfile(filepath) else filepath)
+            dirpath = os.path.dirname(filepath) if os.path.isfile(filepath) else filepath
             check_path = os.path.abspath(dirpath)
             while check_path != os.path.dirname(check_path):
-                if os.path.isdir(os.path.join(check_path, '.git')):
+                if os.path.isdir(os.path.join(check_path, ".git")):
                     return check_path
                 check_path = os.path.dirname(check_path)
         except Exception:
@@ -781,9 +452,12 @@ class DirectoryTree(QWidget):
         """一次性获取整个 git 仓库的状态"""
         try:
             result = subprocess.run(
-                ['git', '-C', git_root, 'status', '--porcelain'],
-                capture_output=True, text=True, timeout=5,
-                encoding='utf-8', errors='replace'
+                ["git", "-C", git_root, "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                encoding="utf-8",
+                errors="replace",
             )
             if result.returncode != 0:
                 return {}
@@ -794,15 +468,13 @@ class DirectoryTree(QWidget):
                     continue
                 status = line[:2]
                 path = line[3:].strip()
-                if ' -> ' in path:
-                    path = path.split(' -> ')[-1]
-                abs_path = os.path.normpath(
-                    os.path.join(git_root, path)
-                ).replace('\\', '/')
+                if " -> " in path:
+                    path = path.split(" -> ")[-1]
+                abs_path = os.path.normpath(os.path.join(git_root, path)).replace("\\", "/")
                 if len(status) >= 2:
-                    if status[1] != ' ':
+                    if status[1] != " ":
                         status_map[abs_path] = status[1]
-                    elif status[0] != ' ':
+                    elif status[0] != " ":
                         status_map[abs_path] = status[0]
             return status_map
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -813,13 +485,14 @@ class DirectoryTree(QWidget):
     def _lookup_git_status(self, filepath: str, git_root: str) -> str:
         """从缓存查询指定文件的 Git 状态"""
         try:
-            abs_path = os.path.normpath(filepath).replace('\\', '/')
-            return self._git_status_cache.get(abs_path, '')
+            abs_path = os.path.normpath(filepath).replace("\\", "/")
+            return self._git_status_cache.get(abs_path, "")
         except Exception:
-            return ''
+            return ""
 
     def refresh_git_status(self):
         """刷新所有节点的 Git 状态"""
+
         def _refresh_recursive(item: QTreeWidgetItem):
             path = item.data(0, Qt.UserRole)
             if path:
@@ -864,8 +537,7 @@ class DirectoryTree(QWidget):
                 pass
             self._watcher = None
 
-    def _add_watch_recursive(self, path: str, max_depth: int = 3,
-                              current_depth: int = 0):
+    def _add_watch_recursive(self, path: str, max_depth: int = 3, current_depth: int = 0):
         """递归添加监听（限制深度防止过度消耗）"""
         if current_depth > max_depth:
             return
@@ -884,15 +556,14 @@ class DirectoryTree(QWidget):
 
         try:
             for name in os.listdir(path):
-                if not self.model.show_hidden and name.startswith('.'):
+                if not self.model.show_hidden and name.startswith("."):
                     continue
                 if name in self.model.exclude_dirs:
                     continue
 
                 full_path = os.path.join(path, name)
                 if os.path.isdir(full_path) and not os.path.islink(full_path):
-                    self._add_watch_recursive(full_path, max_depth,
-                                               current_depth + 1)
+                    self._add_watch_recursive(full_path, max_depth, current_depth + 1)
         except (PermissionError, FileNotFoundError):
             pass
 
@@ -959,6 +630,7 @@ class DirectoryTree(QWidget):
 
     def _restore_expanded_paths(self, paths: Set[str]):
         """恢复展开状态"""
+
         def _restore(item):
             path = item.data(0, Qt.UserRole)
             if path in paths:
@@ -1001,6 +673,7 @@ class DirectoryTree(QWidget):
 
     def expand_all(self, max_depth: int = 3):
         """展开所有节点（限制深度）"""
+
         def _expand(item, depth):
             if depth > max_depth:
                 return
@@ -1063,6 +736,7 @@ class DirectoryTree(QWidget):
 
     def _show_all_items(self):
         """显示所有项"""
+
         def _show(item):
             item.setHidden(False)
             for i in range(item.childCount()):
@@ -1127,50 +801,34 @@ class DirectoryTree(QWidget):
         # 针对文件的菜单
         if node_type == NODE_TYPE_FILE:
             open_act = menu.addAction("📂 打开")
-            open_act.triggered.connect(
-                lambda: self._open_file(path)
-            )
+            open_act.triggered.connect(lambda: self._open_file(path))
 
             open_system_act = menu.addAction("🌐 用系统默认程序打开")
-            open_system_act.triggered.connect(
-                lambda: self._open_with_system(path)
-            )
+            open_system_act.triggered.connect(lambda: self._open_with_system(path))
 
             menu.addSeparator()
 
             reveal_act = menu.addAction("📁 在文件管理器中显示")
-            reveal_act.triggered.connect(
-                lambda: self._reveal_in_explorer(path)
-            )
+            reveal_act.triggered.connect(lambda: self._reveal_in_explorer(path))
 
             copy_path_act = menu.addAction("📋 复制完整路径")
-            copy_path_act.triggered.connect(
-                lambda: self._copy_to_clipboard(path)
-            )
+            copy_path_act.triggered.connect(lambda: self._copy_to_clipboard(path))
 
             copy_rel_act = menu.addAction("📋 复制相对路径")
-            copy_rel_act.triggered.connect(
-                lambda: self._copy_relative_path(path)
-            )
+            copy_rel_act.triggered.connect(lambda: self._copy_relative_path(path))
 
             copy_name_act = menu.addAction("📋 复制文件名")
-            copy_name_act.triggered.connect(
-                lambda: self._copy_to_clipboard(os.path.basename(path))
-            )
+            copy_name_act.triggered.connect(lambda: self._copy_to_clipboard(os.path.basename(path)))
 
             menu.addSeparator()
 
         # 针对目录的菜单
         if node_type in (NODE_TYPE_DIR, NODE_TYPE_ROOT):
             new_file_act = menu.addAction("📄 新建文件")
-            new_file_act.triggered.connect(
-                lambda: self._create_file(path)
-            )
+            new_file_act.triggered.connect(lambda: self._create_file(path))
 
             new_folder_act = menu.addAction("📁 新建文件夹")
-            new_folder_act.triggered.connect(
-                lambda: self._create_folder(path)
-            )
+            new_folder_act.triggered.connect(lambda: self._create_folder(path))
 
             menu.addSeparator()
 
@@ -1188,14 +846,10 @@ class DirectoryTree(QWidget):
         # 重命名和删除（仅对非根节点）
         if node_type != NODE_TYPE_ROOT:
             rename_act = menu.addAction("✏ 重命名")
-            rename_act.triggered.connect(
-                lambda: self._rename_item(item)
-            )
+            rename_act.triggered.connect(lambda: self._rename_item(item))
 
             delete_act = menu.addAction("🗑 删除")
-            delete_act.triggered.connect(
-                lambda: self._delete_item(item)
-            )
+            delete_act.triggered.connect(lambda: self._delete_item(item))
 
             menu.addSeparator()
 
@@ -1203,17 +857,13 @@ class DirectoryTree(QWidget):
         selected = self.tree.selectedItems()
         if len(selected) > 1:
             batch_delete_act = menu.addAction(f"🗑 批量删除 ({len(selected)} 项)")
-            batch_delete_act.triggered.connect(
-                lambda: self._batch_delete(selected)
-            )
+            batch_delete_act.triggered.connect(lambda: self._batch_delete(selected))
 
             menu.addSeparator()
 
         # 属性
         properties_act = menu.addAction("ℹ 属性")
-        properties_act.triggered.connect(
-            lambda: self._show_properties(path)
-        )
+        properties_act.triggered.connect(lambda: self._show_properties(path))
 
         # 显示菜单
         menu.exec(self.tree.viewport().mapToGlobal(pos))
@@ -1239,10 +889,7 @@ class DirectoryTree(QWidget):
     # ========================================================
     def _create_file(self, parent_dir: str):
         """新建文件"""
-        name, ok = QInputDialog.getText(
-            self, "新建文件", "文件名:",
-            text="new_file.txt"
-        )
+        name, ok = QInputDialog.getText(self, "新建文件", "文件名:", text="new_file.txt")
 
         if not ok or not name:
             return
@@ -1255,8 +902,7 @@ class DirectoryTree(QWidget):
         full_path = os.path.join(parent_dir, name)
 
         if os.path.exists(full_path):
-            QMessageBox.warning(self, "文件已存在",
-                                 f"文件已存在: {name}")
+            QMessageBox.warning(self, "文件已存在", f"文件已存在: {name}")
             return
 
         try:
@@ -1264,7 +910,7 @@ class DirectoryTree(QWidget):
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
             # 创建空文件
-            with open(full_path, 'w', encoding='utf-8') as f:
+            with open(full_path, "w", encoding="utf-8") as f:
                 pass
 
             # 刷新目录
@@ -1284,10 +930,7 @@ class DirectoryTree(QWidget):
 
     def _create_folder(self, parent_dir: str):
         """新建文件夹"""
-        name, ok = QInputDialog.getText(
-            self, "新建文件夹", "文件夹名:",
-            text="new_folder"
-        )
+        name, ok = QInputDialog.getText(self, "新建文件夹", "文件夹名:", text="new_folder")
 
         if not ok or not name:
             return
@@ -1299,8 +942,7 @@ class DirectoryTree(QWidget):
         full_path = os.path.join(parent_dir, name)
 
         if os.path.exists(full_path):
-            QMessageBox.warning(self, "文件夹已存在",
-                                 f"文件夹已存在: {name}")
+            QMessageBox.warning(self, "文件夹已存在", f"文件夹已存在: {name}")
             return
 
         try:
@@ -1318,9 +960,7 @@ class DirectoryTree(QWidget):
 
         old_name = os.path.basename(old_path)
 
-        new_name, ok = QInputDialog.getText(
-            self, "重命名", "新名称:", text=old_name
-        )
+        new_name, ok = QInputDialog.getText(self, "重命名", "新名称:", text=old_name)
 
         if not ok or not new_name:
             return
@@ -1332,8 +972,7 @@ class DirectoryTree(QWidget):
         new_path = os.path.join(os.path.dirname(old_path), new_name)
 
         if os.path.exists(new_path):
-            QMessageBox.warning(self, "名称冲突",
-                                 f"目标已存在: {new_name}")
+            QMessageBox.warning(self, "名称冲突", f"目标已存在: {new_name}")
             return
 
         try:
@@ -1377,9 +1016,7 @@ class DirectoryTree(QWidget):
                 pass
 
         reply = QMessageBox.question(
-            self, "确认删除", msg,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            self, "确认删除", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
 
         if reply != QMessageBox.Yes:
@@ -1432,9 +1069,7 @@ class DirectoryTree(QWidget):
         msg += "\n\n此操作不可撤销！"
 
         reply = QMessageBox.question(
-            self, "批量删除", msg,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            self, "批量删除", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
 
         if reply != QMessageBox.Yes:
@@ -1460,9 +1095,9 @@ class DirectoryTree(QWidget):
         # 提示结果
         if errors:
             QMessageBox.warning(
-                self, "部分删除失败",
-                f"成功删除 {deleted} 项，{len(errors)} 项失败:\n\n"
-                + "\n".join(errors[:5])
+                self,
+                "部分删除失败",
+                f"成功删除 {deleted} 项，{len(errors)} 项失败:\n\n" + "\n".join(errors[:5]),
             )
 
     # ========================================================
@@ -1475,32 +1110,29 @@ class DirectoryTree(QWidget):
     def _open_with_system(self, path: str):
         """用系统默认程序打开"""
         try:
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 os.startfile(path)
-            elif sys.platform == 'darwin':
-                subprocess.Popen(['open', path])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
             else:
-                subprocess.Popen(['xdg-open', path])
+                subprocess.Popen(["xdg-open", path])
         except Exception as e:
             QMessageBox.warning(self, "打开失败", str(e))
 
     def _reveal_in_explorer(self, path: str):
         """在文件管理器中显示"""
         try:
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 # P1-B1: /select, 必须作为单个参数
                 # 原写法 ['explorer', '/select,', path] 会打开目录
                 # 但不定位文件，因为 explorer 要求 /select,<path>
                 # 是同一个参数。
-                subprocess.Popen(
-                    ['explorer',
-                     f'/select,{path.replace("/", chr(92))}']
-                )
-            elif sys.platform == 'darwin':
-                subprocess.Popen(['open', '-R', path])
+                subprocess.Popen(["explorer", f"/select,{path.replace('/', chr(92))}"])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
             else:
                 folder = os.path.dirname(path) if os.path.isfile(path) else path
-                subprocess.Popen(['xdg-open', folder])
+                subprocess.Popen(["xdg-open", folder])
         except Exception as e:
             QMessageBox.warning(self, "无法打开", str(e))
 
@@ -1523,13 +1155,13 @@ class DirectoryTree(QWidget):
         if not info:
             return
 
-        size = info.get('size', 0)
+        size = info.get("size", 0)
         size_str = self._format_size(size)
 
-        mtime = info.get('mtime', 0)
-        mtime_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+        mtime = info.get("mtime", 0)
+        mtime_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
 
-        is_dir = info.get('is_dir', False)
+        is_dir = info.get("is_dir", False)
         type_str = "文件夹" if is_dir else "文件"
 
         msg = f"""<h3>{os.path.basename(path)}</h3>
@@ -1537,9 +1169,9 @@ class DirectoryTree(QWidget):
 <p><b>路径:</b> {path}</p>
 <p><b>大小:</b> {size_str}</p>
 <p><b>修改时间:</b> {mtime_str}</p>
-<p><b>可读:</b> {'是' if info.get('readable') else '否'}</p>
-<p><b>可写:</b> {'是' if info.get('writable') else '否'}</p>
-<p><b>可执行:</b> {'是' if info.get('executable') else '否'}</p>
+<p><b>可读:</b> {"是" if info.get("readable") else "否"}</p>
+<p><b>可写:</b> {"是" if info.get("writable") else "否"}</p>
+<p><b>可执行:</b> {"是" if info.get("executable") else "否"}</p>
 """
 
         QMessageBox.information(self, "属性", msg)
@@ -1635,9 +1267,7 @@ class DirectoryTree(QWidget):
                 f"已选中 {selected_count} 项 · 共 {total_dirs} 目录, {total_files} 文件"
             )
         else:
-            self.status_label.setText(
-                f"{total_dirs} 目录, {total_files} 文件"
-            )
+            self.status_label.setText(f"{total_dirs} 目录, {total_files} 文件")
 
     def _update_status_path(self, path: str):
         """更新状态栏显示路径"""
@@ -1648,9 +1278,8 @@ class DirectoryTree(QWidget):
         """显示状态消息"""
         try:
             from app.event_bus import StatusMessageEvent, bus
-            bus.emit_event(StatusMessageEvent(
-                message=message, timeout=timeout
-            ))
+
+            bus.emit_event(StatusMessageEvent(message=message, timeout=timeout))
         except Exception:
             pass
 
@@ -1749,8 +1378,7 @@ class DirectoryTree(QWidget):
 
         return "\n".join(lines)
 
-    def _dump_item(self, item: QTreeWidgetItem, lines: List[str],
-                    depth: int, max_depth: int = 3):
+    def _dump_item(self, item: QTreeWidgetItem, lines: List[str], depth: int, max_depth: int = 3):
         """递归导出节点"""
         if depth > max_depth:
             return
@@ -1773,8 +1401,9 @@ class DirectoryTree(QWidget):
                 self._dump_item(child, lines, depth + 1, max_depth)
 
     def __repr__(self) -> str:
-        return (f"<DirectoryTree root={self.model.get_root()!r} "
-                f"items={self.tree.topLevelItemCount()}>")
+        return (
+            f"<DirectoryTree root={self.model.get_root()!r} items={self.tree.topLevelItemCount()}>"
+        )
 
 
 # ============================================================
@@ -1812,7 +1441,7 @@ if __name__ == "__main__":
     for rel_path, content in test_files:
         full_path = os.path.join(tmp_dir, rel_path)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, 'w', encoding='utf-8') as f:
+        with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
 
     # 创建主窗口
@@ -1833,21 +1462,11 @@ if __name__ == "__main__":
     print()
 
     # 连接信号
-    tree.file_double_clicked.connect(
-        lambda p: print(f"[信号] 双击文件: {p}")
-    )
-    tree.file_created.connect(
-        lambda p: print(f"[信号] 文件创建: {p}")
-    )
-    tree.file_deleted.connect(
-        lambda p: print(f"[信号] 文件删除: {p}")
-    )
-    tree.file_renamed.connect(
-        lambda old, new: print(f"[信号] 重命名: {old} -> {new}")
-    )
-    tree.selection_changed.connect(
-        lambda paths: print(f"[信号] 选中: {len(paths)} 项")
-    )
+    tree.file_double_clicked.connect(lambda p: print(f"[信号] 双击文件: {p}"))
+    tree.file_created.connect(lambda p: print(f"[信号] 文件创建: {p}"))
+    tree.file_deleted.connect(lambda p: print(f"[信号] 文件删除: {p}"))
+    tree.file_renamed.connect(lambda old, new: print(f"[信号] 重命名: {old} -> {new}"))
+    tree.selection_changed.connect(lambda paths: print(f"[信号] 选中: {len(paths)} 项"))
 
     # 定时退出
     def cleanup_and_quit():

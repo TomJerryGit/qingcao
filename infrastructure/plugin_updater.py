@@ -1,388 +1,8 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-青草编辑器 (QingCao Editor)
-============================
-开发者：TomJerry
-邮箱：1265338136@qq.com
-青草枯荣，野火重生。
+# ruff: noqa: F401, F403, F405
+"""插件更新器（v2.24 拆分：common/updater）。"""
 
-本文件为插件更新器模块，包含：
-- PluginUpdater：插件更新器（检查/下载/安装/回滚）
-- UpdateInfo：更新信息数据类
-- UpdateResult：更新结果数据类
-- UpdateHistoryEntry：更新历史记录
-- 版本比较与语义化版本
-- 远程注册表拉取
-- 更新检查（单个/批量）
-- 更新下载（带进度）
-- 增量安装与原子替换
-- 备份与回滚机制
-- 依赖检查与安装
-- 文件哈希校验
-- 自动更新调度
-- 更新历史管理
-- 网络异常重试
-"""
-
-import datetime
-import hashlib
-import json
-import os
-import shutil
-import sys
-import tempfile
-import threading
-import time
-import zipfile
-from dataclasses import asdict, dataclass, field
-from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
-
-from PyQt5.QtCore import QObject, QTimer, pyqtSignal
-
-
-# ============================================================
-# 常量
-# ============================================================
-# 默认注册表地址
-DEFAULT_REGISTRY_URL = (
-    "https://raw.githubusercontent.com/"
-    "qingcao-editor/plugins-registry/main/registry.json"
-)
-
-# 备用注册表地址
-FALLBACK_REGISTRY_URLS = [
-    "https://gitee.com/qingcao-editor/plugins-registry/raw/main/registry.json",
-]
-
-# 插件目录
-PLUGINS_DIR = "plugins"
-THEMES_DIR = "themes"
-
-# 更新缓存目录
-UPDATE_CACHE_DIR = "data/update_cache"
-
-# 备份目录
-BACKUP_DIR = "data/plugin_backups"
-
-# 更新历史文件
-UPDATE_HISTORY_FILE = "data/update_history.json"
-
-# 缓存有效期（秒）
-CACHE_TTL = 3600  # 1 小时
-
-# 下载超时（秒）
-DOWNLOAD_TIMEOUT = 60
-
-# 最大重试次数
-MAX_RETRIES = 3
-RETRY_DELAY = 3  # 秒
-
-# 自动更新检查间隔（小时）
-DEFAULT_AUTO_CHECK_INTERVAL = 24
-
-# 保留的备份数量
-MAX_BACKUPS = 10
-
-# 更新通道
-UPDATE_CHANNELS = {
-    "stable": "稳定版",
-    "beta": "测试版",
-    "dev": "开发版",
-}
-
-
-# ============================================================
-# 更新状态枚举
-# ============================================================
-class UpdateState(Enum):
-    """更新状态"""
-    IDLE = auto()              # 空闲
-    CHECKING = auto()          # 检查中
-    DOWNLOADING = auto()       # 下载中
-    EXTRACTING = auto()        # 解压中
-    INSTALLING = auto()        # 安装中
-    COMPLETED = auto()         # 完成
-    FAILED = auto()            # 失败
-    CANCELLED = auto()         # 已取消
-    ROLLING_BACK = auto()      # 回滚中
-
-
-# ============================================================
-# 更新信息
-# ============================================================
-@dataclass
-class UpdateInfo:
-    """
-    单个插件的更新信息。
-    """
-
-    # 基本信息
-    name: str = ""                          # 插件名
-    display_name: str = ""                  # 显示名
-    current_version: str = ""               # 当前版本
-    latest_version: str = ""                # 最新版本
-
-    # 更新内容
-    description: str = ""                   # 更新说明
-    changelog: str = ""                     # 变更日志
-    release_date: str = ""                  # 发布日期
-
-    # 下载信息
-    download_url: str = ""                  # 下载地址
-    file_hash: str = ""                     # 文件哈希
-    file_size: int = 0                      # 文件大小
-
-    # 依赖
-    dependencies: List[str] = field(default_factory=list)
-    plugin_dependencies: List[str] = field(default_factory=list)
-
-    # 兼容性
-    min_app_version: str = ""               # 最低应用版本
-    max_app_version: str = ""               # 最高应用版本（"" = 不限）
-
-    # 状态
-    has_update: bool = False                # 是否有更新
-    is_major: bool = False                  # 是否主版本更新
-    is_security: bool = False               # 是否安全更新
-    forced: bool = False                    # 是否强制更新
-
-    # 通道
-    channel: str = "stable"                 # 更新通道
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-
-    @property
-    def version_display(self) -> str:
-        """版本显示"""
-        if not self.has_update:
-            return f"v{self.current_version}"
-        return f"{self.current_version} → {self.latest_version}"
-
-    def get_summary(self) -> str:
-        """获取摘要"""
-        if not self.has_update:
-            return f"{self.display_name or self.name} 已是最新版本"
-        return (f"{self.display_name or self.name}: "
-                f"{self.current_version} → {self.latest_version}")
-
-    def __repr__(self) -> str:
-        return (f"<UpdateInfo {self.name} "
-                f"{self.current_version}->{self.latest_version} "
-                f"has_update={self.has_update}>")
-
-
-# ============================================================
-# 更新结果
-# ============================================================
-@dataclass
-class UpdateResult:
-    """
-    更新操作的结果。
-    """
-
-    success: bool = False                   # 是否成功
-    name: str = ""                          # 插件名
-    old_version: str = ""                   # 旧版本
-    new_version: str = ""                   # 新版本
-    message: str = ""                       # 结果消息
-    error: str = ""                         # 错误信息
-
-    # 时间统计
-    download_ms: float = 0.0                # 下载耗时
-    install_ms: float = 0.0                 # 安装耗时
-    total_ms: float = 0.0                   # 总耗时
-
-    # 备份路径（用于回滚）
-    backup_path: str = ""
-
-    # 状态
-    state: UpdateState = UpdateState.IDLE
-
-    def get_summary(self) -> str:
-        """获取摘要"""
-        if self.success:
-            return (f"{self.name}: {self.old_version} → "
-                    f"{self.new_version} ({self.total_ms:.0f} ms)")
-        return f"{self.name} 更新失败: {self.error or self.message}"
-
-    def __repr__(self) -> str:
-        return f"<UpdateResult {self.get_summary()}>"
-
-
-# ============================================================
-# 更新历史记录
-# ============================================================
-@dataclass
-class UpdateHistoryEntry:
-    """更新历史记录"""
-
-    name: str = ""
-    old_version: str = ""
-    new_version: str = ""
-    success: bool = False
-    timestamp: str = ""
-    message: str = ""
-    channel: str = "stable"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> 'UpdateHistoryEntry':
-        entry = cls()
-        for key, value in d.items():
-            if hasattr(entry, key):
-                setattr(entry, key, value)
-        return entry
-
-    def __repr__(self) -> str:
-        status = "✓" if self.success else "✗"
-        return (f"<UpdateHistory {status} {self.name} "
-                f"{self.old_version}->{self.new_version} "
-                f"@ {self.timestamp[:19]}>")
-
-
-# ============================================================
-# 语义化版本
-# ============================================================
-class SemVer:
-    """语义化版本号"""
-
-    def __init__(self, version: str = "0.0.0"):
-        self.raw = version
-        self.major = 0
-        self.minor = 0
-        self.patch = 0
-        self.prerelease = ""
-        self.build = ""
-
-        self._parse(version)
-
-    def _parse(self, version: str):
-        """解析版本号"""
-        try:
-            # 分离 build metadata
-            if '+' in version:
-                version, self.build = version.split('+', 1)
-
-            # 分离 prerelease
-            if '-' in version:
-                version, self.prerelease = version.split('-', 1)
-
-            parts = version.split('.')
-
-            if len(parts) >= 1:
-                self.major = int(parts[0]) if parts[0].isdigit() else 0
-            if len(parts) >= 2:
-                self.minor = int(parts[1]) if parts[1].isdigit() else 0
-            if len(parts) >= 3:
-                self.patch = int(parts[2]) if parts[2].isdigit() else 0
-
-        except Exception:
-            pass
-
-    def __eq__(self, other: 'SemVer') -> bool:
-        return (self.major == other.major and
-                self.minor == other.minor and
-                self.patch == other.patch)
-
-    def __lt__(self, other: 'SemVer') -> bool:
-        return self._compare(other) < 0
-
-    def __gt__(self, other: 'SemVer') -> bool:
-        return self._compare(other) > 0
-
-    def __le__(self, other: 'SemVer') -> bool:
-        return self._compare(other) <= 0
-
-    def __ge__(self, other: 'SemVer') -> bool:
-        return self._compare(other) >= 0
-
-    def _compare(self, other: 'SemVer') -> int:
-        """比较版本号"""
-        # 比较主版本
-        if self.major != other.major:
-            return 1 if self.major > other.major else -1
-        if self.minor != other.minor:
-            return 1 if self.minor > other.minor else -1
-        if self.patch != other.patch:
-            return 1 if self.patch > other.patch else -1
-
-        # prerelease：无 prerelease 的版本更大
-        if not self.prerelease and other.prerelease:
-            return 1
-        if self.prerelease and not other.prerelease:
-            return -1
-
-        # 比较 prerelease
-        if self.prerelease != other.prerelease:
-            return 1 if self.prerelease > other.prerelease else -1
-
-        return 0
-
-    def is_major_update(self, other: 'SemVer') -> bool:
-        """检查是否主版本更新"""
-        return other.major > self.major
-
-    def __str__(self) -> str:
-        return self.raw
-
-    def __repr__(self) -> str:
-        return f"<SemVer {self.raw}>"
-
-
-# ============================================================
-# 插件更新器
-# ============================================================
-def get_app_version() -> str:
-    """当前应用版本（用于插件兼容性判断）"""
-    try:
-        from version import __version__
-        return __version__
-    except Exception:
-        return "0.0.0"
-
-
-def is_app_version_compatible(min_app_version: str = "",
-                              max_app_version: str = "",
-                              app_version: str = "") -> Tuple[bool, str]:
-    """判断应用版本是否在插件声明的兼容范围内
-
-    借鉴 Notepad++ Plugins Admin 的 `npp-compatible-version`：清单里的
-    `min_app_version` / `max_app_version` 必须在安装/更新前生效，而不是
-    只写在 JSON 里。
-
-    返回 (兼容, 原因)；空约束视为不限。
-    """
-    current_s = app_version or get_app_version()
-    try:
-        current = SemVer(current_s)
-    except Exception:
-        return False, "无法解析当前应用版本: %r" % current_s
-    import re as _re
-    _ver_re = _re.compile(r"^\d+(\.\d+){0,3}([-+][0-9A-Za-z.]+)?$")
-    for raw, label in ((min_app_version, "最低"),
-                       (max_app_version, "最高")):
-        if not raw:
-            continue
-        if not _ver_re.match(str(raw).strip()):
-            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
-        try:
-            bound = SemVer(str(raw))
-        except Exception:
-            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
-        try:
-            if label == "最低" and current < bound:
-                return False, "需要应用 >= %s（当前 %s）" % (raw, current_s)
-            if label == "最高" and current > bound:
-                return False, "仅支持应用 <= %s（当前 %s）" % (raw, current_s)
-        except Exception:
-            return False, "版本比较失败: %r vs %r" % (current_s, raw)
-    return True, ""
+from infrastructure.plugin_updater_common import *  # noqa: F401,F403
 
 
 class PluginUpdater(QObject):
@@ -418,10 +38,13 @@ class PluginUpdater(QObject):
     rollback_finished = pyqtSignal(str, bool)
     auto_check_triggered = pyqtSignal()
 
-    def __init__(self, parent: Optional[QObject] = None,
-                 registry_url: str = DEFAULT_REGISTRY_URL,
-                 plugin_dir: str = PLUGINS_DIR,
-                 theme_dir: str = THEMES_DIR):
+    def __init__(
+        self,
+        parent: Optional[QObject] = None,
+        registry_url: str = DEFAULT_REGISTRY_URL,
+        plugin_dir: str = PLUGINS_DIR,
+        theme_dir: str = THEMES_DIR,
+    ):
         """
         参数:
             parent: 父 QObject
@@ -455,9 +78,7 @@ class PluginUpdater(QObject):
 
         # 自动检查定时器
         self._auto_check_timer = QTimer(self)
-        self._auto_check_timer.setInterval(
-            self._auto_check_interval * 3600 * 1000
-        )
+        self._auto_check_timer.setInterval(self._auto_check_interval * 3600 * 1000)
         self._auto_check_timer.timeout.connect(self._on_auto_check)
 
         # 确保目录存在
@@ -471,12 +92,12 @@ class PluginUpdater(QObject):
     # ========================================================
     # 状态
     # ========================================================
-    def check_compatibility(self, info: 'UpdateInfo',
-                            app_version: str = "") -> Tuple[bool, str]:
+    def check_compatibility(self, info: "UpdateInfo", app_version: str = "") -> Tuple[bool, str]:
         """检查某次更新是否与当前应用版本兼容"""
         try:
             return is_app_version_compatible(
-                info.min_app_version, info.max_app_version, app_version)
+                info.min_app_version, info.max_app_version, app_version
+            )
         except Exception as e:
             return False, "兼容性检查失败: %s" % e
 
@@ -501,9 +122,9 @@ class PluginUpdater(QObject):
     # ========================================================
     # 检查更新
     # ========================================================
-    def check_updates(self, force: bool = False,
-                       progress_callback: Optional[Callable] = None
-                       ) -> List[UpdateInfo]:
+    def check_updates(
+        self, force: bool = False, progress_callback: Optional[Callable] = None
+    ) -> List[UpdateInfo]:
         """
         检查所有已安装插件的更新。
 
@@ -545,12 +166,12 @@ class PluginUpdater(QObject):
 
             # 构建远程插件映射
             remote_map = {}
-            for item in registry.get('plugins', []):
-                if item.get('name'):
-                    remote_map[item['name']] = item
-            for item in registry.get('themes', []):
-                if item.get('name'):
-                    remote_map[item['name']] = item
+            for item in registry.get("plugins", []):
+                if item.get("name"):
+                    remote_map[item["name"]] = item
+            for item in registry.get("themes", []):
+                if item.get("name"):
+                    remote_map[item["name"]] = item
 
             # 对每个本地插件检查更新
             total = len(local_plugins)
@@ -559,18 +180,13 @@ class PluginUpdater(QObject):
                     break
 
                 if progress_callback:
-                    progress_callback(
-                        30 + int((i / max(1, total)) * 60),
-                        f"检查 {name}..."
-                    )
+                    progress_callback(30 + int((i / max(1, total)) * 60), f"检查 {name}...")
 
                 remote_info = remote_map.get(name)
                 if not remote_info:
                     continue
 
-                update = self._compare_versions(
-                    name, local_info, remote_info
-                )
+                update = self._compare_versions(name, local_info, remote_info)
 
                 if update and update.has_update:
                     updates.append(update)
@@ -585,8 +201,7 @@ class PluginUpdater(QObject):
                 progress_callback(100, f"发现 {len(updates)} 个更新")
 
             elapsed = (time.time() - start_time) * 1000
-            print(f"[PluginUpdater] 检查完成，耗时 {elapsed:.0f} ms，"
-                  f"发现 {len(updates)} 个更新")
+            print(f"[PluginUpdater] 检查完成，耗时 {elapsed:.0f} ms，发现 {len(updates)} 个更新")
 
             self.check_finished.emit(updates)
 
@@ -596,11 +211,13 @@ class PluginUpdater(QObject):
             self._state = UpdateState.FAILED
             print(f"[PluginUpdater] 检查失败: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
-    def _compare_versions(self, name: str, local_info: Dict[str, Any],
-                           remote_info: Dict[str, Any]) -> Optional[UpdateInfo]:
+    def _compare_versions(
+        self, name: str, local_info: Dict[str, Any], remote_info: Dict[str, Any]
+    ) -> Optional[UpdateInfo]:
         """
         比较本地和远程版本。
 
@@ -608,11 +225,11 @@ class PluginUpdater(QObject):
             UpdateInfo 或 None
         """
         try:
-            local_version = local_info.get('version', '0.0.0')
-            remote_version = remote_info.get('version', '0.0.0')
+            local_version = local_info.get("version", "0.0.0")
+            remote_version = remote_info.get("version", "0.0.0")
 
             # 检查更新通道
-            remote_channel = remote_info.get('channel', 'stable')
+            remote_channel = remote_info.get("channel", "stable")
             if not self._is_channel_allowed(remote_channel):
                 return None
 
@@ -625,25 +242,22 @@ class PluginUpdater(QObject):
             # 构建 UpdateInfo
             update = UpdateInfo(
                 name=name,
-                display_name=remote_info.get('display_name',
-                                              remote_info.get('name', name)),
+                display_name=remote_info.get("display_name", remote_info.get("name", name)),
                 current_version=local_version,
                 latest_version=remote_version,
-                description=remote_info.get('description', ''),
-                changelog=remote_info.get('changelog', ''),
-                release_date=remote_info.get('updated_at', ''),
-                download_url=remote_info.get('download_url', ''),
-                file_hash=remote_info.get('file_hash', ''),
-                file_size=remote_info.get('file_size', 0),
-                dependencies=remote_info.get('dependencies', []),
-                plugin_dependencies=remote_info.get(
-                    'plugin_dependencies', []
-                ),
-                min_app_version=remote_info.get('min_app_version', ''),
+                description=remote_info.get("description", ""),
+                changelog=remote_info.get("changelog", ""),
+                release_date=remote_info.get("updated_at", ""),
+                download_url=remote_info.get("download_url", ""),
+                file_hash=remote_info.get("file_hash", ""),
+                file_size=remote_info.get("file_size", 0),
+                dependencies=remote_info.get("dependencies", []),
+                plugin_dependencies=remote_info.get("plugin_dependencies", []),
+                min_app_version=remote_info.get("min_app_version", ""),
                 has_update=has_update,
                 is_major=has_update and remote_ver.is_major_update(local_ver),
-                is_security=remote_info.get('security', False),
-                forced=remote_info.get('forced', False),
+                is_security=remote_info.get("security", False),
+                forced=remote_info.get("forced", False),
                 channel=remote_channel,
             )
 
@@ -665,8 +279,7 @@ class PluginUpdater(QObject):
     # ========================================================
     # 拉取注册表
     # ========================================================
-    def _fetch_registry(self, force: bool = False
-                          ) -> Optional[Dict[str, Any]]:
+    def _fetch_registry(self, force: bool = False) -> Optional[Dict[str, Any]]:
         """拉取远程注册表"""
         # 检查缓存
         if not force and self._registry_cache is not None:
@@ -703,6 +316,7 @@ class PluginUpdater(QObject):
 
             try:
                 import requests
+
                 resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT)
                 if resp.status_code == 200:
                     return resp.json()
@@ -712,10 +326,9 @@ class PluginUpdater(QObject):
                 # urllib 回退
                 try:
                     import urllib.request
-                    with urllib.request.urlopen(
-                        url, timeout=DOWNLOAD_TIMEOUT
-                    ) as f:
-                        return json.loads(f.read().decode('utf-8'))
+
+                    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as f:
+                        return json.loads(f.read().decode("utf-8"))
                 except Exception as e:
                     print(f"[PluginUpdater] urllib 失败: {e}")
             except Exception as e:
@@ -733,15 +346,15 @@ class PluginUpdater(QObject):
             if not os.path.exists(cache_file):
                 return None
 
-            with open(cache_file, encoding='utf-8') as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached = json.load(f)
 
-            timestamp = cached.get('timestamp', 0)
+            timestamp = cached.get("timestamp", 0)
             # 缓存有效期 24 小时
             if time.time() - timestamp > CACHE_TTL * 24:
                 return None
 
-            self._registry_cache = cached.get('data')
+            self._registry_cache = cached.get("data")
             self._registry_cache_time = timestamp
             return self._registry_cache
 
@@ -752,11 +365,15 @@ class PluginUpdater(QObject):
         """保存到磁盘缓存"""
         try:
             cache_file = os.path.join(UPDATE_CACHE_DIR, "registry.json")
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'data': data,
-                    'timestamp': time.time(),
-                }, f, ensure_ascii=False)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "data": data,
+                        "timestamp": time.time(),
+                    },
+                    f,
+                    ensure_ascii=False,
+                )
         except Exception:
             pass
 
@@ -773,7 +390,7 @@ class PluginUpdater(QObject):
                 path = os.path.join(self.plugin_dir, name)
                 if not os.path.isdir(path):
                     continue
-                if name.startswith('.'):
+                if name.startswith("."):
                     continue
 
                 info = self._read_plugin_manifest(path)
@@ -783,38 +400,37 @@ class PluginUpdater(QObject):
         # 扫描 themes 目录
         if os.path.isdir(self.theme_dir):
             for filename in os.listdir(self.theme_dir):
-                if filename.endswith('.json'):
+                if filename.endswith(".json"):
                     theme_name = os.path.splitext(filename)[0]
                     path = os.path.join(self.theme_dir, filename)
 
                     try:
-                        with open(path, encoding='utf-8') as f:
+                        with open(path, encoding="utf-8") as f:
                             data = json.load(f)
 
                         plugins[f"theme.{theme_name}"] = {
-                            'name': theme_name,
-                            'version': data.get('version', '1.0.0'),
-                            'path': path,
-                            'type': 'theme',
+                            "name": theme_name,
+                            "version": data.get("version", "1.0.0"),
+                            "path": path,
+                            "type": "theme",
                         }
                     except Exception:
                         pass
 
         return plugins
 
-    def _read_plugin_manifest(self, path: str
-                                ) -> Optional[Dict[str, Any]]:
+    def _read_plugin_manifest(self, path: str) -> Optional[Dict[str, Any]]:
         """读取插件 manifest"""
-        manifest_path = os.path.join(path, 'plugin.json')
+        manifest_path = os.path.join(path, "plugin.json")
         if not os.path.exists(manifest_path):
             return None
 
         try:
-            with open(manifest_path, encoding='utf-8') as f:
+            with open(manifest_path, encoding="utf-8") as f:
                 manifest = json.load(f)
 
-            manifest['path'] = path
-            manifest['manifest_path'] = manifest_path
+            manifest["path"] = path
+            manifest["manifest_path"] = manifest_path
             return manifest
 
         except Exception as e:
@@ -824,19 +440,21 @@ class PluginUpdater(QObject):
     # ========================================================
     # 执行更新
     # ========================================================
-    def update_plugin(self, info: UpdateInfo,
-                       progress_callback: Optional[Callable] = None
-                       ) -> UpdateResult:
+    def update_plugin(
+        self, info: UpdateInfo, progress_callback: Optional[Callable] = None
+    ) -> UpdateResult:
         # 兼容性门控：不满足 min/max_app_version 时不下载、不安装
         _ok, _reason = self.check_compatibility(info)
         if not _ok:
             _result = UpdateResult(
-                success=False, name=info.name,
+                success=False,
+                name=info.name,
                 old_version=info.current_version,
                 new_version=info.latest_version,
                 error=_reason,
                 message="不兼容，已取消更新: %s" % _reason,
-                state=UpdateState.FAILED)
+                state=UpdateState.FAILED,
+            )
             try:
                 self.update_failed.emit(info.name, _reason)
             except Exception:
@@ -898,8 +516,7 @@ class PluginUpdater(QObject):
             download_start = time.time()
 
             data = self._download_update(
-                info.download_url, info.name,
-                progress_callback=progress_callback
+                info.download_url, info.name, progress_callback=progress_callback
             )
 
             if data is None:
@@ -948,9 +565,7 @@ class PluginUpdater(QObject):
 
             install_start = time.time()
 
-            success, error = self._install_update(
-                data, info.name, info.latest_version
-            )
+            success, error = self._install_update(data, info.name, info.latest_version)
 
             if not success:
                 # 回滚
@@ -983,15 +598,17 @@ class PluginUpdater(QObject):
                 progress_callback(100, "更新完成")
 
             # 记录历史
-            self._add_history(UpdateHistoryEntry(
-                name=info.name,
-                old_version=info.current_version,
-                new_version=info.latest_version,
-                success=True,
-                timestamp=datetime.datetime.now().isoformat(),
-                message=result.message,
-                channel=info.channel,
-            ))
+            self._add_history(
+                UpdateHistoryEntry(
+                    name=info.name,
+                    old_version=info.current_version,
+                    new_version=info.latest_version,
+                    success=True,
+                    timestamp=datetime.datetime.now().isoformat(),
+                    message=result.message,
+                    channel=info.channel,
+                )
+            )
 
             result.total_ms = (time.time() - start_time) * 1000
 
@@ -1011,23 +628,25 @@ class PluginUpdater(QObject):
                 self._rollback(info.name, result.backup_path)
 
             # 记录失败
-            self._add_history(UpdateHistoryEntry(
-                name=info.name,
-                old_version=info.current_version,
-                new_version=info.latest_version,
-                success=False,
-                timestamp=datetime.datetime.now().isoformat(),
-                message=str(e),
-                channel=info.channel,
-            ))
+            self._add_history(
+                UpdateHistoryEntry(
+                    name=info.name,
+                    old_version=info.current_version,
+                    new_version=info.latest_version,
+                    success=False,
+                    timestamp=datetime.datetime.now().isoformat(),
+                    message=str(e),
+                    channel=info.channel,
+                )
+            )
 
             self.update_failed.emit(info.name, str(e))
 
             return result
 
-    def update_all(self, updates: List[UpdateInfo],
-                    progress_callback: Optional[Callable] = None
-                    ) -> List[UpdateResult]:
+    def update_all(
+        self, updates: List[UpdateInfo], progress_callback: Optional[Callable] = None
+    ) -> List[UpdateResult]:
         """
         批量更新。
 
@@ -1049,23 +668,26 @@ class PluginUpdater(QObject):
             # 与 NPP Plugins Admin 一致——不兼容版本不应出现在"全部更新"。
             _ok, _reason = self.check_compatibility(info)
             if not _ok:
-                results.append(UpdateResult(
-                    success=False, name=info.name,
-                    old_version=info.current_version,
-                    new_version=info.latest_version,
-                    error=_reason,
-                    message="跳过：%s" % _reason,
-                    state=UpdateState.FAILED))
+                results.append(
+                    UpdateResult(
+                        success=False,
+                        name=info.name,
+                        old_version=info.current_version,
+                        new_version=info.latest_version,
+                        error=_reason,
+                        message="跳过：%s" % _reason,
+                        state=UpdateState.FAILED,
+                    )
+                )
                 if progress_callback:
                     progress_callback(
-                        int((i + 1) * 100 / max(1, total)),
-                        "跳过 %s: %s" % (info.name, _reason))
+                        int((i + 1) * 100 / max(1, total)), "跳过 %s: %s" % (info.name, _reason)
+                    )
                 continue
 
             if progress_callback:
                 progress_callback(
-                    int((i / max(1, total)) * 100),
-                    f"更新 {info.name} ({i+1}/{total})"
+                    int((i / max(1, total)) * 100), f"更新 {info.name} ({i + 1}/{total})"
                 )
 
             result = self.update_plugin(info)
@@ -1076,9 +698,9 @@ class PluginUpdater(QObject):
     # ========================================================
     # 下载
     # ========================================================
-    def _download_update(self, url: str, name: str,
-                          progress_callback: Optional[Callable] = None
-                          ) -> Optional[bytes]:
+    def _download_update(
+        self, url: str, name: str, progress_callback: Optional[Callable] = None
+    ) -> Optional[bytes]:
         """
         下载更新包。
 
@@ -1095,9 +717,8 @@ class PluginUpdater(QObject):
             resp = None
             try:
                 import requests
-                resp = requests.get(
-                    url, timeout=DOWNLOAD_TIMEOUT, stream=True
-                )
+
+                resp = requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True)
 
                 if resp.status_code != 200:
                     print(f"[PluginUpdater] 下载失败: HTTP {resp.status_code}")
@@ -1107,7 +728,7 @@ class PluginUpdater(QObject):
                     return None
 
                 # 获取总大小
-                total_size = int(resp.headers.get('content-length', 0))
+                total_size = int(resp.headers.get("content-length", 0))
 
                 # 流式下载
                 chunks = []
@@ -1123,19 +744,17 @@ class PluginUpdater(QObject):
                     if total_size > 0 and progress_callback:
                         pct = 5 + int((downloaded / total_size) * 50)
                         progress_callback(
-                            pct,
-                            f"下载中 {downloaded // 1024}/{total_size // 1024} KB"
+                            pct, f"下载中 {downloaded // 1024}/{total_size // 1024} KB"
                         )
 
-                return b''.join(chunks)
+                return b"".join(chunks)
 
             except ImportError:
                 # urllib 回退
                 try:
                     import urllib.request
-                    with urllib.request.urlopen(
-                        url, timeout=DOWNLOAD_TIMEOUT
-                    ) as f:
+
+                    with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as f:
                         return f.read()
                 except Exception as e:
                     print(f"[PluginUpdater] urllib 下载失败: {e}")
@@ -1173,16 +792,12 @@ class PluginUpdater(QObject):
             # 主题特殊处理
             if name.startswith("theme."):
                 theme_name = name[6:]
-                source_file = os.path.join(
-                    self.theme_dir, f"{theme_name}.json"
-                )
+                source_file = os.path.join(self.theme_dir, f"{theme_name}.json")
 
                 if not os.path.exists(source_file):
                     return None
 
-                timestamp = datetime.datetime.now().strftime(
-                    "%Y%m%d_%H%M%S"
-                )
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 backup_name = f"{name}_{timestamp}.json"
                 backup_path = os.path.join(BACKUP_DIR, backup_name)
 
@@ -1194,9 +809,7 @@ class PluginUpdater(QObject):
             if not os.path.isdir(source_dir):
                 return None
 
-            timestamp = datetime.datetime.now().strftime(
-                "%Y%m%d_%H%M%S"
-            )
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_name = f"{name}_{timestamp}"
             backup_path = os.path.join(BACKUP_DIR, backup_name)
 
@@ -1257,9 +870,7 @@ class PluginUpdater(QObject):
             # 主题回滚
             if name.startswith("theme."):
                 theme_name = name[6:]
-                target_file = os.path.join(
-                    self.theme_dir, f"{theme_name}.json"
-                )
+                target_file = os.path.join(self.theme_dir, f"{theme_name}.json")
 
                 shutil.copy2(backup_path, target_file)
             else:
@@ -1286,8 +897,7 @@ class PluginUpdater(QObject):
     # ========================================================
     # 安装
     # ========================================================
-    def _install_update(self, data: bytes, name: str,
-                         version: str) -> Tuple[bool, str]:
+    def _install_update(self, data: bytes, name: str, version: str) -> Tuple[bool, str]:
         """
         安装更新包。
 
@@ -1306,23 +916,19 @@ class PluginUpdater(QObject):
 
         try:
             # 写入临时文件
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix='.zip'
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
                 tmp.write(data)
                 tmp_path = tmp.name
 
             # 主题特殊处理
             if name.startswith("theme."):
                 theme_name = name[6:]
-                return self._install_theme(
-                    tmp_path, theme_name, version
-                )
+                return self._install_theme(tmp_path, theme_name, version)
 
             # 解压到临时目录
             extract_dir = tempfile.mkdtemp(prefix="plugin_extract_")
 
-            with zipfile.ZipFile(tmp_path, 'r') as zf:
+            with zipfile.ZipFile(tmp_path, "r") as zf:
                 # 检查压缩包结构
                 names = zf.namelist()
                 if not names:
@@ -1331,7 +937,7 @@ class PluginUpdater(QObject):
                 # 检查是否有顶层目录
                 top_level = set()
                 for n in names:
-                    parts = n.split('/')
+                    parts = n.split("/")
                     if parts:
                         top_level.add(parts[0])
 
@@ -1385,30 +991,24 @@ class PluginUpdater(QObject):
                 except Exception:
                     pass
 
-    def _install_theme(self, tmp_path: str, theme_name: str,
-                        version: str) -> Tuple[bool, str]:
+    def _install_theme(self, tmp_path: str, theme_name: str, version: str) -> Tuple[bool, str]:
         """安装主题"""
         try:
-            with zipfile.ZipFile(tmp_path, 'r') as zf:
+            with zipfile.ZipFile(tmp_path, "r") as zf:
                 # 找 JSON 文件
-                json_files = [
-                    n for n in zf.namelist()
-                    if n.endswith('.json')
-                ]
+                json_files = [n for n in zf.namelist() if n.endswith(".json")]
 
                 if not json_files:
                     return (False, "压缩包中无 JSON 文件")
 
-                target_file = os.path.join(
-                    self.theme_dir, f"{theme_name}.json"
-                )
+                target_file = os.path.join(self.theme_dir, f"{theme_name}.json")
 
                 # 提取 JSON
                 with zf.open(json_files[0]) as src:
                     content = src.read()
 
                 # 写入
-                with open(target_file, 'wb') as dst:
+                with open(target_file, "wb") as dst:
                     dst.write(content)
 
                 return (True, "")
@@ -1438,13 +1038,10 @@ class PluginUpdater(QObject):
         try:
             import subprocess
 
-            cmd = [sys.executable, '-m', 'pip', 'install']
+            cmd = [sys.executable, "-m", "pip", "install"]
             cmd.extend(dependencies)
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=120
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
             if result.returncode != 0:
                 print(f"[PluginUpdater] 依赖安装失败: {result.stderr}")
@@ -1459,13 +1056,10 @@ class PluginUpdater(QObject):
         """加载更新历史"""
         try:
             if os.path.exists(UPDATE_HISTORY_FILE):
-                with open(UPDATE_HISTORY_FILE, encoding='utf-8') as f:
+                with open(UPDATE_HISTORY_FILE, encoding="utf-8") as f:
                     data = json.load(f)
 
-                self._history = [
-                    UpdateHistoryEntry.from_dict(item)
-                    for item in data
-                ]
+                self._history = [UpdateHistoryEntry.from_dict(item) for item in data]
 
         except Exception as e:
             print(f"[PluginUpdater] 加载历史失败: {e}")
@@ -1479,10 +1073,9 @@ class PluginUpdater(QObject):
             # 只保留最近 100 条
             self._history = self._history[-100:]
 
-            with open(UPDATE_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            with open(UPDATE_HISTORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(
-                    [entry.to_dict() for entry in self._history],
-                    f, indent=2, ensure_ascii=False
+                    [entry.to_dict() for entry in self._history], f, indent=2, ensure_ascii=False
                 )
 
         except Exception as e:
@@ -1509,20 +1102,15 @@ class PluginUpdater(QObject):
         """加载配置"""
         try:
             from PyQt5.QtCore import QSettings
+
             settings = QSettings("QingCao", "PluginUpdater")
 
-            self._auto_check_enabled = settings.value(
-                "auto_check_enabled", True, type=bool
-            )
+            self._auto_check_enabled = settings.value("auto_check_enabled", True, type=bool)
             self._auto_check_interval = settings.value(
                 "auto_check_interval", DEFAULT_AUTO_CHECK_INTERVAL, type=int
             )
-            self._update_channel = settings.value(
-                "update_channel", "stable", type=str
-            )
-            self._last_check_time = settings.value(
-                "last_check_time", 0.0, type=float
-            )
+            self._update_channel = settings.value("update_channel", "stable", type=str)
+            self._last_check_time = settings.value("last_check_time", 0.0, type=float)
 
         except Exception:
             pass
@@ -1531,14 +1119,11 @@ class PluginUpdater(QObject):
         """保存配置"""
         try:
             from PyQt5.QtCore import QSettings
+
             settings = QSettings("QingCao", "PluginUpdater")
 
-            settings.setValue(
-                "auto_check_enabled", self._auto_check_enabled
-            )
-            settings.setValue(
-                "auto_check_interval", self._auto_check_interval
-            )
+            settings.setValue("auto_check_enabled", self._auto_check_enabled)
+            settings.setValue("auto_check_interval", self._auto_check_interval)
             settings.setValue("update_channel", self._update_channel)
             settings.setValue("last_check_time", self._last_check_time)
 
@@ -1598,8 +1183,7 @@ class PluginUpdater(QObject):
             try:
                 updates = self.check_updates(force=False)
                 if updates:
-                    print(f"[PluginUpdater] 自动检查发现 "
-                          f"{len(updates)} 个更新")
+                    print(f"[PluginUpdater] 自动检查发现 {len(updates)} 个更新")
             except Exception as e:
                 print(f"[PluginUpdater] 自动检查失败: {e}")
 
@@ -1624,8 +1208,7 @@ class PluginUpdater(QObject):
         """检查 latest 是否比 current 更新"""
         return SemVer(latest) > SemVer(current)
 
-    def get_cached_update_info(self, name: str
-                                ) -> Optional[UpdateInfo]:
+    def get_cached_update_info(self, name: str) -> Optional[UpdateInfo]:
         """从缓存获取更新信息"""
         # 简单实现：不缓存单项更新信息
         return None
@@ -1633,13 +1216,11 @@ class PluginUpdater(QObject):
     def get_config(self) -> Dict[str, Any]:
         """获取当前配置"""
         return {
-            'auto_check_enabled': self._auto_check_enabled,
-            'auto_check_interval': self._auto_check_interval,
-            'update_channel': self._update_channel,
-            'last_check_time': self._last_check_time,
-            'channel_display': UPDATE_CHANNELS.get(
-                self._update_channel, self._update_channel
-            ),
+            "auto_check_enabled": self._auto_check_enabled,
+            "auto_check_interval": self._auto_check_interval,
+            "update_channel": self._update_channel,
+            "last_check_time": self._last_check_time,
+            "channel_display": UPDATE_CHANNELS.get(self._update_channel, self._update_channel),
         }
 
     # ========================================================
@@ -1656,12 +1237,8 @@ class PluginUpdater(QObject):
         lines.append(f"检查间隔: {self._auto_check_interval} 小时")
 
         if self._last_check_time > 0:
-            last_time = datetime.datetime.fromtimestamp(
-                self._last_check_time
-            )
-            lines.append(
-                f"上次检查: {last_time.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            last_time = datetime.datetime.fromtimestamp(self._last_check_time)
+            lines.append(f"上次检查: {last_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         lines.append(f"历史记录: {len(self._history)} 条")
 
@@ -1670,25 +1247,74 @@ class PluginUpdater(QObject):
             lines.append("最近更新:")
             for entry in self._history[-5:]:
                 status = "✓" if entry.success else "✗"
-                lines.append(
-                    f"  {status} {entry.name} "
-                    f"{entry.old_version}→{entry.new_version}"
-                )
+                lines.append(f"  {status} {entry.name} {entry.old_version}→{entry.new_version}")
 
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return (f"<PluginUpdater state={self._state.name} "
-                f"channel={self._update_channel} "
-                f"history={len(self._history)}>")
+        return (
+            f"<PluginUpdater state={self._state.name} "
+            f"channel={self._update_channel} "
+            f"history={len(self._history)}>"
+        )
 
 
 # ============================================================
 # 便捷函数
 # ============================================================
-def check_for_updates(plugin_dir: str = PLUGINS_DIR,
-                       registry_url: str = DEFAULT_REGISTRY_URL
-                       ) -> List[UpdateInfo]:
+
+
+def get_app_version() -> str:
+    """当前应用版本（用于插件兼容性判断）"""
+    try:
+        from version import __version__
+
+        return __version__
+    except Exception:
+        return "0.0.0"
+
+
+def is_app_version_compatible(
+    min_app_version: str = "", max_app_version: str = "", app_version: str = ""
+) -> Tuple[bool, str]:
+    """判断应用版本是否在插件声明的兼容范围内
+
+    借鉴 Notepad++ Plugins Admin 的 `npp-compatible-version`：清单里的
+    `min_app_version` / `max_app_version` 必须在安装/更新前生效，而不是
+    只写在 JSON 里。
+
+    返回 (兼容, 原因)；空约束视为不限。
+    """
+    current_s = app_version or get_app_version()
+    try:
+        current = SemVer(current_s)
+    except Exception:
+        return False, "无法解析当前应用版本: %r" % current_s
+    import re as _re
+
+    _ver_re = _re.compile(r"^\d+(\.\d+){0,3}([-+][0-9A-Za-z.]+)?$")
+    for raw, label in ((min_app_version, "最低"), (max_app_version, "最高")):
+        if not raw:
+            continue
+        if not _ver_re.match(str(raw).strip()):
+            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
+        try:
+            bound = SemVer(str(raw))
+        except Exception:
+            return False, "插件声明的%s应用版本不可解析: %r" % (label, raw)
+        try:
+            if label == "最低" and current < bound:
+                return False, "需要应用 >= %s（当前 %s）" % (raw, current_s)
+            if label == "最高" and current > bound:
+                return False, "仅支持应用 <= %s（当前 %s）" % (raw, current_s)
+        except Exception:
+            return False, "版本比较失败: %r vs %r" % (current_s, raw)
+    return True, ""
+
+
+def check_for_updates(
+    plugin_dir: str = PLUGINS_DIR, registry_url: str = DEFAULT_REGISTRY_URL
+) -> List[UpdateInfo]:
     """
     快速检查更新。
 
@@ -1706,10 +1332,9 @@ def check_for_updates(plugin_dir: str = PLUGINS_DIR,
     return updater.check_updates()
 
 
-def update_plugin_by_name(name: str,
-                           plugin_dir: str = PLUGINS_DIR,
-                           registry_url: str = DEFAULT_REGISTRY_URL
-                           ) -> Optional[UpdateResult]:
+def update_plugin_by_name(
+    name: str, plugin_dir: str = PLUGINS_DIR, registry_url: str = DEFAULT_REGISTRY_URL
+) -> Optional[UpdateResult]:
     """
     快速更新指定插件。
 
@@ -1738,85 +1363,3 @@ def update_plugin_by_name(name: str,
 # ============================================================
 # 模块测试
 # ============================================================
-if __name__ == "__main__":
-    import sys
-
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication(sys.argv)
-
-    print("=== 测试 SemVer ===")
-    test_cases = [
-        ("1.0.0", "1.0.1", -1),
-        ("1.0.1", "1.0.0", 1),
-        ("1.0.0", "1.0.0", 0),
-        ("2.0.0", "1.9.9", 1),
-        ("1.0.0-alpha", "1.0.0", -1),
-        ("1.0.0", "1.0.0-beta", 1),
-        ("1.0.0-alpha", "1.0.0-beta", -1),
-    ]
-
-    for v1, v2, expected in test_cases:
-        result = SemVer(v1)._compare(SemVer(v2))
-        status = "✓" if result == expected else "✗"
-        print(f"  {status} {v1} vs {v2}: {result} (期望 {expected})")
-
-    print()
-
-    # 测试更新器
-    print("=== 测试 PluginUpdater ===")
-    updater = PluginUpdater()
-
-    print(updater.dump())
-    print()
-
-    # 连接信号
-    updater.check_started.connect(
-        lambda: print("[信号] 检查开始")
-    )
-    updater.check_finished.connect(
-        lambda updates: print(f"[信号] 检查完成: {len(updates)} 个更新")
-    )
-    updater.update_started.connect(
-        lambda name: print(f"[信号] 更新开始: {name}")
-    )
-    updater.update_progress.connect(
-        lambda name, pct, status: print(f"[信号] {name}: {pct}% - {status}")
-    )
-    updater.update_finished.connect(
-        lambda result: print(f"[信号] 更新完成: {result.get_summary()}")
-    )
-
-    # 测试版本比较
-    print()
-    print("=== 测试版本比较 ===")
-    print(f"1.0.0 < 1.1.0: {updater.is_newer('1.0.0', '1.1.0')}")
-    print(f"2.0.0 > 1.9.9: {updater.is_newer('2.0.0', '1.9.9')}")
-    print()
-
-    # 测试更新历史
-    print("=== 测试更新历史 ===")
-    updater._add_history(UpdateHistoryEntry(
-        name="test_plugin",
-        old_version="1.0.0",
-        new_version="1.1.0",
-        success=True,
-        timestamp=datetime.datetime.now().isoformat(),
-        message="测试更新",
-    ))
-
-    history = updater.get_history()
-    print(f"历史记录数: {len(history)}")
-    for entry in history:
-        print(f"  {entry}")
-    print()
-
-    # 测试配置
-    print("=== 当前配置 ===")
-    config = updater.get_config()
-    for k, v in config.items():
-        print(f"  {k}: {v}")
-    print()
-
-    print("测试完成。")
-    sys.exit(0)

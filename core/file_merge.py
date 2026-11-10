@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """外部文件变更合并"""
+
 import difflib
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -30,20 +31,18 @@ class FileMergeDetector:
                 return None
 
             # 检查是否变更
-            if (abs(current_mtime - self._last_mtime) > 0.5 or
-                    current_size != self._last_size):
+            if abs(current_mtime - self._last_mtime) > 0.5 or current_size != self._last_size:
                 # 尝试读取
                 try:
-                    with open(self.provider.filepath, 'rb') as f:
+                    with open(self.provider.filepath, "rb") as f:
                         new_content = f.read()
                     new_text = new_content.decode(
-                        self.provider.encoding or 'utf-8',
-                        errors='replace'
+                        self.provider.encoding or "utf-8", errors="replace"
                     )
                 except Exception as e:
                     return {
-                        'type': 'deleted_or_error',
-                        'message': str(e),
+                        "type": "deleted_or_error",
+                        "message": str(e),
                     }
 
                 old_mtime = self._last_mtime
@@ -52,15 +51,15 @@ class FileMergeDetector:
                 self._last_size = current_size
 
                 return {
-                    'type': 'modified',
-                    'new_text': new_text,
-                    'old_mtime': old_mtime,
-                    'new_mtime': current_mtime,
-                    'old_size': old_size,
-                    'new_size': current_size,
+                    "type": "modified",
+                    "new_text": new_text,
+                    "old_mtime": old_mtime,
+                    "new_mtime": current_mtime,
+                    "old_size": old_size,
+                    "new_size": current_size,
                 }
         except FileNotFoundError:
-            return {'type': 'deleted'}
+            return {"type": "deleted"}
         except Exception:
             pass
 
@@ -110,7 +109,7 @@ class ThreeWayMerger:
         seq = matcher.b
         out = []
         for tag, i1, i2, j1, j2 in real:
-            if tag != 'equal':
+            if tag != "equal":
                 out.append((i1, i2, list(seq[j1:j2])))
         # 同一原文起点只保留覆盖更长的一个，避免重复决策
         dedup: Dict[int, Tuple[int, int, List[str]]] = {}
@@ -141,17 +140,17 @@ class ThreeWayMerger:
         # 单侧未改动：直接采用另一侧（原样返回，保留其末尾换行语义）
         if local == original:
             return {
-                'merged': remote,
-                'conflicts': [],
-                'auto_merged': True,
-                'strategy': 'take_remote',
+                "merged": remote,
+                "conflicts": [],
+                "auto_merged": True,
+                "strategy": "take_remote",
             }
         if remote == original:
             return {
-                'merged': local,
-                'conflicts': [],
-                'auto_merged': True,
-                'strategy': 'keep_local',
+                "merged": local,
+                "conflicts": [],
+                "auto_merged": True,
+                "strategy": "keep_local",
             }
 
         original_lines = original.splitlines()
@@ -174,10 +173,9 @@ class ThreeWayMerger:
         guard = 0
         max_steps = (n_orig + len(local_changes) + len(remote_changes)) * 4 + 32
 
-        while (li < len(local_changes) or ri < len(remote_changes)
-               or i < n_orig):
+        while li < len(local_changes) or ri < len(remote_changes) or i < n_orig:
             guard += 1
-            if guard > max_steps:      # 防御：绝不死循环
+            if guard > max_steps:  # 防御：绝不死循环
                 break
 
             lc = local_changes[li] if li < len(local_changes) else None
@@ -199,13 +197,15 @@ class ThreeWayMerger:
             if lc is not None and lc[0] <= i:
                 if rc is not None and rc[0] <= i:
                     if lc[2] == rc[2]:
-                        merged_lines.extend(lc[2])          # 相同改动
+                        merged_lines.extend(lc[2])  # 相同改动
                     else:
-                        conflicts.append({
-                            'line': i,
-                            'local': lc[2],
-                            'remote': rc[2],
-                        })
+                        conflicts.append(
+                            {
+                                "line": i,
+                                "local": lc[2],
+                                "remote": rc[2],
+                            }
+                        )
                         merged_lines.append("<<<<<<< LOCAL")
                         merged_lines.extend(lc[2])
                         merged_lines.append("=======")
@@ -244,20 +244,21 @@ class ThreeWayMerger:
             else:
                 break
 
-        merged = '\n'.join(merged_lines)
+        merged = "\n".join(merged_lines)
 
         # F2：恢复末尾换行
         # 只要原文（或任一侧）以换行结尾，结果也应带末尾换行 ——
         # 否则每次合并都会吃掉文件末尾的 LF/CRLF，产生无意义 diff。
-        if merged and not merged.endswith('\n') and (
-            original.endswith('\n') or local.endswith('\n')
-            or remote.endswith('\n')
+        if (
+            merged
+            and not merged.endswith("\n")
+            and (original.endswith("\n") or local.endswith("\n") or remote.endswith("\n"))
         ):
-            merged += '\n'
+            merged += "\n"
 
         return {
-            'merged': merged,
-            'conflicts': conflicts,
-            'auto_merged': len(conflicts) == 0,
-            'strategy': 'three_way',
+            "merged": merged,
+            "conflicts": conflicts,
+            "auto_merged": len(conflicts) == 0,
+            "strategy": "three_way",
         }
