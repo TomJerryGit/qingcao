@@ -74,7 +74,7 @@ def test_respects_follow_off(qapp):
 
 
 def test_startup_wired_static():
-    src = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
+    src = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_helpers.py", "app/main_run.py"))
     assert "apply_high_contrast_if_needed" in src
     win_src = read_main_ui_source()
     assert "_follow_system_high_contrast" in win_src

@@ -49,7 +49,7 @@ PANEL_PATH = os.path.join(ROOT, "ui", "preferences_panel.py")
 
 #: 生产代码根（相对仓库路径）。只有这些位置的键字符串才算"被应用代码读取"。
 PRODUCTION_DIRS = ("app", "core", "infrastructure", "ui", "plugins")
-PRODUCTION_FILES = ("main.py",)
+PRODUCTION_FILES = ("main.py", "app/main_common.py", "app/main_helpers.py", "app/main_run.py")
 
 #: 声明文件（键的定义处）与首选项面板（UI 处）不算"读取方"，
 #: 否则每个键都会因为自己的默认值/界面项而"自证被读取"。
@@ -128,14 +128,14 @@ DELETED_KEYS = frozenset(
 
 #: 本次接线的键 -> 必须出现该键字符串的接线文件。
 WIRED_KEYS = {
-    "splash_screen": ("main.py",),
-    "splash_duration": ("main.py", "ui/preferences_panel.py"),
+    "splash_screen": ("app/main_run.py",),
+    "splash_duration": ("app/main_run.py", "ui/preferences_panel.py"),
     "search_threads": ("core/search.py",),
     "use_hyperscan": ("core/search.py",),
     "search_timeout": ("core/search.py",),
-    "log_level": ("main.py",),
-    "log_max_size": ("main.py",),
-    "language_auto_detect": ("main.py",),
+    "log_level": ("app/main_helpers.py",),
+    "log_max_size": ("app/main_helpers.py",),
+    "language_auto_detect": ("app/main_helpers.py",),
 }
 
 #: 已确认的存量孤儿键（P7 之后仍然既无 UI、也无生产代码引用）。

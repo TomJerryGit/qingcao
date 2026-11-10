@@ -2,6 +2,8 @@
 
 ### 重构
 
+- **main.py 最终拆分**：1,856→115（薄入口）；`app/main_common.py` + `main_helpers.py`(1,064) + `main_run.py`(687)；同步 10+ 个静态/运行时测试。全仓业务代码（除工具归档）均 ≤1,500 行。
+
 - **架构拆分第四批**：file_merge_dialog 1,917→8、directory_tree 1,859→1,478、lsp_client 1,845→1,500、plugin_updater 1,822→1,365、search 1,805→99、plugin_loader 1,730→1,119、sound_manager 1,689→675、panels 1,674→20、column_editor_dialog 1,606→275、python_console 1,568→955；`main.py` 作为启动入口保留（1,855 行，文档已标注例外）。
 
 - **架构拆分第三批**：tabs 2,219→526、session 2,010→339、editor 2,031→752（+3 Mixin）、content_provider 2,190→re-export、document 2,072→re-export、outline_panel 2,024→915；**全仓 Python 文件 ≤1,500 行**。

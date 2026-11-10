@@ -993,7 +993,7 @@ class TestEndToEndSmoke:
             "草稿目录必须是绝对路径（相对路径会随工作目录漂移）：%r" % draft_dir
         )
 
-        main_src = _read(os.path.join(ROOT, "main.py"))
+        main_src = "".join(_read(os.path.join(ROOT, _p)) for _p in ("main.py", "app/main_helpers.py", "app/main_run.py"))
         assert "_draft_dir()" in main_src, (
             "main.py 的 ensure_directories 未复用 "
             "Document._draft_dir() —— 两处各自定义目录正是路径漂移"

@@ -48,7 +48,7 @@ def test_search_skips_large_files(tmp_path):
 
 
 def test_static_wiring_and_docs():
-    main = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
+    main = "".join(open(os.path.join(ROOT, _p), encoding="utf-8").read() for _p in ("main.py", "app/main_common.py", "app/main_helpers.py", "app/main_run.py"))
     assert "faulthandler" in main
     panel = open(os.path.join(ROOT, "ui", "global_search_panel.py"), encoding="utf-8").read()
     assert "skipped_large" in panel

@@ -49,7 +49,7 @@
 |---|---|---|---|
 | `ui/file_merge_dialog.py` | 1,917 | **8**（re-export） | common + base/diff/3way |
 | `ui/directory_tree.py` | 1,859 | **1,478** | model 拆出 |
-| `main.py` | 1,856 | **1,855（保留）** | 入口文件：测试与启动脚本依赖 main 模块级函数，作为架构例外 |
+| `main.py` | 1,856 | **115（薄入口）** | `app/main_common.py`(常量/导入) + `main_helpers.py`(1,064) + `main_run.py`(687) |
 | `core/lsp_client.py` | 1,845 | **1,500** | common + registry 拆出 |
 | `infrastructure/plugin_updater.py` | 1,822 | **1,365** | common 数据类/SemVer |
 | `core/search.py` | 1,805 | **99**（re-export） | common + engine + replace（顶层函数留主入口） |
@@ -59,4 +59,4 @@
 | `ui/column_editor_dialog.py` | 1,606 | **275** | common |
 | `ui/python_console.py` | 1,568 | **955** | console_widgets |
 
-**结果**：11 个目标中 10 个 ≤1,500 行；`main.py` 作为启动入口保留 1,855 行（低风险例外，后续可用"main 仅保留启动接线 + 全部 helper 移出"的方式再拆，但需同步更新大量静态测试）。
+**结果**：11 个目标全部 ≤1,500 行；`main.py` 最终拆分为薄入口（115 行），静态测试已同步读取 helpers/run 源码。

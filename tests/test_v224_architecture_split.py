@@ -194,5 +194,24 @@ def test_batch4_split():
         PythonConsole,
     ):
         assert cls is not None
-    # main.py 作为启动入口保留（测试大量依赖 main 的模块级函数）
-    assert _lines("main.py") < 2000
+    # main.py 已最终拆分为薄入口（helpers/run 独立模块）
+    assert _lines("main.py") < 200
+
+
+def test_main_entry_split():
+    import main
+    from app.main_helpers import ensure_directories, load_theme, setup_logging
+
+    assert _lines("main.py") < 200
+    assert _lines("app/main_helpers.py") < 1200
+    assert _lines("app/main_run.py") < 800
+    for name in (
+        "load_theme",
+        "ensure_directories",
+        "parse_arguments",
+        "get_max_new_window_instances",
+        "_pref",
+        "__version__",
+    ):
+        assert hasattr(main, name), name
+    assert ensure_directories is not None and setup_logging is not None
