@@ -188,8 +188,24 @@ class PluginCard(QFrame):
 
         layout.addLayout(btn_layout)
 
+        # 发现性：双击卡片 / 回车打开详情（评分入口）
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setToolTip("双击查看详情 / 评分")
+
         # 更新按钮状态
         self._update_action_button()
+
+    def mouseDoubleClickEvent(self, event):
+        self.detail_clicked.emit(self.info)
+        super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.detail_clicked.emit(self.info)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def _update_action_button(self):
         """更新操作按钮状态"""
@@ -821,6 +837,14 @@ class PluginStoreDialog(QDialog):
             plugins.sort(key=lambda p: p.updated_at or "", reverse=True)
         elif self._current_sort == "name":
             plugins.sort(key=lambda p: p.display_title.lower())
+        elif self._current_sort == "community_rating":
+            from ui.plugin_client import get_community_rating
+
+            def _community_score(p):
+                r = get_community_rating(p.name)
+                return (r[0] if r else 0.0)
+
+            plugins.sort(key=_community_score, reverse=True)
         elif self._current_sort == "trending":
             # 按下载量 + 评分综合
             plugins.sort(key=lambda p: p.downloads * 0.7 + p.rating * 100 * 0.3, reverse=True)

@@ -184,6 +184,7 @@ SORT_OPTIONS = [
     ("updated", "按更新时间"),
     ("name", "按名称"),
     ("trending", "热门趋势"),
+    ("community_rating", "按社区评分"),
 ]
 
 # 权限说明
