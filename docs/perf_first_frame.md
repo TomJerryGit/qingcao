@@ -30,3 +30,10 @@
 - `apply_startup_theme` 在 `notify_widgets`/`adapt_widget_styles` 期间 `setUpdatesEnabled(False)`，完成后恢复，减少中间重绘。
 
 结论：QSS 专项收益已接近边际，不建议再拆分 QSS；后续优先减少首帧控件数量（面板延迟）或绘制范围。
+
+## 负结果记录：构造初始化期间暂停重绘（已回滚）
+
+- 方案：`MainWindow.__init__` / `_restore_session` 期间 `setUpdatesEnabled(False)`，结束后一次性绘制；
+- 实测（离屏）：首帧 0.677s → **0.781s**，500ms 内 Paint 事件 281 → 401（反而更多）；
+- 结论：Qt 在 updates disabled 期间会累积 updateRequest，恢复后集中重绘，离屏场景无收益；
+- 已回滚该方案；保留测量工具 `tools/measure_first_paint.py` 供真实桌面复测。
