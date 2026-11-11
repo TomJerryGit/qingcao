@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [2.24.5] - 2026-11-11
+
 ### 性能
 
 - **QSS 专项**：主题批量适配期间关闭重绘（apply_startup_theme 0.068→0.050s）；实测全局 QSS 仅增加 MainWindow 约 0.07s，QSS 解析非主要瓶颈。
