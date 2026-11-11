@@ -147,7 +147,11 @@ class PluginCard(QFrame):
             if _comm and _comm[1] > 0:
                 _c = QLabel("★ %.1f 社区 (%d)" % (_comm[0], _comm[1]))
                 _c.setStyleSheet("font-size: 10px; color: #61afef;")
-                _c.setToolTip("社区平均分（静态聚合，只读）")
+                _tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (
+                    _comm[0], _comm[1])
+                if _comm[1] < 3:
+                    _tip += "\n样本不足 3 人，仅供参考"
+                _c.setToolTip(_tip)
                 meta_layout.addWidget(_c)
         except Exception:
             pass
