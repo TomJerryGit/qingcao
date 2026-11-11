@@ -73,6 +73,7 @@ class TerminalScreen:
     def __init__(self, rows=30, cols=100):
         self.rows = max(1, int(rows))
         self.cols = max(1, int(cols))
+        self.revision = 0
         self.alt = False
         self.scrollback = deque(maxlen=2000)
         self.mouse_reporting = set()
@@ -155,6 +156,7 @@ class TerminalScreen:
     def feed(self, data):
         if not data:
             return
+        self.revision += 1
         for ch in data:
             if self._state == "text":
                 if ch == "\x1b":

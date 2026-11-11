@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover
     PtySession = None
 
 from PyQt5.QtWidgets import (
+    QDialog,
     QDockWidget,
     QHBoxLayout,
     QLabel,
@@ -155,6 +156,11 @@ class TerminalTab(QWidget):
         copy_btn.setFixedWidth(60)
         copy_btn.clicked.connect(self.copy_output)
         row.addWidget(copy_btn)
+        self.history_btn = QPushButton("历史")
+        self.history_btn.setFixedWidth(56)
+        self.history_btn.setToolTip("查看终端历史（独立 scrollback 视图）")
+        self.history_btn.clicked.connect(self.show_history)
+        row.addWidget(self.history_btn)
         self.raw_btn = QPushButton("raw")
         self.raw_btn.setFixedWidth(56)
         self.raw_btn.setCheckable(True)
@@ -192,13 +198,20 @@ class TerminalTab(QWidget):
         escaped = html.escape(str(text).rstrip("\n")).replace("\n", "<br>")
         self.output.append(escaped)
 
+    def show_history(self):
+        dlg = TerminalHistoryDialog(self._screen, self)
+        dlg.exec_()
+
     def _render_screen(self):
-        """P2：把 VT 屏幕网格渲染到输出区（alt-screen/光标/颜色）。"""
+        """把 VT 屏幕网格渲染到输出区（P6：内容未变时跳过，降低 CPU）。"""
+        if not render_needed(self._screen, getattr(self, "_last_revision", -1)):
+            return
+        self._last_revision = getattr(self._screen, "revision", 0)
         try:
             bar = self.output.verticalScrollBar()
             at_bottom = bar.value() >= bar.maximum() - 2
             old_value = bar.value()
-            self.output.setHtml(self._screen.render_html(include_scrollback=True))
+            self.output.setHtml(self._screen.render_html())
             if at_bottom:
                 self.output.moveCursor(self.output.textCursor().End)
                 self.output.ensureCursorVisible()
@@ -321,6 +334,40 @@ def key_event_to_bytes(event):
 from ui.terminal_screen import TerminalScreen
 
 
+class TerminalHistoryDialog(QDialog):
+    """独立 scrollback 视图：查看/复制终端历史（不干扰实时渲染）。"""
+
+    def __init__(self, screen, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("终端历史")
+        self.resize(760, 520)
+        layout = QVBoxLayout(self)
+        self.view = QPlainTextEdit()
+        self.view.setReadOnly(True)
+        self.view.setFont(QFont("Consolas", 10))
+        text = "\n".join(screen.scrollback_lines())
+        live = screen.text()
+        self.view.setPlainText((text + "\n" if text else "") + live)
+        layout.addWidget(self.view, 1)
+        row = QHBoxLayout()
+        copy_btn = QPushButton("复制全部")
+        copy_btn.clicked.connect(self._copy)
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(self.accept)
+        row.addStretch(1)
+        row.addWidget(copy_btn)
+        row.addWidget(close_btn)
+        layout.addLayout(row)
+
+    def _copy(self):
+        try:
+            from PyQt5.QtWidgets import QApplication
+
+            QApplication.clipboard().setText(self.view.toPlainText())
+        except Exception:
+            pass
+
+
 class TerminalOutput(QTextEdit):
     """输出区：把鼠标事件按 VT 协议回传给 PTY（P4 鼠标上报）。"""
 
@@ -410,6 +457,12 @@ class PtyLineEdit(HistoryLineEdit):
         super().keyPressEvent(event)
 
 
+def render_needed(screen, last_revision):
+    """渲染节流：内容（revision）未变则跳过重绘。"""
+    rev = getattr(screen, "revision", 0)
+    return rev != last_revision
+
+
 class PtyTerminalTab(QWidget):
     """交互式 PTY 终端标签（持续 shell 会话）。"""
 
@@ -421,6 +474,7 @@ class PtyTerminalTab(QWidget):
         workdir = cwd if cwd and os.path.isdir(cwd) else None
         self._session = PtySession(argv=shell, cwd=workdir)
         self._screen = TerminalScreen(30, 100)
+        self._last_revision = -1
         self._cwd = cwd
         self._proc = None
         self.interrupts = 0
