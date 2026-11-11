@@ -2,6 +2,12 @@
 
 ### 性能
 
+- **首帧专项**：面板惰性属性代理；plugins_panel/perf_monitor 改为首帧后 50ms 预热；
+- 修复终端 raw/历史按钮误挂到 `TerminalTab` 导致 TerminalPanel 构造失败的问题（移入 `PtyTerminalTab`）。
+
+
+### 性能
+
 - **启动/插件加载专项**：插件加载定时器 100→50ms；plugin_ready **2.296s→0.846s**、mainwindow 0.909→0.632s、open_50mb 5.25→3.12s（基准复核，全部硬上限通过）。
 
 
