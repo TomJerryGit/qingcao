@@ -5,6 +5,19 @@
 from ui.plugin_client import *  # noqa: F401,F403
 
 
+def version_comparison_text(info):
+    """返回已安装/市场版本对比文本（未安装返回空）。"""
+    cur = getattr(info, "installed_version", "") or ""
+    latest = getattr(info, "version", "") or ""
+    if not cur:
+        return ""
+    state = str(getattr(info, "state", ""))
+    has_update = "UPDATE" in state or (latest and cur != latest)
+    if has_update:
+        return "已安装 v%s → 市场 v%s（可更新）" % (cur, latest)
+    return "已安装 v%s（已是最新）" % cur
+
+
 class PluginDetailDialog(QDialog):
     """
     插件详情对话框。
@@ -203,14 +216,21 @@ class PluginDetailDialog(QDialog):
             if _comm and _comm[1] > 0:
                 c = QLabel("社区 ★ %.1f (%d 人)" % (_comm[0], _comm[1]))
                 c.setStyleSheet("color: #61afef; font-size: 11px;")
-                tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (
-                    _comm[0], _comm[1])
+                tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (_comm[0], _comm[1])
                 if _comm[1] < 3:
                     tip += "\n样本不足 3 人，仅供参考"
                 c.setToolTip(tip)
                 stats_layout.addWidget(c)
         except Exception:
             pass
+
+        _cmp = version_comparison_text(self.info)
+        if _cmp:
+            cmp_label = QLabel(_cmp)
+            cmp_label.setStyleSheet(
+                "color: %s; font-size: 11px;" % ("#f0ad4e" if "可更新" in _cmp else "#7ec850")
+            )
+            stats_layout.addWidget(cmp_label)
 
         stats_layout.addStretch()
         info_layout.addLayout(stats_layout)

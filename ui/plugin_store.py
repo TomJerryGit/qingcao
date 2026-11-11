@@ -147,8 +147,7 @@ class PluginCard(QFrame):
             if _comm and _comm[1] > 0:
                 _c = QLabel("★ %.1f 社区 (%d)" % (_comm[0], _comm[1]))
                 _c.setStyleSheet("font-size: 10px; color: #61afef;")
-                _tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (
-                    _comm[0], _comm[1])
+                _tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (_comm[0], _comm[1])
                 if _comm[1] < 3:
                     _tip += "\n样本不足 3 人，仅供参考"
                 _c.setToolTip(_tip)
@@ -320,6 +319,48 @@ def should_show_rating_invite(plugins, local_ratings, dismissed) -> bool:
         return False
 
 
+RATING_FILTERS = [
+    ("all", "全部评分"),
+    ("4", "★4 分以上"),
+    ("3", "★3 分以上"),
+    ("none", "未评分"),
+]
+
+
+def plugin_rating_score(plugin, community_getter, local_ratings):
+    """返回 (平均分, 人数)：优先社区评分，其次本地评分。"""
+    try:
+        c = community_getter(plugin.name)
+    except Exception:
+        c = None
+    if c and c[1] > 0:
+        return c
+    rec = (local_ratings or {}).get(plugin.name) or {}
+    try:
+        if rec.get("stars"):
+            return (float(rec["stars"]), 1)
+    except Exception:
+        pass
+    return (0.0, 0)
+
+
+def passes_rating_filter(score, mode):
+    avg, count = score
+    if mode == "all":
+        return True
+    if mode == "none":
+        return count == 0
+    try:
+        threshold = float(mode)
+    except Exception:
+        return True
+    return count > 0 and avg >= threshold
+
+
+def update_count(plugins):
+    return sum(1 for p in (plugins or []) if getattr(p, "has_update", False))
+
+
 class PluginStoreDialog(QDialog):
     """
     插件市场对话框。
@@ -367,6 +408,7 @@ class PluginStoreDialog(QDialog):
         self._settings = QSettings("QingCao", "PluginStore")
         self._current_category = "all"
         self._current_sort = "downloads"
+        self._current_rating = "all"
         self._search_text = ""
 
         # 构建 UI
@@ -408,6 +450,27 @@ class PluginStoreDialog(QDialog):
         inv_row.addWidget(invite_close)
         self.rating_invite.hide()
         layout.addWidget(self.rating_invite)
+
+        # 更新公告横幅（v2.25 市场体验）
+        self.update_banner = QFrame()
+        self.update_banner.setObjectName("update_banner")
+        self.update_banner.setStyleSheet(
+            "QFrame#update_banner { background: #3a2f1a; border: 1px solid #7a5c2d;"
+            " border-radius: 4px; }"
+        )
+        up_row = QHBoxLayout(self.update_banner)
+        up_row.setContentsMargins(10, 6, 10, 6)
+        self.update_label = QLabel("")
+        self.update_label.setStyleSheet("color: #f0c674; font-size: 12px;")
+        up_row.addWidget(self.update_label, 1)
+        view_btn = QPushButton("查看更新")
+        view_btn.clicked.connect(self._show_updates_category)
+        up_row.addWidget(view_btn)
+        hide_btn = QPushButton("关闭")
+        hide_btn.clicked.connect(lambda: self.update_banner.hide())
+        up_row.addWidget(hide_btn)
+        self.update_banner.hide()
+        layout.addWidget(self.update_banner)
 
         # 中间：插件列表
         self.scroll_area = QScrollArea()
@@ -576,12 +639,35 @@ class PluginStoreDialog(QDialog):
         layout.addWidget(self.sort_combo)
 
         # 把 filter_row 加到 toolbar 的 outer 布局
+        # 评分筛选（v2.25）
+        if self._current_rating and self._current_rating != "all":
+            try:
+                from ui.plugin_client import get_community_rating
+                from ui.plugin_rating import LocalRatings
+
+                _local = LocalRatings().all() or {}
+            except Exception:
+                _local = {}
+            plugins = [
+                p
+                for p in plugins
+                if passes_rating_filter(
+                    plugin_rating_score(p, get_community_rating, _local), self._current_rating
+                )
+            ]
+
         # 安全状态筛选（v2.17）
         self.security_combo = QComboBox()
         for _key, _label in SECURITY_FILTERS:
             self.security_combo.addItem(_label, _key)
         self.security_combo.currentIndexChanged.connect(lambda *a: self._apply_filters())
         filter_row.addWidget(self.security_combo)
+
+        self.rating_combo = QComboBox()
+        for _key, _label in RATING_FILTERS:
+            self.rating_combo.addItem(_label, _key)
+        self.rating_combo.currentIndexChanged.connect(self._on_rating_changed)
+        filter_row.addWidget(self.rating_combo)
 
         outer.addLayout(filter_row)
 
@@ -793,8 +879,7 @@ class PluginStoreDialog(QDialog):
         except Exception:
             ratings = {}
         try:
-            dismissed = bool(
-                self._settings.value("rating_invite_dismissed", False, type=bool))
+            dismissed = bool(self._settings.value("rating_invite_dismissed", False, type=bool))
         except Exception:
             dismissed = False
         show = should_show_rating_invite(self._all_plugins, ratings, dismissed)
@@ -812,13 +897,40 @@ class PluginStoreDialog(QDialog):
 
     def _on_rating_invite_go(self):
         """邀请按钮：打开第一个已安装插件的详情（内含评分入口）。"""
-        target = next(
-            (p for p in self._all_plugins if getattr(p, "is_installed", False)), None)
+        target = next((p for p in self._all_plugins if getattr(p, "is_installed", False)), None)
         if target is None and self._all_plugins:
             target = self._all_plugins[0]
         if target is not None:
             self._on_show_detail(target)
             self._refresh_rating_invite()
+
+    def _on_rating_changed(self, _index=0):
+        try:
+            self._current_rating = self.rating_combo.currentData() or "all"
+        except Exception:
+            self._current_rating = "all"
+        self._apply_filters()
+
+    def _show_updates_category(self):
+        idx = self.category_combo.findData("updates")
+        if idx >= 0:
+            self.category_combo.setCurrentIndex(idx)
+        else:
+            self._current_category = "updates"
+            self._apply_filters()
+
+    def _refresh_update_banner(self):
+        try:
+            n = update_count(self._all_plugins)
+        except Exception:
+            n = 0
+        if not hasattr(self, "update_banner"):
+            return
+        if n:
+            self.update_label.setText("🔔 发现 %d 个插件可更新" % n)
+            self.update_banner.show()
+        else:
+            self.update_banner.hide()
 
     def _load_community_ratings(self):
         """拉取静态 ratings.json（失败静默回退本地评分）。"""
@@ -915,7 +1027,7 @@ class PluginStoreDialog(QDialog):
 
             def _community_score(p):
                 r = get_community_rating(p.name)
-                return (r[0] if r else 0.0)
+                return r[0] if r else 0.0
 
             plugins.sort(key=_community_score, reverse=True)
         elif self._current_sort == "trending":
@@ -925,6 +1037,7 @@ class PluginStoreDialog(QDialog):
         self._filtered_plugins = plugins
         self._render_plugins()
         self._refresh_rating_invite()
+        self._refresh_update_banner()
 
     def _render_plugins(self):
         """渲染插件列表"""
