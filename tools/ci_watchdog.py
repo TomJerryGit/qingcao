@@ -19,12 +19,15 @@ API = "https://api.github.com"
 DEFAULT_REPO = os.environ.get("GITHUB_REPOSITORY", "TomJerryGit/qingcao")
 
 
-def _req(url, method="GET", token=None):
-    req = urllib.request.Request(url, method=method)
+def _req(url, method="GET", token=None, data=None):
+    body = json.dumps(data).encode("utf-8") if data is not None else None
+    req = urllib.request.Request(url, method=method, data=body)
     req.add_header("User-Agent", "qc-ci-watchdog")
     req.add_header("Accept", "application/vnd.github+json")
     if token:
         req.add_header("Authorization", "Bearer " + token)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
     with urllib.request.urlopen(req, timeout=30) as r:
         body = r.read().decode("utf-8")
         return json.loads(body) if body.strip() else {}
@@ -62,12 +65,38 @@ def cancel_run(repo, run_id, token):
     )
 
 
+def has_fallback_run(repo, workflow, sha, token=None):
+    """该 SHA 是否已有兜底运行（排队/进行/成功都算已有）。"""
+    url = "%s/repos/%s/actions/workflows/%s/runs?head_sha=%s&per_page=10" % (
+        API, repo, workflow, sha)
+    data = _req(url, token=token)
+    for run in data.get("workflow_runs") or []:
+        if run.get("status") in ("queued", "in_progress"):
+            return True
+        if run.get("conclusion") == "success":
+            return True
+    return False
+
+
+def dispatch_fallback(repo, workflow, ref, token):
+    """派发托管兜底工作流（需要 actions:write）。"""
+    return _req(
+        "%s/repos/%s/actions/workflows/%s/dispatches" % (API, repo, workflow),
+        method="POST",
+        token=token,
+        data={"ref": ref},
+    )
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="CI watchdog")
     ap.add_argument("--repo", default=DEFAULT_REPO)
     ap.add_argument("--max-age-min", type=int, default=120)
     ap.add_argument("--cancel", action="store_true")
     ap.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
+    ap.add_argument("--fallback-workflow", default="")
+    ap.add_argument("--fallback-min", type=int, default=90)
+    ap.add_argument("--fallback-ref", default="main")
     args = ap.parse_args(argv)
 
     runs = list_runs(args.repo) + list_runs(args.repo, "queued")
@@ -86,6 +115,23 @@ def main(argv=None):
     if not stale:
         print("[watchdog] OK 无超时运行（阈值 %d 分钟）" % args.max_age_min)
         return 0
+    if args.fallback_workflow and args.token:
+        queued = list_runs(args.repo, "queued")
+        for run in stale_runs(queued, args.fallback_min):
+            if "test" not in (run.get("name") or "").lower():
+                continue
+            sha = run.get("head_sha", "")
+            if not sha:
+                continue
+            try:
+                if has_fallback_run(args.repo, args.fallback_workflow, sha, args.token):
+                    print("[watchdog] fallback 已存在 sha=%s" % sha[:8])
+                    continue
+                dispatch_fallback(
+                    args.repo, args.fallback_workflow, args.fallback_ref, args.token)
+                print("[watchdog] FALLBACK dispatched sha=%s" % sha[:8])
+            except Exception as e:
+                print("[watchdog] fallback 派发失败: %s" % e)
     if not args.cancel:
         return 1
     if not args.token:

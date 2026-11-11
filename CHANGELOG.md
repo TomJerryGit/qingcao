@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **CI 托管兜底**：`test-fallback.yml`（GitHub 托管 Windows）；watchdog 对 Test 排队 >90 分钟且该 SHA 无兜底运行时自动 dispatch（去重）。
+
+
+### 工程
+
 - **release 前置门禁**：发布前等待该 commit 的 Test/Security/Lint 工作流成功（`tools/ci_release_gate.py`，失败/超时阻止发布）。
 
 

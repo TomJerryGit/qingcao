@@ -45,6 +45,26 @@ def test_cancel_uses_post(monkeypatch):
     assert calls[0][2] == "tk"
 
 
+def test_fallback_dedupe_and_dispatch(monkeypatch):
+    mod = _load()
+    calls = []
+
+    def fake_req(url, method="GET", token=None, data=None):
+        calls.append((url, method, data))
+        if "dispatches" in url:
+            return {}
+        return {
+            "workflow_runs": [
+                {"status": "queued", "conclusion": None},
+            ]
+        }
+
+    monkeypatch.setattr(mod, "_req", fake_req)
+    assert mod.has_fallback_run("o/r", "test-fallback.yml", "abc", "tk") is True
+    mod.dispatch_fallback("o/r", "test-fallback.yml", "main", "tk")
+    assert calls[-1][1] == "POST" and calls[-1][2] == {"ref": "main"}
+
+
 def test_workflows_have_timeouts_and_watchdog():
     wf = os.path.join(ROOT, ".github", "workflows")
     for name in (
@@ -59,3 +79,6 @@ def test_workflows_have_timeouts_and_watchdog():
         assert "timeout-minutes:" in text, name
     dog = open(os.path.join(wf, "ci-watchdog.yml"), encoding="utf-8").read()
     assert "actions: write" in dog and "--cancel" in dog
+    assert "--fallback-workflow" in dog
+    fb = open(os.path.join(wf, "test-fallback.yml"), encoding="utf-8").read()
+    assert "windows-latest" in fb and "run_tests_sharded.py" in fb
