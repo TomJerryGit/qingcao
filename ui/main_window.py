@@ -165,7 +165,10 @@ class MainWindow(
         self._connect_event_bus()
 
         # 加载插件（延迟）
-        QTimer.singleShot(100, self._load_plugins)
+        # v2.25 性能：插件加载提前到 50ms（原 100ms）。
+        # 保留少量延迟以让首帧先绘制；插件代码本身仅 ~0.13s（剖析实测），
+        # 启动耗时主要来自 Qt processEvents/布局。
+        QTimer.singleShot(50, self._load_plugins)
 
         # 恢复会话（延迟）
         QTimer.singleShot(200, self._restore_session)
