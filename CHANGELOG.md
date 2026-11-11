@@ -2,6 +2,11 @@
 
 ### 性能
 
+- **QSS 专项**：主题批量适配期间关闭重绘（apply_startup_theme 0.068→0.050s）；实测全局 QSS 仅增加 MainWindow 约 0.07s，QSS 解析非主要瓶颈。
+
+
+### 性能
+
 - **首帧专项**：面板惰性属性代理；plugins_panel/perf_monitor 改为首帧后 50ms 预热；
 - 修复终端 raw/历史按钮误挂到 `TerminalTab` 导致 TerminalPanel 构造失败的问题（移入 `PtyTerminalTab`）。
 

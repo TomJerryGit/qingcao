@@ -1506,6 +1506,11 @@ class CapabilityWiringMixin:
                     print(f"[Theme] 启动 apply_qss 失败: {e}")
 
             # 关键：通知所有面板按主题换算 QSS
+            # v2.25 QSS 专项：批量期间关闭重绘，减少首帧 polish/paint 次数
+            try:
+                self.setUpdatesEnabled(False)
+            except Exception:
+                pass
             try:
                 loader.notify_widgets(self, theme)
             except Exception as e:
@@ -1518,6 +1523,11 @@ class CapabilityWiringMixin:
                     adapt(self, theme)
             except Exception as e:
                 print(f"[Theme] 启动子控件样式适配失败: {e}")
+            finally:
+                try:
+                    self.setUpdatesEnabled(True)
+                except Exception:
+                    pass
 
             self._startup_theme = theme
             self._startup_theme_key = _key

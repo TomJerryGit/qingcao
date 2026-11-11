@@ -17,3 +17,16 @@
 ## 后续
 - 会话恢复/保存对延迟面板的兼容已由 `_prewarm` 的 50ms 与恢复 200ms 顺序保证；
 - 可继续压缩首帧 QSS polish（processEvents 主导）。
+
+## QSS polish 专项（v2.25 续）
+
+实测拆解：
+- 全局 QSS 对 MainWindow 构造的影响：**0.275s（无 QSS） vs 0.347s（有 QSS，+0.072s）**；
+- `load_theme`（首次 apply_qss）0.141s；`apply_qss` 重复调用已被 ThemeLoader 幂等跳过（0.000s）；
+- `notify_widgets` 0.063s → 加批量重绘控制后 `apply_startup_theme` **0.068s → 0.050s**；
+- 启动主要耗时仍在首帧 `processEvents`（绘制/polish），QSS 解析本身占比不高。
+
+优化：
+- `apply_startup_theme` 在 `notify_widgets`/`adapt_widget_styles` 期间 `setUpdatesEnabled(False)`，完成后恢复，减少中间重绘。
+
+结论：QSS 专项收益已接近边际，不建议再拆分 QSS；后续优先减少首帧控件数量（面板延迟）或绘制范围。
