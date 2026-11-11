@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 性能
+
+- **真机首帧 QA（阶段 3.5）**：`tools/first_frame_qa.py` 5 次采样，首帧中位 0.489s、**P95 0.772s < 0.8s PASS**；报告 `docs/first_frame_qa_v2.25.md`。
+
+
 ### 新增
 
 - **终端 P7**：主视图滚动缓冲可视（最近 400 行，位置保持）；新增 `tools/verify_terminal_vim.py` 真机验证脚本（本机无 vim → SKIP）。
