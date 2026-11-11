@@ -241,3 +241,25 @@ def test_icon_manager_split():
     ):
         assert _lines(rel) < limit, (rel, _lines(rel))
     assert all(x is not None for x in (IconCache, IconManager, IconProvider, get_icon, get_pixmap))
+
+
+def test_welcome_widget_split():
+    from ui.welcome_widget import (
+        C,
+        RecentFilesList,
+        WelcomeFooter,
+        WelcomeHeader,
+        WelcomeWidget,
+    )
+
+    for rel, limit in (
+        ("ui/welcome_widget.py", 650),
+        ("ui/welcome_widget_common.py", 240),
+        ("ui/welcome_cards.py", 260),
+        ("ui/welcome_recent.py", 380),
+        ("ui/welcome_stats.py", 460),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    assert all(
+        x is not None for x in (C, WelcomeHeader, RecentFilesList, WelcomeFooter, WelcomeWidget)
+    )

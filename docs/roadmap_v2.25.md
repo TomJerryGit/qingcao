@@ -29,7 +29,7 @@
 | # | 任务 | 验收标准 | 工作量 |
 |---|---|---|---|
 | 2.1 ✅ | `icon_manager.py` 1,568 → **609**（common 152 / cache 87 / providers 686），对外导入兼容 | 主文件 <900，测试通过 | 1d |
-| 2.2 | 拆分 `ui/welcome_widget.py`(1,537) → welcome_cards/welcome_actions | 主文件 <900 | 1d |
+| 2.2 ✅ | `welcome_widget.py` 1,537 → **504**（common 176 / cards 194 / recent 310 / stats 386），`C`/`WelcomeWidget` 导出兼容 | 主文件 <900，测试通过 | 1d |
 | 2.3 | 拆分 `ui/mixins/capability_wiring_mixin.py`(1,537) → capability_theme/capability_commands | 主文件 <900 | 1d |
 | 2.4 | `ui/global_search_panel.py`(1,514)、`ui/keymap_editor.py`(1,503)、`core/lsp_client.py`(1,500) 降至 <1,300 | 架构门禁全绿 | 2d |
 | 2.5 | Qt 原生崩溃定位：统一 faulthandler + minidump，`tools/crash_triage.py` 聚合 | 近 2 周 flaky 次数下降 50% | 2d |
