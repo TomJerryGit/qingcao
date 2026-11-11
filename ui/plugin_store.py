@@ -179,9 +179,10 @@ class PluginCard(QFrame):
         btn_layout.addWidget(self.action_btn)
 
         self.detail_btn = QToolButton()
-        self.detail_btn.setText("ℹ")
-        self.detail_btn.setFixedSize(24, 24)
-        self.detail_btn.setToolTip("查看详情")
+        self.detail_btn.setText("详情")
+        self.detail_btn.setFixedSize(44, 24)
+        self.detail_btn.setToolTip("查看详情 / 评分")
+        self.detail_btn.setStyleSheet("font-size: 11px;")
         self.detail_btn.clicked.connect(lambda: self.detail_clicked.emit(self.info))
         btn_layout.addWidget(self.detail_btn)
 

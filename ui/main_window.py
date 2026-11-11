@@ -202,6 +202,14 @@ class MainWindow(
             except Exception as e:
                 logging.warning("启动自动备份定时器失败: %s", e)
 
+        # 菜单默认快捷键兜底（v2.25 UX；不覆盖已显式设置的快捷键）
+        try:
+            from ui.default_shortcuts import apply_default_shortcuts
+
+            apply_default_shortcuts(self)
+        except Exception as e:
+            logging.debug("默认快捷键应用失败: %s", e)
+
     # ========================================================
     # 面板惰性构造（P1-3）
     # ========================================================
