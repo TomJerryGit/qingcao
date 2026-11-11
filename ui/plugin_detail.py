@@ -201,8 +201,13 @@ class PluginDetailDialog(QDialog):
 
             _comm = get_community_rating(self.info.name)
             if _comm and _comm[1] > 0:
-                c = QLabel("社区 ★ %.1f (%d)" % (_comm[0], _comm[1]))
+                c = QLabel("社区 ★ %.1f (%d 人)" % (_comm[0], _comm[1]))
                 c.setStyleSheet("color: #61afef; font-size: 11px;")
+                tip = "社区平均分 %.1f（%d 人评分，来自签名 ratings.json）" % (
+                    _comm[0], _comm[1])
+                if _comm[1] < 3:
+                    tip += "\n样本不足 3 人，仅供参考"
+                c.setToolTip(tip)
                 stats_layout.addWidget(c)
         except Exception:
             pass

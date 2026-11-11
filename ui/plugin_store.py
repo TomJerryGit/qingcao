@@ -308,6 +308,18 @@ class PluginCard(QFrame):
         self._update_action_button()
 
 
+def should_show_rating_invite(plugins, local_ratings, dismissed) -> bool:
+    """是否展示评分邀请：未关闭、从未评分、且至少安装过 1 个插件。"""
+    if dismissed:
+        return False
+    if local_ratings:
+        return False
+    try:
+        return any(getattr(p, "is_installed", False) for p in (plugins or []))
+    except Exception:
+        return False
+
+
 class PluginStoreDialog(QDialog):
     """
     插件市场对话框。
@@ -375,6 +387,27 @@ class PluginStoreDialog(QDialog):
         # 顶部工具栏
         toolbar = self._build_toolbar()
         layout.addWidget(toolbar)
+
+        # 评分邀请横幅（v2.25 市场生态）
+        self.rating_invite = QFrame()
+        self.rating_invite.setObjectName("rating_invite")
+        self.rating_invite.setStyleSheet(
+            "QFrame#rating_invite { background: #1f3a52; border: 1px solid #2d5a7a;"
+            " border-radius: 4px; }"
+        )
+        inv_row = QHBoxLayout(self.rating_invite)
+        inv_row.setContentsMargins(10, 6, 10, 6)
+        inv_label = QLabel("💬 给用过的插件打个分，帮助其他用户选择")
+        inv_label.setStyleSheet("color: #d4d4d4; font-size: 12px;")
+        inv_row.addWidget(inv_label, 1)
+        self.invite_go_btn = QPushButton("去评分")
+        self.invite_go_btn.clicked.connect(self._on_rating_invite_go)
+        inv_row.addWidget(self.invite_go_btn)
+        invite_close = QPushButton("关闭")
+        invite_close.clicked.connect(self._dismiss_rating_invite)
+        inv_row.addWidget(invite_close)
+        self.rating_invite.hide()
+        layout.addWidget(self.rating_invite)
 
         # 中间：插件列表
         self.scroll_area = QScrollArea()
@@ -751,6 +784,42 @@ class PluginStoreDialog(QDialog):
         self.status_label.setText(f"共 {len(self._all_plugins)} 个插件（离线模式）")
         self.refresh_btn.setEnabled(True)
 
+    def _refresh_rating_invite(self):
+        """根据已安装插件与本地评分决定是否展示评分邀请。"""
+        try:
+            from ui.plugin_rating import LocalRatings
+
+            ratings = LocalRatings().all() or {}
+        except Exception:
+            ratings = {}
+        try:
+            dismissed = bool(
+                self._settings.value("rating_invite_dismissed", False, type=bool))
+        except Exception:
+            dismissed = False
+        show = should_show_rating_invite(self._all_plugins, ratings, dismissed)
+        if hasattr(self, "rating_invite"):
+            self.rating_invite.setVisible(show)
+
+    def _dismiss_rating_invite(self):
+        try:
+            self._settings.setValue("rating_invite_dismissed", True)
+            self._settings.sync()
+        except Exception:
+            pass
+        if hasattr(self, "rating_invite"):
+            self.rating_invite.hide()
+
+    def _on_rating_invite_go(self):
+        """邀请按钮：打开第一个已安装插件的详情（内含评分入口）。"""
+        target = next(
+            (p for p in self._all_plugins if getattr(p, "is_installed", False)), None)
+        if target is None and self._all_plugins:
+            target = self._all_plugins[0]
+        if target is not None:
+            self._on_show_detail(target)
+            self._refresh_rating_invite()
+
     def _load_community_ratings(self):
         """拉取静态 ratings.json（失败静默回退本地评分）。"""
         if getattr(self, "_community_ratings", None) is not None:
@@ -855,6 +924,7 @@ class PluginStoreDialog(QDialog):
 
         self._filtered_plugins = plugins
         self._render_plugins()
+        self._refresh_rating_invite()
 
     def _render_plugins(self):
         """渲染插件列表"""
@@ -1028,6 +1098,7 @@ class PluginStoreDialog(QDialog):
         dlg.uninstall_clicked.connect(self._on_uninstall)
         dlg.update_clicked.connect(self._on_update)
         dlg.exec()
+        self._refresh_rating_invite()
 
     # --------------------------------------------------------
     # 检查更新
