@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **release 前置门禁**：发布前等待该 commit 的 Test/Security/Lint 工作流成功（`tools/ci_release_gate.py`，失败/超时阻止发布）。
+
+
+### 工程
+
 - **CI 可靠性**：全部 workflow 增加 `timeout-minutes`；新增 `tools/ci_watchdog.py` + 定时 `ci-watchdog` 工作流（GitHub 托管 runner，每 30 分钟取消超过 120 分钟的卡死运行）。
 
 
