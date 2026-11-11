@@ -68,7 +68,11 @@ def cancel_run(repo, run_id, token):
 def has_fallback_run(repo, workflow, sha, token=None):
     """该 SHA 是否已有兜底运行（排队/进行/成功都算已有）。"""
     url = "%s/repos/%s/actions/workflows/%s/runs?head_sha=%s&per_page=10" % (
-        API, repo, workflow, sha)
+        API,
+        repo,
+        workflow,
+        sha,
+    )
     data = _req(url, token=token)
     for run in data.get("workflow_runs") or []:
         if run.get("status") in ("queued", "in_progress"):
@@ -90,8 +94,7 @@ def dispatch_fallback(repo, workflow, ref, token):
 
 def latest_success_time(repo, workflow, token=None):
     """返回该工作流最近一次成功运行的 created_at（datetime 或 None）。"""
-    url = "%s/repos/%s/actions/workflows/%s/runs?status=success&per_page=1" % (
-        API, repo, workflow)
+    url = "%s/repos/%s/actions/workflows/%s/runs?status=success&per_page=1" % (API, repo, workflow)
     data = _req(url, token=token)
     runs = data.get("workflow_runs") or []
     if not runs:
@@ -128,15 +131,18 @@ def main(argv=None):
     if args.security_workflow and args.token:
         try:
             last = latest_success_time(args.repo, args.security_workflow, args.token)
-            age_h = None if last is None else (
-                datetime.now(timezone.utc) - last).total_seconds() / 3600.0
+            age_h = (
+                None
+                if last is None
+                else (datetime.now(timezone.utc) - last).total_seconds() / 3600.0
+            )
             stale_sec = age_h is None or age_h > args.security_max_age_hours
-            if stale_sec and not has_pending_run(
-                    args.repo, args.security_workflow, args.token):
-                dispatch_fallback(
-                    args.repo, args.security_workflow, "main", args.token)
-                print("[watchdog] SECURITY dispatched（上次成功: %s）" % (
-                    last.isoformat() if last else "无"))
+            if stale_sec and not has_pending_run(args.repo, args.security_workflow, args.token):
+                dispatch_fallback(args.repo, args.security_workflow, "main", args.token)
+                print(
+                    "[watchdog] SECURITY dispatched（上次成功: %s）"
+                    % (last.isoformat() if last else "无")
+                )
             else:
                 print("[watchdog] security 新鲜度 OK：%.1fh" % (age_h or 0))
         except Exception as e:
@@ -170,8 +176,7 @@ def main(argv=None):
                 if has_fallback_run(args.repo, args.fallback_workflow, sha, args.token):
                     print("[watchdog] fallback 已存在 sha=%s" % sha[:8])
                     continue
-                dispatch_fallback(
-                    args.repo, args.fallback_workflow, args.fallback_ref, args.token)
+                dispatch_fallback(args.repo, args.fallback_workflow, args.fallback_ref, args.token)
                 print("[watchdog] FALLBACK dispatched sha=%s" % sha[:8])
             except Exception as e:
                 print("[watchdog] fallback 派发失败: %s" % e)
