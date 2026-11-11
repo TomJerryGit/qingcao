@@ -1,0 +1,73 @@
+# 青草编辑器 v2.25+ 建设与优化路线图
+
+> 基线：v2.24.6（审计 8.4/10，见 `docs/audit_v2.24.6.md`）· 制定：2026-11-11
+
+## 总目标（3 个月）
+
+| 目标 | 从 | 到 |
+|---|---|---|
+| 综合评分 | 8.4 | **8.8+** |
+| CI 可靠性 | 单 runner、卡死阻塞 5h | 卡死 <15 分钟自动恢复；发布不排队 >30 分钟 |
+| 架构长尾 | 6 个 1.5–1.57k 文件 | 0 个 >1,300 行业务文件 |
+| 生态评分 | 16 条 / count=1 | ≥50 条、≥3 位评分用户 |
+| 安全门禁 | 扫描偏旧 | 发布前置强制安全扫描 + 签名全链路 |
+
+## 阶段 1：CI 可靠性 + 安全门禁（v2.25.0，1–2 周）
+
+| # | 任务 | 验收标准 | 工作量 |
+|---|---|---|---|
+| 1.1 | 所有 workflow job 加 `timeout-minutes: 30/45` | 卡死任务 45 分钟内自动失败 | 0.5d |
+| 1.2 | 卡死检测脚本：`tools/ci_watchdog.py`（查询 in_progress + 超时阈值，记录/告警） | 发现超 2h 的 job 产出告警日志 | 1d |
+| 1.3 | 发布流程前置：release.yml 依赖 security + test 成功（或 release 内先跑 pip-audit + 关键单测） | 安全/测试失败时 release 不发布 | 1d |
+| 1.4 | 第二 runner 选项（或 GitHub 托管 runner 兜底 test） | 队列等待 P95 < 30 分钟 | 1d |
+| 1.5 | security.yml 定时（每日）+ 报告归档 | 最近一次扫描 < 24h | 0.5d |
+
+**里程碑 M1（v2.25.0）**：CI 不再阻塞发布；安全扫描新鲜；评分 8.5。
+
+## 阶段 2：架构长尾 + flaky 崩溃治理（v2.25.1–.2，2–3 周）
+
+| # | 任务 | 验收标准 | 工作量 |
+|---|---|---|---|
+| 2.1 | 拆分 `infrastructure/icon_manager.py`(1,568) → icon_cache/icon_theme/icon_manager | 主文件 <900，测试通过 | 1d |
+| 2.2 | 拆分 `ui/welcome_widget.py`(1,537) → welcome_cards/welcome_actions | 主文件 <900 | 1d |
+| 2.3 | 拆分 `ui/mixins/capability_wiring_mixin.py`(1,537) → capability_theme/capability_commands | 主文件 <900 | 1d |
+| 2.4 | `ui/global_search_panel.py`(1,514)、`ui/keymap_editor.py`(1,503)、`core/lsp_client.py`(1,500) 降至 <1,300 | 架构门禁全绿 | 2d |
+| 2.5 | Qt 原生崩溃定位：统一 faulthandler + minidump，`tools/crash_triage.py` 聚合 | 近 2 周 flaky 次数下降 50% | 2d |
+| 2.6 | 架构门禁加严：业务文件 ≤1,300、全局 ≤1,800 | CI 强制 | 0.5d |
+
+**里程碑 M2（v2.25.2）**：全仓业务文件 ≤1,300；flaky 有数据可见；评分 8.6。
+
+## 阶段 3：生态 + 用户体验（v2.26，3–4 周）
+
+| # | 任务 | 验收标准 | 工作量 |
+|---|---|---|---|
+| 3.1 | 评分运营：应用内邀请 → Issue 模板 → 自动收集 → 聚合发布（含 count 门禁） | ≥50 条评分、≥3 用户 | 2d（+运营） |
+| 3.2 | 插件开发文档 + 模板生成器 `tools/new_plugin.py` | 新插件 10 分钟内可跑通 | 1d |
+| 3.3 | 市场体验：评分筛选、详情对比、更新公告 | 用户验收通过 | 2d |
+| 3.4 | 终端 P7：滚动条缓冲可视、vim 真机验证清单 | vim/top 可用（真机） | 1.5d |
+| 3.5 | 真机首帧 QA：测量工具基线 + 目测清单 | 首帧 P95 < 0.8s（真机） | 1d |
+
+**里程碑 M3（v2.26.0）**：生态指标达标；评分 8.7。
+
+## 阶段 4：v3.0 探索（按季度评估）
+
+- Windows Authenticode 代码签名（安装包/更新）；
+- 插件沙箱强化（进程级隔离/权限最小化）；
+- 更新密钥轮换与多密钥信任链；
+- 性能回归看板（自动对比历史、异常告警）；
+- 托管 CI/多平台（Linux AppImage 已有，补齐 macOS 可行性评估）。
+
+## 本周立即行动（Top 3）
+
+1. 给 `test.yml`/`release.yml`/`security.yml` 加 `timeout-minutes`（0.5d）；
+2. 提交 `tools/ci_watchdog.py` + 队列告警（1d）；
+3. 重跑 security.yml 并归档报告（0.5d）。
+
+## 风险与依赖
+
+| 风险 | 缓解 |
+|---|---|
+| self-hosted runner 单点 | 加超时/看守 + 备用 runner/托管兜底 |
+| 拆分回归 | 每文件拆分后跑对应测试 + 架构门禁 + 全量 CI |
+| 生态冷启动 | 评分邀请 + 插件模板 + 征集活动 |
+| 原生崩溃难复现 | faulthandler/minidump 数据聚合，优先定位 top crash |
