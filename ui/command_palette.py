@@ -21,6 +21,7 @@
 - 键盘导航
 """
 
+import json
 import os
 import re
 import sys
@@ -401,6 +402,34 @@ class BasePalette(QDialog):
         """设置使用历史（标题 -> (时间戳, 次数)）"""
         self._usage_history = history or {}
 
+    def _load_persisted_usage(self) -> Dict[str, Tuple[float, int]]:
+        """从 QSettings 恢复使用历史（跨会话「最近使用」排序）。"""
+        try:
+            from PyQt5.QtCore import QSettings
+
+            raw = QSettings("QingCao", "CommandPalette").value("usage_history", "")
+            data = json.loads(raw) if raw else {}
+            out = {}
+            for k, v in (data or {}).items():
+                if isinstance(v, (list, tuple)) and len(v) == 2:
+                    out[str(k)] = (float(v[0]), int(v[1]))
+            return out
+        except Exception:
+            return {}
+
+    def _save_persisted_usage(self):
+        """持久化使用历史（仅保留最近 500 条，避免无限增长）。"""
+        try:
+            from PyQt5.QtCore import QSettings
+
+            items = sorted(
+                self._usage_history.items(), key=lambda kv: kv[1][0], reverse=True
+            )[:500]
+            payload = json.dumps({k: [v[0], v[1]] for k, v in items})
+            QSettings("QingCao", "CommandPalette").setValue("usage_history", payload)
+        except Exception:
+            pass
+
     # --------------------------------------------------------
     # 搜索与过滤
     # --------------------------------------------------------
@@ -527,7 +556,7 @@ class BasePalette(QDialog):
     def _sort_by_usage(self, items: List[PaletteItem]) -> List[PaletteItem]:
         """按使用历史排序"""
         def sort_key(item: PaletteItem) -> Tuple[int, int, str]:
-            key = item.title
+            key = self._usage_key(item)
             if key in self._usage_history:
                 last_used, use_count = self._usage_history[key]
                 # 使用过：按次数降序，时间降序
@@ -697,6 +726,7 @@ class BasePalette(QDialog):
             self._usage_history[key] = (now, count + 1)
         else:
             self._usage_history[key] = (now, 1)
+        self._save_persisted_usage()
 
     def get_usage_history(self) -> Dict[str, Tuple[float, int]]:
         """获取使用历史"""
@@ -777,6 +807,9 @@ class CommandPalette(BasePalette):
         self.outline = outline
 
         super().__init__(parent, mode)
+
+        # 跨会话「最近使用」排序
+        self.set_usage_history(self._load_persisted_usage())
 
         # 加载条目
         self._load_items()
