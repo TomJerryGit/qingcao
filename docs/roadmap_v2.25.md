@@ -20,7 +20,7 @@
 | 1.2 ✅ | `tools/ci_watchdog.py` + `.github/workflows/ci-watchdog.yml`（hosted runner，每 30 分钟检测/取消超 120 分钟运行） | 卡死自动取消 | 1d |
 | 1.3 ✅ | release.yml 新增 `gates` job：`tools/ci_release_gate.py` 等待该 SHA 的 Test/Security/Lint 成功（最多 35 分钟），`build-release` 依赖 `needs: gates` | 失败/超时则不构建发布 | 1d |
 | 1.4 ✅ | GitHub 托管 Windows 兜底测试工作流 `test-fallback.yml`；watchdog 检测到 Test 排队 >90 分钟且无兜底运行时自动派发（按 SHA 去重） | 卡死/长队列时自动兜底 | 1d |
-| 1.5 | security.yml 定时（每日）+ 报告归档 | 最近一次扫描 < 24h | 0.5d |
+| 1.5 ✅ | security.yml 每日 03:00 UTC 定时 + 汇总/归档（security-reports，保留 30 天）；watchdog 检测最近成功扫描 >26h 自动派发 | 扫描新鲜度自动维持 | 0.5d |
 
 **里程碑 M1（v2.25.0）**：CI 不再阻塞发布；安全扫描新鲜；评分 8.5。
 

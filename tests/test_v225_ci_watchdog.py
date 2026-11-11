@@ -65,6 +65,28 @@ def test_fallback_dedupe_and_dispatch(monkeypatch):
     assert calls[-1][1] == "POST" and calls[-1][2] == {"ref": "main"}
 
 
+def test_security_freshness_helpers(monkeypatch):
+    mod = _load()
+    calls = []
+
+    def fake_req(url, method="GET", token=None, data=None):
+        calls.append((url, method, data))
+        if "status=success" in url:
+            return {
+                "workflow_runs": [
+                    {"created_at": "2026-11-11T00:00:00Z"},
+                ]
+            }
+        return {"workflow_runs": []}
+
+    monkeypatch.setattr(mod, "_req", fake_req)
+    ts = mod.latest_success_time("o/r", "security.yml", "tk")
+    assert ts is not None and ts.year == 2026
+    assert mod.has_pending_run("o/r", "security.yml", "tk") is False
+    mod.dispatch_fallback("o/r", "security.yml", "main", "tk")
+    assert calls[-1][1] == "POST"
+
+
 def test_workflows_have_timeouts_and_watchdog():
     wf = os.path.join(ROOT, ".github", "workflows")
     for name in (
@@ -80,5 +102,8 @@ def test_workflows_have_timeouts_and_watchdog():
     dog = open(os.path.join(wf, "ci-watchdog.yml"), encoding="utf-8").read()
     assert "actions: write" in dog and "--cancel" in dog
     assert "--fallback-workflow" in dog
+    assert "--security-workflow" in dog
+    sec = open(os.path.join(wf, "security.yml"), encoding="utf-8").read()
+    assert "schedule:" in sec and "security-reports" in sec and "retention-days: 30" in sec
     fb = open(os.path.join(wf, "test-fallback.yml"), encoding="utf-8").read()
     assert "windows-latest" in fb and "run_tests_sharded.py" in fb

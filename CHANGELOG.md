@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **安全扫描每日化**：security.yml 新增每日 03:00 UTC 定时、汇总报告与 `security-reports` 归档（30 天）；watchdog 对超过 26h 无成功扫描自动派发。
+
+
+### 工程
+
 - **CI 托管兜底**：`test-fallback.yml`（GitHub 托管 Windows）；watchdog 对 Test 排队 >90 分钟且该 SHA 无兜底运行时自动 dispatch（去重）。
 
 

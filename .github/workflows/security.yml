@@ -2,6 +2,8 @@ name: Security Audit
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"   # 每日 03:00 UTC（11:00 CST）
   push:
     branches: [main]
     paths:
@@ -11,6 +13,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: security-audit
+  cancel-in-progress: true
 
 jobs:
   pip-audit:
@@ -33,8 +39,24 @@ jobs:
         run: |
           python -m pip_audit -r requirements-linux-ci.txt             --format markdown --output pip-audit-linux.md || true
           cat pip-audit-linux.md 2>/dev/null || true
+      - name: Build security summary
+        run: |
+          echo "## Security Audit Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "- date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> security-summary.md
+          echo "- sha: $GITHUB_SHA" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "### Source requirements" >> security-summary.md
+          cat pip-audit-source.md 2>/dev/null >> security-summary.md || true
+          echo "" >> security-summary.md
+          echo "### Linux CI requirements" >> security-summary.md
+          cat pip-audit-linux.md 2>/dev/null >> security-summary.md || true
+          echo "SUMMARY_DONE"
       - name: Upload audit reports
         uses: actions/upload-artifact@v4
         with:
-          name: pip-audit-reports
-          path: pip-audit-*.md
+          name: security-reports
+          path: |
+            pip-audit-*.md
+            security-summary.md
+          retention-days: 30

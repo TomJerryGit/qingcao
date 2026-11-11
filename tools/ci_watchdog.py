@@ -88,6 +88,29 @@ def dispatch_fallback(repo, workflow, ref, token):
     )
 
 
+def latest_success_time(repo, workflow, token=None):
+    """返回该工作流最近一次成功运行的 created_at（datetime 或 None）。"""
+    url = "%s/repos/%s/actions/workflows/%s/runs?status=success&per_page=1" % (
+        API, repo, workflow)
+    data = _req(url, token=token)
+    runs = data.get("workflow_runs") or []
+    if not runs:
+        return None
+    try:
+        return parse_time(runs[0].get("created_at", ""))
+    except Exception:
+        return None
+
+
+def has_pending_run(repo, workflow, token=None):
+    url = "%s/repos/%s/actions/workflows/%s/runs?per_page=10" % (API, repo, workflow)
+    data = _req(url, token=token)
+    for run in data.get("workflow_runs") or []:
+        if run.get("status") in ("queued", "in_progress"):
+            return True
+    return False
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="CI watchdog")
     ap.add_argument("--repo", default=DEFAULT_REPO)
@@ -97,7 +120,27 @@ def main(argv=None):
     ap.add_argument("--fallback-workflow", default="")
     ap.add_argument("--fallback-min", type=int, default=90)
     ap.add_argument("--fallback-ref", default="main")
+    ap.add_argument("--security-workflow", default="")
+    ap.add_argument("--security-max-age-hours", type=int, default=26)
     args = ap.parse_args(argv)
+
+    # 安全扫描新鲜度：过期且无进行中运行时自动派发
+    if args.security_workflow and args.token:
+        try:
+            last = latest_success_time(args.repo, args.security_workflow, args.token)
+            age_h = None if last is None else (
+                datetime.now(timezone.utc) - last).total_seconds() / 3600.0
+            stale_sec = age_h is None or age_h > args.security_max_age_hours
+            if stale_sec and not has_pending_run(
+                    args.repo, args.security_workflow, args.token):
+                dispatch_fallback(
+                    args.repo, args.security_workflow, "main", args.token)
+                print("[watchdog] SECURITY dispatched（上次成功: %s）" % (
+                    last.isoformat() if last else "无"))
+            else:
+                print("[watchdog] security 新鲜度 OK：%.1fh" % (age_h or 0))
+        except Exception as e:
+            print("[watchdog] security 检查失败: %s" % e)
 
     runs = list_runs(args.repo) + list_runs(args.repo, "queued")
     stale = stale_runs(runs, args.max_age_min)
