@@ -22,15 +22,33 @@ AVAILABLE = {
     "ko_KR": "한국어",
 }
 _cache = {}
+_settings_cache = None
+_tr_menu_lang_cache = None
 
 
 def _settings():
+    """v2.25 性能：复用 QSettings 实例（菜单构建期高频读取）。"""
+    global _settings_cache
+    if _settings_cache is not None:
+        return _settings_cache
     try:
         from PyQt5.QtCore import QSettings
 
-        return QSettings("QingCao", "Editor")
+        _settings_cache = QSettings("QingCao", "Editor")
+        return _settings_cache
     except Exception:
         return None
+
+
+def current_language_cached() -> str:
+    """菜单构建用：单次构建内缓存语言值，避免重复读 QSettings。"""
+    global _tr_menu_lang_cache
+    env = os.environ.get("QINGCAO_LANG")
+    if env:  # 环境变量始终优先且可能被测试动态修改
+        return env
+    if _tr_menu_lang_cache is None:
+        _tr_menu_lang_cache = current_language()
+    return _tr_menu_lang_cache
 
 
 def current_language() -> str:
@@ -56,6 +74,8 @@ def set_language(lang: str) -> bool:
             s.sync()
     except Exception:
         return False
+    global _tr_menu_lang_cache
+    _tr_menu_lang_cache = None
     clear_cache()
     return True
 
@@ -82,7 +102,7 @@ def tr(text):
     """翻译：命中映射则返回译文，否则返回原文（安全回退）"""
     if not text:
         return text
-    lang = current_language()
+    lang = current_language_cached()
     if lang == DEFAULT_LANG:
         return text
     return load_strings(lang).get(text, text)
@@ -112,7 +132,7 @@ def tr_menu(text):
     """菜单文本翻译：支持 emoji 前缀与 (&X) 加速键回退匹配"""
     if not text:
         return text
-    lang = current_language()
+    lang = current_language_cached()
     if lang == DEFAULT_LANG:
         return text
     strings = load_strings(lang)
@@ -131,4 +151,6 @@ def tr_menu(text):
 
 
 def clear_cache():
+    global _tr_menu_lang_cache
+    _tr_menu_lang_cache = None
     _cache.clear()

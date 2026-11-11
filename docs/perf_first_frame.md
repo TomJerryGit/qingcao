@@ -37,3 +37,24 @@
 - 实测（离屏）：首帧 0.677s → **0.781s**，500ms 内 Paint 事件 281 → 401（反而更多）；
 - 结论：Qt 在 updates disabled 期间会累积 updateRequest，恢复后集中重绘，离屏场景无收益；
 - 已回滚该方案；保留测量工具 `tools/measure_first_paint.py` 供真实桌面复测。
+
+## 真机（Windows Qt 平台）首帧数据（v2.25）
+
+| run | MainWindow | 首帧 | paint500 | polish500 |
+|---|---|---|---|---|
+| 1 | 0.586s | 0.622s | 277 | 358 |
+| 2 | 0.684s | 0.717s | 128 | 358 |
+| 3（系统负载） | 1.026s | 1.070s | 141 | 358 |
+| 优化后 1 | 0.643s | 0.674s | 319 | 269 |
+| 优化后 2 | 0.499s | 0.522s | 448 | 269 |
+
+结论：首帧 ≈ MainWindow 构造 + ~0.04s；构造是绝对瓶颈，与绘制无关。
+
+真机 cProfile 热点（MainWindow 1.23s，含 profiler 开销）：
+- `addLayout` 12 次 **0.350s**（QSS 下布局激活成本）；
+- `_build_panel_dir_tree` **0.234s**（目录树面板构造）；
+- `QSettings.value` 516 次 0.081s；`setStyleSheet` 50 次 0.074s；`nt.stat` 1053 次 0.070s。
+
+优化：
+- `core/i18n_json.py`：复用 QSettings 实例 + `tr_menu` 语言缓存（2000 次调用 0.036s）；
+- 后续候选：目录树面板延迟构造/异步填充（0.23s）、减少深层 addLayout 嵌套。
