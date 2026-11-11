@@ -194,7 +194,6 @@ class TerminalTab(QWidget):
         self.output.ensureCursorVisible()
 
     def clear_output(self):
-        self._screen.clear()
         self.output.clear()
 
     def copy_output(self):
@@ -355,7 +354,8 @@ class TerminalOutput(QTextEdit):
     def mousePressEvent(self, event):
         if self._screen is not None and self._screen.mouse_reporting:
             button = {Qt.LeftButton: 0, Qt.MiddleButton: 1, Qt.RightButton: 2}.get(
-                event.button(), 0)
+                event.button(), 0
+            )
             self._pressed, self._button = True, button
             col, row = self._cell(event)
             data = self._screen.encode_mouse(button, col, row, True)
@@ -378,12 +378,13 @@ class TerminalOutput(QTextEdit):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        if (self._pressed and self._screen is not None
-                and (1002 in self._screen.mouse_reporting
-                     or 1003 in self._screen.mouse_reporting)):
+        if (
+            self._pressed
+            and self._screen is not None
+            and (1002 in self._screen.mouse_reporting or 1003 in self._screen.mouse_reporting)
+        ):
             col, row = self._cell(event)
-            data = self._screen.encode_mouse(
-                self._button, col, row, True, motion=True)
+            data = self._screen.encode_mouse(self._button, col, row, True, motion=True)
             if data:
                 self.mouse_input.emit(data)
                 event.accept()
@@ -393,8 +394,7 @@ class TerminalOutput(QTextEdit):
     def wheelEvent(self, event):
         if self._screen is not None and self._screen.mouse_reporting:
             col, row = self._cell(event)
-            data = self._screen.encode_wheel(
-                event.angleDelta().y() > 0, col, row)
+            data = self._screen.encode_wheel(event.angleDelta().y() > 0, col, row)
             if data:
                 self.mouse_input.emit(data)
                 event.accept()

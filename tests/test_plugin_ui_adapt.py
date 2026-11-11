@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """插件分析/性能基准/UI 自适应接线测试"""
 
+import glob
 import json
 import os
 import subprocess
@@ -44,9 +45,10 @@ def test_bench_plugins_runs_with_warmup():
 
 
 def test_startup_theme_adapts_plugin_widgets():
-    src = open(
-        os.path.join(ROOT, "ui", "mixins", "capability_wiring_mixin.py"), encoding="utf-8"
-    ).read()
+    src = "".join(
+        open(p, encoding="utf-8").read()
+        for p in glob.glob(os.path.join(ROOT, "ui", "mixins", "capability_*.py"))
+    )
     assert "adapt_widget_styles" in src
     report = os.path.join(ROOT, "docs", "plugin_analysis_v2.13.md")
     assert os.path.exists(report)

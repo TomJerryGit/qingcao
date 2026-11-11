@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """v2.21.x 反馈收集：对话框/报告/入口"""
 
+import glob
 import json
 import os
 
@@ -56,8 +57,9 @@ def test_feedback_menu_wired():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mb = open(os.path.join(root, "ui", "mixins", "menu_builder_mixin.py"), encoding="utf-8").read()
     assert "反馈与建议" in mb and "_show_feedback" in mb
-    cap = open(
-        os.path.join(root, "ui", "mixins", "capability_wiring_mixin.py"), encoding="utf-8"
-    ).read()
+    cap = "".join(
+        open(p, encoding="utf-8").read()
+        for p in glob.glob(os.path.join(root, "ui", "mixins", "capability_*.py"))
+    )
     assert "_show_feedback" in cap
     assert os.path.isfile(os.path.join(root, "docs", "v2.22_prioritization.md"))

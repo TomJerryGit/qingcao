@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """v2.21 P1-1：终端 MVP"""
 
+import glob
 import os
 import time
 
@@ -55,9 +56,10 @@ def test_wiring_static():
         os.path.join(root, "ui", "mixins", "panel_registry_mixin.py"), encoding="utf-8"
     ).read()
     assert "_build_panel_terminal" in reg
-    cap = io.open(
-        os.path.join(root, "ui", "mixins", "capability_wiring_mixin.py"), encoding="utf-8"
-    ).read()
+    cap = "".join(
+        open(p, encoding="utf-8").read()
+        for p in glob.glob(os.path.join(root, "ui", "mixins", "capability_*.py"))
+    )
     assert "_toggle_terminal" in cap
     mb = io.open(
         os.path.join(root, "ui", "mixins", "menu_builder_mixin.py"), encoding="utf-8"

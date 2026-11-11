@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 重构
+
+- **架构拆分第七批**：`capability_wiring_mixin.py` 1,537 → **75**（keyseq/plugins/panels/commands 四个 mixin）；修复 `TerminalTab.clear_output` 残留 `_screen` 引用。
+
+
 ### 工程
 
 - **安全扫描每日化**：security.yml 新增每日 03:00 UTC 定时、汇总报告与 `security-reports` 归档（30 天）；watchdog 对超过 26h 无成功扫描自动派发。

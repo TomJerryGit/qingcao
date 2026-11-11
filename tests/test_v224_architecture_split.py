@@ -263,3 +263,20 @@ def test_welcome_widget_split():
     assert all(
         x is not None for x in (C, WelcomeHeader, RecentFilesList, WelcomeFooter, WelcomeWidget)
     )
+
+
+def test_capability_wiring_split():
+    from ui.mixins.capability_wiring_mixin import CapabilityWiringMixin
+
+    for rel, limit in (
+        ("ui/mixins/capability_wiring_mixin.py", 160),
+        ("ui/mixins/capability_wiring_common.py", 140),
+        ("ui/mixins/capability_keyseq_mixin.py", 360),
+        ("ui/mixins/capability_plugins_mixin.py", 420),
+        ("ui/mixins/capability_panels_mixin.py", 650),
+        ("ui/mixins/capability_commands_mixin.py", 380),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    bases = [b.__name__ for b in CapabilityWiringMixin.__mro__]
+    assert "KeySequenceMixin" in bases and "PluginsMixin" in bases
+    assert "PanelsExportMixin" in bases and "CommandsThemeMixin" in bases
