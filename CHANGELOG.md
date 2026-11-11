@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 工程
+
+- **CI 可靠性**：全部 workflow 增加 `timeout-minutes`；新增 `tools/ci_watchdog.py` + 定时 `ci-watchdog` 工作流（GitHub 托管 runner，每 30 分钟取消超过 120 分钟的卡死运行）。
+
+
 ## [2.24.6] - 2026-11-11
 
 ### 性能

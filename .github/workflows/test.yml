@@ -18,6 +18,7 @@ env:
 jobs:
   test:
     runs-on: [self-hosted, windows, x64]
+    timeout-minutes: 45
     steps:
       - name: Checkout (SSH)
         shell: powershell
@@ -166,6 +167,7 @@ jobs:
   # Python 3.12 软矩阵：解释器/依赖不满足时自动跳过，不阻塞主门禁。
   test-py312:
     runs-on: [self-hosted, windows, x64]
+    timeout-minutes: 45
     steps:
       - name: Checkout (SSH)
         shell: powershell

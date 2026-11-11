@@ -8,6 +8,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +40,7 @@ jobs:
 
   version-consistency:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -50,6 +52,7 @@ jobs:
 
   translations:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -61,6 +64,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # 技术债（v2.19）：Ubuntu offscreen 与 Windows 目标平台存在历史差异，
     # 该任务暂不阻断合并；主门禁为自托管 Windows test.yml 全量测试。
     # 跟踪项：逐批修复 Linux 失败后移除 continue-on-error。

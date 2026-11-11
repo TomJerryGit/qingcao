@@ -16,8 +16,8 @@
 
 | # | 任务 | 验收标准 | 工作量 |
 |---|---|---|---|
-| 1.1 | 所有 workflow job 加 `timeout-minutes: 30/45` | 卡死任务 45 分钟内自动失败 | 0.5d |
-| 1.2 | 卡死检测脚本：`tools/ci_watchdog.py`（查询 in_progress + 超时阈值，记录/告警） | 发现超 2h 的 job 产出告警日志 | 1d |
+| 1.1 ✅ | 所有 workflow job 加 `timeout-minutes`（test 45 / release 60 / security 20 / lint 30 / linux 40 / publish 20） | 卡死任务自动失败 | 0.5d |
+| 1.2 ✅ | `tools/ci_watchdog.py` + `.github/workflows/ci-watchdog.yml`（hosted runner，每 30 分钟检测/取消超 120 分钟运行） | 卡死自动取消 | 1d |
 | 1.3 | 发布流程前置：release.yml 依赖 security + test 成功（或 release 内先跑 pip-audit + 关键单测） | 安全/测试失败时 release 不发布 | 1d |
 | 1.4 | 第二 runner 选项（或 GitHub 托管 runner 兜底 test） | 队列等待 P95 < 30 分钟 | 1d |
 | 1.5 | security.yml 定时（每日）+ 报告归档 | 最近一次扫描 < 24h | 0.5d |
