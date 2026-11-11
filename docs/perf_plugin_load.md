@@ -25,3 +25,18 @@
 
 - processEvents 主导 → 下一步可拆解首帧控件 QSS/polish 成本、延迟非关键面板构造；
 - 插件代码本身已足够轻（≤0.11s），不建议再压。
+
+## 首帧/QSS 与插件激活拆解（v2.25 续）
+
+cProfile 热点：
+- `processEvents` 1.08s（首帧布局/绘制/QSS polish，占比最大）；
+- `plugin_loader.load_deferred` 0.535s，其中 **`_activate_plugin` 内 `import requests` 0.388s**；
+- `_restore_session` 0.295s（窗口构造期恢复会话）。
+
+优化：
+- **AI 插件 requests 惰性检测**：`_requests_ok()` 改用 `importlib.util.find_spec`，激活时不再真正 import requests（省约 0.4s）；
+- 复核：plugins_fully_ready 1.754→**1.583s**；open_50mb 1.844s（本轮机器波动，仍远低于 8s 硬上限）。
+
+后续（未做，需谨慎）：
+- 非关键面板（perf_monitor/plugins_panel）延迟到首帧后构造：测试有直接属性访问，需先加 `__getattr__` 惰性代理；
+- 会话恢复延后到首帧后（需保证快速关闭时仍保存）。

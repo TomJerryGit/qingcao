@@ -219,13 +219,14 @@ _REQUESTS_OK = None
 
 
 def _requests_ok():
+    """v2.25 性能：只检查模块是否存在，不在激活时真正 import requests（省 ~0.39s）。"""
     global _REQUESTS_OK
     if _REQUESTS_OK is None:
         try:
-            import requests  # noqa: F401
+            import importlib.util
 
-            _REQUESTS_OK = True
-        except ImportError:
+            _REQUESTS_OK = importlib.util.find_spec("requests") is not None
+        except Exception:
             _REQUESTS_OK = False
     return _REQUESTS_OK
 
