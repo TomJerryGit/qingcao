@@ -222,3 +222,22 @@ def test_main_run_has_version():
     from version import __version__
 
     assert getattr(mr, "__version__", "") == __version__
+
+
+def test_icon_manager_split():
+    from infrastructure.icon_manager import (
+        IconCache,
+        IconManager,
+        IconProvider,
+        get_icon,
+        get_pixmap,
+    )
+
+    for rel, limit in (
+        ("infrastructure/icon_manager.py", 750),
+        ("infrastructure/icon_manager_common.py", 220),
+        ("infrastructure/icon_manager_cache.py", 140),
+        ("infrastructure/icon_manager_providers.py", 800),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    assert all(x is not None for x in (IconCache, IconManager, IconProvider, get_icon, get_pixmap))
