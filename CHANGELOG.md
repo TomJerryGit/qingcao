@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 文档
+
+- **v3.0 探索提案**：Authenticode、插件沙箱、密钥轮换、性能看板、macOS 评估的可行性/优先级/两周计划（`docs/exploration_v3.0.md`）。
+
+
 ### 性能
 
 - **真机首帧 QA（阶段 3.5）**：`tools/first_frame_qa.py` 5 次采样，首帧中位 0.489s、**P95 0.772s < 0.8s PASS**；报告 `docs/first_frame_qa_v2.25.md`。
