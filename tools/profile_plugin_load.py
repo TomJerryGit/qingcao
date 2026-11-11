@@ -6,18 +6,22 @@ import pstats
 import sys
 import time
 
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication  # noqa: E402
 
+
 app = QApplication([])
 import main as _main  # noqa: E402
+
 
 _main.load_theme(app)
 from infrastructure.plugin_loader import PluginLoader  # noqa: E402
 from ui.main_window import MainWindow  # noqa: E402
+
 
 times = {}
 orig = PluginLoader._load_plugin
