@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 工程
+
+- **崩溃聚合**：新增 `tools/crash_triage.py`（faulthandler 转储 + CI flaky 历史 → 归组报告），生成 `docs/crash_triage_report.md`；基线 9 dumps / 8 flaky / 3 组。
+
+
 ### 重构
 
 - **架构拆分第八批（阶段 2.4）**：global_search(→986)、keymap_editor(→676)、lsp_client(→1,217) 均降至 1,300 行以下。
