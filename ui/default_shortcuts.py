@@ -83,6 +83,32 @@ def _normalize(text):
     return " ".join(text.split())
 
 
+def shortcut_for_text(text):
+    """按动作文本返回默认快捷键（供工具栏 tooltip 使用）。"""
+    label = _normalize(text)
+    for key, seq in DEFAULTS:
+        if key in label:
+            return seq
+    return ""
+
+
+def apply_toolbar_tooltips(toolbar):
+    """为工具栏按钮补 tooltip（含默认快捷键提示）。"""
+    count = 0
+    for action in toolbar.actions():
+        if action.isSeparator():
+            continue
+        label = _normalize(action.text())
+        if not label:
+            continue
+        seq = shortcut_for_text(label)
+        tip = f"{action.text()}" + (f"  ({seq})" if seq else "")
+        action.setToolTip(tip)
+        action.setStatusTip(tip)
+        count += 1
+    return count
+
+
 def apply_default_shortcuts(window):
     """为菜单栏/工具栏中缺快捷键的动作补齐默认值，返回设置数量。"""
     try:

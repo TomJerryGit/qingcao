@@ -737,6 +737,14 @@ class MenuBuilderMixin:
         # 命令面板
         toolbar.addAction(self._toolbar_action("命令面板", self._show_command_palette))
 
+        # 发现性：工具栏 tooltip 补默认快捷键
+        try:
+            from ui.default_shortcuts import apply_toolbar_tooltips
+
+            apply_toolbar_tooltips(toolbar)
+        except Exception:
+            pass
+
     def _toolbar_action(self, text: str, slot) -> QAction:
         """创建工具栏动作"""
         action = QAction(text, self)

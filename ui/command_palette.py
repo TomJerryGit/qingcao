@@ -236,6 +236,7 @@ class BasePalette(QDialog):
         self._usage_history: Dict[str, Tuple[float, int]] = {}
         # 分类筛选（发现性：全部/命令/文件/符号/主题/插件）
         self.category_filter: str = "全部"
+        self._row_items: List[Optional[PaletteItem]] = []
 
         # 设置窗口属性
         self.setWindowFlags(
@@ -533,15 +534,37 @@ class BasePalette(QDialog):
         display_items = display_items[:MAX_DISPLAY_ITEMS]
         self.filtered_items = display_items
 
-        # 添加到列表
-        for item in display_items:
-            list_item = self._create_list_item(item)
-            self.list_widget.addItem(list_item)
+        # 「最近使用」分组标题（无搜索词时有历史才显示）
+        recent = []
+        rest = list(display_items)
+        if not query and self._usage_history:
+            recent = [it for it in display_items
+                      if self._usage_key(it) in self._usage_history]
+            rest = [it for it in display_items if it not in recent]
 
-        # 选中第一项
-        if display_items:
-            self.list_widget.setCurrentRow(0)
-            self.selected_index = 0
+        def _add_header(text):
+            h = QListWidgetItem(text)
+            h.setFlags(Qt.NoItemFlags)
+            self.list_widget.addItem(h)
+            self._row_items.append(None)
+
+        self._row_items = []
+        if recent:
+            _add_header("── 最近使用 ──")
+            for it in recent:
+                self.list_widget.addItem(self._create_list_item(it))
+                self._row_items.append(it)
+            if rest:
+                _add_header("── 全部 ──")
+        for it in rest:
+            self.list_widget.addItem(self._create_list_item(it))
+            self._row_items.append(it)
+
+        # 选中第一个**可执行**条目（跳过分组标题）
+        first = next((i for i, it in enumerate(self._row_items) if it is not None), -1)
+        if first >= 0:
+            self.list_widget.setCurrentRow(first)
+            self.selected_index = first
 
         # 更新状态栏
         self._update_status(len(display_items), len(self.items))
@@ -679,9 +702,12 @@ class BasePalette(QDialog):
         if count == 0:
             return
 
-        new_row = self.selected_index + delta
-        new_row = max(0, min(new_row, count - 1))
-
+        new_row = max(0, min(self.selected_index + delta, count - 1))
+        step = 1 if delta >= 0 else -1
+        while 0 <= new_row < count and self._row_items and self._row_items[new_row] is None:
+            new_row += step
+        if not (0 <= new_row < count):
+            return
         self.list_widget.setCurrentRow(new_row)
         self.selected_index = new_row
 
