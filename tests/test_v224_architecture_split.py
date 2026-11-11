@@ -215,3 +215,10 @@ def test_main_entry_split():
     ):
         assert hasattr(main, name), name
     assert ensure_directories is not None and setup_logging is not None
+
+
+def test_main_run_has_version():
+    import app.main_run as mr
+    from version import __version__
+
+    assert getattr(mr, "__version__", "") == __version__

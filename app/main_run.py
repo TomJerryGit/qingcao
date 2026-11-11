@@ -4,6 +4,7 @@
 
 from app.main_common import *  # noqa: F401,F403
 from app.main_helpers import *  # noqa: F401,F403
+from version import __version__  # noqa: F401
 
 
 def main():
