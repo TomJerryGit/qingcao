@@ -155,6 +155,12 @@ class TerminalTab(QWidget):
         copy_btn.setFixedWidth(60)
         copy_btn.clicked.connect(self.copy_output)
         row.addWidget(copy_btn)
+        self.raw_btn = QPushButton("raw")
+        self.raw_btn.setFixedWidth(56)
+        self.raw_btn.setCheckable(True)
+        self.raw_btn.setToolTip("原始输入：按键直接发送到 PTY（alt-screen 等交互程序）")
+        self.raw_btn.toggled.connect(self.set_raw_mode)
+        row.addWidget(self.raw_btn)
         vbox.addLayout(row)
 
         self.output = QTextEdit()
@@ -264,12 +270,51 @@ class TerminalTab(QWidget):
         self._proc = None
 
 
+def key_event_to_bytes(event):
+    """把 QKeyEvent 映射为 PTY 原始字节（P1 raw 输入直通）。"""
+    key = event.key()
+    mods = event.modifiers()
+    ctrl = bool(mods & Qt.ControlModifier)
+    text = event.text()
+    special = {
+        Qt.Key_Return: "\r",
+        Qt.Key_Enter: "\r",
+        Qt.Key_Backspace: "\x7f",
+        Qt.Key_Tab: "\t",
+        Qt.Key_Escape: "\x1b",
+        Qt.Key_Up: "\x1b[A",
+        Qt.Key_Down: "\x1b[B",
+        Qt.Key_Right: "\x1b[C",
+        Qt.Key_Left: "\x1b[D",
+        Qt.Key_Home: "\x1b[H",
+        Qt.Key_End: "\x1b[F",
+        Qt.Key_Delete: "\x1b[3~",
+        Qt.Key_PageUp: "\x1b[5~",
+        Qt.Key_PageDown: "\x1b[6~",
+    }
+    if ctrl and Qt.Key_A <= key <= Qt.Key_Z:
+        return chr(key - Qt.Key_A + 1)
+    if key in special:
+        return special[key]
+    if text:
+        return text
+    return ""
+
+
 class PtyLineEdit(HistoryLineEdit):
     """PTY 输入框：Ctrl+C 发送中断（\\x03）。"""
 
     interrupt_requested = pyqtSignal()
+    raw_key = pyqtSignal(str)
+    raw_mode = False
 
     def keyPressEvent(self, event):
+        if self.raw_mode:
+            data = key_event_to_bytes(event)
+            if data:
+                self.raw_key.emit(data)
+            event.accept()
+            return
         if event.key() == Qt.Key_C and event.modifiers() & Qt.ControlModifier:
             self.interrupt_requested.emit()
             event.accept()
@@ -328,6 +373,7 @@ class PtyTerminalTab(QWidget):
         self.input.setPlaceholderText("交互模式：输入命令回车，Ctrl+C 中断")
         self.input.returnPressed.connect(self.run_command)
         self.input.interrupt_requested.connect(self.send_interrupt)
+        self.input.raw_key.connect(self.send_raw)
         inrow.addWidget(self.input, 1)
         run_btn = QPushButton("发送")
         run_btn.setFixedWidth(60)
@@ -359,6 +405,25 @@ class PtyTerminalTab(QWidget):
         self.input.add_history(text)
         self.input.clear()
         self._session.write(text + "\r\n")
+
+    def set_raw_mode(self, enabled: bool):
+        """P1：raw 输入开关；开启后按键直通 PTY（不等待回车）。"""
+        self.raw_mode = bool(enabled)
+        self.input.raw_mode = self.raw_mode
+        self.input.setPlaceholderText(
+            "RAW 模式：按键直通（Esc 退出程序 / Ctrl+C 中断）"
+            if self.raw_mode
+            else "交互模式：输入命令回车，Ctrl+C 中断"
+        )
+        self.input.setFocus()
+
+    def send_raw(self, data: str):
+        """发送原始字节到 PTY（测试可直接调用）。"""
+        try:
+            self._session.write(data)
+            return True
+        except Exception:
+            return False
 
     def send_interrupt(self):
         self.interrupts += 1
