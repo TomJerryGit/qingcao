@@ -37,3 +37,16 @@ def test_screen_revision_increments():
     assert s.revision == 1
     s.feed("")
     assert s.revision == 1
+
+
+def test_scrollback_render_cap():
+    from ui.terminal_screen import TerminalScreen
+
+    s = TerminalScreen(3, 20)
+    for i in range(6):
+        s.feed("line-%d\r\n" % i)
+    out = s.render_html(include_scrollback=True, max_scrollback=2)
+    assert "line-" in out
+    # 只渲染最后 2 行历史 + 可见网格：最旧行不应出现
+    assert "line-0" not in out
+    assert "line-1" not in out

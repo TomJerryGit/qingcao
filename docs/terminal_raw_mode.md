@@ -54,3 +54,8 @@
 
 ### 终端 P1–P5 完成
 raw 输入、alt-screen/ANSI、滚动区、滚动缓冲、24bit 真彩、鼠标上报（点击/拖动/滚轮）、滚动位置保持。
+
+## P7（已实现）
+- **滚动缓冲可视**：主终端视图渲染最近 400 行历史（`HISTORY_RENDER_MAX`）+ 当前网格；用户上滚时保持位置，底部时自动跟随；
+- **vim 真机验证脚本** `tools/verify_terminal_vim.py`：检测 vim/nvim，真实 PTY 启动 → 检查 alt-screen 序列 → 写入 `Hello QCP7` 并 `:wq` 后校验文件；
+- 本机结果：**SKIP（未安装 vim/nvim）**；安装后可直接运行脚本完成 P7 验收（P3 真机 PTY 回归 PASS）。

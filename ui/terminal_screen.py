@@ -356,13 +356,15 @@ class TerminalScreen:
             rows.append("".join(cell[0] for cell in row).rstrip())
         return "\n".join(rows).rstrip()
 
-    def render_html(self, include_scrollback=False):
+    def render_html(self, include_scrollback=False, max_scrollback=None):
         out = []
         escape = html.escape
         rows = []
         if include_scrollback and not self.alt:
-            rows = [[(ch, None, None, False) for ch in line]
-                    for line in self.scrollback]
+            hist = list(self.scrollback)
+            if max_scrollback is not None:
+                hist = hist[-max(0, int(max_scrollback)):]
+            rows = [[(ch, None, None, False) for ch in line] for line in hist]
         rows = rows + self.grid
         for row in rows:
             cells = []

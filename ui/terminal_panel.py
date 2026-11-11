@@ -433,6 +433,8 @@ class PtyTerminalTab(QWidget):
     """交互式 PTY 终端标签（持续 shell 会话）。"""
 
     kind = "pty"
+    # P7：主视图内可滚动查看的历史行上限（性能与可用性折中）
+    HISTORY_RENDER_MAX = 400
 
     def __init__(self, cwd, parent=None):
         super().__init__(parent)
@@ -527,7 +529,8 @@ class PtyTerminalTab(QWidget):
             bar = self.output.verticalScrollBar()
             at_bottom = bar.value() >= bar.maximum() - 2
             old_value = bar.value()
-            self.output.setHtml(self._screen.render_html())
+            self.output.setHtml(self._screen.render_html(
+                include_scrollback=True, max_scrollback=self.HISTORY_RENDER_MAX))
             if at_bottom:
                 self.output.moveCursor(self.output.textCursor().End)
                 self.output.ensureCursorVisible()

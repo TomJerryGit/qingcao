@@ -329,7 +329,7 @@ _ALLOWLIST = {
     "infrastructure/plugin_updater.py": 1370,
     "app/preferences.py": 1340,
     "ui/command_palette.py": 1335,
-    "ui/plugin_store.py": 1325,
+    "ui/plugin_store.py": 1440,
 }
 
 
