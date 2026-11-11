@@ -523,49 +523,23 @@ class WindowActionsMixin:
     # 帮助
     # ========================================================
     def _show_shortcuts(self):
-        """显示快捷键参考"""
-        shortcuts = [
-            ("Ctrl+N", "新建文件"),
-            ("Ctrl+O", "打开文件"),
-            ("Ctrl+S", "保存文件"),
-            ("Ctrl+Shift+S", "另存为"),
-            ("Ctrl+W", "关闭标签"),
-            ("Ctrl+Z / Ctrl+Y", "撤销 / 重做"),
-            ("Ctrl+X/C/V", "剪切 / 复制 / 粘贴"),
-            ("Ctrl+F", "查找"),
-            ("Ctrl+Shift+F", "全局搜索"),
-            ("Ctrl+Shift+P", "命令面板"),
-            ("Ctrl+P", "文件切换"),
-            ("Ctrl+Alt+R", "符号跳转"),
-            ("Ctrl+G", "跳转到行"),
-            ("Ctrl+/", "注释切换"),
-            ("Ctrl+D", "选择下一项"),
-            ("Alt+C", "列模式"),
-            ("Ctrl+`", "Python 控制台"),
-            ("Ctrl+Space", "自动补全"),
-            ("F5", "插入日期时间"),
-            ("F11", "无干扰模式"),
-            ("Shift+F11", "全屏"),
-        ]
+        """显示快捷键参考（动态收集真实菜单 + 可搜索）。"""
+        try:
+            from ui.shortcuts_dialog import ShortcutListDialog
 
-        text = "青草编辑器快捷键参考\n" + "=" * 40 + "\n\n"
-        for key, desc in shortcuts:
-            text += f"{key:25s} {desc}\n"
+            dlg = ShortcutListDialog(self, self)
+            dlg.exec_()
+            return
+        except Exception:
+            pass
+        # 兜底：动态收集失败时给出常用键
+        from PyQt5.QtWidgets import QMessageBox
 
-        dlg = QDialog(self)
-        dlg.setWindowTitle("快捷键参考")
-        dlg.resize(500, 600)
-        layout = QVBoxLayout(dlg)
-
-        browser = QTextBrowser()
-        browser.setPlainText(text)
-        layout.addWidget(browser)
-
-        btn = QPushButton("关闭")
-        btn.clicked.connect(dlg.accept)
-        layout.addWidget(btn)
-
-        dlg.exec_()
+        QMessageBox.information(
+            self, "快捷键参考",
+            "Ctrl+Shift+P 命令面板\nCtrl+P 文件切换\n"
+            "Ctrl+Shift+F 全局搜索\nCtrl+Shift+M 插件市场\nF11 无干扰模式",
+        )
 
     def _show_daily_tip(self, manual: bool = False):
         """

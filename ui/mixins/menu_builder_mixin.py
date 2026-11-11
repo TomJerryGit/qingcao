@@ -318,7 +318,7 @@ class MenuBuilderMixin:
         # ============ 帮助菜单 ============
         self.help_menu = menubar.addMenu("帮助(&H)")
 
-        self._add_action(self.help_menu, "⌨ 快捷键参考", None, self._show_shortcuts)
+        self._add_action(self.help_menu, "⌨ 快捷键参考", "F1", self._show_shortcuts)
         # P2-C4: manual 参数
         self._add_action(
             self.help_menu,
