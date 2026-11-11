@@ -9,7 +9,22 @@ env:
   PYTHONUTF8: '1'
   PYTHONIOENCODING: 'utf-8'
 jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for Test/Security/Lint gates
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python tools/ci_release_gate.py --sha "$GITHUB_SHA" --wait-min 35
+
   build-release:
+    needs: gates
     runs-on: [self-hosted, windows, x64]
     timeout-minutes: 60
     steps:
