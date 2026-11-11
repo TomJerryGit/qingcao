@@ -234,6 +234,8 @@ class BasePalette(QDialog):
 
         # 使用历史（标题 -> 使用时间/次数）
         self._usage_history: Dict[str, Tuple[float, int]] = {}
+        # 分类筛选（发现性：全部/命令/文件/符号/主题/插件）
+        self.category_filter: str = "全部"
 
         # 设置窗口属性
         self.setWindowFlags(
@@ -281,6 +283,12 @@ class BasePalette(QDialog):
         self.input_edit.textChanged.connect(self._on_text_changed)
         self.input_edit.returnPressed.connect(self._on_return_pressed)
         input_layout.addWidget(self.input_edit, 1)
+
+        self.category_combo = QComboBox(self)
+        self.category_combo.setObjectName("category_combo")
+        self.category_combo.addItem("全部")
+        self.category_combo.currentTextChanged.connect(self._on_category_filter_changed)
+        input_layout.addWidget(self.category_combo)
 
         layout.addWidget(input_frame)
 
@@ -391,6 +399,28 @@ class BasePalette(QDialog):
     def set_items(self, items: List[PaletteItem]):
         """设置条目列表"""
         self.items = items
+        self._refresh_categories()
+        self._refresh()
+
+    def _refresh_categories(self):
+        """按当前条目重建分类筛选项。"""
+        try:
+            cats = sorted({i.category for i in self.items if i.category})
+        except Exception:
+            cats = []
+        current = self.category_combo.currentText() if hasattr(self, "category_combo") else "全部"
+        self.category_combo.blockSignals(True)
+        self.category_combo.clear()
+        self.category_combo.addItem("全部")
+        for c in cats:
+            self.category_combo.addItem(c)
+        idx = self.category_combo.findText(current)
+        self.category_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.category_combo.blockSignals(False)
+        self.category_filter = self.category_combo.currentText()
+
+    def _on_category_filter_changed(self, text: str):
+        self.category_filter = text or "全部"
         self._refresh()
 
     def add_item(self, item: PaletteItem):
@@ -462,12 +492,16 @@ class BasePalette(QDialog):
         """过滤条目"""
         query = query.strip().lower()
 
+        pool = self.items
+        if self.category_filter and self.category_filter != "全部":
+            pool = [i for i in self.items if i.category == self.category_filter]
+
         self.list_widget.clear()
         self.filtered_items = []
 
         if not query:
             # 无搜索词时，按使用频率和时间排序
-            display_items = self._sort_by_usage(self.items)
+            display_items = self._sort_by_usage(pool)
         else:
             # 模糊匹配
             scored_items = []
