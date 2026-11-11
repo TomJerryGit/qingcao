@@ -24,3 +24,14 @@
 - 组合方式：`CapabilityWiringMixin(KeySequenceMixin, PluginsMixin, PanelsExportMixin, CommandsThemeMixin)`；
 - 静态测试改为拼接 `ui/mixins/capability_*.py` 读取，避免拆分导致误报；
 - 顺带修复 `TerminalTab.clear_output` 残留的 `_screen` 引用（非 PTY 标签无屏幕缓冲）。
+
+## 阶段 2.4：三个 1,500 行文件
+
+| 模块 | 拆分前 | 拆分后 | 结构 |
+|---|---|---|---|
+| `ui/global_search_panel.py` | 1,514 | **986** | common(149) + tree(370) + panel |
+| `ui/keymap_editor.py` | 1,503 | **676** | common(288) + dialogs(496) + editor |
+| `core/lsp_client.py` | 1,501 | **1,217** | utils(292，含 `_default_capabilities`/URI/能力/`dump`) + client |
+
+- 拆分后均 <1,300；`GlobalSearchPanel`/`KeymapEditor`/`LspClient`/`LspServerRegistry` 等对外导入保持兼容；
+- 修复装饰器方法（`@staticmethod`）随方法块迁移，避免 `IndentationError`。

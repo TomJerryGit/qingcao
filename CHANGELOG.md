@@ -2,6 +2,11 @@
 
 ### 重构
 
+- **架构拆分第八批（阶段 2.4）**：global_search(→986)、keymap_editor(→676)、lsp_client(→1,217) 均降至 1,300 行以下。
+
+
+### 重构
+
 - **架构拆分第七批**：`capability_wiring_mixin.py` 1,537 → **75**（keyseq/plugins/panels/commands 四个 mixin）；修复 `TerminalTab.clear_output` 残留 `_screen` 引用。
 
 

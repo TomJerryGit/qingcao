@@ -280,3 +280,41 @@ def test_capability_wiring_split():
     bases = [b.__name__ for b in CapabilityWiringMixin.__mro__]
     assert "KeySequenceMixin" in bases and "PluginsMixin" in bases
     assert "PanelsExportMixin" in bases and "CommandsThemeMixin" in bases
+
+
+def test_phase24_splits():
+    from core.lsp_client import LspClient, LspServerRegistry
+    from ui.global_search_panel import GlobalSearchPanel, SearchResultTree
+    from ui.keymap_editor import (
+        KeyCaptureDialog,
+        KeymapEditor,
+        KeymapProfile,
+        KeymapTable,
+        apply_saved_scheme,
+        load_saved_scheme,
+    )
+
+    for rel, limit in (
+        ("ui/global_search_panel.py", 1100),
+        ("ui/global_search_tree.py", 450),
+        ("ui/keymap_editor.py", 800),
+        ("ui/keymap_dialogs.py", 600),
+        ("core/lsp_client.py", 1300),
+        ("core/lsp_client_utils.py", 420),
+    ):
+        assert _lines(rel) < limit, (rel, _lines(rel))
+    assert all(
+        x is not None
+        for x in (
+            GlobalSearchPanel,
+            SearchResultTree,
+            KeymapEditor,
+            KeymapTable,
+            KeyCaptureDialog,
+            KeymapProfile,
+            apply_saved_scheme,
+            load_saved_scheme,
+            LspClient,
+            LspServerRegistry,
+        )
+    )
