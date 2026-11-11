@@ -3,6 +3,7 @@
 
 import html
 import unicodedata
+from collections import deque
 
 
 FG = {
@@ -43,6 +44,23 @@ BG = {
 }
 
 
+def _xterm256(n):
+    base = [
+        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080",
+        "#008080", "#c0c0c0", "#808080", "#ff0000", "#00ff00", "#ffff00",
+        "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
+    ]
+    if n < 16:
+        return base[max(0, n)]
+    if n < 232:
+        n -= 16
+        r, g, b = n // 36, (n % 36) // 6, n % 6
+        conv = lambda v: 0 if v == 0 else 55 + 40 * v
+        return "#%02x%02x%02x" % (conv(r), conv(g), conv(b))
+    gray = 8 + 10 * (n - 232)
+    return "#%02x%02x%02x" % (gray, gray, gray)
+
+
 def _width(ch):
     if unicodedata.combining(ch):
         return 0
@@ -56,6 +74,8 @@ class TerminalScreen:
         self.rows = max(1, int(rows))
         self.cols = max(1, int(cols))
         self.alt = False
+        self.scrollback = deque(maxlen=2000)
+        self.mouse_reporting = set()
         self._saved = None
         self._state = "text"
         self._params = ""
@@ -85,6 +105,9 @@ class TerminalScreen:
     def _scroll_up(self, n=1):
         top, bottom = self.scroll_top, self.scroll_bottom
         for _ in range(max(1, int(n))):
+            if not self.alt:
+                self.scrollback.append(
+                    "".join(cell[0] for cell in self.grid[top]).rstrip())
             self.grid.pop(top)
             self.grid.insert(bottom, [self._blank() for _ in range(self.cols)])
 
@@ -182,6 +205,13 @@ class TerminalScreen:
                 nums.append(int(part) if part else 0)
             except ValueError:
                 nums.append(0)
+        if cmd in "hl" and private:
+            for mode in ("1000", "1002", "1003", "1006", "1015", "1005"):
+                if mode in body.split(";"):
+                    if cmd == "h":
+                        self.mouse_reporting.add(int(mode))
+                    else:
+                        self.mouse_reporting.discard(int(mode))
         if cmd in "hl" and private and any(n in (47, 1047, 1049) for n in nums):
             self._toggle_alt(cmd == "h")
             return
@@ -252,6 +282,22 @@ class TerminalScreen:
                 self.bold = True
             elif n == 22:
                 self.bold = False
+            elif n in (38, 48):
+                color = None
+                if i + 1 < len(nums) and nums[i + 1] == 5 and i + 2 < len(nums):
+                    color = _xterm256(nums[i + 2])
+                    i += 2
+                elif i + 4 < len(nums) and nums[i + 1] == 2:
+                    r, g, b = nums[i + 2], nums[i + 3], nums[i + 4]
+                    color = "#%02x%02x%02x" % (
+                        max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))
+                    )
+                    i += 4
+                if color:
+                    if n == 38:
+                        self.fg = color
+                    else:
+                        self.bg = color
             elif n in FG:
                 self.fg = FG[n]
             elif n in BG:
@@ -276,6 +322,17 @@ class TerminalScreen:
             self._saved = None
             self.alt = False
 
+    def encode_mouse(self, button, col, row, pressed=True, mods=0):
+        """SGR 鼠标编码（?1006）：返回要写入 PTY 的字节串。"""
+        b = int(button) + int(mods)
+        x, y = max(1, int(col)), max(1, int(row))
+        if 1006 in self.mouse_reporting or 1015 in self.mouse_reporting:
+            return "\x1b[<%d;%d;%d%s" % (b, x, y, "M" if pressed else "m")
+        return ""
+
+    def scrollback_lines(self):
+        return list(self.scrollback)
+
     # ---- 输出 ----
     def text(self):
         rows = []
@@ -283,10 +340,15 @@ class TerminalScreen:
             rows.append("".join(cell[0] for cell in row).rstrip())
         return "\n".join(rows).rstrip()
 
-    def render_html(self):
+    def render_html(self, include_scrollback=False):
         out = []
         escape = html.escape
-        for row in self.grid:
+        rows = []
+        if include_scrollback and not self.alt:
+            rows = [[(ch, None, None, False) for ch in line]
+                    for line in self.scrollback]
+        rows = rows + self.grid
+        for row in rows:
             cells = []
             last = -1
             for idx, cell in enumerate(row):

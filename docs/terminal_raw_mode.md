@@ -34,3 +34,13 @@
   - **raw 输入回显**：向真实 PTY 写入 `PING`，子程序读 stdin 后回显 `RAW-OK:PING`；
   - 结果：两项 **PASS**（本机 Windows 无 vim/top，改用等价真实 PTY 验证；有 vim 的机器可手动按同样步骤验证）。
 - 测试：`tests/test_v225_terminal_scroll.py`（滚动区/LF 隔离/插删行/区域重置）。
+
+## P4（已实现）
+- **滚动缓冲**：最多 2000 行历史（非 alt-screen 时自动入缓冲），`render_html(include_scrollback=True)` 一并渲染；
+- **24bit 真彩**：SGR `38;2;r;g;b` / `48;2;r;g;b`，以及 256 色 `38;5;n`；
+- **鼠标上报**：解析 `?1000/1002/1003/1006/1015` 私有模式；输出区 `TerminalOutput` 把点击/释放按 SGR 编码回传 PTY（`\x1b[<b;x;yM/m`）。
+- 测试：`tests/test_v225_terminal_p4.py`（缓冲/真彩/鼠标编码与模式开关）。
+
+### 限制
+- 仅上报左键按下/释放；拖动（?1002 motion）与滚轮编码待补；
+- 历史与实时输出在同一 QTextEdit 中，滚动位置在刷新时会回到底部（后续可做独立 scrollback 视图）。

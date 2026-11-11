@@ -163,8 +163,9 @@ class TerminalTab(QWidget):
         row.addWidget(self.raw_btn)
         vbox.addLayout(row)
 
-        self.output = QTextEdit()
+        self.output = TerminalOutput()
         self.output.setReadOnly(True)
+        self.output._screen = self._screen
         self.output.setFont(QFont("Consolas", 10))
         self.output.setStyleSheet(
             "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }"
@@ -194,7 +195,7 @@ class TerminalTab(QWidget):
     def _render_screen(self):
         """P2：把 VT 屏幕网格渲染到输出区（alt-screen/光标/颜色）。"""
         try:
-            self.output.setHtml(self._screen.render_html())
+            self.output.setHtml(self._screen.render_html(include_scrollback=True))
             self.output.moveCursor(self.output.textCursor().End)
             self.output.ensureCursorVisible()
         except Exception:
@@ -314,6 +315,43 @@ def key_event_to_bytes(event):
 from ui.terminal_screen import TerminalScreen
 
 
+class TerminalOutput(QTextEdit):
+    """输出区：把鼠标事件按 VT 协议回传给 PTY（P4 鼠标上报）。"""
+
+    mouse_input = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._screen = None
+        self.setMouseTracking(True)
+
+    def _cell(self, event):
+        fm = self.fontMetrics()
+        col = int(event.x() / max(1, fm.horizontalAdvance("M"))) + 1
+        row = int(event.y() / max(1, fm.height())) + 1
+        return col, row
+
+    def mousePressEvent(self, event):
+        if self._screen is not None and self._screen.mouse_reporting:
+            col, row = self._cell(event)
+            data = self._screen.encode_mouse(0, col, row, True)
+            if data:
+                self.mouse_input.emit(data)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._screen is not None and self._screen.mouse_reporting:
+            col, row = self._cell(event)
+            data = self._screen.encode_mouse(0, col, row, False)
+            if data:
+                self.mouse_input.emit(data)
+                event.accept()
+                return
+        super().mouseReleaseEvent(event)
+
+
 class PtyLineEdit(HistoryLineEdit):
     """PTY 输入框：Ctrl+C 发送中断（\\x03）。"""
 
@@ -388,6 +426,7 @@ class PtyTerminalTab(QWidget):
         self.input.returnPressed.connect(self.run_command)
         self.input.interrupt_requested.connect(self.send_interrupt)
         self.input.raw_key.connect(self.send_raw)
+        self.output.mouse_input.connect(self.send_raw)
         inrow.addWidget(self.input, 1)
         run_btn = QPushButton("发送")
         run_btn.setFixedWidth(60)
