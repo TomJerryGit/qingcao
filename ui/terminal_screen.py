@@ -61,6 +61,8 @@ class TerminalScreen:
         self._params = ""
         self._osc_esc = False
         self._reset_grid()
+        self.scroll_top = 0
+        self.scroll_bottom = self.rows - 1
         self.r = 0
         self.c = 0
         self.fg = None
@@ -76,7 +78,21 @@ class TerminalScreen:
 
     def clear(self):
         self._reset_grid()
+        self.scroll_top = 0
+        self.scroll_bottom = self.rows - 1
         self.r = self.c = 0
+
+    def _scroll_up(self, n=1):
+        top, bottom = self.scroll_top, self.scroll_bottom
+        for _ in range(max(1, int(n))):
+            self.grid.pop(top)
+            self.grid.insert(bottom, [self._blank() for _ in range(self.cols)])
+
+    def _scroll_down(self, n=1):
+        top, bottom = self.scroll_top, self.scroll_bottom
+        for _ in range(max(1, int(n))):
+            self.grid.pop(bottom)
+            self.grid.insert(top, [self._blank() for _ in range(self.cols)])
 
     def resize(self, rows, cols):
         rows, cols = max(1, int(rows)), max(1, int(cols))
@@ -87,13 +103,15 @@ class TerminalScreen:
         self.rows, self.cols, self.grid = rows, cols, new
         self.r = min(self.r, rows - 1)
         self.c = min(self.c, cols - 1)
+        self.scroll_top = 0
+        self.scroll_bottom = rows - 1
 
     def _linefeed(self):
-        self.r += 1
-        if self.r >= self.rows:
-            self.grid.pop(0)
-            self.grid.append([self._blank() for _ in range(self.cols)])
-            self.r = self.rows - 1
+        if self.r >= self.scroll_bottom:
+            self._scroll_up(1)
+            self.r = self.scroll_bottom
+        else:
+            self.r += 1
 
     def _put(self, ch):
         w = _width(ch)
@@ -194,6 +212,26 @@ class TerminalScreen:
                     self.grid[self.r][cc] = self._blank()
                 for rr in range(self.r + 1, self.rows):
                     self.grid[rr] = [self._blank() for _ in range(self.cols)]
+        elif cmd == "r":
+            top = (nums[0] if nums and nums[0] else 1) - 1
+            bottom = (nums[1] if len(nums) > 1 and nums[1] else self.rows) - 1
+            self.scroll_top = min(max(0, top), self.rows - 1)
+            self.scroll_bottom = min(max(self.scroll_top, bottom), self.rows - 1)
+            self.r, self.c = 0, 0
+        elif cmd == "S":
+            self._scroll_up(nums[0] or 1)
+        elif cmd == "T":
+            self._scroll_down(nums[0] or 1)
+        elif cmd == "L":
+            if self.scroll_top <= self.r <= self.scroll_bottom:
+                for _ in range(max(1, nums[0] if nums else 1)):
+                    self.grid.pop(self.scroll_bottom)
+                    self.grid.insert(self.r, [self._blank() for _ in range(self.cols)])
+        elif cmd == "M":
+            if self.scroll_top <= self.r <= self.scroll_bottom:
+                for _ in range(max(1, nums[0] if nums else 1)):
+                    self.grid.pop(self.r)
+                    self.grid.insert(self.scroll_bottom, [self._blank() for _ in range(self.cols)])
         elif cmd == "K":
             mode = nums[0] if nums else 0
             if mode == 0:
@@ -226,13 +264,15 @@ class TerminalScreen:
 
     def _toggle_alt(self, on):
         if on and not self.alt:
-            self._saved = (self.grid, self.r, self.c)
+            self._saved = (self.grid, self.r, self.c, self.scroll_top, self.scroll_bottom)
             self.alt = True
             self._reset_grid()
+            self.scroll_top = 0
+            self.scroll_bottom = self.rows - 1
             self.r = self.c = 0
         elif not on and self.alt:
             if self._saved:
-                self.grid, self.r, self.c = self._saved
+                self.grid, self.r, self.c, self.scroll_top, self.scroll_bottom = self._saved
             self._saved = None
             self.alt = False
 

@@ -26,3 +26,11 @@
 ### P2 限制
 - 尚未实现：滚动区、鼠标上报、复杂 VT（DEC 私有模式）、真彩色 24bit；
 - `vim`/`top` 可进入 alt-screen 并显示内容；整屏重绘性能与细节（如行内移动光标刷新）仍需真实桌面验证。
+
+## P3（已实现）
+- `TerminalScreen` 支持**滚动区**：`CSI r` 设定区域、`CSI S/T` 区域内滚动、`CSI L/M` 插入/删除行、行尾 LF 只在区域内滚动；
+- 真机验证脚本 `tools/verify_terminal_p3.py`：
+  - 真实 **PTY**（pywinpty）子进程输出 alt-screen 序列 → 解析器识别并回切主屏；
+  - **raw 输入回显**：向真实 PTY 写入 `PING`，子程序读 stdin 后回显 `RAW-OK:PING`；
+  - 结果：两项 **PASS**（本机 Windows 无 vim/top，改用等价真实 PTY 验证；有 vim 的机器可手动按同样步骤验证）。
+- 测试：`tests/test_v225_terminal_scroll.py`（滚动区/LF 隔离/插删行/区域重置）。
