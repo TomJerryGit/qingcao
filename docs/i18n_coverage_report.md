@@ -3,20 +3,20 @@
 | 指标 | 数值 |
 |---|---|
 | 模板条目（zh_CN） | 5218 |
-| 英文映射条目（en_US） | 483 |
-| 模板覆盖率 | 9.2% |
-| 重点 UI 覆盖率 | 21.7% |
-| **可翻译语料覆盖率** | **71.5%**（剩余 170 条） |
+| 英文映射条目（en_US） | 543 |
+| 模板覆盖率 | 10.3% |
+| 重点 UI 覆盖率 | 23.8% |
+| **可翻译语料覆盖率** | **81.6%**（剩余 110 条） |
 | 菜单动作覆盖率（运行时） | 154/158（97.5%） |
 
 ## 重点文件
 
 | 文件 | 中文串 | 已翻译 | 覆盖率 |
 |---|---|---|---|
-| `ui/preferences_panel.py` | 102 | 56 | 54.9% |
+| `ui/preferences_panel.py` | 102 | 63 | 61.8% |
 | `ui/welcome_widget.py` | 94 | 14 | 14.9% |
-| `ui/mixins/menu_builder_mixin.py` | 190 | 30 | 15.8% |
-| `ui/mixins/capability_wiring_mixin.py` | 131 | 12 | 9.2% |
+| `ui/mixins/menu_builder_mixin.py` | 190 | 32 | 16.8% |
+| `ui/mixins/capability_wiring_mixin.py` | 131 | 14 | 10.7% |
 
 ## 说明
 
