@@ -191,6 +191,15 @@ class TerminalTab(QWidget):
         escaped = html.escape(str(text).rstrip("\n")).replace("\n", "<br>")
         self.output.append(escaped)
 
+    def _render_screen(self):
+        """P2：把 VT 屏幕网格渲染到输出区（alt-screen/光标/颜色）。"""
+        try:
+            self.output.setHtml(self._screen.render_html())
+            self.output.moveCursor(self.output.textCursor().End)
+            self.output.ensureCursorVisible()
+        except Exception:
+            pass
+
     def _append_ansi(self, text):
         if not text:
             return
@@ -199,6 +208,7 @@ class TerminalTab(QWidget):
         self.output.ensureCursorVisible()
 
     def clear_output(self):
+        self._screen.clear()
         self.output.clear()
 
     def copy_output(self):
@@ -301,6 +311,9 @@ def key_event_to_bytes(event):
     return ""
 
 
+from ui.terminal_screen import TerminalScreen
+
+
 class PtyLineEdit(HistoryLineEdit):
     """PTY 输入框：Ctrl+C 发送中断（\\x03）。"""
 
@@ -332,6 +345,7 @@ class PtyTerminalTab(QWidget):
         shell = ["cmd.exe"] if sys.platform == "win32" else ["/bin/sh"]
         workdir = cwd if cwd and os.path.isdir(cwd) else None
         self._session = PtySession(argv=shell, cwd=workdir)
+        self._screen = TerminalScreen(30, 100)
         self._cwd = cwd
         self._proc = None
         self.interrupts = 0
@@ -398,7 +412,8 @@ class PtyTerminalTab(QWidget):
         except Exception:
             return
         if data:
-            self._append_ansi(data)
+            self._screen.feed(data)
+            self._render_screen()
 
     def run_command(self):
         text = self.input.text()
@@ -449,6 +464,7 @@ class PtyTerminalTab(QWidget):
             fm = self.output.fontMetrics()
             rows = max(5, self.output.height() // max(1, fm.height()))
             cols = max(20, self.output.width() // max(1, fm.horizontalAdvance("M")))
+            self._screen.resize(rows, cols)
             self._session._proc.setwinsize(rows, cols)
         except Exception:
             pass
