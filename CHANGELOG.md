@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [2.24.3] - 2026-11-11
+
 ### 新增
 
 - **真实评分聚合上线**：16 个插件的真实用户评分写入 `community_ratings.json`，聚合器支持 tracked 社区文件，签名 `ratings.json` 重发。
