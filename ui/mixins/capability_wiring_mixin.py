@@ -1469,6 +1469,13 @@ class CapabilityWiringMixin:
 
             settings = QSettings("QingCao", "Editor")
             name = settings.value("theme_name", "", type=str)
+            # 幂等：同一主题已应用过则直接返回（避免重复 apply_qss/notify_widgets）
+            _key = name or "__builtin__"
+            if (
+                getattr(self, "_startup_theme_key", None) == _key
+                and getattr(self, "_startup_theme", None) is not None
+            ):
+                return self._startup_theme
             loader = ThemeLoader()
             theme = None
             if name:
@@ -1513,6 +1520,7 @@ class CapabilityWiringMixin:
                 print(f"[Theme] 启动子控件样式适配失败: {e}")
 
             self._startup_theme = theme
+            self._startup_theme_key = _key
             return theme
         except Exception as e:
             print(f"[MainWindow] 启动主题应用失败: {e}")

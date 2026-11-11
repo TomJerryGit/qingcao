@@ -17,3 +17,9 @@
 ## 限制
 - 加载完成前全文搜索/列编辑只作用于已加载部分（需 UI 提示）；
 - 完整加载时间可能略增（append 开销），收益在首次可视与交互响应。
+
+## 性能专项复核（v2.25）
+
+- **启动主题幂等**：`apply_startup_theme` 缓存主题名，重复调用直接返回（原重复 apply_qss/notify_widgets 约 0.38s → 近 0）；
+- 基准（auto 容差）：mainwindow 0.909s（硬上限 1.5）、plugin_ready 2.296s（3.0）、open_50mb 3.936s（8.0）、session_save 0.128s（1.0）、theme_notify 0.142s（2.0），全部通过；
+- open_50mb 从 5.25s 降到 3.936s（同机复测）。
