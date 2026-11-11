@@ -101,13 +101,11 @@ def main():
     win = MainWindow()
 
     try:
-
         from ui.default_shortcuts import apply_default_shortcuts
 
         apply_default_shortcuts(win)
 
     except Exception:
-
         pass
     try:
         apply_accessible_names(win)
