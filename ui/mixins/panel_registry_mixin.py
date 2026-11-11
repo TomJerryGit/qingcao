@@ -54,6 +54,18 @@ logger = logging.getLogger("QingCao")
 class PanelRegistryMixin:
     """面板懒加载与注册（从 MainWindow 抽取，v2.18）"""
 
+    def __getattr__(self, name):
+        """惰性属性代理：首次访问未构造的非关键面板时按需构造。"""
+        lazy = getattr(type(self), "_LAZY_PANELS", ())
+        if name in lazy and "_panels_built" in self.__dict__:
+            try:
+                if self._ensure_panel(name):
+                    return self.__dict__.get(name)
+            except Exception:
+                pass
+        raise AttributeError(name)
+
+
     def _build_docks(self):
         """构建所有可停靠面板"""
         # 面板引用（初始为 None）
@@ -95,6 +107,27 @@ class PanelRegistryMixin:
                     self._show_panel(name)
             except Exception as e:
                 print(f"[MainWindow] 默认面板 {name} 构造失败: {e}")
+
+        # v2.25 性能：非关键面板延迟到首帧后构造/显示
+        try:
+            from PyQt5.QtCore import QTimer
+
+            QTimer.singleShot(50, self._prewarm_secondary_panels)
+        except Exception:
+            pass
+
+    _SECONDARY_PANELS = ("plugins_panel", "perf_monitor")
+
+    def _prewarm_secondary_panels(self):
+        """首帧后构造并显示非关键面板（plugins/perf），避免拖慢 MainWindow 创建。"""
+        if "_panels_built" not in self.__dict__:
+            return
+        for name in self._SECONDARY_PANELS:
+            try:
+                if self._ensure_panel(name):
+                    self._show_panel(name)
+            except Exception:
+                pass
 
     def _default_panels_for_screen(self):
         """按当前屏幕的**逻辑可用区域**决定"开箱面板"数量

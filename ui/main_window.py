@@ -259,8 +259,7 @@ class MainWindow(
     _DEFAULT_PANELS = (
         "dir_tree",  # 左侧：项目目录树
         "gsearch",  # 底部：全局搜索
-        "plugins_panel",  # 右侧：插件
-        "perf_monitor",  # 底部：性能监控
+        # plugins_panel / perf_monitor 在首帧后由 _prewarm_secondary_panels 构造
     )
 
     _TOOLBAR_ICONS = (

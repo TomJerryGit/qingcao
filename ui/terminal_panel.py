@@ -156,22 +156,10 @@ class TerminalTab(QWidget):
         copy_btn.setFixedWidth(60)
         copy_btn.clicked.connect(self.copy_output)
         row.addWidget(copy_btn)
-        self.history_btn = QPushButton("历史")
-        self.history_btn.setFixedWidth(56)
-        self.history_btn.setToolTip("查看终端历史（独立 scrollback 视图）")
-        self.history_btn.clicked.connect(self.show_history)
-        row.addWidget(self.history_btn)
-        self.raw_btn = QPushButton("raw")
-        self.raw_btn.setFixedWidth(56)
-        self.raw_btn.setCheckable(True)
-        self.raw_btn.setToolTip("原始输入：按键直接发送到 PTY（alt-screen 等交互程序）")
-        self.raw_btn.toggled.connect(self.set_raw_mode)
-        row.addWidget(self.raw_btn)
         vbox.addLayout(row)
 
-        self.output = TerminalOutput()
+        self.output = QTextEdit()
         self.output.setReadOnly(True)
-        self.output._screen = self._screen
         self.output.setFont(QFont("Consolas", 10))
         self.output.setStyleSheet(
             "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }"
@@ -197,28 +185,6 @@ class TerminalTab(QWidget):
             return
         escaped = html.escape(str(text).rstrip("\n")).replace("\n", "<br>")
         self.output.append(escaped)
-
-    def show_history(self):
-        dlg = TerminalHistoryDialog(self._screen, self)
-        dlg.exec_()
-
-    def _render_screen(self):
-        """把 VT 屏幕网格渲染到输出区（P6：内容未变时跳过，降低 CPU）。"""
-        if not render_needed(self._screen, getattr(self, "_last_revision", -1)):
-            return
-        self._last_revision = getattr(self._screen, "revision", 0)
-        try:
-            bar = self.output.verticalScrollBar()
-            at_bottom = bar.value() >= bar.maximum() - 2
-            old_value = bar.value()
-            self.output.setHtml(self._screen.render_html())
-            if at_bottom:
-                self.output.moveCursor(self.output.textCursor().End)
-                self.output.ensureCursorVisible()
-            else:
-                bar.setValue(min(old_value, bar.maximum()))
-        except Exception:
-            pass
 
     def _append_ansi(self, text):
         if not text:
@@ -498,10 +464,22 @@ class PtyTerminalTab(QWidget):
         copy_btn.setFixedWidth(60)
         copy_btn.clicked.connect(self.copy_output)
         row.addWidget(copy_btn)
+        self.history_btn = QPushButton("历史")
+        self.history_btn.setFixedWidth(56)
+        self.history_btn.setToolTip("查看终端历史（独立 scrollback 视图）")
+        self.history_btn.clicked.connect(self.show_history)
+        row.addWidget(self.history_btn)
+        self.raw_btn = QPushButton("raw")
+        self.raw_btn.setFixedWidth(56)
+        self.raw_btn.setCheckable(True)
+        self.raw_btn.setToolTip("原始输入：按键直接发送到 PTY（alt-screen 等交互程序）")
+        self.raw_btn.toggled.connect(self.set_raw_mode)
+        row.addWidget(self.raw_btn)
         vbox.addLayout(row)
 
-        self.output = QTextEdit()
+        self.output = TerminalOutput()
         self.output.setReadOnly(True)
+        self.output._screen = self._screen
         self.output.setFont(QFont("Consolas", 10))
         self.output.setStyleSheet(
             "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; }"
@@ -535,6 +513,28 @@ class PtyTerminalTab(QWidget):
         self.output.moveCursor(self.output.textCursor().End)
         self.output.insertHtml(ansi_to_html(text))
         self.output.ensureCursorVisible()
+
+    def show_history(self):
+        dlg = TerminalHistoryDialog(self._screen, self)
+        dlg.exec_()
+
+    def _render_screen(self):
+        """P6：内容未变时跳过重绘；保持用户滚动位置。"""
+        if not render_needed(self._screen, getattr(self, "_last_revision", -1)):
+            return
+        self._last_revision = getattr(self._screen, "revision", 0)
+        try:
+            bar = self.output.verticalScrollBar()
+            at_bottom = bar.value() >= bar.maximum() - 2
+            old_value = bar.value()
+            self.output.setHtml(self._screen.render_html())
+            if at_bottom:
+                self.output.moveCursor(self.output.textCursor().End)
+                self.output.ensureCursorVisible()
+            else:
+                bar.setValue(min(old_value, bar.maximum()))
+        except Exception:
+            pass
 
     def _drain(self):
         try:
@@ -578,6 +578,10 @@ class PtyTerminalTab(QWidget):
             pass
 
     def clear_output(self):
+        try:
+            self._screen.clear()
+        except Exception:
+            pass
         self.output.clear()
 
     def copy_output(self):
