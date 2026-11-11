@@ -195,9 +195,15 @@ class TerminalTab(QWidget):
     def _render_screen(self):
         """P2：把 VT 屏幕网格渲染到输出区（alt-screen/光标/颜色）。"""
         try:
+            bar = self.output.verticalScrollBar()
+            at_bottom = bar.value() >= bar.maximum() - 2
+            old_value = bar.value()
             self.output.setHtml(self._screen.render_html(include_scrollback=True))
-            self.output.moveCursor(self.output.textCursor().End)
-            self.output.ensureCursorVisible()
+            if at_bottom:
+                self.output.moveCursor(self.output.textCursor().End)
+                self.output.ensureCursorVisible()
+            else:
+                bar.setValue(min(old_value, bar.maximum()))
         except Exception:
             pass
 
@@ -323,6 +329,8 @@ class TerminalOutput(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._screen = None
+        self._pressed = False
+        self._button = 0
         self.setMouseTracking(True)
 
     def _cell(self, event):
@@ -333,8 +341,11 @@ class TerminalOutput(QTextEdit):
 
     def mousePressEvent(self, event):
         if self._screen is not None and self._screen.mouse_reporting:
+            button = {Qt.LeftButton: 0, Qt.MiddleButton: 1, Qt.RightButton: 2}.get(
+                event.button(), 0)
+            self._pressed, self._button = True, button
             col, row = self._cell(event)
-            data = self._screen.encode_mouse(0, col, row, True)
+            data = self._screen.encode_mouse(button, col, row, True)
             if data:
                 self.mouse_input.emit(data)
                 event.accept()
@@ -342,14 +353,40 @@ class TerminalOutput(QTextEdit):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if self._screen is not None and self._screen.mouse_reporting:
+        if self._pressed and self._screen is not None and self._screen.mouse_reporting:
             col, row = self._cell(event)
-            data = self._screen.encode_mouse(0, col, row, False)
+            data = self._screen.encode_mouse(self._button, col, row, False)
+            self._pressed = False
             if data:
                 self.mouse_input.emit(data)
                 event.accept()
                 return
+        self._pressed = False
         super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (self._pressed and self._screen is not None
+                and (1002 in self._screen.mouse_reporting
+                     or 1003 in self._screen.mouse_reporting)):
+            col, row = self._cell(event)
+            data = self._screen.encode_mouse(
+                self._button, col, row, True, motion=True)
+            if data:
+                self.mouse_input.emit(data)
+                event.accept()
+                return
+        super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event):
+        if self._screen is not None and self._screen.mouse_reporting:
+            col, row = self._cell(event)
+            data = self._screen.encode_wheel(
+                event.angleDelta().y() > 0, col, row)
+            if data:
+                self.mouse_input.emit(data)
+                event.accept()
+                return
+        super().wheelEvent(event)
 
 
 class PtyLineEdit(HistoryLineEdit):

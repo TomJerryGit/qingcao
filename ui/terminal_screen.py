@@ -322,12 +322,26 @@ class TerminalScreen:
             self._saved = None
             self.alt = False
 
-    def encode_mouse(self, button, col, row, pressed=True, mods=0):
+    def encode_mouse(self, button, col, row, pressed=True, mods=0, motion=False):
         """SGR 鼠标编码（?1006）：返回要写入 PTY 的字节串。"""
         b = int(button) + int(mods)
+        if motion:
+            if not (1002 in self.mouse_reporting or 1003 in self.mouse_reporting):
+                return ""
+            b += 32
         x, y = max(1, int(col)), max(1, int(row))
         if 1006 in self.mouse_reporting or 1015 in self.mouse_reporting:
             return "\x1b[<%d;%d;%d%s" % (b, x, y, "M" if pressed else "m")
+        return ""
+
+    def encode_wheel(self, up, col, row, mods=0):
+        """滚轮编码（SGR）：64=上滚，65=下滚。"""
+        if not self.mouse_reporting:
+            return ""
+        x, y = max(1, int(col)), max(1, int(row))
+        b = (64 if up else 65) + int(mods)
+        if 1006 in self.mouse_reporting or 1015 in self.mouse_reporting:
+            return "\x1b[<%d;%d;%dM" % (b, x, y)
         return ""
 
     def scrollback_lines(self):

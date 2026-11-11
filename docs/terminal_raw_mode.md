@@ -44,3 +44,13 @@
 ### 限制
 - 仅上报左键按下/释放；拖动（?1002 motion）与滚轮编码待补；
 - 历史与实时输出在同一 QTextEdit 中，滚动位置在刷新时会回到底部（后续可做独立 scrollback 视图）。
+
+## P5（已实现）
+- **滚轮上报**：`encode_wheel(up,…)` → SGR `64/65`；输出区 `wheelEvent` 转 PTY；
+- **拖动上报**：按住时 `mouseMoveEvent` 按 `?1002/?1003` 发送 motion（button+32）；
+- **滚动位置保持**：渲染前记录 scrollbar，用户不在底部时恢复原位置；在底部时自动跟随最新输出；
+- 测试：`tests/test_v225_terminal_p5.py`（编码/滚轮事件/位置保持静态检查）；
+- P3 真机 PTY 回归仍 PASS。
+
+### 终端 P1–P5 完成
+raw 输入、alt-screen/ANSI、滚动区、滚动缓冲、24bit 真彩、鼠标上报（点击/拖动/滚轮）、滚动位置保持。
