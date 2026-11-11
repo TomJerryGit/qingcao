@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **插件开发生态**：新增 `docs/plugin_development.md`（清单/权限/生命周期/发布）与 `tools/new_plugin.py` 模板生成器（含测试）。
+
+
+### 工程
+
 - **评分运营闭环**：Issue 模板 → `tools/collect_issue_ratings.py`（幂等加权合并）→ `Ratings Ingest` 每日自动收集 → 自动提交并触发签名注册表发布。
 
 
