@@ -17,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data", "plugin_ratings.json")
 OUT = os.path.join(ROOT, "data", "registry_github", "ratings.json")
 COMMUNITY = os.path.join(ROOT, "data", "ratings_community.json")
+COMMUNITY_TRACKED = os.path.join(ROOT, "community_ratings.json")
 
 
 def aggregate(local_path=SRC):
@@ -37,10 +38,14 @@ def aggregate(local_path=SRC):
             continue
         data["plugins"][name] = {"average": float(stars), "count": 1, "sources": ["local"]}
     # v2.24：并入真实用户提交的社区聚合（加权平均）
-    try:
-        community = json.load(io.open(COMMUNITY, encoding="utf-8"))
-    except Exception:
-        community = {}
+    community = {}
+    for _path in (COMMUNITY_TRACKED, COMMUNITY):
+        try:
+            community = json.load(io.open(_path, encoding="utf-8"))
+            if community.get("plugins"):
+                break
+        except Exception:
+            continue
     for name, rec in (community.get("plugins") or {}).items():
         try:
             avg = max(1.0, min(5.0, float(rec.get("average", 0))))

@@ -33,3 +33,4 @@ jobs:
             echo "缺少 secret QINGCAO_PLUGIN_SIGN_KEY"; exit 1
           fi
           python tools/publish_registry_release.py --out data/registry_github
+# republish: real ratings 2026-11-11 (16 plugins)

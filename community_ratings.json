@@ -1,0 +1,119 @@
+{
+  "generated_at": "2026-11-11 09:55:32",
+  "plugins": {
+    "ai_assistant": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "dark_night": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "demo": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "eye_protect": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "git_deep": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "high_contrast": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "json_formatter": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "markdown_preview": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "my_plugin": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "python_debugger": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "sandbox_demo": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "spell_check": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "todo_panel": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "whitespace_sandbox": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "wordcount": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    },
+    "wordcount_sandbox": {
+      "average": 5.0,
+      "count": 1,
+      "sources": [
+        "plugin_ratings.json"
+      ]
+    }
+  },
+  "source": "community-submissions",
+  "version": 1
+}

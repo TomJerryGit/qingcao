@@ -49,8 +49,9 @@ def test_aggregate_includes_community(tmp_path, monkeypatch):
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "COMMUNITY_TRACKED", str(tmp_path / "none.json"))
     monkeypatch.setattr(mod, "COMMUNITY", str(community))
     monkeypatch.setattr(mod, "SRC", str(tmp_path / "missing.json"))
-    data = mod.aggregate()
+    data = mod.aggregate(str(tmp_path / 'missing.json'))
     assert data["source"] == "local+community"
     assert data["plugins"]["demo"]["average"] == 4.5

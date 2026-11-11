@@ -71,7 +71,8 @@ def main():
     ap.add_argument("--out", default=OUT)
     args = ap.parse_args()
     plugins, sources = merge(args.files)
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    _out_dir = os.path.dirname(os.path.abspath(args.out))
+    os.makedirs(_out_dir, exist_ok=True)
     io.open(args.out, "w", encoding="utf-8", newline="\n").write(
         json.dumps(
             {
