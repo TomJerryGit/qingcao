@@ -133,11 +133,8 @@ def test_batch3_split():
         assert mixin in names
 
 
-def test_no_py_file_over_2000_lines():
-    """第三批目标达成：全仓（除归档）无 >2,000 行文件。
-
-    六目标文件均 ≤1,100 行；其余历史文件（1,500–1,920 行）为下一批候选。
-    """
+def test_no_py_file_over_1800_lines():
+    """v2.25 阶段 2.6：全仓（除归档）无 >1,800 行文件。"""
     offenders = []
     for root, _dirs, files in os.walk(ROOT):
         if any(part in root for part in (".git", "__pycache__", "dist", "build", "_archive")):
@@ -148,7 +145,7 @@ def test_no_py_file_over_2000_lines():
             path = os.path.join(root, name)
             rel = os.path.relpath(path, ROOT).replace("\\", "/")
             n = _lines(rel)
-            if n > 2000:
+            if n > 1800:
                 offenders.append((rel, n))
     assert not offenders, offenders
 
@@ -318,3 +315,47 @@ def test_phase24_splits():
             LspServerRegistry,
         )
     )
+
+
+# v2.25 阶段 2.6：新代码默认上限 1,300 行；
+# 历史长尾文件列入白名单（附当前上限），已达标后必须从白名单移除。
+_ALLOWLIST = {
+    "ui/directory_tree.py": 1480,
+    "core/macro.py": 1460,
+    "infrastructure/theme_loader.py": 1420,
+    "core/document_core.py": 1420,
+    "ui/plugin_client.py": 1410,
+    "ui/column_editor_dialog_common.py": 1385,
+    "infrastructure/plugin_updater.py": 1370,
+    "app/preferences.py": 1340,
+    "ui/command_palette.py": 1335,
+    "ui/plugin_store.py": 1325,
+}
+
+
+def test_v225_architecture_ratchet():
+    """业务代码 ≤1,300；白名单文件必须仍 >1,300（达标即移除）。"""
+    import glob
+
+    biz = []
+    for base in ("app", "core", "ui", "infrastructure", "plugins"):
+        biz.extend(glob.glob(os.path.join(base, "**", "*.py"), recursive=True))
+    biz.append("main.py")
+    problems = []
+    for path in biz:
+        rel = path.replace("\\", "/")
+        if "_archive" in rel or "__pycache__" in rel:
+            continue
+        n = _lines(rel)
+        limit = _ALLOWLIST.get(rel, 1300)
+        if n > limit:
+            problems.append((rel, n, limit))
+    assert not problems, problems
+    # 白名单不得变成"永久豁免"：已 ≤1,300 的必须移除
+    stale = []
+    for rel, cap in _ALLOWLIST.items():
+        assert cap <= 1500, (rel, cap)
+        if _lines(rel) <= 1300:
+            stale.append(rel)
+    assert not stale, "已达标，请从 _ALLOWLIST 移除: %s" % stale
+    assert len(_ALLOWLIST) <= 12

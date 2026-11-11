@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **架构门禁加严（阶段 2.6）**：业务文件 ≤1,300（10 个长尾白名单，达标即移除）、全局 ≤1,800，CI 强制棘轮。
+
+
+### 工程
+
 - **崩溃聚合**：新增 `tools/crash_triage.py`（faulthandler 转储 + CI flaky 历史 → 归组报告），生成 `docs/crash_triage_report.md`；基线 9 dumps / 8 flaky / 3 组。
 
 

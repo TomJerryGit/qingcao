@@ -33,7 +33,7 @@
 | 2.3 ✅ | `capability_wiring_mixin.py` 1,537 → **75**（keyseq 275 / plugins 326 / panels 553 / commands 292），MRO 兼容 | 主文件 <160，测试通过 | 1d |
 | 2.4 ✅ | global_search **1,514→986**、keymap_editor **1,503→676**、lsp_client **1,501→1,217**；新增 `test_phase24_splits` 门禁 | 全部 <1,300，测试通过 | 2d |
 | 2.5 ✅ | `tools/crash_triage.py`：聚合 faulthandler 转储 + CI flaky 历史，输出 `docs/crash_triage_report.md` / `data/crash_triage.json`（当前基线：9 dumps / 8 flaky / 3 组） | 聚合可用，flaky 下降持续跟踪 | 2d |
-| 2.6 | 架构门禁加严：业务文件 ≤1,300、全局 ≤1,800 | CI 强制 | 0.5d |
+| 2.6 ✅ | 门禁加严：业务文件 ≤1,300（10 个历史长尾白名单，≤1500 且达标即移除）、全局 ≤1,800；新增 `test_v225_architecture_ratchet` | CI 强制 | 0.5d |
 
 **里程碑 M2（v2.25.2）**：全仓业务文件 ≤1,300；flaky 有数据可见；评分 8.6。
 
