@@ -8,6 +8,7 @@ import os
 import sys
 
 from core.sandbox_rpc import (
+    ERROR_LIMIT,
     ERROR_PERMISSION_DENIED,
     ERROR_TIMEOUT,
     RpcError,
@@ -34,6 +35,7 @@ METHOD_PERMISSIONS = {
     "write_file": "filesystem",
     "register_remote_panel": "dialog",
     "show_remote_panel": "dialog",
+    "http_request": "network",
     "run_command": "process",
     "run_python": "process",
 }
@@ -43,11 +45,16 @@ HIGH_RISK = {"process", "terminal", "debugger"}
 class CapabilityBroker:
     """主进程侧：按 manifest 权限校验并转发到宿主 API。"""
 
+    NETWORK_MAX_PER_MIN = 60
+    NETWORK_MAX_BYTES = 1024 * 1024
+
     def __init__(self, permissions, host_api, allow_high_risk=False, policy=None):
         self.permissions = set(permissions or [])
         self.host_api = host_api
         self.allow_high_risk = allow_high_risk
         self.policy = policy
+        self._net_times = []
+        self.network_denials = []
 
     def dispatch(self, name, args):
         perm = METHOD_PERMISSIONS.get(name)
@@ -61,12 +68,58 @@ class CapabilityBroker:
             path = (args or [None])[0]
             if self.policy is None or not self.policy.check_path(path):
                 raise RpcError(ERROR_PERMISSION_DENIED, "path denied: %s" % path)
+        if name == "http_request":
+            return self._http_request(*(args or []))
         try:
             return getattr(self.host_api, name)(*(args or []))
         except RpcError:
             raise
         except Exception as e:
             raise RpcError(-32000, "host api failed: %s" % e)
+
+    def _http_request(self, url, method="GET", headers=None, data=None, timeout=10):
+        import time
+        import urllib.parse
+        import urllib.request
+
+        try:
+            parsed = urllib.parse.urlparse(str(url))
+        except Exception:
+            parsed = None
+        host = (parsed.hostname or "") if parsed else ""
+        if (
+            parsed is None
+            or parsed.scheme not in ("http", "https")
+            or self.policy is None
+            or not self.policy.check_host(host)
+        ):
+            self.network_denials.append({"url": str(url), "reason": "host", "host": host})
+            raise RpcError(ERROR_PERMISSION_DENIED, "domain denied: %s" % host)
+        now = time.time()
+        self._net_times = [t for t in self._net_times if now - t < 60]
+        if len(self._net_times) >= self.NETWORK_MAX_PER_MIN:
+            self.network_denials.append({"url": str(url), "reason": "rate"})
+            raise RpcError(ERROR_LIMIT, "network rate limit exceeded")
+        self._net_times.append(now)
+        body = None
+        if data is not None:
+            body = data.encode("utf-8") if isinstance(data, str) else data
+        req = urllib.request.Request(
+            str(url), data=body, method=str(method or "GET").upper(), headers=dict(headers or {})
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read(self.NETWORK_MAX_BYTES + 1)
+                truncated = len(raw) > self.NETWORK_MAX_BYTES
+                return {
+                    "status": getattr(resp, "status", 200),
+                    "headers": dict(getattr(resp, "headers", {}).items()),
+                    "body": raw[: self.NETWORK_MAX_BYTES].decode("utf-8", "replace"),
+                    "truncated": truncated,
+                }
+        except Exception as e:
+            self.network_denials.append({"url": str(url), "reason": "error", "error": str(e)})
+            raise RpcError(-32000, "network error: %s" % e)
 
 
 class RemoteAPI:
@@ -169,6 +222,9 @@ class RemoteAPI:
 
     def show_remote_panel(self, panel_id=0):
         return self._call("show_remote_panel", panel_id)
+
+    def http_request(self, url, method="GET", headers=None, data=None, timeout=10):
+        return self._call("http_request", url, method, headers or {}, data, timeout)
 
     def read_file(self, path):
         return self._call("read_file", path)

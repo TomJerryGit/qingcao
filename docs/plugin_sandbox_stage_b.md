@@ -159,3 +159,14 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 ```
 
 限制：json_formatter 的 hover/code-action provider 仅登记未接线（B2.1b）；设置 schema 仅存储未渲染（R1.2）。
+
+## R1.3 网络 broker（已实现，2026-11-12）
+
+- `RemoteAPI.http_request(url, method, headers, data, timeout)` → 主进程 `CapabilityBroker._http_request`；
+- **域名白名单**：manifest `network_allowlist: ["api.example.com"]`（无配置则全部拒绝）；
+- **协议限制**：仅 http/https；响应上限 1MB（截断标记）；
+- **速率限制**：默认 60 次/分钟/插件；
+- **拒绝审计**：`broker.network_denials`（host/rate/error），供 UI/日志汇总；
+- 权限：仍需 `network` 权限声明。
+
+验证：`tests/test_v225_sandbox_network.py`（白名单通过/域名拒绝审计/限流/子进程端到端）。

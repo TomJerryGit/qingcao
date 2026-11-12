@@ -315,7 +315,17 @@ class IsolatedPluginHost(QObject):
             plugin_dir = os.path.join(root, name)
             if not os.path.isdir(plugin_dir):
                 continue
-            policy = SandboxPolicy([plugin_dir, ROOT])
+            allowed_hosts = []
+            try:
+                import json
+
+                manifest = json.load(
+                    open(os.path.join(plugin_dir, "plugin.json"), encoding="utf-8")
+                )
+                allowed_hosts = manifest.get("network_allowlist") or []
+            except Exception:
+                pass
+            policy = SandboxPolicy([plugin_dir, ROOT], allowed_hosts)
             proc = PluginProcess(plugin_dir, self.api, timeout=15, policy=policy)
             self.api.host = proc
             try:
