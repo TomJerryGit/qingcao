@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "note": "第一方插件允许列表；第三方插件默认不在此列表，阶段 A 仅告警不阻断。",
+  "plugins": [
+    "ai_assistant", "demo", "git_deep", "json_formatter", "logtail",
+    "markdown_preview", "my_plugin", "python_debugger", "sandbox_demo",
+    "spell_check", "todo_panel", "whitespace_sandbox", "wordcount",
+    "wordcount_sandbox"
+  ]
+}

@@ -78,6 +78,12 @@ def main():
                 return 0
         except Exception:
             pass
+    try:
+        from core.plugin_guard import install_audit_guard
+
+        install_audit_guard()
+    except Exception:
+        pass
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(__version__)

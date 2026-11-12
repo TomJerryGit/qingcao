@@ -2,6 +2,11 @@
 
 ### 安全
 
+- **插件沙箱阶段 A**：静态 AST 审计 + 运行时告警（import/os.system/subprocess/ctypes，仅告警）+ 可信允许列表；审计报告 `docs/plugin_sandbox_report.md`（14 插件、非可信高危 0）。
+
+
+### 安全
+
 - **P0 整改**：`test.yml` 移除 `pull_request` 触发（自托管 runner 不执行不可信 PR 代码），PR 改由托管 `test-fallback` 验证；
 - 新增 `requirements-lock.txt`、`docs/security_review_v2.25.md`、`docs/todo_cleanup_v2.25.md`；清理本地 build/dist。
 

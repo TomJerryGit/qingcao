@@ -1,0 +1,109 @@
+[
+  {
+    "plugin": "ai_assistant",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "demo",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "git_deep",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "json_formatter",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "logtail",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "markdown_preview",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "my_plugin",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "python_debugger",
+    "trusted": true,
+    "findings": [
+      {
+        "kind": "call",
+        "name": "eval",
+        "risk": "high",
+        "file": "D:\\QingCaoEditor\\plugins\\python_debugger\\driver.py",
+        "line": 454,
+        "plugin": "python_debugger",
+        "allowed": true
+      },
+      {
+        "kind": "import",
+        "name": "subprocess",
+        "risk": "high",
+        "file": "D:\\QingCaoEditor\\plugins\\python_debugger\\session.py",
+        "line": 24,
+        "plugin": "python_debugger",
+        "allowed": true
+      },
+      {
+        "kind": "import",
+        "name": "subprocess",
+        "risk": "high",
+        "file": "D:\\QingCaoEditor\\plugins\\python_debugger\\__init__.py",
+        "line": 30,
+        "plugin": "python_debugger",
+        "allowed": true
+      },
+      {
+        "kind": "call",
+        "name": "subprocess.Popen",
+        "risk": "high",
+        "file": "D:\\QingCaoEditor\\plugins\\python_debugger\\__init__.py",
+        "line": 599,
+        "plugin": "python_debugger",
+        "allowed": true
+      }
+    ]
+  },
+  {
+    "plugin": "sandbox_demo",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "spell_check",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "todo_panel",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "whitespace_sandbox",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "wordcount",
+    "trusted": true,
+    "findings": []
+  },
+  {
+    "plugin": "wordcount_sandbox",
+    "trusted": true,
+    "findings": []
+  }
+]
