@@ -24,7 +24,7 @@
 | # | 任务 | 验收 | 工作量 |
 |---|---|---|---|
 | R1.1 ✅ | demo + **wordcount 远程面板**灰度通过（面板/统计/菜单回调）；json_formatter provider 待 B2.1b | 2 插件功能对等 | 2d |
-| R1.2 | UI 回调补全：`remove_status_item`、设置 schema 渲染、配置页 | 设置项可见可保存 | 2d |
+| R1.2 ✅ | 隔离插件设置 schema：宿主侧动态对话框（bool/int/float/choice/str）+「工具/插件设置」入口 + 按插件前缀持久化；测试 3/3 | 2d |
 | R1.3 | 网络 broker：域名白名单 + 速率限制 + 审批 | 非白名单请求被拒（-32001） | 2d |
 | R1.4 | 高风险 API（process/terminal/debugger）默认拒绝 + Ed25519 信任要求 | 未签名插件调用被拒；签名插件逐次确认 | 2d |
 | R1.5 | 沙箱回归套件：14 插件烟测 + 崩溃注入 | CI 新 job 通过 | 1d |

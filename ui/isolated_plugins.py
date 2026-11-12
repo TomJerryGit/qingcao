@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
 
 from core.plugin_sandbox_policy import SandboxPolicy
 from core.plugin_supervisor import PluginHostError, PluginProcess
+from ui.plugin_settings_dialog import SchemaSettingsDialog
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,12 +60,15 @@ class WindowHostAPI:
             window.tabs.currentChanged.connect(lambda *_: self._cache_text())
         except Exception:
             pass
+        self._cached_text = ""
         self._cache_text()
         self.menus = {}
         self.status_items = {}
         self.settings = QSettings("QingCao", "PluginData")
         self._next_status = 1
         self._schemas = {}
+        self.schemas = {}
+        self._settings_actions = {}
         self.remote_panels = {}
         self.providers = {"hover": {}, "code_action": {}, "completion": {}}
         self._panel_seq = 0
@@ -169,16 +173,51 @@ class WindowHostAPI:
             return None
 
     # ---- 配置 ----
-    def get_config(self, key, default=None):
-        return self.settings.value("plugins/%s" % key, default)
+    def _cfg_key(self, key, plugin_name=None):
+        if plugin_name:
+            return "plugins/%s/%s" % (plugin_name, key)
+        return "plugins/%s" % key
 
-    def set_config(self, key, value):
-        self.settings.setValue("plugins/%s" % key, value)
+    def get_config(self, key, default=None, plugin_name=None):
+        return self.settings.value(self._cfg_key(key, plugin_name), default)
+
+    def set_config(self, key, value, plugin_name=None):
+        self.settings.setValue(self._cfg_key(key, plugin_name), value)
         return True
 
-    def register_settings_schema(self, schema):
-        self._schemas[id(schema)] = schema
+    def register_settings_schema(self, schema, plugin_name=None):
+        name = plugin_name or "unknown"
+        self.schemas[name] = schema
+
+        def _create_menu():
+            menubar = self.window.menuBar()
+            tools = None
+            for act in menubar.actions():
+                if act.text().replace("&", "").strip() == "工具":
+                    tools = act.menu()
+                    break
+            if tools is None:
+                tools = menubar.addMenu("工具")
+            sub = None
+            for act in tools.actions():
+                if act.text() == "插件设置":
+                    sub = act.menu()
+                    break
+            if sub is None:
+                sub = tools.addMenu("插件设置")
+            action = QAction("设置: %s" % name, self.window)
+            action.triggered.connect(lambda _=False, n=name: self.open_settings(n).exec_())
+            sub.addAction(action)
+            self._settings_actions[name] = action
+
+        self._bridge.submit(_create_menu)
         return True
+
+    def open_settings(self, plugin_name):
+        schema = self.schemas.get(plugin_name)
+        if schema is None:
+            raise ValueError("plugin has no settings schema: %s" % plugin_name)
+        return SchemaSettingsDialog(plugin_name, schema, parent=self.window)
 
     def register_remote_panel(self, title, fields, refresh_cb):
         self._panel_seq += 1

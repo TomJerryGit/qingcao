@@ -79,6 +79,7 @@ class RemoteAPI:
         self._next_id = 1
         self._read_response = read_response
         self._callbacks = {}
+        self.plugin_name = ""
 
     def _call(self, name, *args):
         req_id = self._next_id
@@ -153,14 +154,13 @@ class RemoteAPI:
         return self._call("add_status_item", text)
 
     def set_config(self, key, value):
-        return self._call("set_config", key, value)
+        return self._call("set_config", key, value, self.plugin_name)
 
     def get_config(self, key, default=None):
-        return self._call("get_config", key, default)
+        return self._call("get_config", key, default, self.plugin_name)
 
     def register_settings_schema(self, schema):
-        # B1：schema 透传到主进程（由 UI 层渲染）
-        return self._call("register_settings_schema", schema)
+        return self._call("register_settings_schema", schema, self.plugin_name)
 
     def register_remote_panel(self, title, fields, refresh):
         cb_id = len(self._callbacks)
@@ -249,6 +249,7 @@ def main(argv=None):
             break
     plugin = load_plugin(args.plugin_dir)
     api = RemoteAPI(write, read_response)
+    api.plugin_name = manifest.get("name", os.path.basename(args.plugin_dir))
     plugin.api = api
     plugin.on_activate()
     write(notification("host.activated"))
