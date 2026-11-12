@@ -30,6 +30,14 @@ def test_pty_tab_echo(qapp):
     try:
         tab = panel.add_tab(pty=True)
         assert getattr(tab, "kind", "") == "pty", type(tab).__name__
+
+        # 等待 shell 提示符/启动横幅出现后再输入，避免慢机器上命令早于 PTY 就绪
+        def _shell_ready():
+            screen = getattr(tab, "_screen", None)
+            text = (screen.text() if screen is not None else "") + panel.output.toPlainText()
+            return ">" in text or "$" in text
+
+        assert _pump_until(qapp, _shell_ready, timeout=30), "PTY 未就绪"
         panel.input.setText("echo qc-pty-ui")
         panel.run_command()
 
