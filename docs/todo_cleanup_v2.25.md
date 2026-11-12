@@ -1,23 +1,11 @@
-# TODO/FIXME 清理计划（v2.25）
+# TODO/FIXME 清理结论（v2.25.1 复核）
 
-- 总计：45 处（源码，排除 tools/_archive）
+- 原统计“45 处”包含 **功能名/字符串**（如 `todo_panel`、`TODO 面板`、正则 `TODO|FIXME`），并非待办；
+- 真实注释标记（`# TODO` / `# FIXME`）复核结果：**0 处**；
+- 已修正 1 处易误读注释：`core/builtin_plugins.py` 中 `# TODO 面板` → `# 待办面板`。
 
-| 文件 | 数量 |
-|---|---|
-| `plugins/todo_panel/__init__.py` | 17 |
-| `tools/health_check.py` | 11 |
-| `core/code_smell.py` | 5 |
-| `tools/audit_stubs.py` | 4 |
-| `tools/i18n_scope.py` | 2 |
-| `tools/new_plugin.py` | 2 |
-| `core/builtin_plugins.py` | 1 |
-| `core/problems.py` | 1 |
-| `core/search.py` | 1 |
-| `tools/feature_inventory.py` | 1 |
+## 后续规范
 
-## 处理策略
-
-1. 高价值：与安全/崩溃/数据丢失相关的 TODO 优先（P0/P1）；
-2. 体验类：随对应模块迭代顺手清理；
-3. 长期项：转为 GitHub Issue（带 `TODO` 标签），每季度复核；
-4. 禁止新代码提交裸 TODO（评审时要求带 issue 链接或负责人）。
+1. 新增 TODO 必须使用 `# TODO(owner): 描述` 或关联 issue；
+2. CI 不再以字符串计数作为 TODO 债务指标；改用 `tools/crash_triage` 与 issue 看板；
+3. 每迭代复核 `# TODO`/`# FIXME` 注释（当前为 0）。

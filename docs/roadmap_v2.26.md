@@ -17,13 +17,13 @@
 |---|---|---|---|
 | R0.1 | 发布 v2.25.1（当前增量：沙箱 B1.5、性能看板、密钥轮换、macOS spike、B0/B1） | Release success + SHA256 PASS | 0.5d |
 | R0.2 | 证书 / Authenticode 文档标记关闭；从“待办”移除 | 无遗留待办引用 | 0.2d |
-| R0.3 | TODO 首轮清理：安全/崩溃相关 10 条 | `docs/todo_cleanup_v2.25.md` 更新 | 0.5d |
+| R0.3 ✅ | TODO 指标复核：真实 `# TODO/FIXME` 注释 = **0**（45 处为功能名/字符串；1 处误标已改） | 文档已更新 | 0.5d |
 
 ## 阶段 R1：沙箱 B2 + 低风险插件全量灰度（v2.26.0，1–2 周）
 
 | # | 任务 | 验收 | 工作量 |
 |---|---|---|---|
-| R1.1 | `all` 模式逐插件灰度：demo → wordcount → json_formatter | 3 插件功能对等、无回归 | 2d |
+| R1.1 🟡 | demo 灰度通过；wordcount **可隔离激活**但面板需远程 UI（B2.1）；json_formatter 需 provider 代理 | demo 已验证；wordcount 面板列为 B2.1 | 2d |
 | R1.2 | UI 回调补全：`remove_status_item`、设置 schema 渲染、配置页 | 设置项可见可保存 | 2d |
 | R1.3 | 网络 broker：域名白名单 + 速率限制 + 审批 | 非白名单请求被拒（-32001） | 2d |
 | R1.4 | 高风险 API（process/terminal/debugger）默认拒绝 + Ed25519 信任要求 | 未签名插件调用被拒；签名插件逐次确认 | 2d |

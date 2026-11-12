@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [2.25.1] - 2026-11-12
+
 ### 文档
 
 - **v2.26+ 开发/优化/测试路线图**：沙箱 B2 灰度、架构长尾、flaky/CI、macOS 决策、生态（`docs/roadmap_v2.26.md`）；Authenticode 证书决策为不申请。

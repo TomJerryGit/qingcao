@@ -103,10 +103,47 @@ class RemoteAPI:
     def show_message(self, title, text):
         return self._call("show_message", title, text)
 
-    def add_menu(self, path, callback):
+    def add_menu(self, path, callback, **kwargs):
         cb_id = len(self._callbacks)
         self._callbacks[cb_id] = callback
+        # B1.5：shortcut 等宿主侧属性暂不透传
         return self._call("add_menu", path, cb_id)
+
+    def subscribe(self, event, handler=None):
+        """B1.5：事件订阅尚未跨进程（B2 实现事件桥）。"""
+        self.log("[sandbox] subscribe(%s) not bridged yet" % event, "warning")
+        return True
+
+    def current_editor(self):
+        return None
+
+    def get_main_window(self):
+        return None
+
+    def show_status(self, text, timeout=0, level="info"):
+        return self.log(text, level)
+
+    def register_hover_provider(self, provider, language_ids=None, **kw):
+        self.log("[sandbox] hover provider not bridged yet", "warning")
+        return True
+
+    def register_code_action_provider(self, provider, language_ids=None, **kw):
+        self.log("[sandbox] code-action provider not bridged yet", "warning")
+        return True
+
+    def register_completion_provider(self, provider, language_ids=None, **kw):
+        self.log("[sandbox] completion provider not bridged yet", "warning")
+        return True
+
+    def add_editor_context_menu(self, label, callback=None, **kw):
+        self.log("[sandbox] editor context menu not bridged yet", "warning")
+        return True
+
+    def clear_diagnostics(self):
+        return True
+
+    def publish_diagnostics(self, items):
+        return 0
 
     def add_status_item(self, text):
         return self._call("add_status_item", text)

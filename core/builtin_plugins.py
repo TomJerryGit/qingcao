@@ -40,7 +40,7 @@ BUILT_IN_PLUGINS: FrozenSet[str] = frozenset({
     "markdown_preview",   # Markdown 预览
     "my_plugin",          # 示例插件
     "python_debugger",    # Python 调试器（process）
-    "todo_panel",         # TODO 面板
+    "todo_panel",         # 待办面板
     "wordcount",          # 字数统计
 })
 
