@@ -4,6 +4,7 @@
 import re
 
 from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import QAction
 
 
 # 文本关键字 → 快捷键（按顺序匹配，越靠前越优先）
@@ -115,8 +116,30 @@ def apply_default_shortcuts(window):
         menubar = window.menuBar()
     except Exception:
         return 0
+    # NPP 风格重复菜单：复用/复制菜单项用于入口聚合，禁止再绑快捷键
+    skip_ids = set()
+    for _attr in (
+        "npp_search_menu", "npp_macro_menu", "npp_run_menu",
+        "npp_window_menu", "npp_encoding_menu", "npp_language_menu",
+    ):
+        _menu = getattr(window, _attr, None)
+        if _menu is not None:
+            try:
+                skip_ids.update(id(a) for a in _menu.actions())
+            except Exception:
+                pass
     count = 0
     seen = set()
+    used_sequences = set()
+    text_sequences = {}
+    try:
+        for _act in window.findChildren(QAction):
+            _seq = _act.shortcut().toString()
+            if _seq:
+                used_sequences.add(_seq)
+                text_sequences[_normalize(_act.text())] = _seq
+    except Exception:
+        pass
     for menu_action in menubar.actions():
         menu = menu_action.menu()
         if menu is None:
@@ -125,12 +148,21 @@ def apply_default_shortcuts(window):
             if action.isSeparator() or action in seen:
                 continue
             seen.add(action)
+            if id(action) in skip_ids:
+                continue
             if not action.shortcut().isEmpty():
                 continue
             label = _normalize(action.text())
+            if label in text_sequences:
+                # 同名动作已有快捷键（例如 NPP 风格重复菜单项）→ 不再绑定
+                continue
             for key, seq in DEFAULTS:
                 if key in label:
+                    if seq in used_sequences:
+                        break
                     action.setShortcut(QKeySequence(seq))
+                    used_sequences.add(seq)
+                    text_sequences[label] = seq
                     count += 1
                     break
     return count

@@ -32,6 +32,7 @@ def test_aggregate(tmp_path):
         ),
         encoding="utf-8",
     )
+    mod.COMMUNITY_TRACKED = str(tmp_path / "none.json")
     data = mod.aggregate(str(src))
     assert data["version"] == 1
     assert data["plugins"]["demo"]["average"] == 4.0
