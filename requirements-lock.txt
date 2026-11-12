@@ -1,0 +1,10 @@
+# 当前验证环境冻结（直接依赖）；CI/发布建议使用：pip install -r requirements-lock.txt
+PyQt5==5.15.11
+QScintilla==2.14.1
+chardet==7.4.3
+keyring==25.7.0
+psutil==7.2.2
+pypinyin==0.55.0
+pywinpty==3.1.2
+reportlab==5.0.1
+requests==2.34.2

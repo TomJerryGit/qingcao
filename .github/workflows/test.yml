@@ -5,7 +5,8 @@
 on:
   push:
     branches: [main]
-  pull_request:
+  # P0 安全：禁止 PR 在 self-hosted runner 上执行不可信代码
+  # （PR 验证请使用托管的 Test Fallback 工作流）
 
 permissions:
   contents: read

@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全
+
+- **P0 整改**：`test.yml` 移除 `pull_request` 触发（自托管 runner 不执行不可信 PR 代码），PR 改由托管 `test-fallback` 验证；
+- 新增 `requirements-lock.txt`、`docs/security_review_v2.25.md`、`docs/todo_cleanup_v2.25.md`；清理本地 build/dist。
+
+
 ## [2.25.0] - 2026-11-12
 
 ### 文档
