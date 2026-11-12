@@ -40,9 +40,7 @@ def test_pty_tab_echo(qapp):
             screen = getattr(tab, "_screen", None)
             return bool(screen and "qc-pty-ui" in screen.text())
 
-        assert _pump_until(qapp, _echo_seen, timeout=30), (
-            panel.output.toPlainText()[-200:]
-        )
+        assert _pump_until(qapp, _echo_seen, timeout=30), panel.output.toPlainText()[-200:]
     finally:
         panel.close()
 
