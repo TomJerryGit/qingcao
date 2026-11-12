@@ -2,6 +2,11 @@
 
 ### 安全
 
+- **插件沙箱 B1.5**：隔离插件菜单/状态栏接到真实 QMainWindow（线程安全 UI 桥）；`QINGCAO_PLUGIN_ISOLATION=demo` 灰度 demo 插件；加载器排除隔离插件避免重复。
+
+
+### 安全
+
 - **插件沙箱 B1**：`QINGCAO_PLUGIN_ISOLATION` 开关、菜单 callback id 协议、文件路径白名单；`plugins/demo` 子进程试点通过（菜单回调 → 字符数输出）。
 
 

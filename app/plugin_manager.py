@@ -690,6 +690,13 @@ class PluginManager(QObject):
                         self.plugin_dir)}
             except Exception as e:
                 print(f"[PluginManager] 沙箱插件发现失败: {e}")
+            # B1.5：flag 指定的插件改由 PluginProcess 承载，主进程不 import
+            try:
+                from app.plugin_isolation import isolated_plugin_names
+
+                exclude_names |= isolated_plugin_names(self.plugin_dir)
+            except Exception as e:
+                print(f"[PluginManager] 隔离开关读取失败: {e}")
             result = self.loader.load_all(
                 plugin_dir=self.plugin_dir,
                 api_factory=api_factory,

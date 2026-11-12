@@ -58,6 +58,7 @@ class PluginsUIMixin:
         """显示插件市场"""
         try:
             from ui.plugin_store import PluginStoreDialog
+
             dlg = PluginStoreDialog(self)
             dlg.exec_()
         except Exception as e:
@@ -79,7 +80,7 @@ class PluginsUIMixin:
         # 窗口若在这 100ms 内被关闭，定时器仍会触发 —— 此时会去弹权限
         # 确认框、创建插件面板，进而在后续测试的事件循环里造成模态阻塞，
         # 甚至访问已销毁控件（实测全量测试偶发挂起/段错误）。
-        if getattr(self, '_closing', False):
+        if getattr(self, "_closing", False):
             print("[MainWindow] 窗口已关闭，跳过延迟插件加载")
             return
 
@@ -111,6 +112,7 @@ class PluginsUIMixin:
             if self.plugin_manager is None:
                 try:
                     from app.plugin_manager import PluginManager
+
                     self.plugin_manager = PluginManager(
                         main_window=self,
                         plugin_dir=_plugin_dir,
@@ -133,9 +135,7 @@ class PluginsUIMixin:
                     # defer_heavy=True：manifest 声明 defer_activation 的
                     # 重量级插件（如 ai_assistant 导入要 0.53s）延后到窗口
                     # 显示后再加载，避免"窗口刚出现就卡 0.6 秒"。
-                    result = self.plugin_manager.load_all(
-                        auto_activate=True, defer_heavy=True
-                    )
+                    result = self.plugin_manager.load_all(auto_activate=True, defer_heavy=True)
                     loader = self.plugin_manager.loader
                 except Exception as e:
                     print(f"[MainWindow] PluginManager 加载失败: {e}")
@@ -147,18 +147,13 @@ class PluginsUIMixin:
             # 回退路径：PluginManager 不可用时仍用裸 loader，
             # 但必须显式打印警告（无权限确认）
             if result is None:
-                print(
-                    "[MainWindow] 警告：PluginManager 不可用，"
-                    "回退到无权限确认的加载路径"
-                )
+                print("[MainWindow] 警告：PluginManager 不可用，回退到无权限确认的加载路径")
                 loader = PluginLoader(plugin_dir=_plugin_dir)
 
                 # 关键：api_factory 是函数，接收 spec，返回 PluginAPI 实例
                 def api_factory(spec):
                     try:
-                        permissions = list(
-                            getattr(spec.meta, 'permissions', []) or []
-                        )
+                        permissions = list(getattr(spec.meta, "permissions", []) or [])
                         # 每个插件得到自己权限范围内的 API
                         api = PluginAPI(
                             self,
@@ -169,10 +164,7 @@ class PluginsUIMixin:
                         api.grant_permissions_by_host(permissions)
                         return api
                     except Exception as e:
-                        print(
-                            f"[MainWindow] 创建 API 失败 "
-                            f"({spec.name}): {e}"
-                        )
+                        print(f"[MainWindow] 创建 API 失败 ({spec.name}): {e}")
                         return None
 
                 result = loader.load_all(
@@ -182,6 +174,12 @@ class PluginsUIMixin:
                 )
 
             self.plugin_loader = loader
+
+            # B1.5：flag 指定的插件由子进程承载，接线到窗口菜单/状态栏
+            try:
+                self._start_isolated_plugins()
+            except Exception as e:
+                print(f"[MainWindow] 隔离插件启动失败: {e}")
 
             # B7 修复：将 loader 的 specs 桥接给 PluginManager
             # 原实现只对独立 loader 调用 load_all()，PluginManager
@@ -197,22 +195,19 @@ class PluginsUIMixin:
             # 收集已激活的插件实例
             activated_specs = []
             try:
-                if loader is not None and hasattr(
-                    loader, 'get_activated_plugins'
-                ):
+                if loader is not None and hasattr(loader, "get_activated_plugins"):
                     activated_specs = loader.get_activated_plugins()
                 elif loader is not None:
                     activated_specs = [
-                        s for s in loader.specs.values()
-                        if getattr(s, 'is_active', False)
+                        s for s in loader.specs.values() if getattr(s, "is_active", False)
                     ]
             except Exception:
                 pass
 
             self.plugins = [
-                getattr(s, 'instance', None)
+                getattr(s, "instance", None)
                 for s in activated_specs
-                if getattr(s, 'instance', None) is not None
+                if getattr(s, "instance", None) is not None
             ]
 
             # 将 plugin_manager 绑定到 plugins_panel
@@ -226,10 +221,7 @@ class PluginsUIMixin:
 
             # 输出结果
             if result:
-                print(
-                    f"[MainWindow] 已加载 {result.activated} 个插件 "
-                    f"(共 {result.total} 个)"
-                )
+                print(f"[MainWindow] 已加载 {result.activated} 个插件 (共 {result.total} 个)")
             else:
                 print("[MainWindow] 已加载 0 个插件")
 
@@ -254,15 +246,17 @@ class PluginsUIMixin:
             # 早于这里），否则 `set_shortcut()` 找不到目标动作而静默失败。
             try:
                 from ui.keymap_editor import apply_saved_scheme
+
                 if apply_saved_scheme(self.act_mgr):
                     from ui.keymap_editor import load_saved_scheme
-                    print(f"[MainWindow] 已应用快捷键方案: "
-                          f"{load_saved_scheme()}")
+
+                    print(f"[MainWindow] 已应用快捷键方案: {load_saved_scheme()}")
             except Exception as e:
                 print(f"[MainWindow] 应用快捷键方案失败: {e}")
 
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             print(f"[MainWindow] 加载插件失败: {e}")
 
@@ -275,7 +269,7 @@ class PluginsUIMixin:
         try:
             for plugin in self.plugins:
                 try:
-                    if hasattr(plugin, 'deactivate'):
+                    if hasattr(plugin, "deactivate"):
                         plugin.deactivate()
                 except Exception:
                     pass
@@ -285,3 +279,16 @@ class PluginsUIMixin:
             self.status_bar.showMessage("插件已重新加载", 2000)
         except Exception as e:
             print(f"[MainWindow] 重载插件失败: {e}")
+
+    def _start_isolated_plugins(self):
+        """按 QINGCAO_PLUGIN_ISOLATION 启动隔离插件（B1.5）。"""
+        from app.plugin_isolation import isolated_plugin_names
+
+        names = isolated_plugin_names()
+        if not names:
+            return None
+        from ui.isolated_plugins import IsolatedPluginHost
+
+        host = IsolatedPluginHost(self).start(names)
+        self._isolated_host = host
+        return host
