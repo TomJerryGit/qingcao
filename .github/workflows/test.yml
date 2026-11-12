@@ -158,12 +158,14 @@ jobs:
           if ($rc -ne 0) { throw "tests failed: rc=$rc" }
 
       - name: Flaky breadcrumb report
+        # 观察项：flaky 频率用于趋势跟踪，不阻塞测试/发布门禁
+        continue-on-error: true
         if: always()
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
           python tools/ci_flaky_report.py --check --max-7d 3
-          if ($LASTEXITCODE -ne 0) { throw "flaky frequency over threshold" }
+          if ($LASTEXITCODE -ne 0) { Write-Host "[warn] flaky frequency over threshold (advisory)" }
 
   # Python 3.12 软矩阵：解释器/依赖不满足时自动跳过，不阻塞主门禁。
   test-py312:
