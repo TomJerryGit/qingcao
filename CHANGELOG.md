@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 安全
+
+- **插件沙箱 B0 原型**：JSON-RPC 2.0 行协议 + 子进程插件宿主 + 能力 broker（权限拒绝/高危默认禁用）+ 崩溃隔离；`tests/test_v225_sandbox_b0.py` 4/4。
+
+
 ### 文档
 
 - **插件沙箱阶段 B 设计稿**：子进程宿主 + JSON-RPC 能力代理、权限 broker、崩溃隔离与灰度迁移（`docs/plugin_sandbox_stage_b.md`）。

@@ -103,3 +103,18 @@
 | 插件输出污染 stdout | 启动时重定向 stdout→stderr/日志 |
 | 性能回退 | 默认关闭；逐插件灰度 + 基准 |
 | 兼容性 | 保留进程内实现，feature flag 切换 |
+
+## B0 原型（已实现，2026-11-12）
+
+| 文件 | 作用 |
+|---|---|
+| `core/sandbox_rpc.py` | JSON-RPC 2.0 行协议编解码/错误码 |
+| `core/plugin_host.py` | 子进程宿主：加载插件、`RemoteAPI`、`CapabilityBroker` 权限校验 |
+| `core/plugin_supervisor.py` | 主进程监督者：spawn、握手（hello/ready）、API 转发、终止/崩溃检测 |
+| `tests/test_v225_sandbox_b0.py` | 编解码、权限拒绝（-32001/-32601）、端到端隔离、崩溃隔离 |
+
+协议流程：`host.hello` → 父进程 `host.ready` → 插件 `on_activate`（API 经 `api.call` 往返）→ `host.activated` → `host.shutdown`。
+
+B0 限制：菜单回调仅传函数名（B1 上 callback id）、文件/网络 broker 白名单未接入、默认未接管现有插件加载（feature flag 待 B1）。
+
+验证：`pytest tests/test_v225_sandbox_b0.py` → 4/4 通过（含 `os._exit` 崩溃不影响父进程）。
