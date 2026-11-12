@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 文档
+
+- **插件沙箱阶段 B 设计稿**：子进程宿主 + JSON-RPC 能力代理、权限 broker、崩溃隔离与灰度迁移（`docs/plugin_sandbox_stage_b.md`）。
+- **Authenticode 申请/配置指南** + `tools/check_signing_secrets.py`（只读检查 Secrets 是否就绪）。
+
+
 ### 工程
 
 - **macOS spike 实测通过**：macos-latest（arm64）上 PyQt5 5.15.11/QScintilla 2.14.1 可装，离屏子集 **27/27 通过**；剩余 PTY/打包/签名差距（`docs/macos_spike.md`）。

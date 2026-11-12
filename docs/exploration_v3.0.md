@@ -98,3 +98,8 @@ Spike（1–2d）：在 macOS runner 安装依赖 → 跑 `pytest tests/test_v22
 | Authenticode 证书周期长 | 提前申请；无证书前继续 Ed25519 链路 |
 | macOS 维护成本 | 先 spike，按采用率决策 |
 | 单 runner CI | 已落地超时/watchdog/托管兜底（阶段 1） |
+
+## 阶段 B 设计稿（已完成）
+
+- `docs/plugin_sandbox_stage_b.md`：插件宿主子进程 + JSON-RPC 能力代理 / 权限 broker / 生命周期与崩溃隔离 / 灰度迁移 / 性能预算；
+- 建议实现顺序：B0 协议库 + demo 试点 → B1 低风险插件 → B2 高风险插件强制签名授权。
