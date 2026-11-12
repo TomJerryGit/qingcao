@@ -19,7 +19,7 @@
 
 - 代码：449 个 Python 文件（app/core/ui/infrastructure/plugins/tests），127,111 行；200 测试文件；
 - 门禁：ruff ✅、format ✅、check_version ✅、ja/ko 覆盖率 100% ✅；
-- 测试：约 **1,100+** 用例（pytest collect 按文件计数）；
+- 测试：**1,254** 个测试节点（pytest collect）；
 - 发布：最新 **v2.25.0**，资产 ZIP+SHA256+Ed25519 .sig，SHA256 已验证；
 - 性能（2026-11-12 14:45 样本）：mainwindow 0.4048、plugin_ready_after 0.6293、open_50mb 1.7642、theme_reapply 0.0001；
 - macOS spike：macos-latest arm64 离屏 **27/27 通过**；
