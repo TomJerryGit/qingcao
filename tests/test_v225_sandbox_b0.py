@@ -174,6 +174,7 @@ def test_isolation_flag_helpers(monkeypatch):
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "off")
     assert isolation_mode() == "off" and not should_isolate("demo")
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
-    assert should_isolate("demo") and not should_isolate("wordcount")
+    assert should_isolate("demo") and should_isolate("wordcount")
+    assert not should_isolate("python_debugger")
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "all")
     assert should_isolate("wordcount")

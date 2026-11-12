@@ -52,6 +52,14 @@ class StubHostAPI:
     def register_settings_schema(self, schema):
         return True
 
+    def register_remote_panel(self, title, fields, refresh_cb):
+        print("[panel]", title, "fields=", len(fields or []))
+        return 1
+
+    def show_remote_panel(self, panel_id=0):
+        print("[panel] show", panel_id)
+        return True
+
     def run_command(self, command):
         raise RuntimeError("run_command denied in B1 demo")
 

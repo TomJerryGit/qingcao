@@ -32,6 +32,8 @@ METHOD_PERMISSIONS = {
     "register_settings_schema": None,
     "read_file": "filesystem",
     "write_file": "filesystem",
+    "register_remote_panel": "dialog",
+    "show_remote_panel": "dialog",
     "run_command": "process",
     "run_python": "process",
 }
@@ -69,6 +71,8 @@ class CapabilityBroker:
 
 class RemoteAPI:
     """子进程侧：插件看到的受限 API。"""
+
+    is_isolated = True
 
     def __init__(self, write, read_response):
         self._write = write
@@ -157,6 +161,14 @@ class RemoteAPI:
     def register_settings_schema(self, schema):
         # B1：schema 透传到主进程（由 UI 层渲染）
         return self._call("register_settings_schema", schema)
+
+    def register_remote_panel(self, title, fields, refresh):
+        cb_id = len(self._callbacks)
+        self._callbacks[cb_id] = refresh
+        return self._call("register_remote_panel", title, fields, cb_id)
+
+    def show_remote_panel(self, panel_id=0):
+        return self._call("show_remote_panel", panel_id)
 
     def read_file(self, path):
         return self._call("read_file", path)

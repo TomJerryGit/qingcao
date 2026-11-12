@@ -142,3 +142,20 @@ python tools/verify_plugin_isolation.py --plugin plugins/demo
 测试：`tests/test_v225_sandbox_b0.py` 7/7（含路径策略、菜单回调、开关、崩溃隔离）。
 
 B1 限制：默认仍不接管现有加载（需显式 flag）；文件/网络白名单仅覆盖 `read_file/write_file`；UI 集成（菜单实际点击 → 宿主）待 B1.5。
+
+## B2.1 远程面板（已实现，2026-11-12）
+
+- 子进程 `RemoteAPI.register_remote_panel(title, fields, refresh)`；父进程 `WindowHostAPI` 创建 QDockWidget + 字段标签，1s 定时调用插件 refresh 回调（参数为当前文本快照），更新标签；
+- 菜单回调显示面板：`show_remote_panel(panel_id)`；
+- wordcount 新增隔离分支：`REMOTE_FIELDS` + `_remote_refresh(text)`，面板在宿主侧渲染；
+- demo 灰度集合：`demo`、`wordcount`（`QINGCAO_PLUGIN_ISOLATION=demo` 时主进程排除、子进程承载）。
+
+验证：
+```
+python tools/verify_plugin_isolation.py --plugin plugins/wordcount
+# [panel] 字数统计 fields= 6
+# [panel] show 1
+# [B1] 插件已隔离激活： wordcount
+```
+
+限制：json_formatter 的 hover/code-action provider 仅登记未接线（B2.1b）；设置 schema 仅存储未渲染（R1.2）。

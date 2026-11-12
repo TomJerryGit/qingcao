@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """字数统计插件"""
+
 import re
 import time
 
@@ -56,10 +57,7 @@ class WordCountPanel(QDockWidget):
             grid.addWidget(lbl, row, col)
 
             val = QLabel(default)
-            val.setStyleSheet(
-                "color: #7ec850; font-weight: bold; "
-                "font-size: 14px;"
-            )
+            val.setStyleSheet("color: #7ec850; font-weight: bold; font-size: 14px;")
             grid.addWidget(val, row, col + 1)
 
             self.stats[key] = val
@@ -97,16 +95,17 @@ class WordCountPanel(QDockWidget):
 """
         self.setStyleSheet(self._base_qss)
 
-
     def refresh_theme(self, theme):
         """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
+
             base = getattr(self, "_base_qss", "")
             if base:
                 self.setStyleSheet(adapt_qss_colors(base, theme))
         except Exception:
             pass
+
     def refresh(self):
         """刷新"""
         try:
@@ -117,21 +116,19 @@ class WordCountPanel(QDockWidget):
                 return
 
             chars = len(text)
-            chars_no_space = len(re.sub(r'\s', '', text))
+            chars_no_space = len(re.sub(r"\s", "", text))
             words = len(text.split())
-            lines = text.count('\n') + 1 if text else 0
-            paragraphs = len(
-                [l for l in text.split('\n') if l.strip()]
-            )
+            lines = text.count("\n") + 1 if text else 0
+            paragraphs = len([l for l in text.split("\n") if l.strip()])
             # 阅读时间（按 300 字/分钟）
             minutes = max(1, chars // 300) if chars > 0 else 0
 
-            self.stats['chars'].setText(str(chars))
-            self.stats['chars_no_space'].setText(str(chars_no_space))
-            self.stats['words'].setText(str(words))
-            self.stats['lines'].setText(str(lines))
-            self.stats['paragraphs'].setText(str(paragraphs))
-            self.stats['reading_time'].setText(f"{minutes} 分钟")
+            self.stats["chars"].setText(str(chars))
+            self.stats["chars_no_space"].setText(str(chars_no_space))
+            self.stats["words"].setText(str(words))
+            self.stats["lines"].setText(str(lines))
+            self.stats["paragraphs"].setText(str(paragraphs))
+            self.stats["reading_time"].setText(f"{minutes} 分钟")
         except Exception:
             pass
 
@@ -142,25 +139,35 @@ class Plugin(PluginBase):
     DESCRIPTION = "字数统计"
     AUTHOR = "TomJerry"
 
+    REMOTE_FIELDS = [
+        {"key": "chars", "label": "字符数"},
+        {"key": "chars_no_space", "label": "不含空白"},
+        {"key": "words", "label": "词数"},
+        {"key": "lines", "label": "行数"},
+        {"key": "paragraphs", "label": "段落数"},
+        {"key": "reading_time", "label": "阅读时间"},
+    ]
+
     def on_activate(self):
         self.api.log("字数统计插件已激活")
         # D3 修复：懒创建面板，避免反复启停堆叠 dock
         self._panel = None
 
-        self.api.add_menu(
-            "视图/字数统计",
-            self.show_panel,
-            shortcut="Ctrl+Alt+W"
-        )
+        self.api.add_menu("视图/字数统计", self.show_panel, shortcut="Ctrl+Alt+W")
 
         # ---- v2.4 扩展点 ----
-        self.api.register_settings_schema([
-            {"key": "show_status", "label": "状态栏显示字数",
-             "type": "bool", "default": True},
-            {"key": "mode", "label": "统计口径", "type": "choice",
-             "default": "chars",
-             "choices": [("字符数", "chars"), ("单词数", "words")]},
-        ])
+        self.api.register_settings_schema(
+            [
+                {"key": "show_status", "label": "状态栏显示字数", "type": "bool", "default": True},
+                {
+                    "key": "mode",
+                    "label": "统计口径",
+                    "type": "choice",
+                    "default": "chars",
+                    "choices": [("字符数", "chars"), ("单词数", "words")],
+                },
+            ]
+        )
         self._last_status_ts = 0.0
         self._status_item = None
         try:
@@ -172,6 +179,15 @@ class Plugin(PluginBase):
             self.api.subscribe("editor_changed", self._on_editor_changed)
         except Exception:
             pass
+
+        self._remote_panel = None
+        if getattr(self.api, "is_isolated", False):
+            try:
+                self._remote_panel = self.api.register_remote_panel(
+                    "字数统计", self.REMOTE_FIELDS, self._remote_refresh
+                )
+            except Exception as e:
+                self.api.log("远程面板注册失败: %s" % e, "warning")
 
     def _on_editor_changed(self, *args):
         """编辑器变化时刷新状态栏字数（0.5s 节流 + 大文件保护）"""
@@ -201,6 +217,8 @@ class Plugin(PluginBase):
             pass
 
     def on_deactivate(self):
+        if getattr(self.api, "is_isolated", False):
+            return
         # D3: 显式销毁而非只 close
         if self._panel is not None:
             try:
@@ -215,11 +233,30 @@ class Plugin(PluginBase):
         """懒创建面板；首次显示时才实例化并加 dock"""
         if self._panel is None:
             self._panel = WordCountPanel(self.api, self.api._host_window())
-            self.api._host_window().addDockWidget(
-                Qt.RightDockWidgetArea, self._panel
-            )
+            self.api._host_window().addDockWidget(Qt.RightDockWidgetArea, self._panel)
+
+    def _remote_refresh(self, text):
+        text = text or ""
+        words = len(re.findall(r"\w+", text))
+        lines = len(text.splitlines()) if text else 0
+        paragraphs = len([p for p in re.split(r"\n\s*\n", text) if p.strip()])
+        return {
+            "chars": len(text),
+            "chars_no_space": len(re.sub(r"\s", "", text)),
+            "words": words,
+            "lines": lines,
+            "paragraphs": paragraphs,
+            "reading_time": max(1, int(words / 200)) if words else 0,
+        }
 
     def show_panel(self):
+        if getattr(self.api, "is_isolated", False):
+            if self._remote_panel is None:
+                self._remote_panel = self.api.register_remote_panel(
+                    "字数统计", self.REMOTE_FIELDS, self._remote_refresh
+                )
+            self.api.show_remote_panel(self._remote_panel)
+            return
         self._ensure_panel()
         self._panel.setVisible(True)
         self._panel.raise_()

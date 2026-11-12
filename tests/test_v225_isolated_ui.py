@@ -93,3 +93,27 @@ def test_demo_isolated_with_window_host(qapp, monkeypatch):
 def test_manager_excludes_isolated_plugins():
     src = open("app/plugin_manager.py", encoding="utf-8").read()
     assert "isolated_plugin_names" in src
+
+
+def test_wordcount_remote_panel(qapp, monkeypatch):
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
+    win = QMainWindow()
+    host = IsolatedPluginHost(win)
+    try:
+        host.start({"wordcount"})
+        assert "wordcount" in host.runtimes
+        assert _pump(qapp, lambda: bool(host.api.remote_panels)), "远程面板未注册"
+        pid, rec = next(iter(host.api.remote_panels.items()))
+        assert rec["dock"].windowTitle() == "字数统计"
+        # 菜单回调：显示面板
+        for cid in host.api.menus:
+            host.invoke(cid)
+            break
+        assert _pump(qapp, lambda: not rec["dock"].isHidden())
+        # 等定时刷新（1s）填充统计值
+        assert _pump(qapp, lambda: any(lbl.text() != "-" for lbl in rec["values"].values()))
+    finally:
+        host.stop_all()
+        win.close()

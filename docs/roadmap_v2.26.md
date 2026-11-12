@@ -23,7 +23,7 @@
 
 | # | 任务 | 验收 | 工作量 |
 |---|---|---|---|
-| R1.1 🟡 | demo 灰度通过；wordcount **可隔离激活**但面板需远程 UI（B2.1）；json_formatter 需 provider 代理 | demo 已验证；wordcount 面板列为 B2.1 | 2d |
+| R1.1 ✅ | demo + **wordcount 远程面板**灰度通过（面板/统计/菜单回调）；json_formatter provider 待 B2.1b | 2 插件功能对等 | 2d |
 | R1.2 | UI 回调补全：`remove_status_item`、设置 schema 渲染、配置页 | 设置项可见可保存 | 2d |
 | R1.3 | 网络 broker：域名白名单 + 速率限制 + 审批 | 非白名单请求被拒（-32001） | 2d |
 | R1.4 | 高风险 API（process/terminal/debugger）默认拒绝 + Ed25519 信任要求 | 未签名插件调用被拒；签名插件逐次确认 | 2d |

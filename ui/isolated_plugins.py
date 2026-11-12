@@ -4,8 +4,17 @@
 import logging
 import os
 
-from PyQt5.QtCore import QObject, QSettings, QThread, pyqtSignal
-from PyQt5.QtWidgets import QAction, QApplication, QLabel, QMenu, QMessageBox
+from PyQt5.QtCore import QObject, QSettings, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QDockWidget,
+    QFormLayout,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QWidget,
+)
 
 from core.plugin_sandbox_policy import SandboxPolicy
 from core.plugin_supervisor import PluginHostError, PluginProcess
@@ -56,6 +65,9 @@ class WindowHostAPI:
         self.settings = QSettings("QingCao", "PluginData")
         self._next_status = 1
         self._schemas = {}
+        self.remote_panels = {}
+        self.providers = {"hover": {}, "code_action": {}, "completion": {}}
+        self._panel_seq = 0
 
     # ---- 编辑器 ----
     def _current_proxy(self):
@@ -145,12 +157,12 @@ class WindowHostAPI:
             return True
         return False
 
-    def invoke(self, callback_id):
+    def invoke(self, callback_id, *args):
         if self.host is None:
             return None
         try:
             if hasattr(self.host, "invoke_callback"):
-                return self.host.invoke_callback(callback_id)
+                return self.host.invoke_callback(callback_id, *args)
             return self.host.invoke(callback_id)
         except Exception as e:
             logger.warning("isolated menu callback failed: %s", e)
@@ -168,6 +180,80 @@ class WindowHostAPI:
         self._schemas[id(schema)] = schema
         return True
 
+    def register_remote_panel(self, title, fields, refresh_cb):
+        self._panel_seq += 1
+        pid = self._panel_seq
+
+        def _create():
+            dock = QDockWidget(str(title), self.window)
+            body = QWidget(dock)
+            form = QFormLayout(body)
+            values = {}
+            for f in fields or []:
+                key = f.get("key") if isinstance(f, dict) else str(f)
+                label = (f.get("label") if isinstance(f, dict) else key) or key
+                val = QLabel("-")
+                form.addRow(str(label) + ":", val)
+                values[key] = val
+            dock.setWidget(body)
+            try:
+                self.window.addDockWidget(Qt.RightDockWidgetArea, dock)
+            except Exception:
+                pass
+            self.remote_panels[pid] = {"dock": dock, "values": values, "cb": refresh_cb}
+
+            def refresh():
+                rec = self.remote_panels.get(pid)
+                if not rec:
+                    return
+                text = self.get_current_text()
+                try:
+                    cb = rec["cb"]
+                    if callable(cb):
+                        result = cb(text)
+                    elif hasattr(self, "invoke_callback"):
+                        result = self.invoke_callback(cb, text)
+                    else:
+                        result = None
+                except Exception as e:
+                    logger.warning("remote panel refresh failed: %s", e)
+                    return
+                if isinstance(result, dict):
+                    for k, label in rec["values"].items():
+                        if k in result:
+                            label.setText(str(result[k]))
+
+            timer = QTimer(dock)
+            timer.timeout.connect(refresh)
+            timer.start(1000)
+            self.remote_panels[pid]["timer"] = timer
+            refresh()
+
+        self._bridge.submit(_create)
+        return True
+
+    def show_remote_panel(self, panel_id=0):
+        def _show():
+            rec = self.remote_panels.get(panel_id) or next(iter(self.remote_panels.values()), None)
+            if rec:
+                rec["dock"].show()
+                rec["dock"].raise_()
+
+        self._bridge.submit(_show)
+        return True
+
+    def register_hover_provider(self, cb_id, language_ids=None):
+        self.providers["hover"][cb_id] = language_ids
+        return True
+
+    def register_code_action_provider(self, cb_id, language_ids=None):
+        self.providers["code_action"][cb_id] = language_ids
+        return True
+
+    def register_completion_provider(self, cb_id, language_ids=None):
+        self.providers["completion"][cb_id] = language_ids
+        return True
+
     def log(self, message, level="info"):
         logger.info("[%s] %s", level, message)
         self._bridge.submit(lambda: self.window.statusBar().showMessage(str(message), 3000))
@@ -182,6 +268,7 @@ class IsolatedPluginHost(QObject):
         self.window = window
         self.api = WindowHostAPI(window)
         self.runtimes = {}
+        self.api.invoke_callback = self.invoke
 
     def start(self, names, plugins_dir=None):
         root = plugins_dir or os.path.join(ROOT, "plugins")
@@ -204,10 +291,10 @@ class IsolatedPluginHost(QObject):
             app.aboutToQuit.connect(self.stop_all)
         return self
 
-    def invoke(self, callback_id):
+    def invoke(self, callback_id, *args):
         for proc in self.runtimes.values():
             try:
-                return proc.invoke_callback(callback_id)
+                return proc.invoke_callback(callback_id, *args)
             except Exception:
                 continue
         return None

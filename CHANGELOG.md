@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 安全
+
+- **沙箱 B2.1 远程面板**：宿主侧 QDockWidget + 字段刷新协议；wordcount 隔离灰度通过（demo+wordcount）；provider 代理登记就绪（接线待 B2.1b）。
+
+
 ## [2.25.1] - 2026-11-12
 
 ### 文档
