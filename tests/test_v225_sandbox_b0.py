@@ -26,6 +26,7 @@ def _write_plugin(root, name, body, perms=None):
 class _HostAPI:
     def __init__(self):
         self.calls = []
+        self.menus = []
 
     def get_current_text(self):
         return "hello from host"
@@ -39,6 +40,7 @@ class _HostAPI:
         return True
 
     def add_menu(self, path, cb):
+        self.menus.append((path, cb))
         return True
 
     def add_status_item(self, text):
@@ -120,3 +122,58 @@ class Plugin:
     with pytest.raises(PluginHostError):
         proc.start()
     proc.stop()
+
+
+def test_sandbox_policy_paths_and_hosts(tmp_path):
+    from core.plugin_sandbox_policy import SandboxPolicy
+
+    root = tmp_path / "proj"
+    root.mkdir()
+    policy = SandboxPolicy([str(root)], ["api.example.com"])
+    assert policy.check_path(str(root / "a.txt"))
+    assert not policy.check_path(str(tmp_path / "outside.txt"))
+    assert policy.check_host("API.example.com")
+    assert not policy.check_host("evil.example.com")
+
+
+def test_menu_callback_end_to_end(tmp_path):
+    from core.plugin_supervisor import PluginProcess
+
+    d = _write_plugin(
+        tmp_path,
+        "iso_menu",
+        """
+class Plugin:
+    def on_activate(self):
+        self.api.add_menu("工具/测试", self.run)
+    def run(self):
+        self.api.log("cb-called")
+    def on_deactivate(self):
+        pass
+""",
+    )
+    host = _HostAPI()
+    proc = PluginProcess(d, host, timeout=15)
+    try:
+        proc.start()
+        assert host.menus, "菜单未注册"
+        proc.invoke_callback(host.menus[0][1])
+        deadline = __import__("time").time() + 5
+        while __import__("time").time() < deadline:
+            if any("cb-called" in m for _l, m in proc.logs):
+                break
+            __import__("time").sleep(0.05)
+        assert any("cb-called" in m for _l, m in proc.logs), proc.logs
+    finally:
+        proc.stop()
+
+
+def test_isolation_flag_helpers(monkeypatch):
+    from app.plugin_isolation import isolation_mode, should_isolate
+
+    monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "off")
+    assert isolation_mode() == "off" and not should_isolate("demo")
+    monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
+    assert should_isolate("demo") and not should_isolate("wordcount")
+    monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "all")
+    assert should_isolate("wordcount")

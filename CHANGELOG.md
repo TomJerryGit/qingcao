@@ -2,6 +2,11 @@
 
 ### 安全
 
+- **插件沙箱 B1**：`QINGCAO_PLUGIN_ISOLATION` 开关、菜单 callback id 协议、文件路径白名单；`plugins/demo` 子进程试点通过（菜单回调 → 字符数输出）。
+
+
+### 安全
+
 - **插件沙箱 B0 原型**：JSON-RPC 2.0 行协议 + 子进程插件宿主 + 能力 broker（权限拒绝/高危默认禁用）+ 崩溃隔离；`tests/test_v225_sandbox_b0.py` 4/4。
 
 

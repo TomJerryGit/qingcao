@@ -13,6 +13,7 @@ from core.sandbox_rpc import (
     RpcError,
     decode,
     encode,
+    error,
     notification,
     request,
     response,
@@ -27,6 +28,10 @@ METHOD_PERMISSIONS = {
     "add_menu": "dialog",
     "add_status_item": "dialog",
     "get_config": None,
+    "set_config": None,
+    "register_settings_schema": None,
+    "read_file": "filesystem",
+    "write_file": "filesystem",
     "run_command": "process",
     "run_python": "process",
 }
@@ -36,10 +41,11 @@ HIGH_RISK = {"process", "terminal", "debugger"}
 class CapabilityBroker:
     """主进程侧：按 manifest 权限校验并转发到宿主 API。"""
 
-    def __init__(self, permissions, host_api, allow_high_risk=False):
+    def __init__(self, permissions, host_api, allow_high_risk=False, policy=None):
         self.permissions = set(permissions or [])
         self.host_api = host_api
         self.allow_high_risk = allow_high_risk
+        self.policy = policy
 
     def dispatch(self, name, args):
         perm = METHOD_PERMISSIONS.get(name)
@@ -49,6 +55,10 @@ class CapabilityBroker:
             raise RpcError(ERROR_PERMISSION_DENIED, "permission denied: %s" % perm)
         if perm in HIGH_RISK and not self.allow_high_risk:
             raise RpcError(ERROR_PERMISSION_DENIED, "high-risk api disabled: %s" % name)
+        if name in ("read_file", "write_file"):
+            path = (args or [None])[0]
+            if self.policy is None or not self.policy.check_path(path):
+                raise RpcError(ERROR_PERMISSION_DENIED, "path denied: %s" % path)
         try:
             return getattr(self.host_api, name)(*(args or []))
         except RpcError:
@@ -64,6 +74,7 @@ class RemoteAPI:
         self._write = write
         self._next_id = 1
         self._read_response = read_response
+        self._callbacks = {}
 
     def _call(self, name, *args):
         req_id = self._next_id
@@ -79,8 +90,7 @@ class RemoteAPI:
     def log(self, message, level="info"):
         """日志走通知通道（不阻塞、不污染 RPC 响应）。"""
         try:
-            self._write(notification("plugin.log", {
-                "level": level, "message": str(message)}))
+            self._write(notification("plugin.log", {"level": level, "message": str(message)}))
         except Exception:
             pass
 
@@ -94,14 +104,28 @@ class RemoteAPI:
         return self._call("show_message", title, text)
 
     def add_menu(self, path, callback):
-        # B0：回调仅登记到主进程；真实调用需 callback id 协议（B1）
-        return self._call("add_menu", path, str(getattr(callback, "__name__", "callback")))
+        cb_id = len(self._callbacks)
+        self._callbacks[cb_id] = callback
+        return self._call("add_menu", path, cb_id)
 
     def add_status_item(self, text):
         return self._call("add_status_item", text)
 
+    def set_config(self, key, value):
+        return self._call("set_config", key, value)
+
     def get_config(self, key, default=None):
         return self._call("get_config", key, default)
+
+    def register_settings_schema(self, schema):
+        # B1：schema 透传到主进程（由 UI 层渲染）
+        return self._call("register_settings_schema", schema)
+
+    def read_file(self, path):
+        return self._call("read_file", path)
+
+    def write_file(self, path, text):
+        return self._call("write_file", path, text)
 
 
 def load_plugin(plugin_dir):
@@ -184,8 +208,18 @@ def main(argv=None):
             msg = _readline(sys.stdin)
         except EOFError:
             break
-        if msg.get("method") == "host.shutdown":
+        method = msg.get("method")
+        if method == "host.shutdown":
             break
+        if method == "host.callback":
+            req_id = msg.get("id")
+            params = msg.get("params") or {}
+            cb = api._callbacks.get(params.get("id"))
+            try:
+                result = cb(*(params.get("args") or [])) if cb else None
+                write(response(req_id, result))
+            except Exception as e:
+                write(error(req_id, -32000, str(e)))
     try:
         plugin.on_deactivate()
     except Exception:

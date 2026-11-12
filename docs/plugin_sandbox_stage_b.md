@@ -118,3 +118,27 @@
 B0 限制：菜单回调仅传函数名（B1 上 callback id）、文件/网络 broker 白名单未接入、默认未接管现有插件加载（feature flag 待 B1）。
 
 验证：`pytest tests/test_v225_sandbox_b0.py` → 4/4 通过（含 `os._exit` 崩溃不影响父进程）。
+
+## B1 试点（已接入，2026-11-12）
+
+| 能力 | 实现 |
+|---|---|
+| Feature flag | `QINGCAO_PLUGIN_ISOLATION=off\|demo\|all`（`app/plugin_isolation.py`） |
+| 菜单回调 | 子进程注册 callback id；主进程 `invoke_callback(id)` → `host.callback` RPC → 执行插件函数 |
+| 路径策略 | `core/plugin_sandbox_policy.py`：`read_file/write_file` 仅允许白名单根目录 |
+| 宿主 API | `get/set_current_text`、菜单/状态项、设置 schema、日志、配置读写 |
+| 试点 | `plugins/demo` 已在子进程激活；菜单「显示当前文件字符数」回调成功（输出字符数 11） |
+
+验证命令：
+
+```powershell
+$env:QINGCAO_PLUGIN_ISOLATION = "demo"
+python tools/verify_plugin_isolation.py --plugin plugins/demo
+# [B1] 插件已隔离激活： demo
+# [menu] 工具/Demo/显示当前文件字符数 0
+# [message] Demo 当前文件字符数: 11
+```
+
+测试：`tests/test_v225_sandbox_b0.py` 7/7（含路径策略、菜单回调、开关、崩溃隔离）。
+
+B1 限制：默认仍不接管现有加载（需显式 flag）；文件/网络白名单仅覆盖 `read_file/write_file`；UI 集成（菜单实际点击 → 宿主）待 B1.5。

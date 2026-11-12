@@ -28,11 +28,11 @@ def load_manifest(plugin_dir):
 class PluginProcess:
     """管理单个插件子进程；主进程侧执行权限校验。"""
 
-    def __init__(self, plugin_dir, host_api, timeout=10.0, allow_high_risk=False):
+    def __init__(self, plugin_dir, host_api, timeout=10.0, allow_high_risk=False, policy=None):
         self.plugin_dir = os.path.abspath(plugin_dir)
         self.manifest = load_manifest(self.plugin_dir)
         self.permissions = self.manifest.get("permissions", [])
-        self.broker = CapabilityBroker(self.permissions, host_api, allow_high_risk)
+        self.broker = CapabilityBroker(self.permissions, host_api, allow_high_risk, policy)
         self.timeout = timeout
         self.proc = None
         self._thread = None
@@ -43,6 +43,8 @@ class PluginProcess:
         self.logs = []
         self._stopping = False
         self._reply_lock = threading.Lock()
+        self._pending = {}
+        self._next_id = 1
 
     # ---------- 生命周期 ----------
     def start(self):
@@ -91,6 +93,26 @@ class PluginProcess:
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
 
+    def request_child(self, method, params=None, timeout=None):
+        """主进程 → 子进程请求（用于 invoke_callback 等）。"""
+        req_id = self._next_id
+        self._next_id += 1
+        ev = threading.Event()
+        box = {"response": None, "event": ev}
+        self._pending[req_id] = box
+        self._send(rpc.request(method, params or {}, req_id))
+        if not ev.wait(timeout if timeout is not None else self.timeout):
+            self._pending.pop(req_id, None)
+            raise rpc.RpcError(rpc.ERROR_TIMEOUT, "child request timeout")
+        msg = box["response"] or {}
+        if "error" in msg:
+            err = msg["error"]
+            raise rpc.RpcError(err.get("code", -32000), err.get("message", "error"))
+        return msg.get("result")
+
+    def invoke_callback(self, callback_id, *args):
+        return self.request_child("host.callback", {"id": callback_id, "args": list(args)})
+
     # ---------- 内部 ----------
     def _wait(self, event, stage):
         if not event.wait(self.timeout):
@@ -131,6 +153,12 @@ class PluginProcess:
             self._activated.set()
 
     def _dispatch(self, msg):
+        if "id" in msg and "method" not in msg:
+            box = self._pending.pop(msg.get("id"), None)
+            if box is not None:
+                box["response"] = msg
+                box["event"].set()
+            return
         method = msg.get("method")
         if method == "host.hello":
             self._hello.set()
