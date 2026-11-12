@@ -32,7 +32,15 @@ def test_pty_tab_echo(qapp):
         assert getattr(tab, "kind", "") == "pty", type(tab).__name__
         panel.input.setText("echo qc-pty-ui")
         panel.run_command()
-        assert _pump_until(qapp, lambda: "qc-pty-ui" in panel.output.toPlainText()), (
+
+        def _echo_seen():
+            # 输出区为 HTML 渲染；同时校验屏幕缓冲区，避免不同平台 toPlainText 差异
+            if "qc-pty-ui" in panel.output.toPlainText():
+                return True
+            screen = getattr(tab, "_screen", None)
+            return bool(screen and "qc-pty-ui" in screen.text())
+
+        assert _pump_until(qapp, _echo_seen, timeout=30), (
             panel.output.toPlainText()[-200:]
         )
     finally:
