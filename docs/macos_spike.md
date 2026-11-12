@@ -33,6 +33,21 @@ GitHub Actions → **macOS Spike** → Run workflow（托管 `macos-latest`，�
 | 签名 | 无 Apple Developer 账号 | `codesign` + notarization（$99/年） |
 | CI | 无 macOS 常驻 runner | 托管 runner 分钟成本 |
 
+## 实测结果（2026-11-12）
+
+工作流：`macos-spike.yml`（run 成功，托管 macos-latest / Apple Silicon）
+
+| 项 | 结果 |
+|---|---|
+| Python | 3.11.9 |
+| PyQt5 | 5.15.11（arm64 wheel） |
+| QScintilla | 2.14.1（arm64 wheel） |
+| Qt | 5.15.14 |
+| 离屏子集 | **27/27 通过**（首次 26/29：缺 `cryptography`，补装后全绿） |
+| 覆盖 | 架构门禁、密钥轮换、性能看板、终端屏幕、发现性 |
+
+**决策门结论：PASS（≥90%）**。macOS 可行性成立，剩余为 PTY 适配、`.app` 打包、签名/公证（见上表差距）。
+
 ## 决策门
 
 - 子集通过率 ≥90% 且差距可控 → 立 v3.x 里程碑（明确人力/账号）；

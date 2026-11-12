@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 工程
+
+- **macOS spike 实测通过**：macos-latest（arm64）上 PyQt5 5.15.11/QScintilla 2.14.1 可装，离屏子集 **27/27 通过**；剩余 PTY/打包/签名差距（`docs/macos_spike.md`）。
+
+
 ### 安全
 
 - **插件沙箱阶段 A**：静态 AST 审计 + 运行时告警（import/os.system/subprocess/ctypes，仅告警）+ 可信允许列表；审计报告 `docs/plugin_sandbox_report.md`（14 插件、非可信高危 0）。
