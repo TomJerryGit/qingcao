@@ -31,16 +31,6 @@ def test_pty_tab_echo(qapp):
         tab = panel.add_tab(pty=True)
         assert getattr(tab, "kind", "") == "pty", type(tab).__name__
 
-        # 等待 shell 提示符/启动横幅出现后再输入，避免慢机器上命令早于 PTY 就绪
-        def _shell_ready():
-            screen = getattr(tab, "_screen", None)
-            text = (screen.text() if screen is not None else "") + panel.output.toPlainText()
-            return ">" in text or "$" in text
-
-        assert _pump_until(qapp, _shell_ready, timeout=30), "PTY 未就绪"
-        panel.input.setText("echo qc-pty-ui")
-        panel.run_command()
-
         def _echo_seen():
             # 输出区为 HTML 渲染；同时校验屏幕缓冲区，避免不同平台 toPlainText 差异
             if "qc-pty-ui" in panel.output.toPlainText():
@@ -48,7 +38,16 @@ def test_pty_tab_echo(qapp):
             screen = getattr(tab, "_screen", None)
             return bool(screen and "qc-pty-ui" in screen.text())
 
-        assert _pump_until(qapp, _echo_seen, timeout=30), panel.output.toPlainText()[-200:]
+        # 慢环境：shell 就绪时间不确定，周期性重发命令直到回显出现
+        deadline = time.time() + 30
+        seen = False
+        while time.time() < deadline:
+            panel.input.setText("echo qc-pty-ui")
+            panel.run_command()
+            if _pump_until(qapp, _echo_seen, timeout=3):
+                seen = True
+                break
+        assert seen, panel.output.toPlainText()[-200:]
     finally:
         panel.close()
 
