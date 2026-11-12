@@ -57,8 +57,7 @@ def test_market_html_wiring_static():
     assert "translate_html" in src
     welcome = "".join(
         io.open(os.path.join(ROOT, "ui", _f), encoding="utf-8").read()
-        for _f in ("welcome_widget.py", "welcome_stats.py", "welcome_cards.py",
-                   "welcome_recent.py")
+        for _f in ("welcome_widget.py", "welcome_stats.py", "welcome_cards.py", "welcome_recent.py")
     )
     assert "_tr(self._current_tip)" in welcome
 
