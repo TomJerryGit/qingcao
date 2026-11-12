@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 文档
+
+- **v2.26+ 开发/优化/测试路线图**：沙箱 B2 灰度、架构长尾、flaky/CI、macOS 决策、生态（`docs/roadmap_v2.26.md`）；Authenticode 证书决策为不申请。
+
+
 ### 安全
 
 - **插件沙箱 B1.5**：隔离插件菜单/状态栏接到真实 QMainWindow（线程安全 UI 桥）；`QINGCAO_PLUGIN_ISOLATION=demo` 灰度 demo 插件；加载器排除隔离插件避免重复。

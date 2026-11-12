@@ -1,3 +1,5 @@
+> **决策（2026-11-12）：本项目不再申请 Authenticode 证书**；发布完整性使用 SHA256 + Ed25519 `.sig`。以下内容仅作历史/备查。
+
 ﻿# Authenticode 接入 checklist（Windows）
 
 > 目标：安装包/可执行文件签名，减少 SmartScreen 拦截；与现有 Ed25519 更新链路互补。
