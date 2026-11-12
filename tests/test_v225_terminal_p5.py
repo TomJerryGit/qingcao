@@ -38,7 +38,12 @@ def test_wheel_event_sends_to_pty(qapp):
             False,
         )
         out.wheelEvent(ev)
-        assert got and got[0] == "\x1b[<65;1;1M"
+        assert got, "未发送滚轮事件"
+        # 列号随字体/单元格宽度变化（CI 无字体时可能为 2），只校验滚轮方向/按钮与行
+        import re
+
+        m = re.match(r"\x1b\[<65;(\d+);1M", got[0])
+        assert m and 1 <= int(m.group(1)) <= 3, got[0]
     finally:
         out.deleteLater()
 
