@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "keys": [
+    {
+      "key_id": "1f32f745",
+      "public_key": "1f32f745a66e5b1782f974580f1f919b9970aa26e3be7f8d87b17dff5c2370c0",
+      "not_before": "2026-01-01",
+      "not_after": "2027-12-31",
+      "revoked": false
+    }
+  ]
+}

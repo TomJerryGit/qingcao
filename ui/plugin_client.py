@@ -226,9 +226,9 @@ def verify_plugin_signature(
     if signature:
         algo = (signature_algo or "").lower()
         if algo == "ed25519":
-            from core.plugin_signature import verify_ed25519
+            from core.plugin_signature import verify_signature_envelope
 
-            return verify_ed25519(data, signature)
+            return verify_signature_envelope(data, signature)
         import hmac
 
         key = os.environ.get(key_env, "")
@@ -580,9 +580,9 @@ class PluginStoreClient:
         if not sig:
             return None
         try:
-            from core.plugin_signature import verify_ed25519
+            from core.plugin_signature import verify_signature_envelope
 
-            ok, _msg = verify_ed25519(raw, sig.decode("ascii", "ignore").strip())
+            ok, _msg = verify_signature_envelope(raw, sig.decode("ascii", "ignore").strip())
             if not ok:
                 return None
             return json.loads(raw.decode("utf-8"))

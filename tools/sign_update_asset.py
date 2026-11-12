@@ -40,7 +40,7 @@ def sign_asset(zip_path, key_hex=""):
 
 def verify_asset(zip_path, sig_path="", pub_hex=""):
     """校验安装包签名，返回 (ok, msg)。"""
-    from core.plugin_signature import verify_ed25519
+    from core.plugin_signature import verify_signature_envelope
 
     sig_path = sig_path or (zip_path + ".sig")
     if not os.path.isfile(zip_path) or not os.path.isfile(sig_path):
@@ -48,7 +48,7 @@ def verify_asset(zip_path, sig_path="", pub_hex=""):
     data = io.open(zip_path, "rb").read()
     sig = io.open(sig_path, encoding="ascii", errors="replace").read().strip()
     keys = [bytes.fromhex(pub_hex)] if pub_hex else None
-    return verify_ed25519(data, sig, public_keys=keys)
+    return verify_signature_envelope(data, sig, public_keys=keys)
 
 
 def main():
