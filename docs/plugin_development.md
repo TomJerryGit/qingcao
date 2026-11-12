@@ -3,7 +3,7 @@
 ## 快速开始
 
 ```powershell
-python tools/new_plugin.py my_plugin --display "我的插件"
+python tools/new_plugin.py --name my_plugin --display-name "我的插件"
 python main.py
 # 工具 → 插件管理 → 重载；工具菜单出现「我的插件/运行示例」
 ```
