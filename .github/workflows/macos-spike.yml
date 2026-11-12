@@ -1,0 +1,42 @@
+name: macOS Spike
+
+# 可行性评估：托管 macOS runner 上跑离屏子集（不阻塞任何门禁）
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      PYTHONIOENCODING: "utf-8"
+      QT_QPA_PLATFORM: "offscreen"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt pytest pytest-timeout
+      - name: Platform info
+        run: |
+          python -V
+          uname -a
+          python -c "import PyQt5.QtCore as c; from PyQt5 import Qsci; print('Qt', c.QT_VERSION_STR, 'QScintilla', Qsci.QSCINTILLA_VERSION_STR)" || true
+      - name: Offscreen subset (advisory)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_v224_architecture_split.py tests/test_v225_key_rotation.py tests/test_v225_perf_dashboard.py tests/test_v225_terminal_screen.py tests/test_v225_discoverability.py -q --timeout=120 2>&1 | tee macos_spike.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-spike-log
+          path: macos_spike.log
+          retention-days: 14

@@ -8,9 +8,9 @@
 |---|---|---|---|---|
 | 密钥轮换 | **P0（已完成实现）** | 5–6d | 低（可向后兼容） | ✅ 已实现（`docs/key_rotation.md`） |
 | 性能看板 | **P0（已完成）** | 2–3d | 低 | ✅ 已实现（`docs/perf_dashboard.md`） |
-| Authenticode 签名 | P1（依赖证书） | 1–2d 接入 + 采购 | 中（成本/流程） | 先做资格评估/申请 |
+| Authenticode 签名 | P1（流水线就绪） | 1–2d 接入 + 采购 | 中（成本/流程） | ✅ 条件式签名 + checklist；待证书 |
 | 插件沙箱 | P1（阶段 A 已完成） | 设计 3d，实装 8–12d | 高（兼容性/性能） | ✅ 阶段 A（`docs/plugin_sandbox_stage_a.md`）；阶段 B 待排期 |
-| macOS 支持 | P2（评估后） | 构建/测试 5–8d + CI 成本 | 中高 | 先做 1–2d 可行性 spike |
+| macOS 支持 | P2（spike 工作流就绪） | 构建/测试 5–8d + CI 成本 | 中高 | ✅ 托管 macOS spike 工作流（待运行） |
 
 ## 1. Authenticode 签名（Windows 安装包/可执行文件）
 

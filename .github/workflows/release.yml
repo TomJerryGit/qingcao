@@ -79,6 +79,32 @@ jobs:
           "BUILD_OK ver=$ver fv=$fv" | Out-File $log -Append -Encoding utf8
           if ($fv -ne $ver) { throw "version mismatch" }
 
+      - name: Authenticode Sign (optional)
+        # 配置 secrets.WINDOWS_SIGN_CERT_BASE64 / WINDOWS_SIGN_CERT_PASSWORD 后自动启用
+        if: ${{ env.SIGNING_CERT_BASE64 != '' }}
+        shell: powershell
+        env:
+          SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $log = "D:\actions-runner\release.log"
+          $pfx = Join-Path $env:RUNNER_TEMP "qc-sign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERT_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\x64\\" } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          $targets = @(Get-ChildItem "dist\QingCaoEditor" -Filter *.exe -Recurse | Select-Object -ExpandProperty FullName)
+          if ($targets.Count -eq 0) { throw "no exe to sign" }
+          foreach ($f in $targets) {
+            & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:SIGNING_CERT_PASSWORD /tr "http://timestamp.digicert.com" /td SHA256 $f
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed: $f" }
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne "Valid") { throw "signature invalid: $f ($($sig.Status))" }
+            "AUTHENTICODE_OK $f" | Out-File $log -Append -Encoding utf8
+          }
+          Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+
       - name: Package
         shell: powershell
         run: |
