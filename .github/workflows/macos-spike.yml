@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt pytest pytest-timeout
+          pip install -r requirements.txt pytest pytest-timeout cryptography
       - name: Platform info
         run: |
           python -V
