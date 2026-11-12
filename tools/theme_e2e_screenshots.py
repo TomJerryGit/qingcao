@@ -131,7 +131,9 @@ def main():
                 n += 1
         mean = total / max(1, n)
         reports[name] = round(mean, 2)
-        limit = 60.0 if name.startswith("panel_") else 80.0  # 面板内容随插件加载时序变化，以配色为主
+        limit = (
+            60.0 if name.startswith("panel_") else 80.0
+        )  # 面板内容随插件加载时序变化，以配色为主
         if mean > limit:
             problems.append("%s 像素差异过大: %.1f (阈值 %.0f)" % (name, mean, limit))
     print("[theme-e2e] diffs:", reports)
