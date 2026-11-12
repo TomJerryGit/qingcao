@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [2.25.0] - 2026-11-12
+
 ### 文档
 
 - **v3.0 探索提案**：Authenticode、插件沙箱、密钥轮换、性能看板、macOS 评估的可行性/优先级/两周计划（`docs/exploration_v3.0.md`）。

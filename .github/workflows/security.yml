@@ -6,10 +6,6 @@ on:
     - cron: "0 3 * * *"   # 每日 03:00 UTC（11:00 CST）
   push:
     branches: [main]
-    paths:
-      - "requirements.txt"
-      - "requirements-linux-ci.txt"
-      - ".github/workflows/security.yml"
 
 permissions:
   contents: read
