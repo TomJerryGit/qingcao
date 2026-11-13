@@ -1,4 +1,4 @@
-﻿# macOS 支持 spike（v3.0）
+# macOS 支持 spike（v3.0）
 
 ## 目标
 
@@ -64,5 +64,10 @@ GitHub Actions → **macOS Spike** → Run workflow（托管 `macos-latest`，�
 - `macos-spike.yml` 新增：POSIX PTY 检查、`pip install pyinstaller`、`python build_macos.py`（advisory）；
 - 结果写入 `macos_spike.log` 并上传 artifact，检查 `dist/*.app` 是否生成。
 
-### 待验证
-运行 macOS Spike 工作流，确认 `[posix-pty] echo=PASS alt-screen=PASS` 与 `APP_OK`/差距清单。
+### 实测结果（2026-11-13）
+
+macOS Spike 工作流（macos-latest / arm64）成功：
+
+- `[posix-pty] echo=PASS alt-screen=PASS`（`tools/verify_terminal_posix.py`）；
+- PyInstaller 构建：**APP_OK**（`dist/*.app` 生成）；
+- 结论：macOS 终端与打包可行性验证通过；剩余为 `.app` 启动冒烟、签名/公证与 CI 常驻成本。
