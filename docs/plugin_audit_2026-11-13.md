@@ -75,3 +75,10 @@
 ## 五、结论
 
 插件生态“可用且实用”，头部质量（wordcount/json_formatter/demo）达标；**安全隔离与高风险权限治理**是下一阶段重点，其次是 AI/调试器的体量与测试。建议结合沙箱 B2.2（远程面板/扩展点）与签名信任策略推进。
+
+## 勘误（2026-11-13，P1 复核）
+
+- 前文“ai_assistant 3,299 行、python_debugger 1,965 行”为**插件总行数**；
+- 按“单文件 ≤1,300 行”门禁复核：ai_assistant 最大文件 **1,242**（`__init__.py`），python_debugger 最大 **661**（`__init__.py`）——**均已达标，无需拆分**；
+- 新增守卫测试 `tests/test_v226_ai_timeout_cancel.py::test_plugin_files_within_architecture_limit` 防止回退；
+- AI 网络超时/取消回归：`test_make_request_passes_timeout`、`test_make_request_timeout_raises`。

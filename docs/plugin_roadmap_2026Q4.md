@@ -1,4 +1,4 @@
-﻿# 插件建设与优化路线图（2026 Q4，基于两次分析）
+# 插件建设与优化路线图（2026 Q4，基于两次分析）
 
 > 输入：`docs/plugin_audit_2026-11-13.md`（14 插件审计，8.0/10）+ `docs/plugin_enhancement_plan.md`（逐插件增强建议）。
 > 主线：**安全 → 架构/隔离 → 核心体验 → 覆盖补齐 → 样例与生态**。
@@ -27,8 +27,8 @@
 ### P1 架构与隔离扩展（W3–4，v2.26.0）
 | 任务 | 插件 | 验收 |
 |---|---|---|
-| ai_assistant 拆分（面板/客户端/内联） | ai_assistant | 每文件 ≤1,300 行 |
-| python_debugger 拆分（会话/UI/变量） | python_debugger | 每文件 ≤1,300 行 |
+| ai_assistant 拆分（面板/客户端/内联） | ai_assistant | 已达标：最大文件 1,242 行；补体积守卫测试 |
+| python_debugger 拆分（会话/UI/变量） | python_debugger | 已达标：最大文件 661 行；补体积守卫测试 |
 | 远程面板协议 B2.2（面板/状态模型） | logtail/todo_panel/markdown_preview | 隔离后功能对等 |
 | spell_check 迁标准沙箱运行时 | spell_check | 沙箱启用且诊断 UI 保留 |
 | 隔离兼容集合扩展 | 全部 | 可隔离插件 3→6+ |
