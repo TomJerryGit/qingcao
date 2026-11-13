@@ -129,7 +129,7 @@ def test_todo_markdown_remote_panels(qapp, monkeypatch):
     from ui.isolated_plugins import IsolatedPluginHost
 
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
-    for name in ("todo_panel", "markdown_preview"):
+    for name in ("todo_panel", "markdown_preview", "logtail"):
         win = QMainWindow()
         host = IsolatedPluginHost(win)
         try:

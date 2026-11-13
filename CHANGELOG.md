@@ -1,5 +1,13 @@
 ﻿## [Unreleased]
 
+## [2.26.0] - 2026-11-13
+
+### 安全/插件
+
+- **B2.2 远程面板**：text/markdown 面板；todo_panel/markdown_preview/logtail 隔离灰度（隔离集合 7）；
+- **P1 拆分**：ai_assistant 入口 904、python_debugger 589；
+- spell_check 标准沙箱契约复核；P0 git 白名单/AI 隐私随 v2.25.3 已发布。
+
 ### 安全
 
 - **B2.2 远程面板**：text/markdown 面板类型；todo_panel/markdown_preview 隔离灰度；隔离集合扩至 5 个（不含 sandbox_demo）。

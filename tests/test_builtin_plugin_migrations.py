@@ -5,6 +5,7 @@
 验证扩展点的注册、行为、清理，而不是只测 API 本身。
 """
 
+import glob
 import importlib.util
 import os
 
@@ -138,6 +139,9 @@ def test_ai_assistant_migration_is_registered_statically():
     """
     path = os.path.join(ROOT, "plugins", "ai_assistant", "__init__.py")
     src = open(path, encoding="utf-8").read()
+    for extra in sorted(glob.glob(os.path.join(
+            ROOT, "plugins", "ai_assistant", "*_mixin.py"))):
+        src += open(extra, encoding="utf-8").read()
     assert "register_settings_schema" in src, "缺少设置 schema 迁移"
     assert "status_refresh_seconds" in src
     assert "enable_inline" in src

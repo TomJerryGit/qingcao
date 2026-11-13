@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """日志实时监视插件"""
+
 import os
 
 from PyQt5.QtCore import QFileSystemWatcher, Qt, QTimer
@@ -93,22 +94,22 @@ class LogTailPanel(QDockWidget):
 """
         self.setStyleSheet(self._base_qss)
 
-
     def refresh_theme(self, theme):
         """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
+
             base = getattr(self, "_base_qss", "")
             if base:
                 self.setStyleSheet(adapt_qss_colors(base, theme))
         except Exception:
             pass
+
     def watch(self, filepath):
         """监视文件；filepath=None 表示停止监视"""
         # 停止监视（修复：原实现直接 basename(None) 会崩）
         if not filepath:
-            if (self.current_file and
-                    self.current_file in self.watcher.files()):
+            if self.current_file and self.current_file in self.watcher.files():
                 self.watcher.removePath(self.current_file)
             self.current_file = None
             self.last_size = 0
@@ -136,8 +137,7 @@ class LogTailPanel(QDockWidget):
         if not self.current_file or not os.path.exists(self.current_file):
             return
         try:
-            with open(self.current_file,
-                      encoding='utf-8', errors='replace') as f:
+            with open(self.current_file, encoding="utf-8", errors="replace") as f:
                 content = f.read()
             self.view.setPlainText(content)
             self.last_size = os.path.getsize(self.current_file)
@@ -174,16 +174,13 @@ class LogTailPanel(QDockWidget):
                 self.last_size = 0
                 self.view.clear()
 
-            with open(self.current_file,
-                      encoding='utf-8', errors='replace') as f:
+            with open(self.current_file, encoding="utf-8", errors="replace") as f:
                 f.seek(self.last_size)
                 new_content = f.read()
                 self.last_size = size
 
             if new_content:
-                self.view.appendPlainText(
-                    new_content.rstrip('\n')
-                )
+                self.view.appendPlainText(new_content.rstrip("\n"))
                 sb = self.view.verticalScrollBar()
                 sb.setValue(sb.maximum())
         except Exception as e:
@@ -200,47 +197,77 @@ class Plugin(PluginBase):
         self.api.log("日志监视插件已激活")
         self._panel = None
 
-        self.api.add_menu(
-            "工具/日志监视/监视当前文件",
-            self.watch_current,
-            shortcut="Ctrl+Alt+L"
-        )
-        self.api.add_menu(
-            "工具/日志监视/停止监视",
-            self.stop_watching
-        )
-        self.api.add_menu(
-            "工具/日志监视/打开面板",
-            self.show_panel
-        )
+        self.api.add_menu("工具/日志监视/监视当前文件", self.watch_current, shortcut="Ctrl+Alt+L")
+        self.api.add_menu("工具/日志监视/停止监视", self.stop_watching)
+        self.api.add_menu("工具/日志监视/打开面板", self.show_panel)
+        self._remote_panel = None
+        self._watching = False
+        if getattr(self.api, "is_isolated", False):
+            try:
+                self._remote_panel = self.api.register_remote_panel(
+                    "日志监视", [], self._remote_refresh, kind="text"
+                )
+            except Exception as e:
+                self.api.log("远程面板注册失败: %s" % e, "warning")
         # v2.4 扩展点
         self.on_activate_extension_points()
 
     def on_activate_extension_points(self):
         """v2.4 扩展点（由 on_activate 末尾调用）"""
-        self.api.register_settings_schema([
-            {"key": "max_lines", "label": "面板最多保留行数",
-             "type": "int", "default": 5000, "min": 100, "max": 200000},
-        ])
+        self.api.register_settings_schema(
+            [
+                {
+                    "key": "max_lines",
+                    "label": "面板最多保留行数",
+                    "type": "int",
+                    "default": 5000,
+                    "min": 100,
+                    "max": 200000,
+                },
+            ]
+        )
         self._status = self.api.add_status_item("监视: 未启动")
 
     def on_deactivate(self):
+        if getattr(self.api, "is_isolated", False):
+            return
         if self._panel:
             self._panel.close()
 
+    def _remote_refresh(self, text):
+        text = text or ""
+        try:
+            max_lines = int(self.api.get_config("max_lines", 5000) or 5000)
+        except Exception:
+            max_lines = 5000
+        lines = text.splitlines()[-max(100, min(max_lines, 200000)) :]
+        if not self._watching:
+            return "(未监视：使用「工具 → 日志监视 → 监视当前文件」)"
+        return "\n".join(lines) or "(当前文件为空)"
+
     def show_panel(self):
         """显示面板"""
+        if getattr(self.api, "is_isolated", False):
+            if self._remote_panel is None:
+                self._remote_panel = self.api.register_remote_panel(
+                    "日志监视", [], self._remote_refresh, kind="text"
+                )
+            self.api.show_remote_panel(self._remote_panel)
+            return
         if not self._panel:
             self._panel = LogTailPanel(self.api._host_window())
             # 修复: 使用 Qt 枚举而非裸 int
-            self.api._host_window().addDockWidget(
-                Qt.BottomDockWidgetArea, self._panel
-            )
+            self.api._host_window().addDockWidget(Qt.BottomDockWidgetArea, self._panel)
         self._panel.show()
         self._panel.raise_()
 
     def watch_current(self):
         """监视当前文件"""
+        if getattr(self.api, "is_isolated", False):
+            self._watching = True
+            self.show_panel()
+            self.api.show_status("监视: 当前文件（隔离模式）", 2000, "success")
+            return
         filepath = self.api.get_current_filepath()
         if not filepath:
             self.api.show_status("没有打开的文件", 2000)
@@ -248,12 +275,14 @@ class Plugin(PluginBase):
 
         self.show_panel()
         self._panel.watch(filepath)
-        self.api.show_status(
-            f"监视: {os.path.basename(filepath)}", 2000, "success"
-        )
+        self.api.show_status(f"监视: {os.path.basename(filepath)}", 2000, "success")
 
     def stop_watching(self):
         """停止监视"""
+        if getattr(self.api, "is_isolated", False):
+            self._watching = False
+            self.api.show_status("已停止监视", 2000)
+            return
         if self._panel:
             self._panel.watch(None)
             self.api.show_status("已停止监视", 2000)

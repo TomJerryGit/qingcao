@@ -6,7 +6,7 @@ import os
 # 已验证可在子进程完整运行的插件（B2.1 能力面）
 ISOLATABLE_PLUGINS = {
     "demo", "wordcount", "json_formatter", "sandbox_demo",
-    "todo_panel", "markdown_preview",
+    "todo_panel", "markdown_preview", "logtail",
 }
 DEMO_PLUGINS = ISOLATABLE_PLUGINS
 
