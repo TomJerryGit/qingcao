@@ -1,0 +1,411 @@
+[
+  {
+    "name": "ai_assistant",
+    "display": "AI 助手",
+    "version": "1.0.0",
+    "category": "editor",
+    "permissions": [
+      "network",
+      "editor_read",
+      "editor_write",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 3299,
+    "apis": [
+      "_host_window",
+      "add_menu",
+      "add_panel",
+      "add_status_item",
+      "ask_yes_no",
+      "current_editor",
+      "get_config",
+      "log",
+      "register_command",
+      "register_settings_schema",
+      "register_shortcut",
+      "remove_menu",
+      "run_background",
+      "show_message",
+      "show_status"
+    ],
+    "tests": [
+      "test_ai_enhancements.py",
+      "test_builtin_plugin_migrations.py",
+      "test_ollama.py",
+      "test_path_independence.py"
+    ],
+    "test_count": 10
+  },
+  {
+    "name": "demo",
+    "display": "Demo",
+    "version": "1.0.0",
+    "category": "other",
+    "permissions": [
+      "editor_read",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 36,
+    "apis": [
+      "add_menu",
+      "add_status_item",
+      "get_config",
+      "get_current_text",
+      "log",
+      "register_settings_schema",
+      "show_message"
+    ],
+    "tests": [
+      "test_audit_interaction_plugin.py",
+      "test_debugger.py",
+      "test_lsp_did_open.py",
+      "test_lsp_wiring.py"
+    ],
+    "test_count": 35
+  },
+  {
+    "name": "git_deep",
+    "display": "Git 深度集成",
+    "version": "1.0.0",
+    "category": "integration",
+    "permissions": [
+      "process",
+      "filesystem",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 187,
+    "apis": [
+      "add_menu",
+      "add_status_item",
+      "ask_string",
+      "get_current_filepath",
+      "log",
+      "register_command",
+      "register_settings_schema",
+      "show_message",
+      "show_status",
+      "show_text_dialog"
+    ],
+    "tests": [
+      "test_plugin_conformance.py",
+      "test_v219_p2_menu_cleanup.py",
+      "test_v225_sandbox_b0.py",
+      "test_wiring_audit.py"
+    ],
+    "test_count": 4
+  },
+  {
+    "name": "json_formatter",
+    "display": "JSON 格式化",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "editor_read",
+      "editor_write",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 279,
+    "apis": [
+      "add_editor_context_menu",
+      "add_menu",
+      "clear_diagnostics",
+      "current_editor",
+      "get_config",
+      "get_current_text",
+      "get_selected_text",
+      "log",
+      "publish_diagnostics",
+      "register_code_action_provider",
+      "register_hover_provider",
+      "register_settings_schema",
+      "replace_selected_text",
+      "show_message",
+      "show_status"
+    ],
+    "tests": [
+      "test_builtin_plugin_migrations.py",
+      "test_json_formatter_plugin.py",
+      "test_plugin_conformance.py",
+      "test_v225_sandbox_providers.py"
+    ],
+    "test_count": 4
+  },
+  {
+    "name": "logtail",
+    "display": "日志实时监视",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "filesystem",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 259,
+    "apis": [
+      "_host_window",
+      "add_menu",
+      "add_status_item",
+      "get_current_filepath",
+      "log",
+      "register_settings_schema",
+      "show_status"
+    ],
+    "tests": [
+      "test_plugin_conformance.py",
+      "test_plugin_permissions.py",
+      "test_plugin_ui_adapt.py"
+    ],
+    "test_count": 3
+  },
+  {
+    "name": "markdown_preview",
+    "display": "Markdown 预览",
+    "version": "1.0.0",
+    "category": "editor",
+    "permissions": [
+      "editor_read",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 228,
+    "apis": [
+      "_host_window",
+      "add_menu",
+      "clear_diagnostics",
+      "get_config",
+      "get_current_filepath",
+      "get_current_text",
+      "log",
+      "publish_diagnostics",
+      "register_settings_schema",
+      "register_symbol_provider",
+      "show_status"
+    ],
+    "tests": [
+      "test_builtin_plugin_migrations.py",
+      "test_plugin_conformance.py",
+      "test_plugin_permissions.py",
+      "test_plugin_ui_adapt.py"
+    ],
+    "test_count": 5
+  },
+  {
+    "name": "my_plugin",
+    "display": "My Plugin",
+    "version": "1.0.0",
+    "category": "other",
+    "permissions": [],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 43,
+    "apis": [
+      "add_menu",
+      "get_current_text",
+      "log",
+      "register_settings_schema",
+      "show_message",
+      "show_status"
+    ],
+    "tests": [
+      "test_plugin_conformance.py"
+    ],
+    "test_count": 1
+  },
+  {
+    "name": "python_debugger",
+    "display": "Python 调试器",
+    "version": "2.0.0",
+    "category": "integration",
+    "permissions": [
+      "process",
+      "editor_read",
+      "editor_write",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 1965,
+    "apis": [
+      "all_editors",
+      "ask_string",
+      "current_editor",
+      "get_current_filepath",
+      "get_main_window",
+      "log",
+      "save_current_file",
+      "show_message",
+      "show_status"
+    ],
+    "tests": [
+      "test_debugger.py",
+      "test_debugger_eval_guard.py",
+      "test_p3_security_market_debugger.py",
+      "test_plugin_conformance.py"
+    ],
+    "test_count": 7
+  },
+  {
+    "name": "sandbox_demo",
+    "display": "沙箱示例（实验）",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "editor_read"
+    ],
+    "sandbox": true,
+    "enabled": false,
+    "lines": 31,
+    "apis": [],
+    "tests": [
+      "test_plugin_sandbox_manager.py",
+      "test_plugin_sandbox_rpc.py",
+      "test_sandboxed_collectors.py",
+      "test_sandbox_diagnostics_host.py"
+    ],
+    "test_count": 5
+  },
+  {
+    "name": "spell_check",
+    "display": "拼写检查",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "editor_read",
+      "filesystem"
+    ],
+    "sandbox": true,
+    "enabled": true,
+    "lines": 340,
+    "apis": [
+      "add_editor_context_menu",
+      "add_menu",
+      "add_status_item",
+      "clear_diagnostics",
+      "current_editor",
+      "log",
+      "publish_diagnostics",
+      "register_settings_schema",
+      "set_status_item_text",
+      "show_status"
+    ],
+    "tests": [
+      "test_plugin_sandbox.py",
+      "test_plugin_ui_adapt.py",
+      "test_sandboxed_collectors.py",
+      "test_sandbox_diagnostics_host.py"
+    ],
+    "test_count": 9
+  },
+  {
+    "name": "todo_panel",
+    "display": "TODO 面板",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "filesystem",
+      "editor_read",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 323,
+    "apis": [
+      "_host_window",
+      "add_menu",
+      "add_status_item",
+      "get_config",
+      "get_current_filepath",
+      "get_current_text",
+      "log",
+      "register_settings_schema"
+    ],
+    "tests": [
+      "test_builtin_plugin_migrations.py",
+      "test_plugin_conformance.py",
+      "test_plugin_permissions.py",
+      "test_plugin_ui_adapt.py"
+    ],
+    "test_count": 4
+  },
+  {
+    "name": "whitespace_sandbox",
+    "display": "空白符检查（沙箱）",
+    "version": "1.0.0",
+    "category": "tools",
+    "permissions": [
+      "editor_read"
+    ],
+    "sandbox": true,
+    "enabled": true,
+    "lines": 43,
+    "apis": [],
+    "tests": [
+      "test_v216_p3_wrapup.py",
+      "test_v218_registry.py"
+    ],
+    "test_count": 2
+  },
+  {
+    "name": "wordcount",
+    "display": "字数统计",
+    "version": "1.0.0",
+    "category": "tool",
+    "permissions": [
+      "editor_read",
+      "dialog"
+    ],
+    "sandbox": false,
+    "enabled": true,
+    "lines": 264,
+    "apis": [
+      "_host_window",
+      "add_menu",
+      "add_status_item",
+      "current_editor",
+      "get_config",
+      "get_current_text",
+      "log",
+      "register_remote_panel",
+      "register_settings_schema",
+      "show_remote_panel",
+      "subscribe"
+    ],
+    "tests": [
+      "test_builtin_plugin_migrations.py",
+      "test_plugin_conformance.py",
+      "test_plugin_permissions.py",
+      "test_plugin_ui_adapt.py"
+    ],
+    "test_count": 11
+  },
+  {
+    "name": "wordcount_sandbox",
+    "display": "字数统计（沙箱）",
+    "version": "1.0.1",
+    "category": "tools",
+    "permissions": [
+      "editor_read"
+    ],
+    "sandbox": true,
+    "enabled": true,
+    "lines": 26,
+    "apis": [],
+    "tests": [
+      "test_v218_p3.py",
+      "test_v218_registry.py",
+      "test_v221_github_registry.py",
+      "test_wordcount_sandbox.py"
+    ],
+    "test_count": 4
+  }
+]
