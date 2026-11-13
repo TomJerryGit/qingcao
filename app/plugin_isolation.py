@@ -3,7 +3,9 @@
 import os
 
 
-DEMO_PLUGINS = {"demo", "wordcount", "json_formatter", "sandbox_demo"}
+# 已验证可在子进程完整运行的插件（B2.1 能力面）
+ISOLATABLE_PLUGINS = {"demo", "wordcount", "json_formatter", "sandbox_demo"}
+DEMO_PLUGINS = ISOLATABLE_PLUGINS
 
 
 def isolation_mode():
@@ -11,11 +13,11 @@ def isolation_mode():
 
 
 def should_isolate(plugin_name):
+    if plugin_name not in ISOLATABLE_PLUGINS:
+        return False
     mode = isolation_mode()
-    if mode in ("1", "all", "strict"):
+    if mode in ("1", "all", "strict", "demo"):
         return True
-    if mode == "demo":
-        return plugin_name in DEMO_PLUGINS
     return False
 
 
@@ -40,7 +42,8 @@ def isolated_plugin_names(plugins_dir=None):
             except Exception:
                 continue
             name = data.get("name") or entry
-            if mode == "demo" and name not in DEMO_PLUGINS:
+            # 仅隔离已验证兼容的插件；其余保持进程内（避免 all 模式破坏功能）
+            if name not in ISOLATABLE_PLUGINS:
                 continue
             if mode in ("demo", "1", "all", "strict"):
                 names.add(name)

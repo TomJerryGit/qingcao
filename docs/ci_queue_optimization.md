@@ -33,3 +33,9 @@
 
 - 若队列仍高：增加第二自托管 runner，或把 Test 主路径迁移到托管 runner；
 - 统计 job 级队列：`python tools/ci_queue_stats.py --days 14 --workflows Test,Release`。
+
+## 首轮观察（2026-11-13）
+
+- `ci_queue_stats.py --limit 20`：Test job 队列 P50=572s、P95=1382s（≈23min），样本仍包含改动前运行；
+- Release 队列 P50=3s/P95=4s；Release job 耗时 P95=1777s（构建+门禁等待）；
+- 结论：优化已上线，需在后续 1–2 天新运行积累后复测 P95；若仍高，增加第二 runner。

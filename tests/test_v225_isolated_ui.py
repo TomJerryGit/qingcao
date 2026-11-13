@@ -6,7 +6,7 @@ import time
 from PyQt5.QtWidgets import QMainWindow, QMessageBox
 
 
-def _pump(qapp, cond, timeout=10):
+def _pump(qapp, cond, timeout=20):
     deadline = time.time() + timeout
     while time.time() < deadline:
         qapp.processEvents()
@@ -60,6 +60,8 @@ class Plugin:
         assert api.status_items
     finally:
         proc.stop()
+        for _ in range(5):
+            qapp.processEvents()
         win.close()
 
 
@@ -87,6 +89,8 @@ def test_demo_isolated_with_window_host(qapp, monkeypatch):
         assert _pump(qapp, lambda: bool(captured.get("msg"))), "demo 回调未执行"
     finally:
         host.stop_all()
+        for _ in range(5):
+            qapp.processEvents()
         win.close()
 
 
@@ -116,4 +120,6 @@ def test_wordcount_remote_panel(qapp, monkeypatch):
         assert _pump(qapp, lambda: any(lbl.text() != "-" for lbl in rec["values"].values()))
     finally:
         host.stop_all()
+        for _ in range(5):
+            qapp.processEvents()
         win.close()

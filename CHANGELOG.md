@@ -1,4 +1,12 @@
-## [Unreleased]
+﻿## [Unreleased]
+
+### 安全
+
+- **沙箱 all 模式安全灰度**：ISOLATABLE_PLUGINS（demo/wordcount/json_formatter/sandbox_demo）；ll 仅隔离已验证插件，其余保持进程内；新增兼容性测试。
+
+### 工程
+
+- **CI 队列观察**：Test 队列 P50=572s/P95=1382s（含旧运行）；优化效果待新运行复测（docs/ci_queue_optimization.md）。
 
 ### 平台
 

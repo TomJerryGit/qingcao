@@ -23,7 +23,7 @@
 
 | # | 任务 | 验收 | 工作量 |
 |---|---|---|---|
-| R1.1 ✅ | demo + wordcount 远程面板 + **json_formatter provider 接线**灰度通过 | 3 插件功能对等 | 2d |
+| R1.1 ✅ | demo + wordcount 远程面板 + json_formatter provider 灰度；`all` 模式仅隔离已验证集合（其他保持进程内） | 3 插件功能对等 | 2d |
 | R1.2 ✅ | 隔离插件设置 schema：宿主侧动态对话框（bool/int/float/choice/str）+「工具/插件设置」入口 + 按插件前缀持久化；测试 3/3 | 2d |
 | R1.3 ✅ | 网络 broker：manifest `network_allowlist` + 60/min 限流 + 拒绝审计 + 1MB 响应上限；4 测试通过 | 2d |
 | R1.4 | 高风险 API（process/terminal/debugger）默认拒绝 + Ed25519 信任要求 | 未签名插件调用被拒；签名插件逐次确认 | 2d |
