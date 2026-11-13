@@ -30,7 +30,7 @@ jobs:
         # black 仅在 tools/ 与 tests/ 上做格式校验，避免对
         # 历史代码产生大规模无意义 diff。
         run: |
-          pip install ruff
+          pip install ruff==0.16.7
 
       - name: Run ruff
         run: ruff check . --output-format=github
@@ -64,7 +64,6 @@ jobs:
 
   test:
     # 跨平台完整测试由 Windows Test 工作流把关；Ubuntu 全量测试作为参考（已知平台差异用例）
-    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # 技术债（v2.19）：Ubuntu offscreen 与 Windows 目标平台存在历史差异，
