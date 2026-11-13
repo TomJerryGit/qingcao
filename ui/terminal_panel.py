@@ -15,7 +15,7 @@ from PyQt5.QtGui import QFont
 
 
 try:
-    from ui.pty_session import HAS_WINPTY, PtySession
+    from ui.pty_session import HAS_PTY, HAS_WINPTY, PtySession
 except Exception:  # pragma: no cover
     HAS_WINPTY = False
     PtySession = None
@@ -689,7 +689,7 @@ class TerminalPanel(QDockWidget):
         tab = None
         label = None
         if pty:
-            if HAS_WINPTY and PtySession is not None:
+            if HAS_PTY and PtySession is not None:
                 try:
                     tab = PtyTerminalTab(cwd or self._default)
                     label = "PTY %d" % (self.tabs.count() + 1)

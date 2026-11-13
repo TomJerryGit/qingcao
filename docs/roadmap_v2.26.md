@@ -58,8 +58,8 @@
 
 | # | 任务 | 验收 |
 |---|---|---|
-| R4.1 | POSIX PTY 适配（`pty`/`ptyprocess`）+ 单测 | 终端 P1–P7 在 macOS 离屏通过 |
-| R4.2 | `build_macos.py` 产物 + `.app` 冒烟（托管 runner） | 可启动、打开/保存文件 |
+| R4.1 ✅ | POSIX PTY 双后端 + `verify_terminal_posix.py`（待 macOS 实测） | 终端 P1–P7 在 macOS 离屏通过 |
+| R4.2 🟡 | macOS spike 新增 PyInstaller `.app` 冒烟步骤（advisory，待运行） | 可启动、打开/保存文件 |
 | R4.3 | 决策门：维护成本 vs 需求 | 立项或明确“暂不支持” |
 
 ## 阶段 R5：生态与体验（v2.28，2 周，无证书依赖）

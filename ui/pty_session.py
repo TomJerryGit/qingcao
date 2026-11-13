@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Windows 交互式 PTY 会话封装（v2.23 D4）。
+"""跨平台交互式 PTY 会话（Windows: pywinpty；POSIX: pty/subprocess）。"""
 
-基于 pywinpty（ConPTY）：持续 shell 会话、可读写、可等待输出。
-read() 为阻塞调用，因此用后台读线程 + 条件变量提供非阻塞 API。
-"""
-
+import os
 import sys
 import threading
 import time
@@ -18,18 +15,42 @@ except ImportError:  # pragma: no cover - 非 Windows/未安装
     PtyProcess = None
     HAS_WINPTY = False
 
+HAS_PTY = HAS_WINPTY or sys.platform != "win32"
+
 
 class PtySession:
-    """最小交互式 PTY 会话。"""
+    """最小交互式 PTY 会话（read/write 非阻塞封装）。"""
 
     def __init__(self, argv=None, cwd=None, rows=24, cols=120, env=None):
-        if not HAS_WINPTY:
-            raise RuntimeError("pywinpty 不可用")
         argv = argv or self.default_shell()
-        self._proc = PtyProcess.spawn(argv, cwd=cwd, env=env, dimensions=(rows, cols))
         self._buf = ""
         self._cv = threading.Condition()
         self._closed = False
+        self._master = None
+        self._proc = None
+        self._backend = "posix" if sys.platform != "win32" else "winpty"
+        if self._backend == "winpty":
+            if not HAS_WINPTY:
+                raise RuntimeError("pywinpty 不可用")
+            self._proc = PtyProcess.spawn(argv, cwd=cwd, env=env, dimensions=(rows, cols))
+        else:
+            import pty
+            import subprocess
+
+            master, slave = pty.openpty()
+            self._master = master
+            self._proc = subprocess.Popen(
+                argv,
+                stdin=slave,
+                stdout=slave,
+                stderr=slave,
+                cwd=cwd,
+                env=env,
+                close_fds=True,
+                preexec_fn=os.setsid,
+            )
+            os.close(slave)
+            self.resize(rows, cols)
         self._reader = threading.Thread(target=self._read_loop, name="pty-reader", daemon=True)
         self._reader.start()
 
@@ -39,10 +60,20 @@ class PtySession:
             return ["cmd.exe"]
         return ["/bin/sh"]
 
+    def _read_once(self):
+        if self._backend == "winpty":
+            return self._proc.read(4096)
+        if self._master is None:
+            return ""
+        raw = os.read(self._master, 4096)
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8", "replace")
+        return raw
+
     def _read_loop(self):
         while True:
             try:
-                data = self._proc.read(4096)
+                data = self._read_once()
             except (EOFError, OSError, ValueError):
                 break
             except Exception:
@@ -57,16 +88,32 @@ class PtySession:
             self._cv.notify_all()
 
     def write(self, text):
-        self._proc.write(text)
+        if self._backend == "winpty":
+            self._proc.write(text)
+        elif self._master is not None:
+            os.write(self._master, str(text).encode("utf-8", "replace"))
+
+    def resize(self, rows, cols):
+        if self._backend != "posix" or self._master is None:
+            return False
+        try:
+            import fcntl
+            import struct
+            import termios
+
+            fcntl.ioctl(
+                self._master, termios.TIOCSWINSZ, struct.pack("HHHH", int(rows), int(cols), 0, 0)
+            )
+            return True
+        except Exception:
+            return False
 
     def read_available(self):
-        """取走当前输出（非阻塞）。"""
         with self._cv:
             data, self._buf = self._buf, ""
             return data
 
     def wait_for(self, text, timeout=10.0):
-        """等待输出中出现指定文本。"""
         deadline = time.time() + timeout
         with self._cv:
             while text not in self._buf:
@@ -80,16 +127,26 @@ class PtySession:
 
     def is_alive(self):
         try:
-            return bool(self._proc.isalive())
+            if self._backend == "winpty":
+                return bool(self._proc.isalive())
+            return self._proc.poll() is None
         except Exception:
             return False
 
     def close(self):
         try:
-            self._proc.terminate(force=True)
-        except Exception:
-            pass
-        try:
-            self._proc.close(force=True)
+            if self._backend == "winpty":
+                self._proc.terminate(force=True)
+                self._proc.close(force=True)
+            else:
+                if self._proc is not None and self._proc.poll() is None:
+                    self._proc.terminate()
+                    try:
+                        self._proc.wait(timeout=2)
+                    except Exception:
+                        self._proc.kill()
+                if self._master is not None:
+                    os.close(self._master)
+                    self._master = None
         except Exception:
             pass

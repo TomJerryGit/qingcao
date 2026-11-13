@@ -52,3 +52,17 @@ GitHub Actions → **macOS Spike** → Run workflow（托管 `macos-latest`，�
 
 - 子集通过率 ≥90% 且差距可控 → 立 v3.x 里程碑（明确人力/账号）；
 - 否则保持 Windows/Linux，macOS 仅记录为社区需求。
+
+## R4 实现（2026-11-13）
+
+### POSIX PTY
+- `ui/pty_session.py` 双后端：Windows 用 pywinpty；macOS/Linux 用 `pty.openpty` + `subprocess`（`HAS_PTY`）；
+- 新增 `tools/verify_terminal_posix.py`：/bin/sh 回显 + alt-screen 验证（Windows 下 SKIP）；
+- 终端面板改用 `HAS_PTY` 判断交互 PTY 能力。
+
+### .app 冒烟
+- `macos-spike.yml` 新增：POSIX PTY 检查、`pip install pyinstaller`、`python build_macos.py`（advisory）；
+- 结果写入 `macos_spike.log` 并上传 artifact，检查 `dist/*.app` 是否生成。
+
+### 待验证
+运行 macOS Spike 工作流，确认 `[posix-pty] echo=PASS alt-screen=PASS` 与 `APP_OK`/差距清单。

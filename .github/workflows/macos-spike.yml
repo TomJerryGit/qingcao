@@ -34,6 +34,18 @@ jobs:
         run: |
           set -o pipefail
           python -m pytest tests/test_v224_architecture_split.py tests/test_v225_key_rotation.py tests/test_v225_perf_dashboard.py tests/test_v225_terminal_screen.py tests/test_v225_discoverability.py -q --timeout=120 2>&1 | tee macos_spike.log
+      - name: POSIX PTY check
+        continue-on-error: true
+        run: python tools/verify_terminal_posix.py 2>&1 | tee -a macos_spike.log
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+      - name: Build .app (advisory)
+        continue-on-error: true
+        run: |
+          python build_macos.py 2>&1 | tee -a macos_spike.log || true
+          ls -d dist/*.app 2>/dev/null && echo "APP_OK" | tee -a macos_spike.log || echo "APP_MISSING" | tee -a macos_spike.log
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

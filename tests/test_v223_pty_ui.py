@@ -78,6 +78,7 @@ def test_pty_fallback_without_winpty(qapp, monkeypatch):
     import ui.terminal_panel as tp
 
     monkeypatch.setattr(tp, "HAS_WINPTY", False)
+    monkeypatch.setattr(tp, "HAS_PTY", False)
     panel = tp.TerminalPanel(None)
     try:
         tab = panel.add_tab(pty=True)

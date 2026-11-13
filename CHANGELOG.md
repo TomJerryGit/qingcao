@@ -1,4 +1,8 @@
-## [Unreleased]
+﻿## [Unreleased]
+
+### 平台
+
+- **R4 macOS**：`PtySession` POSIX 后端（pty+subprocess）+ `verify_terminal_posix.py`；macOS spike 增加 PTY 检查与 `.app` 冒烟步骤。
 
 ### 工程
 
