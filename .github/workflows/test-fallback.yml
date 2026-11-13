@@ -30,6 +30,6 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
       - name: Install deps
-        run: pip install -r requirements.txt
+          run: pip install -r requirements.txt pytest pytest-timeout pytest-qt cryptography
       - name: Run tests (sharded)
         run: python tools/run_tests_sharded.py --shards 3 --retries 1 --parallel
