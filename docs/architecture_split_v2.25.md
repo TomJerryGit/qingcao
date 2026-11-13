@@ -42,3 +42,14 @@
 - 全局（除归档）**≤1,800 行**；
 - 历史长尾 10 个文件列入白名单：上限 ≤1,500，且**一旦降到 ≤1,300 必须移除**（测试强制）；
 - 新增文件/拆分产物不得再突破 1,300。
+
+## 阶段 R2：三个 1.4k 文件拆分（v2.26.1）
+
+| 模块 | 拆分前 | 拆分后 | 子模块 |
+|---|---|---|---|
+| `ui/directory_tree.py` | 1,478 | **1,072** | `directory_tree_ops.py`（右键菜单/文件操作 417） |
+| `core/macro.py` | 1,455 | **610** | `macro_common.py`(88) + `macro_recorder.py`(781) |
+| `ui/plugin_store.py` | 1,432 | **1,081** | `plugin_store_card.py`（卡片+评分筛选辅助 358） |
+
+- 架构白名单 10 → **7**；`test_v225_architecture_ratchet` 通过；
+- 相关测试（macro/directory/plugin_store/market/架构）：20/20。

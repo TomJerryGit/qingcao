@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 重构
+
+- **R2 架构长尾**：directory_tree →1,072、macro →610、plugin_store →1,081；白名单 10→7。
+
+
 ### 安全
 
 - **沙箱 R1.3 网络 broker**：manifest 域名白名单、60 次/分钟限流、拒绝审计、1MB 响应上限（`tests/test_v225_sandbox_network.py`）。
