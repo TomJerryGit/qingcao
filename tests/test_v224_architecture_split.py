@@ -320,8 +320,6 @@ def test_phase24_splits():
 # v2.25 阶段 2.6：新代码默认上限 1,300 行；
 # 历史长尾文件列入白名单（附当前上限），已达标后必须从白名单移除。
 _ALLOWLIST = {
-    
-    
     "infrastructure/theme_loader.py": 1420,
     "core/document_core.py": 1420,
     "ui/plugin_client.py": 1410,
@@ -329,7 +327,6 @@ _ALLOWLIST = {
     "infrastructure/plugin_updater.py": 1370,
     "app/preferences.py": 1340,
     "ui/command_palette.py": 1335,
-    
 }
 
 
