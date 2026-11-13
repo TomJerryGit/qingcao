@@ -13,6 +13,9 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
+    QTextBrowser,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -219,27 +222,41 @@ class WindowHostAPI:
             raise ValueError("plugin has no settings schema: %s" % plugin_name)
         return SchemaSettingsDialog(plugin_name, schema, parent=self.window)
 
-    def register_remote_panel(self, title, fields, refresh_cb):
+    def register_remote_panel(self, title, fields, refresh_cb, kind="fields"):
         self._panel_seq += 1
         pid = self._panel_seq
 
         def _create():
             dock = QDockWidget(str(title), self.window)
             body = QWidget(dock)
-            form = QFormLayout(body)
             values = {}
-            for f in fields or []:
-                key = f.get("key") if isinstance(f, dict) else str(f)
-                label = (f.get("label") if isinstance(f, dict) else key) or key
-                val = QLabel("-")
-                form.addRow(str(label) + ":", val)
-                values[key] = val
+            text_widget = None
+            if kind in ("text", "markdown"):
+                text_widget = QPlainTextEdit() if kind == "text" else QTextBrowser()
+                text_widget.setReadOnly(True) if kind == "text" else None
+                body_layout = QVBoxLayout(body)
+                body_layout.setContentsMargins(4, 4, 4, 4)
+                body_layout.addWidget(text_widget)
+            else:
+                form = QFormLayout(body)
+                for f in fields or []:
+                    key = f.get("key") if isinstance(f, dict) else str(f)
+                    label = (f.get("label") if isinstance(f, dict) else key) or key
+                    val = QLabel("-")
+                    form.addRow(str(label) + ":", val)
+                    values[key] = val
             dock.setWidget(body)
             try:
                 self.window.addDockWidget(Qt.RightDockWidgetArea, dock)
             except Exception:
                 pass
-            self.remote_panels[pid] = {"dock": dock, "values": values, "cb": refresh_cb}
+            self.remote_panels[pid] = {
+                "dock": dock,
+                "values": values,
+                "cb": refresh_cb,
+                "kind": kind,
+                "text_widget": text_widget,
+            }
 
             def refresh():
                 rec = self.remote_panels.get(pid)
@@ -256,6 +273,18 @@ class WindowHostAPI:
                         result = None
                 except Exception as e:
                     logger.warning("remote panel refresh failed: %s", e)
+                    return
+                if rec.get("kind") in ("text", "markdown"):
+                    widget = rec.get("text_widget")
+                    body = result if isinstance(result, str) else str(result or "")
+                    if widget is not None:
+                        if rec.get("kind") == "markdown":
+                            try:
+                                widget.document().setMarkdown(body)
+                            except Exception:
+                                widget.setPlainText(body)
+                        else:
+                            widget.setPlainText(body)
                     return
                 if isinstance(result, dict):
                     for k, label in rec["values"].items():

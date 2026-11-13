@@ -170,3 +170,12 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 权限：仍需 `network` 权限声明。
 
 验证：`tests/test_v225_sandbox_network.py`（白名单通过/域名拒绝审计/限流/子进程端到端）。
+
+## B2.2 远程面板扩展（已实现，2026-11-13）
+
+- 面板类型：`fields`（字段标签）/ `text`（QPlainTextEdit）/ `markdown`（QTextBrowser.setMarkdown）；
+- `register_remote_panel(title, fields, refresh, kind=...)`；1s 定时以当前文本快照刷新；
+- `todo_panel`：隔离模式按当前文本解析 TODO/FIXME，远程 text 面板展示；
+- `markdown_preview`：隔离模式远程 markdown 面板（`setMarkdown` 渲染），符号 provider 暂不跨进程；
+- 灰度集合扩展为：demo、wordcount、json_formatter、todo_panel、markdown_preview（+sandbox_demo）；
+- logtail 仍待定：需要宿主侧文件跟随/路径白名单，避免子进程直接读任意日志。

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Markdown 预览插件"""
+
 import os
 
 from PyQt5.QtCore import Qt, QTimer
@@ -43,16 +44,17 @@ class MarkdownPanel(QDockWidget):
 """
         self.setStyleSheet(self._base_qss)
 
-
     def refresh_theme(self, theme):
         """主题切换：按当前主题适配面板 QSS（v2.14 插件 UI 统一）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
+
             base = getattr(self, "_base_qss", "")
             if base:
                 self.setStyleSheet(adapt_qss_colors(base, theme))
         except Exception:
             pass
+
     def render(self, text):
         """渲染"""
         try:
@@ -72,27 +74,44 @@ class Plugin(PluginBase):
         self._panel = None
 
         # C2: 避开主窗口的 Ctrl+Shift+M（回放宏）
-        self.api.add_menu(
-            "视图/Markdown 预览",
-            self.toggle_preview,
-            shortcut="Ctrl+Alt+M"
-        )
+        self.api.add_menu("视图/Markdown 预览", self.toggle_preview, shortcut="Ctrl+Alt+M")
 
         # ---- v2.3/v2.4 扩展点 ----
         # 1) 符号：把 Markdown 标题贡献给「大纲」面板（NPP functionList 等价）
         self.api.register_symbol_provider(
-            self._symbols, language_ids=["markdown", ".md", ".markdown"])
+            self._symbols, language_ids=["markdown", ".md", ".markdown"]
+        )
 
         # 2) 诊断：把 Markdown 结构问题发布到「问题」面板
-        self.api.add_menu(
-            "工具/Markdown/检查并报告到问题面板", self.check_and_report)
+        self.api.add_menu("工具/Markdown/检查并报告到问题面板", self.check_and_report)
         # 2) 设置 schema：「工具 → 插件设置」（无需 dialog 权限）
-        self.api.register_settings_schema([
-            {"key": "check_image_alt", "label": "检查图片缺失 alt",
-             "type": "bool", "default": True},
-            {"key": "max_diagnostics", "label": "最多报告条数",
-             "type": "int", "default": 50, "min": 1, "max": 500},
-        ])
+        self.api.register_settings_schema(
+            [
+                {
+                    "key": "check_image_alt",
+                    "label": "检查图片缺失 alt",
+                    "type": "bool",
+                    "default": True,
+                },
+                {
+                    "key": "max_diagnostics",
+                    "label": "最多报告条数",
+                    "type": "int",
+                    "default": 50,
+                    "min": 1,
+                    "max": 500,
+                },
+            ]
+        )
+
+        self._remote_panel = None
+        if getattr(self.api, "is_isolated", False):
+            try:
+                self._remote_panel = self.api.register_remote_panel(
+                    "Markdown 预览", [], self._remote_refresh, kind="markdown"
+                )
+            except Exception as e:
+                self.api.log("远程面板注册失败: %s" % e, "warning")
 
         # 定时刷新
         self._timer = QTimer()
@@ -123,17 +142,19 @@ class Plugin(PluginBase):
             level = len(stripped) - len(stripped.lstrip("#"))
             if level == 0 or level > 6 or len(stripped) <= level:
                 continue
-            if stripped[level:level + 1] not in (" ", "\t"):
+            if stripped[level : level + 1] not in (" ", "\t"):
                 continue
             title = stripped[level:].strip()
             if not title:
                 continue
-            items.append({
-                "name": title,
-                "type": "namespace",
-                "line": idx,
-                "indent": level - 1,
-            })
+            items.append(
+                {
+                    "name": title,
+                    "type": "namespace",
+                    "line": idx,
+                    "indent": level - 1,
+                }
+            )
         return items
 
     # --------------------------------------------------------
@@ -158,20 +179,27 @@ class Plugin(PluginBase):
             if s.startswith("```"):
                 fence_lines.append(idx)
             if check_alt and "![](" in s:
-                issues.append({
-                    "line": idx, "col": max(0, s.find("![](")),
-                    "severity": "warning",
-                    "message": "图片缺少 alt 文本（空 []）",
-                    "code": "MD001",
-                })
+                issues.append(
+                    {
+                        "line": idx,
+                        "col": max(0, s.find("![](")),
+                        "severity": "warning",
+                        "message": "图片缺少 alt 文本（空 []）",
+                        "code": "MD001",
+                    }
+                )
             if len(issues) >= max_items:
                 return issues
         if len(fence_lines) % 2 == 1:
-            issues.append({
-                "line": fence_lines[-1], "col": 0, "severity": "error",
-                "message": "代码围栏未闭合（``` 数量为奇数）",
-                "code": "MD002",
-            })
+            issues.append(
+                {
+                    "line": fence_lines[-1],
+                    "col": 0,
+                    "severity": "error",
+                    "message": "代码围栏未闭合（``` 数量为奇数）",
+                    "code": "MD002",
+                }
+            )
         return issues[:max_items]
 
     def check_and_report(self):
@@ -179,16 +207,14 @@ class Plugin(PluginBase):
         try:
             filepath = self.api.get_current_filepath() or ""
             if not filepath.lower().endswith((".md", ".markdown")):
-                self.api.show_status("当前文件不是 Markdown", 2000,
-                                     "warning")
+                self.api.show_status("当前文件不是 Markdown", 2000, "warning")
                 return 0
             text = self.api.get_current_text() or ""
             issues = self._diagnose(text)
             self.api.clear_diagnostics()
             if issues:
                 n = self.api.publish_diagnostics(issues, filepath=filepath)
-                self.api.show_status(
-                    "Markdown 检查：%d 个问题已报告" % n, 3000, "warning")
+                self.api.show_status("Markdown 检查：%d 个问题已报告" % n, 3000, "warning")
                 return n
             self.api.show_status("Markdown 检查通过", 2500, "success")
             return 0
@@ -196,14 +222,22 @@ class Plugin(PluginBase):
             self.api.log("Markdown 检查失败: %s" % e, "error")
             return 0
 
+    def _remote_refresh(self, text):
+        return text or "(无内容)"
+
     def toggle_preview(self):
         """切换预览"""
+        if getattr(self.api, "is_isolated", False):
+            if self._remote_panel is None:
+                self._remote_panel = self.api.register_remote_panel(
+                    "Markdown 预览", [], self._remote_refresh, kind="markdown"
+                )
+            self.api.show_remote_panel(self._remote_panel)
+            return
         if not self._panel:
             self._panel = MarkdownPanel(self.api._host_window())
             # 修复: 使用 Qt 枚举而非裸 int
-            self.api._host_window().addDockWidget(
-                Qt.RightDockWidgetArea, self._panel
-            )
+            self.api._host_window().addDockWidget(Qt.RightDockWidgetArea, self._panel)
 
         visible = not self._panel.isVisible()
         self._panel.setVisible(visible)
@@ -212,14 +246,14 @@ class Plugin(PluginBase):
 
     def _refresh(self):
         """刷新"""
+        if getattr(self.api, "is_isolated", False):
+            return
         if not self._panel or not self._panel.isVisible():
             return
 
         try:
             filepath = self.api.get_current_filepath()
-            if not filepath or not filepath.lower().endswith(
-                ('.md', '.markdown')
-            ):
+            if not filepath or not filepath.lower().endswith((".md", ".markdown")):
                 return
 
             text = self.api.get_current_text()

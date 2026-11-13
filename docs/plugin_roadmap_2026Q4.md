@@ -29,7 +29,7 @@
 |---|---|---|
 | ai_assistant 拆分（Ollama/内联 mixin） | ai_assistant | ✅ 入口 904 行；AI 测试 117 通过 |
 | python_debugger 拆分（guards mixin） | python_debugger | ✅ 入口 589 行；debugger 测试 82 通过 |
-| 远程面板协议 B2.2（面板/状态模型） | logtail/todo_panel/markdown_preview | 隔离后功能对等 |
+| 远程面板协议 B2.2（text/markdown） | logtail/todo_panel/markdown_preview | ✅ todo/markdown 隔离可用；logtail 待文件跟随 |
 | spell_check 迁标准沙箱运行时 | spell_check | 沙箱启用且诊断 UI 保留 |
 | 隔离兼容集合扩展 | 全部 | 可隔离插件 3→6+ |
 

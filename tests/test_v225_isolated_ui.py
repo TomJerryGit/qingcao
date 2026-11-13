@@ -123,3 +123,23 @@ def test_wordcount_remote_panel(qapp, monkeypatch):
         for _ in range(5):
             qapp.processEvents()
         win.close()
+
+
+def test_todo_markdown_remote_panels(qapp, monkeypatch):
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
+    for name in ("todo_panel", "markdown_preview"):
+        win = QMainWindow()
+        host = IsolatedPluginHost(win)
+        try:
+            host.start({name})
+            assert name in host.runtimes, name + " 未隔离激活"
+            assert _pump(qapp, lambda: bool(host.api.menus)), name + " 无菜单"
+            for cid in host.api.menus:
+                host.invoke(cid)
+                break
+            assert _pump(qapp, lambda: bool(host.api.remote_panels)), name + " 未注册远程面板"
+        finally:
+            host.stop_all()
+            win.close()

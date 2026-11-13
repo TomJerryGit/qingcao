@@ -1,5 +1,9 @@
 ﻿## [Unreleased]
 
+### 安全
+
+- **B2.2 远程面板**：text/markdown 面板类型；todo_panel/markdown_preview 隔离灰度；隔离集合扩至 5 个（不含 sandbox_demo）。
+
 ### 重构
 
 - **P1 插件拆分**：ai_assistant 入口 1,242→904（Ollama/内联 mixin）；python_debugger 661→589（guards mixin）；AI 117/debugger 82 测试通过。

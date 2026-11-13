@@ -223,6 +223,10 @@ class RemoteAPI:
         self.log("[sandbox] completion provider not bridged yet", "warning")
         return True
 
+    def register_symbol_provider(self, provider, language_ids=None, **kw):
+        # B2.2：符号 provider 暂未跨进程（大纲保持本地）
+        return True
+
     def add_editor_context_menu(self, label, callback=None, **kw):
         if callback is None:
             return False
@@ -248,10 +252,10 @@ class RemoteAPI:
     def register_settings_schema(self, schema):
         return self._call("register_settings_schema", schema, self.plugin_name)
 
-    def register_remote_panel(self, title, fields, refresh):
+    def register_remote_panel(self, title, fields, refresh, kind="fields"):
         cb_id = len(self._callbacks)
         self._callbacks[cb_id] = refresh
-        return self._call("register_remote_panel", title, fields, cb_id)
+        return self._call("register_remote_panel", title, fields, cb_id, kind)
 
     def show_remote_panel(self, panel_id=0):
         return self._call("show_remote_panel", panel_id)
