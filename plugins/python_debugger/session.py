@@ -19,6 +19,7 @@
 并且**关闭管道**；驱动脚本自身在 stdin EOF（宿主崩溃）时会 `os._exit`。
 两边合起来保证不会留下孤儿调试进程。
 """
+
 import json
 import os
 import subprocess
@@ -46,9 +47,7 @@ FORCE_EXIT_TIMEOUT = 2.0
 # ============================================================
 def driver_path():
     """调试驱动脚本的绝对路径。"""
-    return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), DRIVER_FILENAME
-    )
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), DRIVER_FILENAME)
 
 
 def to_python_lines(lines):
@@ -170,11 +169,11 @@ class DebugSession(QObject):
         self._popen = popen or subprocess.Popen
         self._proc = None
         self._reader_threads = []
-        self._state = "idle"          # idle/starting/running/paused/stopped
+        self._state = "idle"  # idle/starting/running/paused/stopped
         self._finished_emitted = False
         self._returncode = None
         self.last_error = ""
-        self.last_paused = None       #: 最近一次 break 事件的 payload
+        self.last_paused = None  #: 最近一次 break 事件的 payload
 
     # --------------------------------------------------------
     # 状态
@@ -221,9 +220,7 @@ class DebugSession(QObject):
             self.failed.emit(self.last_error)
             return False
 
-        argv = build_driver_command(
-            script, args, python=self._python, driver=self._driver
-        )
+        argv = build_driver_command(script, args, python=self._python, driver=self._driver)
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = PROTOCOL_ENCODING
         env["PYTHONUNBUFFERED"] = "1"
@@ -309,9 +306,7 @@ class DebugSession(QObject):
                 self._state = "stopped"
                 self.finished.emit(int(code if code is not None else -1))
 
-        thread = threading.Thread(
-            target=_wait, name="qingcao-debug-waiter", daemon=True
-        )
+        thread = threading.Thread(target=_wait, name="qingcao-debug-waiter", daemon=True)
         thread.start()
         self._reader_threads.append(thread)
 
@@ -323,9 +318,7 @@ class DebugSession(QObject):
         try:
             payload = json.loads(line)
         except Exception as exc:
-            self.output_received.emit(
-                "stderr", f"[协议解析失败: {exc}] {line}\n"
-            )
+            self.output_received.emit("stderr", f"[协议解析失败: {exc}] {line}\n")
             return None
         if not isinstance(payload, dict):
             return None
@@ -357,9 +350,7 @@ class DebugSession(QObject):
             self.failed.emit(self.last_error)
         elif event == "exception":
             self._state = "paused"
-            self.last_error = (
-                f"程序抛出 {payload.get('type')}: {payload.get('message')}"
-            )
+            self.last_error = f"程序抛出 {payload.get('type')}: {payload.get('message')}"
             self.failed.emit(self.last_error)
 
     def _emit_finished(self, code):
@@ -393,7 +384,7 @@ class DebugSession(QObject):
         stdin.flush()
 
     # ---- 具体命令 ----
-    def set_breakpoints(self, files):
+    def set_breakpoints(self, files, conditions=None, watches=None):
         """下发断点。
 
         参数:
@@ -404,7 +395,12 @@ class DebugSession(QObject):
             converted = to_python_lines(lines)
             if converted:
                 payload[str(path)] = converted
-        return self.send({"cmd": "set_breakpoints", "files": payload})
+        cmd = {"cmd": "set_breakpoints", "files": payload}
+        if conditions:
+            cmd["conditions"] = conditions
+        if watches:
+            cmd["watches"] = list(watches)
+        return self.send(cmd)
 
     def continue_(self):
         return self.send({"cmd": "continue"})
@@ -498,13 +494,8 @@ class DebugSession(QObject):
             exited = False
         if exited:
             self._proc = None
-            self._emit_finished(
-                int(self._returncode) if self._returncode is not None else -1
-            )
+            self._emit_finished(int(self._returncode) if self._returncode is not None else -1)
         return exited
 
     def __repr__(self):
-        return (
-            f"<DebugSession state={self._state} "
-            f"running={self.is_running} rc={self._returncode}>"
-        )
+        return f"<DebugSession state={self._state} running={self.is_running} rc={self._returncode}>"

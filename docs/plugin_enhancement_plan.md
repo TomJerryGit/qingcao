@@ -120,3 +120,9 @@
 - 分支：切换 / 新建（参数数组，无 shell）；
 - 差异：暂存差异查看；**hunk 级暂存**（勾选 hunk → `git apply --cached --unidiff-zero`）；
 - 测试：`tests/test_v226_git_hunks.py`（解析/构建补丁/暂存参数/分支参数/UI 契约）。
+
+### P2 调试器增强（2026-11-13）
+
+- **条件断点**：菜单「设置条件断点…」→ 条件表达式随断点下发；driver `_should_stop` 求值，false 自动继续；
+- **监视表达式**：菜单「添加监视表达式…/清除监视」→ 随断点下发；命中时在 break 事件返回 `watches`，面板顶部“监视变量”节点展示；
+- 测试：`tests/test_v226_debugger_conditions.py`（条件 false/true、session payload、UI 契约）+ 全量 debugger 测试 78/78。

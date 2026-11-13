@@ -4,6 +4,7 @@
 本模块由 `plugins/python_debugger/__init__.py` 通过**文件路径**加载
 （插件没有包上下文，不能用相对导入）。
 """
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (
@@ -69,9 +70,7 @@ class DebuggerPanel(QDialog):
 
     def _add_button(self, layout, text, session_method):
         button = QPushButton(text)
-        button.clicked.connect(
-            lambda _checked=False, name=session_method: self._invoke(name)
-        )
+        button.clicked.connect(lambda _checked=False, name=session_method: self._invoke(name))
         layout.addWidget(button)
         return button
 
@@ -132,6 +131,9 @@ class DebuggerPanel(QDialog):
         self.set_status(f"{reason_text}：{filepath}:{line}")
         self.show_stack(payload.get("stack") or [])
         self.show_locals(payload.get("locals") or {})
+        watches = payload.get("watches") or {}
+        if watches:
+            self.show_locals(watches, prefix="监视")
 
     def show_stack(self, frames):
         """显示调用栈（内层在前）。"""

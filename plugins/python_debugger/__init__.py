@@ -150,6 +150,8 @@ class Plugin(DebugGuardsMixin, PluginBase):
         self._session = None
         self._panel = None
         self._watched_proxies = set()
+        self._conditions = {}
+        self._watches = []
 
         self.api.log(f"Python 调试器已激活（bdb 后端 v{self.VERSION}）")
         self._register_menus()
@@ -179,6 +181,9 @@ class Plugin(DebugGuardsMixin, PluginBase):
         add("工具/Python 调试/── 查看 ──", self._show_control_hint)
         add("工具/Python 调试/显示调试面板", self.show_panel)
         add("工具/Python 调试/查看局部变量", self.show_locals)
+        add("工具/Python 调试/设置条件断点...", self.set_conditional_breakpoint)
+        add("工具/Python 调试/添加监视表达式...", self.add_watch)
+        add("工具/Python 调试/清除监视", self.clear_watches)
         add("工具/Python 调试/查看调用栈", self.show_stack)
         add("工具/Python 调试/终止调试", self.stop_debug)
 
@@ -427,6 +432,44 @@ class Plugin(DebugGuardsMixin, PluginBase):
     # --------------------------------------------------------
     # 断点入口（宿主侧实现，这里只是菜单入口）
     # --------------------------------------------------------
+    def set_conditional_breakpoint(self):
+        """为当前行设置/清除条件断点。"""
+        proxy = self.api.current_editor()
+        filepath = self.api.get_current_filepath()
+        if proxy is None or not filepath:
+            self.api.show_status("请先打开文件并移动光标", 3000)
+            return
+        try:
+            line = int(proxy.sc.getCurrentLine())
+        except Exception:
+            line = 0
+        current = self._conditions.get((filepath, line), "")
+        expr, ok = self.api.ask_string("条件断点", "条件表达式（留空=清除）：", current)
+        if not ok:
+            return
+        if str(expr or "").strip():
+            self._conditions[(filepath, line)] = str(expr).strip()
+            self.api.show_status("条件断点: 行 %d → %s" % (line + 1, expr), 3000, "success")
+        else:
+            self._conditions.pop((filepath, line), None)
+            self.api.show_status("已清除该行条件", 2000)
+        self._send_breakpoints()
+
+    def add_watch(self):
+        expr, ok = self.api.ask_string("监视表达式", "表达式：", "")
+        if not ok or not str(expr or "").strip():
+            return
+        expr = str(expr).strip()
+        if expr not in self._watches:
+            self._watches.append(expr)
+        self._send_breakpoints()
+        self.api.show_status("已添加监视: %s" % expr, 2000, "success")
+
+    def clear_watches(self):
+        self._watches = []
+        self._send_breakpoints()
+        self.api.show_status("已清除监视表达式", 2000)
+
     def toggle_breakpoint(self):
         proxy = self.api.current_editor()
         if proxy is None or not hasattr(proxy, "toggle_breakpoint"):

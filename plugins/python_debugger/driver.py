@@ -45,6 +45,7 @@ stdin 并塞进队列。命中断点/单步时 `user_line()` 在**主线程**里
 被调试进程随宿主一起消失（Windows 上父进程退出**不会**自动杀子进程，
 这一步是必须的兜底）。
 """
+
 import bdb
 import builtins
 import json
@@ -70,9 +71,7 @@ def emit(payload):
     """把一个事件写成一行 JSON 到真实 stdout。"""
     try:
         with _WRITE_LOCK:
-            _REAL_STDOUT.write(
-                json.dumps(payload, ensure_ascii=False) + "\n"
-            )
+            _REAL_STDOUT.write(json.dumps(payload, ensure_ascii=False) + "\n")
             _REAL_STDOUT.flush()
     except Exception:
         # 宿主已经走了（管道断了）：直接结束，别留孤儿。
@@ -100,11 +99,13 @@ class _ForwardedStream:
 
     def write(self, text):
         if text:
-            emit({
-                "event": "output",
-                "stream": self._name,
-                "text": text,
-            })
+            emit(
+                {
+                    "event": "output",
+                    "stream": self._name,
+                    "text": text,
+                }
+            )
         return len(text)
 
     def writelines(self, lines):
@@ -143,9 +144,9 @@ class JsonDebugger(bdb.Bdb):
 
     #: 步进模式
     MODE_CONTINUE = "continue"
-    MODE_NEXT = "next"       # 单步跳过（同帧下一行）
-    MODE_STEP = "step"       # 单步进入（任意帧下一行）
-    MODE_OUT = "out"         # 单步跳出（当前帧返回后停在调用者）
+    MODE_NEXT = "next"  # 单步跳过（同帧下一行）
+    MODE_STEP = "step"  # 单步进入（任意帧下一行）
+    MODE_OUT = "out"  # 单步跳出（当前帧返回后停在调用者）
 
     def __init__(self, command_queue):
         super().__init__()
@@ -154,11 +155,13 @@ class JsonDebugger(bdb.Bdb):
         self._forced_reason = ""
         self._mode = self.MODE_CONTINUE
         self._step_frame = None
+        self._conditions = {}
+        self._watches = []
 
     # --------------------------------------------------------
     # 断点
     # --------------------------------------------------------
-    def set_breaks(self, files):
+    def set_breaks(self, files, conditions=None):
         """整体替换断点集合。
 
         参数:
@@ -174,6 +177,18 @@ class JsonDebugger(bdb.Bdb):
             于是断点在真实运行里全部失效（Lead 实测确认）。这里以
             ``result is None`` 判定成功，并把未生效的行单独报给宿主。
         """
+        self._conditions = {}
+        for path, per_line in (conditions or {}).items():
+            try:
+                canonical = self.canonic(path)
+            except Exception:
+                canonical = path
+            for line, expr in (per_line or {}).items():
+                if str(expr or "").strip():
+                    try:
+                        self._conditions[(canonical, int(line))] = str(expr)
+                    except (TypeError, ValueError):
+                        continue
         self.clear_all_breaks()
         applied = {}
         skipped = {}
@@ -198,18 +213,27 @@ class JsonDebugger(bdb.Bdb):
                     result = self.set_break(canonical, line)
                 except Exception as exc:
                     result = str(exc)
-                if result is None:          # None == 成功
+                if result is None:  # None == 成功
                     applied.setdefault(canonical, []).append(line)
                 else:
                     skipped.setdefault(canonical, []).append(line)
         for lines in applied.values():
             lines.sort()
-        emit({
-            "event": "breakpoints",
-            "files": applied,
-            "skipped": skipped,
-        })
+        emit(
+            {
+                "event": "breakpoints",
+                "files": applied,
+                "skipped": skipped,
+            }
+        )
         return applied
+
+    def _condition_for(self, frame):
+        try:
+            filename = self.canonic(frame.f_code.co_filename)
+            return self._conditions.get((filename, frame.f_lineno), "")
+        except Exception:
+            return ""
 
     def breakpoints_at(self, frame):
         """该帧当前行是否是断点行。"""
@@ -241,7 +265,17 @@ class JsonDebugger(bdb.Bdb):
             return True
         try:
             if self.break_here(frame):
-                return True
+                cond = self._condition_for(frame)
+                if cond:
+                    try:
+                        if not bool(self.safe_eval(frame, cond)):
+                            raise ValueError("condition false")
+                    except Exception:
+                        pass
+                    else:
+                        return True
+                else:
+                    return True
         except Exception:
             pass
         if self._mode == self.MODE_STEP:
@@ -284,24 +318,35 @@ class JsonDebugger(bdb.Bdb):
 
     def user_line(self, frame):
         """停在某一行：发事件 + 阻塞等待宿主命令（主线程内）。"""
-        reason = self._forced_reason or (
-            "breakpoint" if self.breakpoints_at(frame) else "step"
-        )
+        reason = self._forced_reason or ("breakpoint" if self.breakpoints_at(frame) else "step")
         self._forced_reason = ""
-        emit({
-            "event": "break",
-            "reason": reason,
-            "file": frame.f_code.co_filename,
-            "line": frame.f_lineno,
-            "name": frame.f_code.co_name,
-            "locals": self.frame_locals(frame),
-            "stack": self.stack_frames(frame),
-        })
+        emit(
+            {
+                "event": "break",
+                "reason": reason,
+                "file": frame.f_code.co_filename,
+                "line": frame.f_lineno,
+                "name": frame.f_code.co_name,
+                "locals": self.frame_locals(frame),
+                "watches": self._eval_watches(frame),
+                "stack": self.stack_frames(frame),
+            }
+        )
         self._command_loop(frame)
 
     # --------------------------------------------------------
     # 命令循环（在被调试线程里阻塞等待宿主指令）
     # --------------------------------------------------------
+    def _eval_watches(self, frame):
+        result = {}
+        for expr in self._watches:
+            try:
+                value = self.safe_eval(frame, expr)
+                result[expr] = value if isinstance(value, str) else repr(value)
+            except Exception as e:
+                result[expr] = "<错误: %s>" % e
+        return result
+
     def _command_loop(self, frame):
         while True:
             command = self._queue.get()
@@ -335,30 +380,38 @@ class JsonDebugger(bdb.Bdb):
             if action == "pause":
                 emit({"event": "ack", "cmd": "pause"})
             elif action == "stack":
-                emit({
-                    "event": "result",
-                    "kind": "stack",
-                    "value": self.stack_frames(frame),
-                })
+                emit(
+                    {
+                        "event": "result",
+                        "kind": "stack",
+                        "value": self.stack_frames(frame),
+                    }
+                )
             elif action == "locals":
-                emit({
-                    "event": "result",
-                    "kind": "locals",
-                    "value": self.frame_locals(frame),
-                })
+                emit(
+                    {
+                        "event": "result",
+                        "kind": "locals",
+                        "value": self.frame_locals(frame),
+                    }
+                )
             elif action == "eval":
-                emit({
-                    "event": "result",
-                    "kind": "eval",
-                    "value": self.safe_eval(frame, command.get("expr", "")),
-                })
+                emit(
+                    {
+                        "event": "result",
+                        "kind": "eval",
+                        "value": self.safe_eval(frame, command.get("expr", "")),
+                    }
+                )
             elif action == "set_breakpoints":
                 self.set_breaks(command.get("files") or {})
             else:
-                emit({
-                    "event": "error",
-                    "message": f"未知命令: {action}",
-                })
+                emit(
+                    {
+                        "event": "error",
+                        "message": f"未知命令: {action}",
+                    }
+                )
 
     def request_pause(self):
         """由读线程调用（只置标志，不碰 bdb 状态）。"""
@@ -374,11 +427,13 @@ class JsonDebugger(bdb.Bdb):
         depth = 0
         while current is not None and depth < limit:
             code = current.f_code
-            result.append({
-                "name": code.co_name,
-                "file": code.co_filename,
-                "line": current.f_lineno,
-            })
+            result.append(
+                {
+                    "name": code.co_name,
+                    "file": code.co_filename,
+                    "line": current.f_lineno,
+                }
+            )
             current = current.f_back
             depth += 1
         return result
@@ -404,8 +459,7 @@ class JsonDebugger(bdb.Bdb):
             # 安全收敛：限制表达式长度，异常统一格式化（在调试目标子进程内执行）
             if len(expression) > 4000:
                 return "<expression too long>"
-            return format_value(_safe_eval(expression, frame.f_globals,
-                                        frame.f_locals))
+            return format_value(_safe_eval(expression, frame.f_globals, frame.f_locals))
         except Exception as exc:
             return f"<错误: {exc}>"
 
@@ -417,17 +471,34 @@ class JsonDebugger(bdb.Bdb):
 # ------------------------------------------------------------------
 # 安全复核（v2.15）：受限表达式求值
 # ------------------------------------------------------------------
-_BLOCKED_NAMES = frozenset({
-    "open", "exec", "eval", "compile", "__import__", "input", "breakpoint",
-    "exit", "quit", "globals", "locals", "vars", "getattr", "setattr",
-    "delattr", "memoryview", "help",
-})
+_BLOCKED_NAMES = frozenset(
+    {
+        "open",
+        "exec",
+        "eval",
+        "compile",
+        "__import__",
+        "input",
+        "breakpoint",
+        "exit",
+        "quit",
+        "globals",
+        "locals",
+        "vars",
+        "getattr",
+        "setattr",
+        "delattr",
+        "memoryview",
+        "help",
+    }
+)
 
 
 def _eval_mode() -> str:
     """求值模式：restricted（默认）| developer（v2.16 可配置）"""
-    return (os.environ.get("QINGCAO_DEBUGGER_EVAL_MODE", "restricted")
-            or "restricted").strip().lower()
+    return (
+        (os.environ.get("QINGCAO_DEBUGGER_EVAL_MODE", "restricted") or "restricted").strip().lower()
+    )
 
 
 def _safe_eval(expression, globals_, locals_):
@@ -497,10 +568,12 @@ def main(argv=None):
 
     argv = list(sys.argv if argv is None else argv)
     if len(argv) < 2:
-        emit({
-            "event": "error",
-            "message": "用法: python -u driver.py <script.py> [args...]",
-        })
+        emit(
+            {
+                "event": "error",
+                "message": "用法: python -u driver.py <script.py> [args...]",
+            }
+        )
         return 2
 
     script = os.path.abspath(argv[1])
@@ -522,16 +595,16 @@ def main(argv=None):
     try:
         code = compile(source, script, "exec")
     except SyntaxError as exc:
-        emit({
-            "event": "exception",
-            "type": "SyntaxError",
-            "message": str(exc),
-            "line": exc.lineno or 0,
-            "file": exc.filename or script,
-            "traceback": "".join(
-                traceback.format_exception_only(type(exc), exc)
-            ),
-        })
+        emit(
+            {
+                "event": "exception",
+                "type": "SyntaxError",
+                "message": str(exc),
+                "line": exc.lineno or 0,
+                "file": exc.filename or script,
+                "traceback": "".join(traceback.format_exception_only(type(exc), exc)),
+            }
+        )
         emit({"event": "exit", "code": 1})
         return 1
 
@@ -545,12 +618,14 @@ def main(argv=None):
         daemon=True,
     ).start()
 
-    emit({
-        "event": "ready",
-        "file": script,
-        "pid": os.getpid(),
-        "python": sys.version.split()[0],
-    })
+    emit(
+        {
+            "event": "ready",
+            "file": script,
+            "pid": os.getpid(),
+            "python": sys.version.split()[0],
+        }
+    )
 
     # 等宿主先把断点下发完再开始跑，避免"程序已经跑过断点"的竞态
     while True:
@@ -562,7 +637,11 @@ def main(argv=None):
             debugger.set_breaks(first.get("files") or {})
             continue
         if action in (
-            "continue", "step_over", "step_into", "step_out", "pause",
+            "continue",
+            "step_over",
+            "step_into",
+            "step_out",
+            "pause",
         ):
             if action == "pause":
                 debugger.request_pause()
@@ -589,14 +668,14 @@ def main(argv=None):
     except bdb.BdbQuit:
         exit_code = 0
     except BaseException as exc:  # noqa: BLE001 - 必须把任何异常报给宿主
-        emit({
-            "event": "exception",
-            "type": type(exc).__name__,
-            "message": str(exc),
-            "traceback": "".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            ),
-        })
+        emit(
+            {
+                "event": "exception",
+                "type": type(exc).__name__,
+                "message": str(exc),
+                "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+            }
+        )
         exit_code = 1
 
     emit({"event": "exit", "code": exit_code})
