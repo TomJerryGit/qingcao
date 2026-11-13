@@ -51,3 +51,22 @@ def test_aggregate_groups(tmp_path, monkeypatch):
     assert any("CI flaky" in k for k in data["groups"])
     md = mod.render_markdown(data)
     assert "崩溃聚合报告" in md and "access violation" in md
+
+
+def test_empty_and_frames_only(tmp_path, monkeypatch):
+    mod = _load()
+    (tmp_path / "empty.log").write_text("", encoding="utf-8")
+    (tmp_path / "frames.log").write_text(
+        'Thread 0x1 (most recent call first):\n  File "D:/QingCaoEditor/ui/x.py", line 9 in boom\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        mod,
+        "collect_dumps",
+        lambda extra: [str(tmp_path / "empty.log"), str(tmp_path / "frames.log")],
+    )
+    monkeypatch.setattr(mod, "collect_minidumps", lambda extra=None: [])
+    monkeypatch.setattr(mod, "collect_flaky", lambda path=None: [])
+    data = mod.aggregate()
+    assert data["empty_files"] == 1
+    assert any(k.startswith("uncaught |") for k in data["groups"])

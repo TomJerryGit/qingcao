@@ -47,10 +47,10 @@
 
 | # | 任务 | 验收 |
 |---|---|---|
-| R3.1 | `crash_triage` Top 崩溃根因定位（access violation / 0x8001010d） | 2 周 flaky ≤2 次/周 |
-| R3.2 | `faulthandler` + minidump 统一路径；崩溃自动归档 artifact | 每次崩溃有可读栈 |
-| R3.3 | CI 队列：托管 Windows 兜底常态化（全量测试，非仅触发） | 队列 P95 <30 分钟 |
-| R3.4 | 测试耗时治理：分片/并行/慢测清单 | 全量测试 <25 分钟 |
+| R3.1 🟡 | Top 签名定位（0x8001010d daily-tip / socket）+ 非原生对话框缓解 | flaky ≤2/周 |
+| R3.2 🟡 | crash_triage 扫描 WER/minidump、空文件分离、无异常行回退；artifact 待接入 | 每次崩溃可归类 |
+| R3.3 🟡 | 实测 Test 队列 P95 ≈1382s（23min）；报告 `docs/ci_queue_report.md` | 队列 P95 <30 分钟 |
+| R3.4 ✅ | 本地全量 3.9 分钟（3 分片并行）；CI job P50 44s / P95 394s | 全量测试 <25 分钟 |
 
 **里程碑 M3**：flaky 下降 50%；CI 等待可预期；评分 8.8。
 

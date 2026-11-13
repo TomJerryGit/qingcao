@@ -44,11 +44,16 @@ def collect_dumps(extra_dirs=None):
 
 def parse_dump(text, source=""):
     """从一个 faulthandler 文本提取 (异常类型, 顶层帧, 文件名)。"""
-    exc = "unknown"
+    text = (text or "").strip()
+    frames = _FILE_RE.findall(text)
+    if not text:
+        return "empty", "", source
+    exc = ""
     m = _EXC_RE.search(text)
     if m:
         exc = m.group(1).strip()
-    frames = _FILE_RE.findall(text)
+    if not exc:
+        exc = "uncaught" if frames else "unknown"
     top = ""
     if frames:
         top = "%s:%s" % (os.path.basename(frames[0][0]), frames[0][2])
@@ -71,17 +76,37 @@ def collect_flaky(path=None):
     return rows
 
 
+def collect_minidumps(extra_dirs=None):
+    """扫描常见 WER/崩溃转储目录中的 .dmp/.wer（仅计数，不解析）。"""
+    candidates = [
+        os.path.join(ROOT, "data", "crash_dumps"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "CrashDumps"),
+        r"D:\actions-runner\crash_dumps",
+    ] + list(extra_dirs or [])
+    out = []
+    for d in candidates:
+        for pat in ("*.dmp", "*.wer"):
+            out.extend(glob.glob(os.path.join(d, pat)))
+    return sorted(set(out))
+
+
 def aggregate(extra_dirs=None):
     groups = defaultdict(lambda: {"count": 0, "sources": [], "top_frames": ""})
     files = collect_dumps(extra_dirs)
+    empty = 0
     for p in files:
-        exc, top, _ = parse_dump(_iter_text(p), p)
+        text = _iter_text(p)
+        if not text.strip():
+            empty += 1
+            continue
+        exc, top, _ = parse_dump(text, p)
         key = "%s | %s" % (exc, top or "?")
         g = groups[key]
         g["count"] += 1
         g["sources"].append(os.path.basename(p))
         if not g["top_frames"]:
             g["top_frames"] = top
+    minidumps = collect_minidumps(extra_dirs)
     flaky = collect_flaky()
     for row in flaky:
         name = str(row.get("file") or row.get("test") or "")
@@ -94,6 +119,8 @@ def aggregate(extra_dirs=None):
     return {
         "generated_at": __import__("time").strftime("%Y-%m-%d %H:%M:%S"),
         "dump_files": len(files),
+        "empty_files": empty,
+        "minidumps": len(minidumps),
         "flaky_rows": len(flaky),
         "groups": dict(sorted(groups.items(), key=lambda kv: -kv[1]["count"])),
     }
@@ -104,7 +131,9 @@ def render_markdown(data):
         "# 崩溃聚合报告（crash triage）",
         "",
         "- 生成时间：%s" % data["generated_at"],
-        "- faulthandler/dump 文件：%d" % data["dump_files"],
+        "- faulthandler/dump 文件：%d（空文件 %d）"
+        % (data["dump_files"], data.get("empty_files", 0)),
+        "- WER/minidump 数量：%d" % data.get("minidumps", 0),
         "- CI flaky 记录：%d" % data["flaky_rows"],
         "",
         "| 次数 | 签名 | 来源 |",

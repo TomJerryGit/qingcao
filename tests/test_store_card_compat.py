@@ -15,7 +15,8 @@ STORE = os.path.join(ROOT, "ui", "plugin_store.py")
 
 
 def _source():
-    return open(STORE, encoding="utf-8").read()
+    card = os.path.join(ROOT, "ui", "plugin_store_card.py")
+    return open(STORE, encoding="utf-8").read() + open(card, encoding="utf-8").read()
 
 
 def test_card_source_has_compat_badge_and_disable_logic():

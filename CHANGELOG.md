@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### 工程
+
+- **R3 flaky/CI**：崩溃聚合支持空 dump/minidump/无异常行；每日技巧改非原生对话框；CI job 队列统计（Test P95≈23min）；本地全量测试 3.9min。
+
+
 ### 重构
 
 - **R2 架构长尾**：directory_tree →1,072、macro →610、plugin_store →1,081；白名单 10→7。

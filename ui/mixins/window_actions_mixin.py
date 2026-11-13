@@ -536,7 +536,8 @@ class WindowActionsMixin:
         from PyQt5.QtWidgets import QMessageBox
 
         QMessageBox.information(
-            self, "快捷键参考",
+            self,
+            "快捷键参考",
             "Ctrl+Shift+P 命令面板\nCtrl+P 文件切换\n"
             "Ctrl+Shift+F 全局搜索\nCtrl+Shift+M 插件市场\nF11 无干扰模式",
         )
@@ -591,7 +592,24 @@ class WindowActionsMixin:
 
             tip = random.choice(tips)
 
-        QMessageBox.information(self, "💡 每日技巧", tip)
+        # 0x8001010d（RPC_E_CANTCALLOUT_ININPUTSYNCCALL）崩溃与原生 Windows
+        # 对话框/COM 调用相关：改用 Qt 自绘对话框，避免原生输入同步调用。
+        try:
+            box = QMessageBox(self)
+            try:
+                box.setOption(QMessageBox.DontUseNativeDialog, True)
+            except Exception:
+                try:
+                    box.setOption(QMessageBox.Option.DontUseNativeDialog, True)
+                except Exception:
+                    pass
+            box.setIcon(QMessageBox.Information)
+            box.setWindowTitle("💡 每日技巧")
+            box.setText(tip)
+            box.setStandardButtons(QMessageBox.Ok)
+            box.exec_()
+        except Exception as e:
+            print(f"[MainWindow] 每日技巧显示失败: {e}")
 
     def _show_online_docs(self):
         """打开在线文档"""

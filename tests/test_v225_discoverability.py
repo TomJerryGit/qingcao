@@ -25,5 +25,8 @@ def test_mainwindow_applies_shortcuts_static():
 
 
 def test_plugin_card_has_visible_detail_button():
-    src = open("ui/plugin_store.py", encoding="utf-8").read()
+    src = (
+        open("ui/plugin_store.py", encoding="utf-8").read()
+        + open("ui/plugin_store_card.py", encoding="utf-8").read()
+    )
     assert 'setText("详情")' in src
