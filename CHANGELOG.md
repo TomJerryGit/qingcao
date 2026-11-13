@@ -1,5 +1,12 @@
 ﻿
 
+## [2.26.2] - 2026-11-13
+
+### 功能/工程
+
+- P3：JSONC/Schema、wordcount 选区/CJK/目标、logtail 过滤/多文件；
+- CI：Test 主路径迁移托管（push 触发），自托管改每日深度检查；样例清理（my_plugin 默认禁用）。
+
 ### 工程
 
 - **CI 根治**：Test 主路径迁移托管 	est-fallback（push 触发），自托管 Test 改每日深度检查；发布门禁继续接受同 SHA fallback；my_plugin 样例默认禁用（docs/plugin_samples.md）。
