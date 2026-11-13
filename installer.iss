@@ -1,4 +1,4 @@
-; QingCao Editor Installer Script
+﻿; QingCao Editor Installer Script
 ; 需要 Inno Setup 6+ : https://jrsoftware.org/isdl.php
 
 #define MyAppName "青草编辑器"
@@ -8,7 +8,7 @@
 #if FileExists("installer_version.iss")
 #include "installer_version.iss"
 #else
-#define MyAppVersion "2.25.1"
+#define MyAppVersion "2.25.2"
 #endif
 #define MyAppPublisher "TomJerry"
 #define MyAppURL "https://github.com/qingcao-editor/qingcao"

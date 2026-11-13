@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """青草编辑器版本号（单一来源 / single source of truth）
 
 C4 修复：所有脚本（main.py / build.py / build_linux.py /
@@ -21,7 +21,7 @@ P1-1 修复（版本漂移）：
     python release.py bump patch   # 同步 VERSION 文件
 """
 
-__version__ = "2.25.1"
+__version__ = "2.25.2"
 
 # 打包/安装器读取的别名（部分脚本历史上叫 APP_VERSION / VERSION）
 APP_VERSION = __version__
