@@ -107,3 +107,9 @@
 | W3–4 | ai provider/隐私模式/审查；git diff/stage |
 | W5–6 | python_debugger 拆分 + 条件断点；spell_check 词典 |
 | W7–8 | wordcount/logtail/markdown/todo 体验项；样例清理 |
+
+### P2 进展（2026-11-13）
+
+- AI 结果对话框新增 **「🔍 预览差异」**：替换前用 unified diff 预览当前代码 vs AI 建议，确认后才应用；
+- 流式输出与选区优先上下文已在 v2.24 实现（`AIWorker.chat_stream`、`_get_context` 选中文本优先）；
+- 新增 `tests/test_v226_ai_diff.py`（diff 生成/按钮契约）。

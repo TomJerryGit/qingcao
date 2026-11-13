@@ -2,6 +2,15 @@
 # ruff: noqa: F401, F403, F405
 """AI 结果对话框（v2.24 拆出）。"""
 
+import difflib
+
+from PyQt5.QtWidgets import (
+    QDialogButtonBox,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+)
+
 from .ai_common import *  # noqa: F401,F403,F405
 from .ai_worker import AIWorker
 
@@ -145,6 +154,11 @@ class AIResultDialog(QDialog):
             self.insert_btn.clicked.connect(self._on_insert)
             self.insert_btn.setEnabled(False)
             btn_layout.addWidget(self.insert_btn)
+
+            self.diff_btn = QPushButton("🔍 预览差异")
+            self.diff_btn.clicked.connect(self._on_diff_preview)
+            self.diff_btn.setEnabled(False)
+            btn_layout.addWidget(self.diff_btn)
 
         btn_layout.addStretch()
 
@@ -444,6 +458,8 @@ class AIResultDialog(QDialog):
         if self._enable_insert:
             self.replace_btn.setEnabled(bool(self._result_text))
             self.insert_btn.setEnabled(bool(self._result_text))
+        if hasattr(self, "diff_btn"):
+            self.diff_btn.setEnabled(bool(self._result_text))
 
         self.cancel_btn.setVisible(False)
         self.follow_edit.setEnabled(True)
@@ -631,6 +647,8 @@ class AIResultDialog(QDialog):
         if self._enable_insert:
             self.replace_btn.setEnabled(bool(self._result_text))
             self.insert_btn.setEnabled(bool(self._result_text))
+        if hasattr(self, "diff_btn"):
+            self.diff_btn.setEnabled(bool(self._result_text))
 
         self.cancel_btn.setVisible(False)
         # 停下来计时，并显示总耗时
@@ -665,6 +683,58 @@ class AIResultDialog(QDialog):
             QMessageBox.information(self, "已复制", "已复制到剪贴板")
         except Exception as e:
             QMessageBox.warning(self, "复制失败", str(e))
+
+    @staticmethod
+    def _build_diff(old_text: str, new_text: str) -> str:
+        """生成统一 diff 文本（用于替换前预览）。"""
+        return "".join(
+            difflib.unified_diff(
+                (old_text or "").splitlines(True),
+                (new_text or "").splitlines(True),
+                fromfile="当前代码",
+                tofile="AI 建议",
+                lineterm="\n",
+            )
+        )
+
+    def _on_diff_preview(self):
+        """替换前预览 diff。"""
+        if not self.main_window:
+            return
+        try:
+            proxy = self.main_window.tabs.current_proxy()
+            if not proxy or not proxy.sc:
+                QMessageBox.warning(self, "预览失败", "当前没有编辑器")
+                return
+            old = proxy.sc.selectedText() or proxy.sc.text()
+            new = self._extract_code(self._result_text)
+            diff = self._build_diff(old, new)
+            if not diff.strip():
+                QMessageBox.information(self, "无差异", "AI 结果与当前代码一致。")
+                return
+            dlg = QDialog(self)
+            dlg.setWindowTitle("预览差异 - %s" % (self._action_title or "AI"))
+            dlg.resize(760, 520)
+            layout = QVBoxLayout(dlg)
+            view = QPlainTextEdit()
+            view.setReadOnly(True)
+            view.setLineWrapMode(QPlainTextEdit.NoWrap)
+            view.setStyleSheet(
+                "QPlainTextEdit{font-family:Consolas,monospace;font-size:12px;"
+                "background:#1e1e1e;color:#d4d4d4;}"
+            )
+            view.setPlainText(diff)
+            layout.addWidget(view, 1)
+            buttons = QDialogButtonBox()
+            apply_btn = buttons.addButton("应用替换", QDialogButtonBox.AcceptRole)
+            buttons.addButton("取消", QDialogButtonBox.RejectRole)
+            buttons.accepted.connect(dlg.accept)
+            buttons.rejected.connect(dlg.reject)
+            layout.addWidget(buttons)
+            if dlg.exec_() == QDialog.Accepted:
+                self._on_replace()
+        except Exception as e:
+            QMessageBox.warning(self, "预览失败", str(e))
 
     def _extract_code(self, text: str) -> str:
         """从 markdown 里提取第一个代码块"""
