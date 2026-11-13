@@ -113,3 +113,10 @@
 - AI 结果对话框新增 **「🔍 预览差异」**：替换前用 unified diff 预览当前代码 vs AI 建议，确认后才应用；
 - 流式输出与选区优先上下文已在 v2.24 实现（`AIWorker.chat_stream`、`_get_context` 选中文本优先）；
 - 新增 `tests/test_v226_ai_diff.py`（diff 生成/按钮契约）。
+
+### P2 Git 增强（2026-11-13）
+
+- 状态栏：`Git: <branch> ● <dirty>`，5s 定时刷新（隔离模式跳过 QTimer）；
+- 分支：切换 / 新建（参数数组，无 shell）；
+- 差异：暂存差异查看；**hunk 级暂存**（勾选 hunk → `git apply --cached --unidiff-zero`）；
+- 测试：`tests/test_v226_git_hunks.py`（解析/构建补丁/暂存参数/分支参数/UI 契约）。

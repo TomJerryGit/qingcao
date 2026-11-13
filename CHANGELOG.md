@@ -1,5 +1,9 @@
 ﻿## [Unreleased]
 
+### 功能
+
+- **Git 增强**：状态栏分支/脏文件数、切换/新建分支、暂存差异、hunk 级暂存（git apply --cached）。
+
 ### 测试
 
 - **AI 流式/选区回归**：AIWorker 流式分片与取消；_get_context 选区优先/全文回退（4 项）。

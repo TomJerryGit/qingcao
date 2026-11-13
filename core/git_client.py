@@ -90,6 +90,74 @@ class GitClient:
         except Exception as e:
             return -1, b"", str(e).encode("utf-8", "replace")
 
+    @staticmethod
+    def parse_hunks(diff_text: str):
+        """把 unified diff 切成 (header, hunks)；hunks 为文本片段列表。"""
+        lines = (diff_text or "").splitlines(True)
+        header = []
+        hunks = []
+        cur = None
+        for line in lines:
+            if line.startswith("@@"):
+                if cur is not None:
+                    hunks.append("".join(cur))
+                cur = [line]
+            elif cur is None:
+                header.append(line)
+            else:
+                cur.append(line)
+        if cur is not None:
+            hunks.append("".join(cur))
+        return "".join(header), hunks
+
+    @staticmethod
+    def build_hunk_patch(diff_text: str, indices) -> str:
+        header, hunks = GitClient.parse_hunks(diff_text)
+        if not hunks:
+            return ""
+        chosen = [hunks[i] for i in sorted(set(indices)) if 0 <= i < len(hunks)]
+        return header + "".join(chosen) if chosen else ""
+
+    def stage_hunks(self, filepath: str, indices) -> Tuple[bool, str]:
+        """把选中的 hunk 暂存到索引（git apply --cached -）。"""
+        if not filepath:
+            return False, "缺少文件路径"
+        code, diff, err = self._run(["diff", "--", filepath])
+        if code != 0:
+            return False, err or "git diff 失败"
+        patch = self.build_hunk_patch(diff, indices)
+        if not patch.strip():
+            return False, "未选择有效 hunk"
+        try:
+            result = subprocess.run(
+                ["git", "apply", "--cached", "--unidiff-zero", "-"],
+                cwd=self.root_path,
+                input=patch,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+            )
+            return result.returncode == 0, result.stderr or result.stdout
+        except Exception as e:
+            return False, str(e)
+
+    def branch_list(self) -> List[str]:
+        code, out, _ = self._run(["branch", "--format=%(refname:short)"])
+        return [x.strip() for x in out.splitlines() if x.strip()] if code == 0 else []
+
+    def switch_branch(self, name: str, create: bool = False):
+        if not name:
+            return False, "分支名不能为空"
+        args = ["switch"]
+        if create:
+            args.append("-c")
+        args.append(name)
+        code, out, err = self._run(args)
+        return code == 0, err or out
+
     def is_repo(self) -> bool:
         """是否为 Git 仓库"""
         code, out, _ = self._run(["rev-parse", "--git-dir"])
