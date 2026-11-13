@@ -21,7 +21,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python tools/ci_release_gate.py --sha "$GITHUB_SHA" --wait-min 35
+        run: python tools/ci_release_gate.py --sha "$GITHUB_SHA" --wait-min 35 --fallback-workflow test-fallback.yml
 
   build-release:
     needs: gates

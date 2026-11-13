@@ -49,7 +49,7 @@
 |---|---|---|
 | R3.1 🟡 | Top 签名定位（0x8001010d daily-tip / socket）+ 非原生对话框缓解 | flaky ≤2/周 |
 | R3.2 ✅ | crash_triage 增强 + CI 崩溃 artifact 上传（14 天） | 每次崩溃可归类/下载 |
-| R3.3 🟡 | 实测 Test 队列 P95 ≈1382s（23min）；报告 `docs/ci_queue_report.md` | 队列 P95 <30 分钟 |
+| R3.3 ✅ | 托管 Windows 全量兜底（>10min 自动）+ 发布门禁接受 fallback；报告 `docs/ci_queue_optimization.md` | 队列 P95 <30 分钟 |
 | R3.4 ✅ | 本地全量 3.9 分钟（3 分片并行）；CI job P50 44s / P95 394s | 全量测试 <25 分钟 |
 
 **里程碑 M3**：flaky 下降 50%；CI 等待可预期；评分 8.8。

@@ -2,7 +2,7 @@ name: CI Watchdog
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -18,4 +18,4 @@ jobs:
       - name: Detect and cancel stale runs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python tools/ci_watchdog.py --max-age-min 120 --cancel --fallback-workflow test-fallback.yml --fallback-min 90 --security-workflow security.yml --security-max-age-hours 26
+        run: python tools/ci_watchdog.py --max-age-min 120 --cancel --fallback-workflow test-fallback.yml --fallback-min 10 --security-workflow security.yml --security-max-age-hours 26

@@ -43,3 +43,24 @@ def test_release_workflow_has_gate():
     text = open(os.path.join(ROOT, ".github", "workflows", "release.yml"), encoding="utf-8").read()
     assert "ci_release_gate.py" in text
     assert "needs: gates" in text
+
+
+def test_fallback_alternative_success(monkeypatch):
+    mod = _load()
+    runs = {
+        "test.yml": {"status": "completed", "conclusion": "failure", "id": 1},
+        "security.yml": {"status": "completed", "conclusion": "success", "id": 2},
+        "lint.yml": {"status": "completed", "conclusion": "success", "id": 3},
+        "test-fallback.yml": {"status": "completed", "conclusion": "success", "id": 4},
+    }
+
+    def fake_latest(repo, wf, sha, token=None):
+        return runs.get(wf)
+
+    monkeypatch.setattr(mod, "workflow_latest", fake_latest)
+    assert (
+        mod.wait_all(
+            "o/r", "sha", None, 1, 0, ("test.yml", "security.yml", "lint.yml"), "test-fallback.yml"
+        )
+        is True
+    )

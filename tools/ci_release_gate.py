@@ -54,7 +54,7 @@ def evaluate(run):
     return (False, str(conclusion), "run %s %s" % (run.get("id"), conclusion))
 
 
-def wait_all(repo, sha, token, wait_min, interval, workflows=WORKFLOWS):
+def wait_all(repo, sha, token, wait_min, interval, workflows=WORKFLOWS, fallback_workflow=""):
     deadline = time.time() + wait_min * 60
     pending = set(workflows)
     results = {}
@@ -62,6 +62,13 @@ def wait_all(repo, sha, token, wait_min, interval, workflows=WORKFLOWS):
         for wf in list(pending):
             run = workflow_latest(repo, wf, sha, token)
             ok, state, msg = evaluate(run)
+            if ok is not True and fallback_workflow and wf == "test.yml":
+                fb = workflow_latest(repo, fallback_workflow, sha, token)
+                fb_ok, fb_state, fb_msg = evaluate(fb)
+                if fb_ok is True:
+                    ok, state, msg = True, "fallback", "fallback %s" % fb_msg
+                elif fb_ok is False:
+                    ok, state, msg = False, fb_state, fb_msg
             results[wf] = (ok, state, msg)
             print("[gate] %-14s %-9s %s" % (wf, state, msg))
             if ok is not None:
@@ -82,12 +89,15 @@ def main(argv=None):
     ap.add_argument("--interval", type=int, default=20)
     ap.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
     ap.add_argument("--workflows", default=",".join(WORKFLOWS))
+    ap.add_argument("--fallback-workflow", default="")
     args = ap.parse_args(argv)
     if not args.sha or not args.repo:
         print("[gate] 缺少 --sha / --repo")
         return 1
     wfs = tuple(x.strip() for x in args.workflows.split(",") if x.strip())
-    ok = wait_all(args.repo, args.sha, args.token, args.wait_min, args.interval, wfs)
+    ok = wait_all(
+        args.repo, args.sha, args.token, args.wait_min, args.interval, wfs, args.fallback_workflow
+    )
     print("[gate] RESULT: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

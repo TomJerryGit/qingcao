@@ -102,6 +102,7 @@ def test_workflows_have_timeouts_and_watchdog():
     dog = open(os.path.join(wf, "ci-watchdog.yml"), encoding="utf-8").read()
     assert "actions: write" in dog and "--cancel" in dog
     assert "--fallback-workflow" in dog
+    assert "--fallback-min 10" in dog
     assert "--security-workflow" in dog
     sec = open(os.path.join(wf, "security.yml"), encoding="utf-8").read()
     assert "schedule:" in sec and "security-reports" in sec and "retention-days: 30" in sec

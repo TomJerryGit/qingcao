@@ -2,6 +2,11 @@
 
 ### 工程
 
+- **CI 队列优化**：托管 Windows 全量测试（3 分片）作为 >10 分钟队列兜底；watchdog 10 分钟轮询；release gate 接受同 SHA fallback 成功。
+
+
+### 工程
+
 - **R3 收尾**：CI 崩溃 artifact 上传（dump/分片失败/last_stage，14 天）；隔离插件网络增加 modal 守卫（避免 getaddrinfo × 模态对话框崩溃）。
 
 
