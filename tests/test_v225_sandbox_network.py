@@ -104,3 +104,15 @@ class Plugin:
         assert any("denied" in m for _l, m in proc.logs)
     finally:
         proc.stop()
+
+
+def test_network_deferred_when_modal(monkeypatch):
+    from core.plugin_host import _modal_active
+    from core.plugin_sandbox_policy import SandboxPolicy
+    from core.sandbox_rpc import RpcError
+
+    broker = _broker(SandboxPolicy([], ["api.example.com"]))
+    monkeypatch.setattr("core.plugin_host._modal_active", lambda: True)
+    with pytest.raises(RpcError):
+        broker._http_request("https://api.example.com/x")
+    assert broker.network_denials and broker.network_denials[-1]["reason"] == "modal"

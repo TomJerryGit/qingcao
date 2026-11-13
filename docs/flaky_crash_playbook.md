@@ -1,4 +1,4 @@
-﻿# Flaky / 崩溃治理与 CI 队列报告（R3，2026-11-13）
+# Flaky / 崩溃治理与 CI 队列报告（R3，2026-11-13）
 
 ## 1. 崩溃聚合现状
 
@@ -41,7 +41,13 @@ Top 签名：
 - CI Test job 时长 P50 44s / P95 394s（job 统计数据口径，见 `docs/ci_queue_report.md`）；
 - 本轮修复因 `plugin_store` 拆分导致的两个静态测试后，全量应恢复绿色。
 
-## 5. 后续动作
+## 5. 已完成收尾（R3）
+
+- **CI 崩溃 artifact**：test.yml 新增 `Collect/Upload crash artifacts`（`continue-on-error`），上传 `logs/crash_dump_*.log`、`data/test_shards/crashed_*.log`、`last_stage.json`，保留 14 天；
+- **网络 modal 守卫**：隔离插件网络 broker 在存在模态对话框时拒绝 `http_request`（审计原因 `modal`），避免 Windows `getaddrinfo` × 模态对话框的 `0x8001010d` 时序冲突；
+- 更新检查 `check_when_idle` 已有同类守卫（v2.22）。
+
+## 6. 后续动作
 
 1. CI 上传崩溃 artifact（`logs/crash_dump_*.log`、`data/test_shards/crashed_*.log`、WER dmp）；
 2. `socket.getaddrinfo` 崩溃：把 AI/网络探测移到后台线程并捕获异常；

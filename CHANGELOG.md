@@ -1,4 +1,9 @@
-﻿## [Unreleased]
+## [Unreleased]
+
+### 工程
+
+- **R3 收尾**：CI 崩溃 artifact 上传（dump/分片失败/last_stage，14 天）；隔离插件网络增加 modal 守卫（避免 getaddrinfo × 模态对话框崩溃）。
+
 
 ## [2.25.2] - 2026-11-13
 

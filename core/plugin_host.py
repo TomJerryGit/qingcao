@@ -45,6 +45,17 @@ METHOD_PERMISSIONS = {
 HIGH_RISK = {"process", "terminal", "debugger"}
 
 
+def _modal_active():
+    """Windows getaddrinfo 与模态对话框并发可触发 0x8001010d；有模态时拒绝网络。"""
+    try:
+        from PyQt5.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        return app is not None and app.activeModalWidget() is not None
+    except Exception:
+        return False
+
+
 class CapabilityBroker:
     """主进程侧：按 manifest 权限校验并转发到宿主 API。"""
 
@@ -98,6 +109,9 @@ class CapabilityBroker:
         ):
             self.network_denials.append({"url": str(url), "reason": "host", "host": host})
             raise RpcError(ERROR_PERMISSION_DENIED, "domain denied: %s" % host)
+        if _modal_active():
+            self.network_denials.append({"url": str(url), "reason": "modal"})
+            raise RpcError(-32000, "network deferred: modal dialog active")
         now = time.time()
         self._net_times = [t for t in self._net_times if now - t < 60]
         if len(self._net_times) >= self.NETWORK_MAX_PER_MIN:
