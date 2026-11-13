@@ -10,6 +10,27 @@ from PyQt5.QtWidgets import QDockWidget, QGridLayout, QLabel, QPushButton, QVBox
 from app.plugins import PluginBase
 
 
+def count_text_stats(text):
+    """字符/词（CJK 逐字）/行/段落/阅读时间。"""
+    text = text or ""
+    chars = len(text)
+    chars_no_space = len(re.sub(r"\s", "", text))
+    latin = len(re.findall(r"[A-Za-z0-9_]+", text))
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", text))
+    words = latin + cjk
+    lines = len(text.splitlines()) if text else 0
+    paragraphs = len([l for l in text.split("\n") if l.strip()])
+    minutes = max(1, chars // 300) if chars > 0 else 0
+    return {
+        "chars": chars,
+        "chars_no_space": chars_no_space,
+        "words": words,
+        "lines": lines,
+        "paragraphs": paragraphs,
+        "reading_time": minutes,
+    }
+
+
 class WordCountPanel(QDockWidget):
     """字数统计面板"""
 
@@ -114,21 +135,31 @@ class WordCountPanel(QDockWidget):
             text = self.api.get_current_text()
             if text is None:
                 return
+            try:
+                selected = self.api.get_selected_text() or ""
+            except Exception:
+                selected = ""
+            suffix = ""
+            if selected.strip():
+                text = selected
+                suffix = "（选区）"
 
-            chars = len(text)
-            chars_no_space = len(re.sub(r"\s", "", text))
-            words = len(text.split())
-            lines = text.count("\n") + 1 if text else 0
-            paragraphs = len([l for l in text.split("\n") if l.strip()])
-            # 阅读时间（按 300 字/分钟）
-            minutes = max(1, chars // 300) if chars > 0 else 0
-
-            self.stats["chars"].setText(str(chars))
-            self.stats["chars_no_space"].setText(str(chars_no_space))
-            self.stats["words"].setText(str(words))
-            self.stats["lines"].setText(str(lines))
-            self.stats["paragraphs"].setText(str(paragraphs))
-            self.stats["reading_time"].setText(f"{minutes} 分钟")
+            data = count_text_stats(text)
+            self.stats["chars"].setText(str(data["chars"]) + suffix)
+            self.stats["chars_no_space"].setText(str(data["chars_no_space"]))
+            self.stats["words"].setText(str(data["words"]) + suffix)
+            self.stats["lines"].setText(str(data["lines"]))
+            self.stats["paragraphs"].setText(str(data["paragraphs"]))
+            self.stats["reading_time"].setText(f"{data['reading_time']} 分钟")
+            try:
+                target = int(self.api.get_config("target_words", 0) or 0)
+            except Exception:
+                target = 0
+            if target > 0:
+                pct = min(999, int(data["words"] * 100 / target))
+                self.stats["target"].setText("%d / %d (%d%%)" % (data["words"], target, pct))
+            else:
+                self.stats["target"].setText("未设置")
         except Exception:
             pass
 
@@ -146,6 +177,7 @@ class Plugin(PluginBase):
         {"key": "lines", "label": "行数"},
         {"key": "paragraphs", "label": "段落数"},
         {"key": "reading_time", "label": "阅读时间"},
+        {"key": "target", "label": "目标进度"},
     ]
 
     def on_activate(self):
@@ -237,17 +269,13 @@ class Plugin(PluginBase):
 
     def _remote_refresh(self, text):
         text = text or ""
-        words = len(re.findall(r"\w+", text))
-        lines = len(text.splitlines()) if text else 0
-        paragraphs = len([p for p in re.split(r"\n\s*\n", text) if p.strip()])
-        return {
-            "chars": len(text),
-            "chars_no_space": len(re.sub(r"\s", "", text)),
-            "words": words,
-            "lines": lines,
-            "paragraphs": paragraphs,
-            "reading_time": max(1, int(words / 200)) if words else 0,
-        }
+        data = count_text_stats(text)
+        try:
+            target = int(self.api.get_config("target_words", 0) or 0)
+        except Exception:
+            target = 0
+        data["target"] = ("%d / %d" % (data["words"], target)) if target else "未设置"
+        return data
 
     def show_panel(self):
         if getattr(self.api, "is_isolated", False):

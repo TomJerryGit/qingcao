@@ -18,6 +18,20 @@ from PyQt5.QtWidgets import (
 from app.plugins import PluginBase
 
 
+def filter_lines(text, pattern):
+    """按正则/子串过滤日志行；空模式返回原文。"""
+    if not pattern:
+        return text or ""
+    try:
+        import re as _re
+
+        rx = _re.compile(pattern)
+        matcher = rx.search
+    except Exception:
+        matcher = lambda s: pattern in s  # noqa: E731
+    return "\n".join(line for line in (text or "").splitlines() if matcher(line))
+
+
 class LogTailPanel(QDockWidget):
     """日志监视面板"""
 
@@ -40,6 +54,8 @@ class LogTailPanel(QDockWidget):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._poll)
         self.timer.start()
+        self._files = []
+        self._paused = False
 
     def _build_ui(self):
         container = QWidget()
@@ -49,9 +65,27 @@ class LogTailPanel(QDockWidget):
         # 工具栏
         toolbar = QHBoxLayout()
 
+        from PyQt5.QtWidgets import QComboBox, QLineEdit
+
+        self.file_combo = QComboBox()
+        self.file_combo.setMinimumWidth(180)
+        self.file_combo.activated.connect(self._on_combo_activated)
+        toolbar.addWidget(self.file_combo, 1)
+
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText("过滤（正则/子串）")
+        self.filter_edit.setMaximumWidth(180)
+        self.filter_edit.textChanged.connect(self._apply_filter)
+        toolbar.addWidget(self.filter_edit)
+
+        self.pause_btn = QPushButton("暂停")
+        self.pause_btn.setCheckable(True)
+        self.pause_btn.toggled.connect(self._set_paused)
+        toolbar.addWidget(self.pause_btn)
+
         self.file_label = QLabel("(未选择)")
         self.file_label.setStyleSheet("color: #888;")
-        toolbar.addWidget(self.file_label, 1)
+        toolbar.addWidget(self.file_label)
 
         clear_btn = QPushButton("清空")
         clear_btn.clicked.connect(lambda: self.view.clear())
@@ -123,6 +157,11 @@ class LogTailPanel(QDockWidget):
             self.watcher.removePath(self.current_file)
 
         self.current_file = filepath
+        if filepath not in self._files:
+            self._files.append(filepath)
+        if self.file_combo.findText(filepath) < 0:
+            self.file_combo.addItem(filepath)
+            self.file_combo.setCurrentText(filepath)
         self.file_label.setText(os.path.basename(filepath))
 
         if filepath and os.path.exists(filepath):
@@ -131,6 +170,25 @@ class LogTailPanel(QDockWidget):
             self.view.clear()
             # 读取全部
             self._read_all()
+
+    def _on_combo_activated(self, _index):
+        path = self.file_combo.currentText().strip()
+        if path and path != self.current_file:
+            self.watch(path)
+
+    def _set_paused(self, paused):
+        self._paused = bool(paused)
+        self.pause_btn.setText("继续" if self._paused else "暂停")
+
+    def _apply_filter(self, _text=""):
+        if not self.current_file:
+            return
+        try:
+            with open(self.current_file, encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            self.view.setPlainText(filter_lines(content, self.filter_edit.text()))
+        except Exception:
+            pass
 
     def _read_all(self):
         """读取全部内容"""
@@ -156,6 +214,8 @@ class LogTailPanel(QDockWidget):
 
     def _poll(self):
         """轮询"""
+        if self._paused:
+            return
         if not self.current_file or not os.path.exists(self.current_file):
             return
         try:
@@ -180,6 +240,9 @@ class LogTailPanel(QDockWidget):
                 self.last_size = size
 
             if new_content:
+                if self.filter_edit.text().strip():
+                    self._apply_filter()
+                    return
                 self.view.appendPlainText(new_content.rstrip("\n"))
                 sb = self.view.verticalScrollBar()
                 sb.setValue(sb.maximum())
@@ -260,6 +323,14 @@ class Plugin(PluginBase):
             self.api._host_window().addDockWidget(Qt.BottomDockWidgetArea, self._panel)
         self._panel.show()
         self._panel.raise_()
+
+    def watch_file_dialog(self):
+        filepath, _ok = self.api.open_file_dialog("选择日志文件", "")
+        if filepath:
+            self._watching = True
+            self.show_panel()
+            self._panel.watch(filepath)
+            self.api.show_status("监视: %s" % os.path.basename(filepath), 2000)
 
     def watch_current(self):
         """监视当前文件"""

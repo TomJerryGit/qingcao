@@ -1,5 +1,8 @@
-﻿## [Unreleased]
 
+
+### 功能
+
+- **P3 体验**：JSON JSONC/Schema 校验；wordcount 选区/CJK/目标进度；logtail 过滤/暂停/多文件/轮转。
 ## [2.26.1] - 2026-11-13
 
 ### 功能

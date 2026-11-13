@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """JSON 格式化插件（已迁移到 v2.3/v2.4 扩展点）"""
+
 import json
 import re
 
@@ -17,41 +18,32 @@ class Plugin(PluginBase):
 
         # ---- v2.4 扩展点：真实使用（不只是 API 存在）----
         # 1) hover：悬停显示 JSON 键/值或语法错误
-        self.api.register_hover_provider(
-            self._hover, language_ids=["json", ".json"])
+        self.api.register_hover_provider(self._hover, language_ids=["json", ".json"])
         # 2) 代码操作（右键菜单「代码操作…」）：格式化/压缩/排序
-        self.api.register_code_action_provider(
-            self._code_actions, language_ids=["json", ".json"])
+        self.api.register_code_action_provider(self._code_actions, language_ids=["json", ".json"])
         # 3) 编辑器右键菜单直达"按设置格式化"
-        self.api.add_editor_context_menu(
-            "🧩 JSON 格式化（按设置）", self.format_by_settings)
+        self.api.add_editor_context_menu("🧩 JSON 格式化（按设置）", self.format_by_settings)
         # 4) 设置界面 schema（自动生成「工具 → 插件设置」对话框）
-        self.api.register_settings_schema([
-            {"key": "indent", "label": "缩进空格数", "type": "choice",
-             "default": 2, "choices": [("2 空格", 2), ("4 空格", 4)]},
-            {"key": "sort_keys", "label": "格式化时排序键",
-             "type": "bool", "default": False},
-        ])
+        self.api.register_settings_schema(
+            [
+                {
+                    "key": "indent",
+                    "label": "缩进空格数",
+                    "type": "choice",
+                    "default": 2,
+                    "choices": [("2 空格", 2), ("4 空格", 4)],
+                },
+                {"key": "sort_keys", "label": "格式化时排序键", "type": "bool", "default": False},
+            ]
+        )
 
-        self.api.add_menu(
-            "工具/JSON/格式化 (2 空格)", self.format_2,
-            shortcut="Ctrl+Alt+J"
-        )
-        self.api.add_menu(
-            "工具/JSON/格式化 (4 空格)", self.format_4
-        )
-        self.api.add_menu(
-            "工具/JSON/压缩", self.compress
-        )
-        self.api.add_menu(
-            "工具/JSON/验证", self.validate
-        )
-        self.api.add_menu(
-            "工具/JSON/排序键", self.sort_keys
-        )
-        self.api.add_menu(
-            "工具/JSON/检查并报告到问题面板", self.check_and_report
-        )
+        self.api.add_menu("工具/JSON/格式化 (2 空格)", self.format_2, shortcut="Ctrl+Alt+J")
+        self.api.add_menu("工具/JSON/格式化 (4 空格)", self.format_4)
+        self.api.add_menu("工具/JSON/压缩", self.compress)
+        self.api.add_menu("工具/JSON/验证", self.validate)
+        self.api.add_menu("工具/JSON/排序键", self.sort_keys)
+        self.api.add_menu("工具/JSON/检查并报告到问题面板", self.check_and_report)
+        self.api.add_menu("工具/JSON/按 Schema 校验...", self.validate_schema)
 
     def on_deactivate(self):
         try:
@@ -63,6 +55,52 @@ class Plugin(PluginBase):
     # ========================================================
     # v2.4 扩展点实现
     # ========================================================
+    @staticmethod
+    def strip_jsonc(text: str) -> str:
+        """去除 // 与 /* */ 注释及尾逗号（字符串内不处理）。"""
+        out = []
+        i = 0
+        n = len(text)
+        in_str = False
+        esc = False
+        while i < n:
+            ch = text[i]
+            if in_str:
+                out.append(ch)
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                i += 1
+                continue
+            if ch == '"':
+                in_str = True
+                out.append(ch)
+                i += 1
+                continue
+            if ch == "/" and i + 1 < n and text[i + 1] == "/":
+                i += 2
+                while i < n and text[i] not in "\r\n":
+                    i += 1
+                continue
+            if ch == "/" and i + 1 < n and text[i + 1] == "*":
+                i += 2
+                while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                    i += 1
+                i += 2
+                continue
+            out.append(ch)
+            i += 1
+        return re.sub(r",\s*([}\]])", r"\1", "".join(out))
+
+    def _parse_json(self, text: str):
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return json.loads(self.strip_jsonc(text))
+
     def _settings_indent(self) -> int:
         try:
             value = self.api.get_config("indent", 2)
@@ -95,11 +133,10 @@ class Plugin(PluginBase):
         if not text.strip():
             return ""
         try:
-            data = json.loads(text)
+            data = self._parse_json(text)
         except json.JSONDecodeError as e:
             if int(line) + 1 == e.lineno:
-                return "JSON 语法错误：第 %d 行第 %d 列\n%s" % (
-                    e.lineno, e.colno, e.msg)
+                return "JSON 语法错误：第 %d 行第 %d 列\n%s" % (e.lineno, e.colno, e.msg)
             return ""
         lines = text.splitlines()
         if 0 <= int(line) < len(lines):
@@ -117,21 +154,20 @@ class Plugin(PluginBase):
         text = self._current_text()
         if not text.strip():
             return []
-        actions = [{
-            "title": "格式化 JSON（按设置：%d 空格%s）" % (
-                self._settings_indent(),
-                "，排序键" if self._settings_sort_keys() else ""),
-            "kind": "quickfix",
-            "callback": self.format_by_settings,
-        }]
+        actions = [
+            {
+                "title": "格式化 JSON（按设置：%d 空格%s）"
+                % (self._settings_indent(), "，排序键" if self._settings_sort_keys() else ""),
+                "kind": "quickfix",
+                "callback": self.format_by_settings,
+            }
+        ]
         try:
-            json.loads(text)
+            self._parse_json(text)
         except json.JSONDecodeError:
-            return actions   # 语法错误时只提供"格式化"（会报错说明原因）
-        actions.append({"title": "压缩 JSON", "kind": "refactor",
-                        "callback": self.compress})
-        actions.append({"title": "排序键并格式化", "kind": "refactor",
-                        "callback": self.sort_keys})
+            return actions  # 语法错误时只提供"格式化"（会报错说明原因）
+        actions.append({"title": "压缩 JSON", "kind": "refactor", "callback": self.compress})
+        actions.append({"title": "排序键并格式化", "kind": "refactor", "callback": self.sort_keys})
         return actions
 
     def format_by_settings(self):
@@ -143,16 +179,73 @@ class Plugin(PluginBase):
             self.api.show_status("没有内容", 2000)
             return
         try:
-            data = json.loads(text)
-            result = json.dumps(data, indent=indent,
-                                ensure_ascii=False, sort_keys=sort_keys)
+            data = self._parse_json(text)
+            result = json.dumps(data, indent=indent, ensure_ascii=False, sort_keys=sort_keys)
             self._apply(result, is_selection)
-            self.api.show_status("格式化成功（%d 空格）" % indent, 2000,
-                                 "success")
+            self.api.show_status("格式化成功（%d 空格）" % indent, 2000, "success")
         except json.JSONDecodeError as e:
-            self.api.show_message(
-                "JSON 错误",
-                "第 %d 行 第 %d 列: %s" % (e.lineno, e.colno, e.msg))
+            self.api.show_message("JSON 错误", "第 %d 行 第 %d 列: %s" % (e.lineno, e.colno, e.msg))
+
+    def validate_schema(self):
+        """按设置的 schema_path 做基础 JSON Schema 校验。"""
+        schema_path, ok = self.api.ask_string(
+            "JSON Schema", "Schema 文件路径：", self.api.get_config("schema_path", "") or ""
+        )
+        if not ok:
+            return
+        schema_path = str(schema_path or "").strip()
+        if not schema_path:
+            self.api.show_status("未提供 Schema 路径", 2000)
+            return
+        try:
+            self.api.set_config("schema_path", schema_path)
+            schema = self._parse_json(open(schema_path, encoding="utf-8").read())
+            data = self._parse_json(self._current_text())
+        except Exception as e:
+            self.api.show_message("Schema 校验失败", str(e))
+            return
+        error = self._schema_error(data, schema, "$")
+        if error:
+            self.api.publish_diagnostics(
+                [{"line": 0, "col": 0, "severity": "error", "message": error, "code": "JSON002"}]
+            )
+            self.api.show_status("Schema 校验失败：%s" % error, 4000, "warning")
+        else:
+            self.api.clear_diagnostics()
+            self.api.show_status("✓ Schema 校验通过", 3000, "success")
+
+    def _schema_error(self, value, schema, path="$"):
+        if not isinstance(schema, dict):
+            return ""
+        typ = schema.get("type")
+        typemap = {
+            "object": dict,
+            "array": list,
+            "string": str,
+            "number": (int, float),
+            "integer": int,
+            "boolean": bool,
+            "null": type(None),
+        }
+        if typ in typemap and not isinstance(value, typemap[typ]):
+            return "%s: 期望 %s" % (path, typ)
+        if isinstance(value, dict):
+            for req in schema.get("required") or []:
+                if req not in value:
+                    return "%s: 缺少必需字段 %s" % (path, req)
+            for key, sub in (schema.get("properties") or {}).items():
+                if key in value:
+                    err = self._schema_error(value[key], sub, path + "." + key)
+                    if err:
+                        return err
+        if isinstance(value, list):
+            item_schema = schema.get("items")
+            if isinstance(item_schema, dict):
+                for idx, item in enumerate(value):
+                    err = self._schema_error(item, item_schema, "%s[%d]" % (path, idx))
+                    if err:
+                        return err
+        return ""
 
     def check_and_report(self):
         """校验并把错误发布到「问题」面板（v2.3 诊断 API）"""
@@ -161,19 +254,23 @@ class Plugin(PluginBase):
             self.api.show_status("没有内容", 2000)
             return
         try:
-            data = json.loads(text)
+            data = self._parse_json(text)
             self.api.clear_diagnostics()
             self.api.show_status(
-                "✓ JSON 有效（%d 个节点）" % self._count_nodes(data),
-                3000, "success")
+                "✓ JSON 有效（%d 个节点）" % self._count_nodes(data), 3000, "success"
+            )
         except json.JSONDecodeError as e:
-            n = self.api.publish_diagnostics([{
-                "line": max(0, e.lineno - 1),
-                "col": max(0, e.colno - 1),
-                "severity": "error",
-                "message": e.msg,
-                "code": "JSON001",
-            }])
+            n = self.api.publish_diagnostics(
+                [
+                    {
+                        "line": max(0, e.lineno - 1),
+                        "col": max(0, e.colno - 1),
+                        "severity": "error",
+                        "message": e.msg,
+                        "code": "JSON001",
+                    }
+                ]
+            )
             self.api.show_status("JSON 错误已报告到问题面板", 3000, "warning")
             return n
         return 0
@@ -211,17 +308,12 @@ class Plugin(PluginBase):
             return
 
         try:
-            data = json.loads(text)
-            result = json.dumps(
-                data, indent=indent, ensure_ascii=False
-            )
+            data = self._parse_json(text)
+            result = json.dumps(data, indent=indent, ensure_ascii=False)
             self._apply(result, is_selection)
             self.api.show_status("格式化成功", 2000, "success")
         except json.JSONDecodeError as e:
-            self.api.show_message(
-                "JSON 错误",
-                f"第 {e.lineno} 行 第 {e.colno} 列: {e.msg}"
-            )
+            self.api.show_message("JSON 错误", f"第 {e.lineno} 行 第 {e.colno} 列: {e.msg}")
 
     def compress(self):
         """压缩"""
@@ -230,23 +322,19 @@ class Plugin(PluginBase):
             return
 
         try:
-            data = json.loads(text)
-            result = json.dumps(
-                data, separators=(',', ':'), ensure_ascii=False
-            )
+            data = self._parse_json(text)
+            result = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
             self._apply(result, is_selection)
             self.api.show_status("已压缩", 2000, "success")
         except json.JSONDecodeError as e:
-            self.api.show_message(
-                "JSON 错误",
-                f"第 {e.lineno} 行: {e.msg}"
-            )
+            self.api.show_message("JSON 错误", f"第 {e.lineno} 行: {e.msg}")
 
     def validate(self):
         """验证"""
         text, _ = self._get_json_text()
         try:
-            data = json.loads(text)
+            data = self._parse_json(text)
+
             # 统计
             def count(obj):
                 if isinstance(obj, dict):
@@ -256,23 +344,16 @@ class Plugin(PluginBase):
                 return 1
 
             total = count(data)
-            self.api.show_status(
-                f"✓ 有效 JSON ({total} 个节点)", 3000, "success"
-            )
+            self.api.show_status(f"✓ 有效 JSON ({total} 个节点)", 3000, "success")
         except json.JSONDecodeError as e:
-            self.api.show_message(
-                "JSON 错误",
-                f"第 {e.lineno} 行 第 {e.colno} 列:\n{e.msg}"
-            )
+            self.api.show_message("JSON 错误", f"第 {e.lineno} 行 第 {e.colno} 列:\n{e.msg}")
 
     def sort_keys(self):
         """排序键"""
         text, is_selection = self._get_json_text()
         try:
-            data = json.loads(text)
-            result = json.dumps(
-                data, indent=2, ensure_ascii=False, sort_keys=True
-            )
+            data = self._parse_json(text)
+            result = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True)
             self._apply(result, is_selection)
             self.api.show_status("已排序", 2000, "success")
         except json.JSONDecodeError as e:

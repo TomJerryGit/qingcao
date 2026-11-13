@@ -126,3 +126,11 @@
 - **条件断点**：菜单「设置条件断点…」→ 条件表达式随断点下发；driver `_should_stop` 求值，false 自动继续；
 - **监视表达式**：菜单「添加监视表达式…/清除监视」→ 随断点下发；命中时在 break 事件返回 `watches`，面板顶部“监视变量”节点展示；
 - 测试：`tests/test_v226_debugger_conditions.py`（条件 false/true、session payload、UI 契约）+ 全量 debugger 测试 78/78。
+
+
+### P3 体验补齐（2026-11-13）
+
+- **json_formatter**：JSONC（//、/* */、尾逗号）解析；Schema 路径设置与基础 Schema 校验；选区格式化沿用；
+- **wordcount**：选区统计（“选区”标记）、CJK 逐字词数、目标词数进度（状态/面板/远程字段）；
+- **logtail**：正则/子串过滤、暂停/继续、多文件下拉切换、“监视文件…”入口、截断/轮转重读；
+- 测试：`tests/test_v226_p3_experience.py`（5/5）。
