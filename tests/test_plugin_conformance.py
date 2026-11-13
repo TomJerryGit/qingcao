@@ -22,6 +22,7 @@
 """
 
 import ast
+import glob
 import json
 import os
 
@@ -351,6 +352,10 @@ def test_all_builtin_plugins_migrated():
         path = os.path.join(PLUGIN_DIR, name, "__init__.py")
         try:
             src = open(path, encoding="utf-8").read()
+            # v2.26：插件逻辑可能拆到 *_mixin.py，静态契约合并检查
+            for extra in sorted(glob.glob(os.path.join(
+                    PLUGIN_DIR, name, "*_mixin.py"))):
+                src += open(extra, encoding="utf-8").read()
         except OSError:
             failures.append("%s: 缺少入口文件" % name)
             continue
@@ -360,6 +365,9 @@ def test_all_builtin_plugins_migrated():
         path = os.path.join(PLUGIN_DIR, name, "__init__.py")
         try:
             src = open(path, encoding="utf-8").read()
+            for extra in sorted(glob.glob(os.path.join(
+                    PLUGIN_DIR, name, "*_mixin.py"))):
+                src += open(extra, encoding="utf-8").read()
         except OSError:
             continue
         if "add_status_item" not in src:

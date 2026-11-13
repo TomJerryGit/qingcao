@@ -82,3 +82,13 @@
 - 按“单文件 ≤1,300 行”门禁复核：ai_assistant 最大文件 **1,242**（`__init__.py`），python_debugger 最大 **661**（`__init__.py`）——**均已达标，无需拆分**；
 - 新增守卫测试 `tests/test_v226_ai_timeout_cancel.py::test_plugin_files_within_architecture_limit` 防止回退；
 - AI 网络超时/取消回归：`test_make_request_passes_timeout`、`test_make_request_timeout_raises`。
+
+### v2.26 实际拆分结果（2026-11-13）
+
+| 插件 | 拆分后主入口 | 新模块 |
+|---|---|---|
+| ai_assistant | `__init__.py` **904** | `ai_ollama_mixin.py`(229)、`ai_inline_mixin.py`(131) |
+| python_debugger | `__init__.py` **589** | `debug_guards_mixin.py`(76) |
+
+- 全部文件 ≤1,300 行；插件测试（AI 117、debugger 82）通过；
+- `test_plugin_conformance` 已支持合并 `*_mixin.py` 做静态契约检查。

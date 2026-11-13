@@ -23,6 +23,7 @@
 | 终止且不留孤儿 | `DebugSession.stop()`（quit→wait→terminate→wait→kill→wait）+ stdin EOF 自杀 | `TestSessionStop` |
 | 错误场景用户可见 | `_require_python_file` / `_ensure_saved` / `check_backend` | `TestPluginGuards` |
 """
+
 import atexit
 import importlib.util
 import logging
@@ -31,6 +32,8 @@ import subprocess
 import sys
 
 from app.plugins import PluginBase
+
+from .debug_guards_mixin import DebugGuardsMixin  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -94,7 +97,7 @@ atexit.register(_stop_all_sessions)
 # ============================================================
 # 插件
 # ============================================================
-class Plugin(PluginBase):
+class Plugin(DebugGuardsMixin, PluginBase):
     NAME = "python_debugger"
     VERSION = "2.0.0"
     DESCRIPTION = "基于标准库 bdb 的编辑器内 Python 调试器"
@@ -120,12 +123,24 @@ class Plugin(PluginBase):
         try:
             register = getattr(self.api, "register_settings_schema", None)
             if callable(register):
-                register([
-                    {"key": "confirm_kill", "label": "结束调试前确认",
-                     "type": "bool", "default": True},
-                    {"key": "max_stack_frames", "label": "调用栈最多帧数",
-                     "type": "int", "default": 50, "min": 5, "max": 500},
-                ])
+                register(
+                    [
+                        {
+                            "key": "confirm_kill",
+                            "label": "结束调试前确认",
+                            "type": "bool",
+                            "default": True,
+                        },
+                        {
+                            "key": "max_stack_frames",
+                            "label": "调用栈最多帧数",
+                            "type": "int",
+                            "default": 50,
+                            "min": 5,
+                            "max": 500,
+                        },
+                    ]
+                )
             add_item = getattr(self.api, "add_status_item", None)
             if callable(add_item):
                 self._status = add_item("调试: 就绪")
@@ -142,23 +157,24 @@ class Plugin(PluginBase):
     def _register_menus(self):
         """注册"工具 → Python 调试"子菜单。"""
         add = self.api.add_menu
-        add("工具/Python 调试/调试当前文件",
-            self.debug_current, shortcut=self.DEBUG_SHORTCUT)
-        add("工具/Python 调试/运行当前文件",
-            self.run_current, shortcut=self.RUN_SHORTCUT)
+        add("工具/Python 调试/调试当前文件", self.debug_current, shortcut=self.DEBUG_SHORTCUT)
+        add("工具/Python 调试/运行当前文件", self.run_current, shortcut=self.RUN_SHORTCUT)
         add("工具/Python 调试/带参数运行...", self.run_with_args)
         add("工具/Python 调试/── 调试控制 ──", self._show_control_hint)
-        add("工具/Python 调试/继续", self.debug_continue,
-            shortcut=self.CONTINUE_SHORTCUT)
-        add("工具/Python 调试/单步跳过 (over)", self.debug_step_over,
-            shortcut=self.STEP_OVER_SHORTCUT)
-        add("工具/Python 调试/单步进入 (into)", self.debug_step_into,
-            shortcut=self.STEP_INTO_SHORTCUT)
-        add("工具/Python 调试/单步跳出 (out)", self.debug_step_out,
-            shortcut=self.STEP_OUT_SHORTCUT)
+        add("工具/Python 调试/继续", self.debug_continue, shortcut=self.CONTINUE_SHORTCUT)
+        add(
+            "工具/Python 调试/单步跳过 (over)",
+            self.debug_step_over,
+            shortcut=self.STEP_OVER_SHORTCUT,
+        )
+        add(
+            "工具/Python 调试/单步进入 (into)",
+            self.debug_step_into,
+            shortcut=self.STEP_INTO_SHORTCUT,
+        )
+        add("工具/Python 调试/单步跳出 (out)", self.debug_step_out, shortcut=self.STEP_OUT_SHORTCUT)
         add("工具/Python 调试/── 断点 ──", self._show_control_hint)
-        add("工具/Python 调试/切换断点（F9 或单击行号）",
-            self.toggle_breakpoint)
+        add("工具/Python 调试/切换断点（F9 或单击行号）", self.toggle_breakpoint)
         add("工具/Python 调试/清除所有断点", self.clear_breakpoints)
         add("工具/Python 调试/── 查看 ──", self._show_control_hint)
         add("工具/Python 调试/显示调试面板", self.show_panel)
@@ -195,78 +211,6 @@ class Plugin(PluginBase):
         except Exception:
             pass
 
-    def _show_control_hint(self):
-        self.api.show_status(
-            "调试控制：F8 继续 / F10 跳过 / Shift+F10 进入 / Ctrl+F10 跳出",
-            4000,
-        )
-
-    # --------------------------------------------------------
-    # 前置校验（错误场景必须**用户可见**）
-    # --------------------------------------------------------
-    def _require_python_file(self, action="调试"):
-        """返回 (filepath, None)；不满足条件时返回 (None, 用户可见提示)。"""
-        proxy = self.api.current_editor()
-        if proxy is None:
-            return None, f"没有打开的编辑器，无法{action}。"
-
-        filepath = ""
-        try:
-            filepath = self.api.get_current_filepath() or ""
-        except Exception:
-            filepath = ""
-
-        if not filepath:
-            return None, (
-                f"请先保存文件再{action}：当前标签还没有磁盘路径"
-                "（未保存的文件无法交给调试进程）。"
-            )
-        if not filepath.lower().endswith((".py", ".pyw")):
-            return None, (
-                f"只有 Python 文件可以{action}："
-                f"当前是 {os.path.basename(filepath)}。"
-            )
-        if not os.path.isfile(filepath):
-            return None, f"文件不存在，无法{action}：{filepath}"
-        return filepath, None
-
-    def _ensure_saved(self, proxy):
-        """确保磁盘内容与编辑器一致。返回 (ok, message)。"""
-        try:
-            modified = bool(getattr(proxy, "is_modified", False))
-        except Exception:
-            modified = False
-        if not modified:
-            return True, ""
-
-        try:
-            saved = bool(self.api.save_current_file())
-        except Exception as exc:
-            logger.warning("自动保存失败: %s", exc)
-            saved = False
-
-        if saved:
-            return True, "文件已自动保存"
-        return False, (
-            "文件有未保存的修改，且自动保存失败；"
-            "请先按 Ctrl+S 手动保存后再调试。"
-        )
-
-    def _notify_error(self, title, message):
-        """统一错误出口：日志 + 状态栏 + 对话框（都失败也不崩）。"""
-        logger.warning("[python_debugger] %s: %s", title, message)
-        try:
-            self.api.show_status(str(message), 6000, "error")
-        except Exception:
-            pass
-        try:
-            self.api.show_message(title, str(message), "error")
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # 调试会话
-    # --------------------------------------------------------
     def debug_current(self):
         """启动调试会话（D3 主入口）。"""
         try:
@@ -312,13 +256,10 @@ class Plugin(PluginBase):
             self._watch_breakpoints()
             self.show_panel()
             if self._panel is not None:
-                self._panel.set_status(
-                    f"调试中：{os.path.basename(filepath)}"
-                )
+                self._panel.set_status(f"调试中：{os.path.basename(filepath)}")
             count = len(self._collect_breakpoints())
             self.api.show_status(
-                f"调试已启动: {os.path.basename(filepath)}"
-                f"（断点文件 {count} 个）",
+                f"调试已启动: {os.path.basename(filepath)}（断点文件 {count} 个）",
                 3000,
                 "success",
             )
@@ -388,8 +329,7 @@ class Plugin(PluginBase):
     def _require_session(self, action):
         session = self._session
         if session is None or not session.is_running:
-            self.api.show_status(f"当前没有正在进行的调试会话（{action}）",
-                                 3000, "warning")
+            self.api.show_status(f"当前没有正在进行的调试会话（{action}）", 3000, "warning")
             return None
         return session
 
@@ -462,9 +402,7 @@ class Plugin(PluginBase):
                     highlighter(line)
                 self._focus_editor(proxy)
             else:
-                self.api.show_status(
-                    f"已暂停于 {filepath}:{line + 1}（该文件未打开）", 5000
-                )
+                self.api.show_status(f"已暂停于 {filepath}:{line + 1}（该文件未打开）", 5000)
 
             if self._panel is not None:
                 payload = None
@@ -497,13 +435,9 @@ class Plugin(PluginBase):
         # 行号越界时 toggle_breakpoint 返回 False（markerAdd 对越界行是
         # 静默失败的），这里如实转达，不能报"成功"。
         toggled = bool(proxy.toggle_breakpoint())
-        lines = (
-            proxy.get_breakpoints()
-            if hasattr(proxy, "get_breakpoints") else []
-        )
+        lines = proxy.get_breakpoints() if hasattr(proxy, "get_breakpoints") else []
         if not toggled:
-            self.api.show_status("当前位置无法设置断点（行号越界）",
-                                 3000, "warning")
+            self.api.show_status("当前位置无法设置断点（行号越界）", 3000, "warning")
             return False
         self.api.show_status(f"当前文件断点：{len(lines)} 个", 2500)
         return True
@@ -575,9 +509,7 @@ class Plugin(PluginBase):
         if problem:
             self._notify_error("无法运行", problem)
             return False
-        args, ok = self.api.ask_string(
-            "运行参数", "命令行参数（空格分隔）:", ""
-        )
+        args, ok = self.api.ask_string("运行参数", "命令行参数（空格分隔）:", "")
         if not ok:
             return False
         return self._spawn(filepath, args.split(), "运行")
@@ -593,17 +525,13 @@ class Plugin(PluginBase):
             cwd = os.path.dirname(filepath) or os.getcwd()
             kwargs = {"cwd": cwd}
             if os.name == "nt":
-                kwargs["creationflags"] = getattr(
-                    subprocess, "CREATE_NEW_CONSOLE", 0
-                )
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
             process = subprocess.Popen(command, **kwargs)
             # 普通运行**刻意不持有子进程句柄**：用户在新控制台里交互，
             # 关掉编辑器不应连带杀死它（这与调试路径"绝不遗留进程"
             # 的要求正好相反，两条路径分开处理）。
             del process
-            self.api.show_status(
-                f"{action}: {os.path.basename(filepath)}", 2500, "success"
-            )
+            self.api.show_status(f"{action}: {os.path.basename(filepath)}", 2500, "success")
             return True
         except Exception as exc:
             self._notify_error(f"{action}失败", str(exc))

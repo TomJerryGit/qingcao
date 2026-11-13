@@ -1,5 +1,9 @@
 ﻿## [Unreleased]
 
+### 重构
+
+- **P1 插件拆分**：ai_assistant 入口 1,242→904（Ollama/内联 mixin）；python_debugger 661→589（guards mixin）；AI 117/debugger 82 测试通过。
+
 ### 工程
 
 - **P1 插件体量复核**：ai_assistant/python_debugger 单文件已 ≤1,300（1,242/661），无需拆分；新增体积守卫与 AI 超时/取消回归测试。
