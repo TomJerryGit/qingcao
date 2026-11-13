@@ -3,8 +3,9 @@
 # Self-hosted CI (GitHub-hosted minutes exhausted).
 # No external actions: SSH checkout + local Python.
 on:
-  push:
-    branches: [main]
+  # v2.26.2：主门禁迁移托管 runner；自托管改为每日深度检查 + 手动
+  schedule:
+    - cron: "0 4 * * *"
   # P0 安全：禁止 PR 在 self-hosted runner 上执行不可信代码
   # （PR 验证请使用托管的 Test Fallback 工作流）
 

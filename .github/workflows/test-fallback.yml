@@ -2,6 +2,8 @@ name: Test Fallback (hosted)
 
 # self-hosted runner 长时间排队/卡死时的兜底测试（GitHub 托管 Windows）
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -16,7 +18,7 @@ concurrency:
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'

@@ -1,4 +1,8 @@
+﻿
 
+### 工程
+
+- **CI 根治**：Test 主路径迁移托管 	est-fallback（push 触发），自托管 Test 改每日深度检查；发布门禁继续接受同 SHA fallback；my_plugin 样例默认禁用（docs/plugin_samples.md）。
 
 ### 功能
 
