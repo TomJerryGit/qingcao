@@ -3,7 +3,7 @@
 import os
 
 
-DEMO_PLUGINS = {"demo", "wordcount", "sandbox_demo"}
+DEMO_PLUGINS = {"demo", "wordcount", "json_formatter", "sandbox_demo"}
 
 
 def isolation_mode():

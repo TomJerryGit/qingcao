@@ -281,13 +281,52 @@ class WindowHostAPI:
         self._bridge.submit(_show)
         return True
 
-    def register_hover_provider(self, cb_id, language_ids=None):
+    def _invoke_provider(self, cb_id, *args):
+        if hasattr(self, "invoke_callback"):
+            return self.invoke_callback(cb_id, *args)
+        return None
+
+    def register_hover_provider(self, cb_id, language_ids=None, plugin_name=None):
         self.providers["hover"][cb_id] = language_ids
+        if hasattr(self.window, "register_plugin_hover_provider"):
+
+            def _hover(line, col, filepath="", language=""):
+                return self._invoke_provider(cb_id, line, col, filepath, language)
+
+            self.window.register_plugin_hover_provider(
+                _hover, language_ids or [], plugin_name or "unknown"
+            )
         return True
 
-    def register_code_action_provider(self, cb_id, language_ids=None):
+    def register_code_action_provider(self, cb_id, language_ids=None, plugin_name=None):
         self.providers["code_action"][cb_id] = language_ids
+        if hasattr(self.window, "register_plugin_code_action_provider"):
+
+            def _actions(line, col, filepath="", language=""):
+                items = self._invoke_provider(cb_id, line, col, filepath, language) or []
+                out = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    item = dict(item)
+                    aid = item.pop("action_id", None)
+                    if aid is not None:
+                        item["callback"] = lambda _aid=aid: self._invoke_provider(_aid)
+                    out.append(item)
+                return out
+
+            self.window.register_plugin_code_action_provider(
+                _actions, language_ids or [], plugin_name or "unknown"
+            )
         return True
+
+    def add_editor_context_menu(self, label, cb_id, plugin_name=None):
+        if hasattr(self.window, "add_plugin_editor_context_action"):
+            self.window.add_plugin_editor_context_action(
+                str(label), lambda: self._invoke_provider(cb_id), plugin_name or "unknown"
+            )
+            return True
+        return False
 
     def register_completion_provider(self, cb_id, language_ids=None):
         self.providers["completion"][cb_id] = language_ids

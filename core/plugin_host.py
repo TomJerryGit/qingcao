@@ -36,6 +36,9 @@ METHOD_PERMISSIONS = {
     "register_remote_panel": "dialog",
     "show_remote_panel": "dialog",
     "http_request": "network",
+    "register_hover_provider": "editor_read",
+    "register_code_action_provider": "editor_write",
+    "add_editor_context_menu": None,
     "run_command": "process",
     "run_python": "process",
 }
@@ -181,21 +184,37 @@ class RemoteAPI:
     def show_status(self, text, timeout=0, level="info"):
         return self.log(text, level)
 
+    def _new_callback(self, fn):
+        cb_id = len(self._callbacks)
+        self._callbacks[cb_id] = fn
+        return cb_id
+
     def register_hover_provider(self, provider, language_ids=None, **kw):
-        self.log("[sandbox] hover provider not bridged yet", "warning")
-        return True
+        return self._call(
+            "register_hover_provider",
+            self._new_callback(provider),
+            language_ids or [],
+            self.plugin_name,
+        )
 
     def register_code_action_provider(self, provider, language_ids=None, **kw):
-        self.log("[sandbox] code-action provider not bridged yet", "warning")
-        return True
+        return self._call(
+            "register_code_action_provider",
+            self._new_callback(provider),
+            language_ids or [],
+            self.plugin_name,
+        )
 
     def register_completion_provider(self, provider, language_ids=None, **kw):
         self.log("[sandbox] completion provider not bridged yet", "warning")
         return True
 
     def add_editor_context_menu(self, label, callback=None, **kw):
-        self.log("[sandbox] editor context menu not bridged yet", "warning")
-        return True
+        if callback is None:
+            return False
+        return self._call(
+            "add_editor_context_menu", label, self._new_callback(callback), self.plugin_name
+        )
 
     def clear_diagnostics(self):
         return True
@@ -323,6 +342,15 @@ def main(argv=None):
             cb = api._callbacks.get(params.get("id"))
             try:
                 result = cb(*(params.get("args") or [])) if cb else None
+                if isinstance(result, list):
+                    out = []
+                    for item in result:
+                        if isinstance(item, dict) and callable(item.get("callback")):
+                            item = dict(item)
+                            item["action_id"] = api._new_callback(item["callback"])
+                            item["callback"] = None
+                        out.append(item)
+                    result = out
                 write(response(req_id, result))
             except Exception as e:
                 write(error(req_id, -32000, str(e)))
