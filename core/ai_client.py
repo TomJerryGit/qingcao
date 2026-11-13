@@ -1,5 +1,5 @@
 #!usr/bin/env python
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """青草编辑器 AI 客户端（极简版）"""
 
 import json
@@ -15,6 +15,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 # 敏感信息安全存储（v2.1）
 try:
     from core.secure_storage import delete_secret, get_secure_storage, load_secret, save_secret
+
     _SECURE_STORAGE_OK = True
 except ImportError as e:
     print(f"[AI] SecureStorage 不可用: {e}")
@@ -148,18 +149,27 @@ class AIClient(QObject):
     stream_chunk = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, provider="openai", api_key="", model="",
-                 base_url="", timeout=DEFAULT_TIMEOUT,
-                 max_tokens=DEFAULT_MAX_TOKENS,
-                 temperature=DEFAULT_TEMPERATURE, parent=None):
+    def __init__(
+        self,
+        provider="openai",
+        api_key="",
+        model="",
+        base_url="",
+        timeout=DEFAULT_TIMEOUT,
+        max_tokens=DEFAULT_MAX_TOKENS,
+        temperature=DEFAULT_TEMPERATURE,
+        privacy_mode=False,
+        parent=None,
+    ):
         super().__init__(parent)
         self.provider = provider
         self.api_key = api_key
         self.model = model
-        self.base_url = base_url.rstrip('/') if base_url else ""
+        self.base_url = base_url.rstrip("/") if base_url else ""
         self.timeout = timeout
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.privacy_mode = bool(privacy_mode)
         self._cancel = threading.Event()
         # 多轮对话历史（此前只声明、从未使用，见 chat(use_history=...)）
         self._history: List[Dict[str, str]] = []
@@ -190,8 +200,7 @@ class AIClient(QObject):
         if len(self._history) > max_msgs:
             self._history = self._history[-max_msgs:]
 
-    def chat(self, prompt="", system="", messages=None,
-             use_history=False):
+    def chat(self, prompt="", system="", messages=None, use_history=False):
         """同步对话
 
         参数:
@@ -212,8 +221,7 @@ class AIClient(QObject):
             result = self._chat(to_send, system)
             if use_history:
                 self._history.extend(messages)
-                self._history.append({"role": "assistant",
-                                      "content": result or ""})
+                self._history.append({"role": "assistant", "content": result or ""})
                 self._trim_history()
             self.response_ready.emit(result)
             return result
@@ -221,9 +229,9 @@ class AIClient(QObject):
             self.error_occurred.emit(str(e))
             raise AIClientError(str(e))
 
-    def chat_async(self, prompt="", system="",
-                   callback=None, error_callback=None,
-                   use_history=False):
+    def chat_async(
+        self, prompt="", system="", callback=None, error_callback=None, use_history=False
+    ):
         """异步对话（在后台线程执行 `chat`，通过回调返回结果）
 
         这是**编程式 API**，面向脚本或需要"发起即返回"的场景。
@@ -244,8 +252,7 @@ class AIClient(QObject):
                 if error_callback:
                     error_callback(str(e))
 
-        t = threading.Thread(target=worker, daemon=True,
-                             name="ai-chat-async")
+        t = threading.Thread(target=worker, daemon=True, name="ai-chat-async")
         t.start()
         return t
 
@@ -255,8 +262,7 @@ class AIClient(QObject):
     def is_cancelled(self):
         return self._cancel.is_set()
 
-    def chat_stream(self, prompt="", system="", callback=None,
-                    use_history=False):
+    def chat_stream(self, prompt="", system="", callback=None, use_history=False):
         """流式对话（基类默认实现：非流式 + 一次性回调）。
 
         子类应重写本方法以提供**真正的增量输出**：
@@ -280,8 +286,7 @@ class AIClient(QObject):
         messages = []
         if prompt:
             messages.append({"role": "user", "content": prompt})
-        text = self.chat(messages=messages, system=system,
-                         use_history=use_history)
+        text = self.chat(messages=messages, system=system, use_history=use_history)
         if callback and text:
             callback(text)
         return text
@@ -289,9 +294,12 @@ class AIClient(QObject):
     def _chat(self, messages, system=""):
         raise NotImplementedError
 
-    def _make_request(self, url, headers, json_data,
-                      stream=False, timeout=None):
+    def _make_request(self, url, headers, json_data, stream=False, timeout=None):
         """HTTP 请求"""
+        if self.privacy_mode:
+            raise AIConfigError("隐私模式已开启：禁止所有网络请求")
+        if self.is_cancelled():
+            raise AICancelledError("请求已取消")
         try:
             import requests
         except ImportError:
@@ -300,11 +308,11 @@ class AIClient(QObject):
         timeout = timeout or self.timeout
         try:
             if stream:
-                resp = requests.post(url, headers=headers, json=json_data,
-                                     timeout=timeout, stream=True)
+                resp = requests.post(
+                    url, headers=headers, json=json_data, timeout=timeout, stream=True
+                )
             else:
-                resp = requests.post(url, headers=headers, json=json_data,
-                                     timeout=timeout)
+                resp = requests.post(url, headers=headers, json=json_data, timeout=timeout)
             if resp.status_code == 401:
                 raise AIAuthError("API Key 无效")
             if resp.status_code >= 400:
@@ -321,23 +329,20 @@ class AIClient(QObject):
 
     def get_info(self):
         return {
-            'provider': self.provider,
-            'model': self.model,
-            'base_url': self.base_url,
-            'has_api_key': bool(self.api_key),
+            "provider": self.provider,
+            "model": self.model,
+            "base_url": self.base_url,
+            "has_api_key": bool(self.api_key),
         }
 
     def __repr__(self):
-        return "<%s provider=%s model=%s>" % (
-            self.__class__.__name__, self.provider, self.model
-        )
+        return "<%s provider=%s model=%s>" % (self.__class__.__name__, self.provider, self.model)
 
 
 #!============================================================
 #!OpenAI 兼容客户端
 #!============================================================
 class OpenAIClient(AIClient):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.model:
@@ -397,8 +402,7 @@ class OpenAIClient(AIClient):
             raise AIClientError("API 返回空结果")
         return choices[0].get("message", {}).get("content", "")
 
-    def chat_stream(self, prompt="", system="", callback=None,
-                    use_history=False, max_tokens=None):
+    def chat_stream(self, prompt="", system="", callback=None, use_history=False, max_tokens=None):
         """流式对话（OpenAI 兼容族：OpenAI / Ollama / DeepSeek / 通义 /
         Moonshot / 智谱）。
 
@@ -439,8 +443,7 @@ class OpenAIClient(AIClient):
         }
 
         url = self.base_url + "/chat/completions"
-        resp = self._make_request(url, headers, payload,
-                                  stream=True, timeout=STREAM_TIMEOUT)
+        resp = self._make_request(url, headers, payload, stream=True, timeout=STREAM_TIMEOUT)
 
         full_text = []
         for line in resp.iter_lines():
@@ -448,7 +451,7 @@ class OpenAIClient(AIClient):
                 break
             if not line:
                 continue
-            line = line.decode('utf-8', errors='replace').strip()
+            line = line.decode("utf-8", errors="replace").strip()
             if not line.startswith("data: "):
                 continue
             data_str = line[6:]
@@ -481,7 +484,6 @@ class OpenAIClient(AIClient):
 #!Claude 客户端
 #!============================================================
 class ClaudeClient(AIClient):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.model:
@@ -516,8 +518,7 @@ class ClaudeClient(AIClient):
                 text_parts.append(item.get("text", ""))
         return "".join(text_parts)
 
-    def chat_stream(self, prompt="", system="", callback=None,
-                    use_history=False, max_tokens=None):
+    def chat_stream(self, prompt="", system="", callback=None, use_history=False, max_tokens=None):
         """Anthropic Messages API 的**真正流式**实现（SSE）。
 
         与 OpenAI 的区别：
@@ -558,8 +559,7 @@ class ClaudeClient(AIClient):
             payload["system"] = system
 
         url = self.base_url + "/messages"
-        resp = self._make_request(url, headers, payload, stream=True,
-                                  timeout=STREAM_TIMEOUT)
+        resp = self._make_request(url, headers, payload, stream=True, timeout=STREAM_TIMEOUT)
 
         full_text = []
         try:
@@ -591,8 +591,7 @@ class ClaudeClient(AIClient):
                                 callback(text)
                 elif ctype == "error":
                     err = chunk.get("error") or {}
-                    raise AIClientError(
-                        "API 错误: %s" % err.get("message", "未知错误"))
+                    raise AIClientError("API 错误: %s" % err.get("message", "未知错误"))
                 # 其它事件（message_start / content_block_start /
                 # ping / message_delta / message_stop）无需处理
         finally:
@@ -613,7 +612,6 @@ class ClaudeClient(AIClient):
 #!客户端工厂
 #!============================================================
 class AIClientFactory:
-
     _registry = {
         "openai": OpenAIClient,
         "ollama": OpenAIClient,
@@ -646,15 +644,13 @@ class AIClientFactory:
     }
 
     @classmethod
-    def create(cls, provider="openai", api_key="", model="",
-               base_url="", **kwargs):
+    def create(cls, provider="openai", api_key="", model="", base_url="", **kwargs):
         provider = provider.lower()
         client_class = cls._registry.get(provider)
         if not client_class:
             raise AIConfigError("未知的 AI 提供商: %s" % provider)
         return client_class(
-            provider=provider, api_key=api_key, model=model,
-            base_url=base_url, **kwargs
+            provider=provider, api_key=api_key, model=model, base_url=base_url, **kwargs
         )
 
     @classmethod
@@ -702,11 +698,13 @@ def load_ai_client_from_settings():
     """
     try:
         from PyQt5.QtCore import QSettings
+
         settings = QSettings("QingCao", "AI")
 
         provider = settings.value("provider", "openai", type=str)
         model = settings.value("model", "", type=str)
         base_url = settings.value("base_url", "", type=str)
+        privacy_mode = settings.value("privacy_mode", False, type=bool)
 
         # ---- API Key：优先从安全存储读取 ----
         #
@@ -723,9 +721,7 @@ def load_ai_client_from_settings():
             # 触发一次迁移（幂等）
             try:
                 storage = get_secure_storage()
-                storage.migrate_from_settings(
-                    settings, "api_key", "QingCao", "AI"
-                )
+                storage.migrate_from_settings(settings, "api_key", "QingCao", "AI")
             except Exception as e:
                 print(f"[AI] API Key 迁移失败: {e}")
 
@@ -743,8 +739,11 @@ def load_ai_client_from_settings():
             return None
 
         client = AIClientFactory.create(
-            provider=provider, api_key=api_key,
-            model=model, base_url=base_url,
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            privacy_mode=privacy_mode,
         )
         set_ai_client(client)
         return client
@@ -765,12 +764,14 @@ def save_ai_client_to_settings(client):
     """
     try:
         from PyQt5.QtCore import QSettings
+
         settings = QSettings("QingCao", "AI")
 
         # ---- 非敏感信息：QSettings ----
         settings.setValue("provider", client.provider)
         settings.setValue("model", client.model)
         settings.setValue("base_url", client.base_url)
+        settings.setValue("privacy_mode", bool(getattr(client, "privacy_mode", False)))
 
         # ---- 敏感信息：SecureStorage ----
         if _SECURE_STORAGE_OK:
@@ -826,7 +827,7 @@ def quick_explain(code, lang="python"):
         raise AIConfigError("未配置 AI 客户端")
     return client.chat(
         prompt=PROMPT_EXPLAIN.format(code=code, lang=lang),
-        system="你是资深开发者，用中文解释代码。"
+        system="你是资深开发者，用中文解释代码。",
     )
 
 
@@ -834,10 +835,7 @@ def quick_refactor(code, lang="python"):
     client = get_ai_client()
     if not client:
         raise AIConfigError("未配置 AI 客户端")
-    return client.chat(
-        prompt=PROMPT_REFACTOR.format(code=code, lang=lang),
-        system="你是重构专家。"
-    )
+    return client.chat(prompt=PROMPT_REFACTOR.format(code=code, lang=lang), system="你是重构专家。")
 
 
 def quick_tests(code, lang="python", framework="pytest"):
@@ -845,9 +843,8 @@ def quick_tests(code, lang="python", framework="pytest"):
     if not client:
         raise AIConfigError("未配置 AI 客户端")
     return client.chat(
-        prompt=PROMPT_TESTS.format(code=code, lang=lang,
-                                   framework=framework),
-        system="你是测试工程师。"
+        prompt=PROMPT_TESTS.format(code=code, lang=lang, framework=framework),
+        system="你是测试工程师。",
     )
 
 
@@ -855,10 +852,7 @@ def quick_review(code, lang="python"):
     client = get_ai_client()
     if not client:
         raise AIConfigError("未配置 AI 客户端")
-    return client.chat(
-        prompt=PROMPT_REVIEW.format(code=code, lang=lang),
-        system="你是资深开发者。"
-    )
+    return client.chat(prompt=PROMPT_REVIEW.format(code=code, lang=lang), system="你是资深开发者。")
 
 
 def quick_summary(code, lang="python"):
@@ -866,6 +860,5 @@ def quick_summary(code, lang="python"):
     if not client:
         raise AIConfigError("未配置 AI 客户端")
     return client.chat(
-        prompt=PROMPT_SUMMARY.format(code=code, lang=lang),
-        system="用中文总结代码。"
+        prompt=PROMPT_SUMMARY.format(code=code, lang=lang), system="用中文总结代码。"
     )

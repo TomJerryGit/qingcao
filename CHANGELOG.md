@@ -1,5 +1,11 @@
 ﻿## [Unreleased]
 
+## [2.25.3] - 2026-11-13
+
+### 安全
+
+- **P0 插件安全**：git 子命令白名单 + 参数数组（去 shell）+ 15s 超时/1MB 输出上限；AI 隐私模式（禁网）+ 请求取消守卫；配置页隐私开关。
+
 ### 安全
 
 - **沙箱 all 模式安全灰度**：ISOLATABLE_PLUGINS（demo/wordcount/json_formatter/sandbox_demo）；ll 仅隔离已验证插件，其余保持进程内；新增兼容性测试。

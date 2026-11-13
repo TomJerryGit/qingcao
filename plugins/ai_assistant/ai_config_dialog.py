@@ -109,6 +109,20 @@ class AIConfigDialog(QDialog):
             self.session_check.setChecked(True)
         layout.addWidget(self.session_check)
 
+        # 隐私模式（禁网）
+        self.privacy_check = QCheckBox("隐私模式（禁止联网：不使用任何远程 AI 服务）")
+        self.privacy_check.setToolTip(
+            "开启后拒绝所有网络请求；仅影响本插件发起的外部调用。\n"
+            "适合敏感代码/离线环境；本地 Ollama 不受影响。"
+        )
+        try:
+            self.privacy_check.setChecked(
+                QSettings("QingCao", "AI").value("privacy_mode", False, type=bool)
+            )
+        except Exception:
+            self.privacy_check.setChecked(False)
+        layout.addWidget(self.privacy_check)
+
         # 提示
         hint = QLabel(
             "💡 提示：\n"
@@ -212,6 +226,10 @@ class AIConfigDialog(QDialog):
             self.api_key_edit.setText(api_key)
             self.model_combo.setCurrentText(model)
             self.base_url_edit.setText(base_url)
+            try:
+                self.privacy_check.setChecked(settings.value("privacy_mode", False, type=bool))
+            except Exception:
+                pass
 
             # 更新模型列表
             self._on_provider_changed()
@@ -370,6 +388,7 @@ class AIConfigDialog(QDialog):
             try:
                 settings.setValue("result_cache", self.cache_check.isChecked())
                 settings.setValue("session_window", self.session_check.isChecked())
+                settings.setValue("privacy_mode", self.privacy_check.isChecked())
             except Exception:
                 pass
             settings.sync()

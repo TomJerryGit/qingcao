@@ -1,7 +1,27 @@
 # -*- coding: utf-8 -*-
 """Git 客户端封装"""
+
 import os
 import subprocess
+
+
+ALLOWED_SUBCOMMANDS = frozenset(
+    {
+        "rev-parse",
+        "status",
+        "diff",
+        "add",
+        "reset",
+        "commit",
+        "push",
+        "pull",
+        "log",
+        "show",
+        "branch",
+        "stash",
+    }
+)
+MAX_OUTPUT_CHARS = 1024 * 1024
 from typing import Dict, List, Optional, Tuple
 
 
@@ -11,20 +31,34 @@ class GitClient:
     def __init__(self, root_path=""):
         self.root_path = root_path
 
+    @staticmethod
+    def _allowed(args):
+        return bool(args) and args[0] in ALLOWED_SUBCOMMANDS
+
     def _run(self, args, cwd=None):
-        """执行 git 命令"""
+        """执行 git 命令（白名单子命令 + 参数数组，无 shell）"""
+        if not self._allowed(args):
+            return -1, "", "git subcommand not allowed: %s" % (args[0] if args else "")
         cwd = cwd or self.root_path
         try:
+            env = dict(os.environ)
+            env["GIT_TERMINAL_PROMPT"] = "0"
             result = subprocess.run(
-                ['git'] + args,
+                ["git"] + args,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=10,
-                encoding='utf-8',
-                errors='replace'
+                timeout=15,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+                env=env,
             )
-            return result.returncode, result.stdout, result.stderr
+            return (
+                result.returncode,
+                (result.stdout or "")[:MAX_OUTPUT_CHARS],
+                (result.stderr or "")[:MAX_OUTPUT_CHARS],
+            )
         except Exception as e:
             return -1, "", str(e)
 
@@ -34,21 +68,31 @@ class GitClient:
         `_run` 用 `text=True` 解码后再按行切分，遇到 NUL 分隔输出（-z）
         时信息会丢失，因此单独提供字节版。
         """
+        if not self._allowed(args):
+            return -1, b"", ("git subcommand not allowed: %s" % (args[0] if args else "")).encode()
         cwd = cwd or self.root_path
         try:
+            env = dict(os.environ)
+            env["GIT_TERMINAL_PROMPT"] = "0"
             result = subprocess.run(
-                ['git'] + args,
+                ["git"] + args,
                 cwd=cwd,
                 capture_output=True,
-                timeout=10,
+                timeout=15,
+                shell=False,
+                env=env,
             )
-            return result.returncode, result.stdout, result.stderr
+            return (
+                result.returncode,
+                (result.stdout or b"")[:MAX_OUTPUT_CHARS],
+                (result.stderr or b"")[:MAX_OUTPUT_CHARS],
+            )
         except Exception as e:
             return -1, b"", str(e).encode("utf-8", "replace")
 
     def is_repo(self) -> bool:
         """是否为 Git 仓库"""
-        code, out, _ = self._run(['rev-parse', '--git-dir'])
+        code, out, _ = self._run(["rev-parse", "--git-dir"])
         return code == 0
 
     def find_root(self, filepath) -> Optional[str]:
@@ -66,15 +110,12 @@ class GitClient:
         """
         if not filepath:
             return None
-        start = (filepath if os.path.isdir(filepath)
-                 else os.path.dirname(filepath))
+        start = filepath if os.path.isdir(filepath) else os.path.dirname(filepath)
         if not start:
             return None
 
         try:
-            code, out, _ = self._run(
-                ['rev-parse', '--show-toplevel'], cwd=start
-            )
+            code, out, _ = self._run(["rev-parse", "--show-toplevel"], cwd=start)
             if code == 0:
                 root = (out or "").strip()
                 if root and os.path.isdir(root):
@@ -84,7 +125,7 @@ class GitClient:
 
         dirpath = os.path.abspath(start)
         while True:
-            if os.path.exists(os.path.join(dirpath, '.git')):
+            if os.path.exists(os.path.join(dirpath, ".git")):
                 return dirpath
             parent = os.path.dirname(dirpath)
             if parent == dirpath:
@@ -109,32 +150,32 @@ class GitClient:
             路径是原始字节，从根上消除歧义；并正确跳过重命名条目的
             源路径字段（-z 下 rename 会多带一条记录）。
         """
-        code, raw, _ = self._run_raw(['status', '--porcelain', '-z'])
+        code, raw, _ = self._run_raw(["status", "--porcelain", "-z"])
         if code != 0 or not raw:
             return self._status_text_fallback()
 
         result: Dict[str, str] = {}
-        fields = raw.split(b'\x00')
+        fields = raw.split(b"\x00")
         idx = 0
         while idx < len(fields):
             entry = fields[idx]
             idx += 1
             if len(entry) < 4:
                 continue
-            st = entry[:2].decode('utf-8', 'replace')
+            st = entry[:2].decode("utf-8", "replace")
             path_bytes = entry[3:]
             if not path_bytes:
                 continue
-            path = path_bytes.decode('utf-8', 'surrogateescape')
+            path = path_bytes.decode("utf-8", "surrogateescape")
             result[path] = st
             # R/C：紧随其后的是源路径，跳过
-            if st[:1] in ('R', 'C') and idx < len(fields):
+            if st[:1] in ("R", "C") and idx < len(fields):
                 idx += 1
         return result
 
     def _status_text_fallback(self) -> Dict[str, str]:
         """文本解析回退：至少正确去掉引号与八进制转义"""
-        code, out, _ = self._run(['status', '--porcelain'])
+        code, out, _ = self._run(["status", "--porcelain"])
         if code != 0:
             return {}
         result: Dict[str, str] = {}
@@ -143,16 +184,15 @@ class GitClient:
                 continue
             st = line[:2]
             path = line[3:].strip()
-            if ' -> ' in path:
-                path = path.split(' -> ', 1)[1].strip()
+            if " -> " in path:
+                path = path.split(" -> ", 1)[1].strip()
             if len(path) >= 2 and path.startswith('"') and path.endswith('"'):
                 body = path[1:-1]
                 try:
-                    body = body.encode('utf-8').decode('unicode_escape')
+                    body = body.encode("utf-8").decode("unicode_escape")
                 except Exception:
                     try:
-                        body = body.encode('latin-1', 'backslashreplace').decode(
-                            'unicode_escape')
+                        body = body.encode("latin-1", "backslashreplace").decode("unicode_escape")
                     except Exception:
                         pass
                 path = body
@@ -161,39 +201,39 @@ class GitClient:
 
     def current_branch(self) -> str:
         """当前分支"""
-        code, out, _ = self._run(['rev-parse', '--abbrev-ref', 'HEAD'])
+        code, out, _ = self._run(["rev-parse", "--abbrev-ref", "HEAD"])
         if code == 0:
             return out.strip()
         return ""
 
     def diff(self, filepath) -> str:
         """获取文件差异"""
-        code, out, _ = self._run(['diff', filepath])
+        code, out, _ = self._run(["diff", filepath])
         return out if code == 0 else ""
 
     def diff_staged(self, filepath) -> str:
         """暂存区差异"""
-        code, out, _ = self._run(['diff', '--cached', filepath])
+        code, out, _ = self._run(["diff", "--cached", filepath])
         return out if code == 0 else ""
 
     def add(self, filepath) -> bool:
         """暂存文件"""
-        code, _, _ = self._run(['add', filepath])
+        code, _, _ = self._run(["add", filepath])
         return code == 0
 
     def reset(self, filepath) -> bool:
         """取消暂存"""
-        code, _, _ = self._run(['reset', 'HEAD', filepath])
+        code, _, _ = self._run(["reset", "HEAD", filepath])
         return code == 0
 
     def commit(self, message) -> Tuple[bool, str]:
         """提交"""
-        code, out, err = self._run(['commit', '-m', message])
+        code, out, err = self._run(["commit", "-m", message])
         return code == 0, err or out
 
-    def push(self, remote='origin', branch='') -> Tuple[bool, str]:
+    def push(self, remote="origin", branch="") -> Tuple[bool, str]:
         """推送"""
-        args = ['push']
+        args = ["push"]
         if remote:
             args.append(remote)
         if branch:
@@ -201,27 +241,26 @@ class GitClient:
         code, out, err = self._run(args)
         return code == 0, err or out
 
-    def pull(self, remote='origin') -> Tuple[bool, str]:
+    def pull(self, remote="origin") -> Tuple[bool, str]:
         """拉取"""
-        code, out, err = self._run(['pull', remote])
+        code, out, err = self._run(["pull", remote])
         return code == 0, err or out
 
     def log(self, limit=20) -> List[Dict[str, str]]:
         """最近提交"""
-        code, out, _ = self._run([
-            'log', '--oneline', '-n', str(limit),
-            '--format=%h|%s|%an|%ar'
-        ])
+        code, out, _ = self._run(["log", "--oneline", "-n", str(limit), "--format=%h|%s|%an|%ar"])
         if code != 0:
             return []
         result = []
         for line in out.splitlines():
-            parts = line.split('|', 3)
+            parts = line.split("|", 3)
             if len(parts) == 4:
-                result.append({
-                    'hash': parts[0],
-                    'message': parts[1],
-                    'author': parts[2],
-                    'when': parts[3],
-                })
+                result.append(
+                    {
+                        "hash": parts[0],
+                        "message": parts[1],
+                        "author": parts[2],
+                        "when": parts[3],
+                    }
+                )
         return result
