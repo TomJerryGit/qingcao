@@ -8,6 +8,12 @@
 | `wordcount_sandbox` | 沙箱试点 | 启用 | 字数统计只读沙箱样例 |
 | `whitespace_sandbox` | 沙箱诊断 | 启用 | 行尾空白/Tab/超长行 |
 
+## 模板真实采用：line_sort
+
+- 通过 `tools/new_plugin.py` 生成后实现「行排序」：升序/降序/去重，支持选区或整文件；
+- 权限：`editor_read`/`editor_write`/`dialog`；设置项 `case_sensitive`；
+- 测试：`tests/test_v226_line_sort_plugin.py` + conformance 清单契约。
+
 ## 处理原则
 
 - 示例插件保留用于说明扩展点，但默认不干扰普通用户（`my_plugin` 禁用）；

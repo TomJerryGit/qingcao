@@ -272,7 +272,7 @@ class PluginStoreDialog(QDialog):
 
         # 搜索框
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("搜索插件...")
+        self.search_edit.setPlaceholderText("搜索插件...（Ctrl+F）")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_edit, 1)
@@ -1098,3 +1098,16 @@ if __name__ == "__main__":
     QTimer.singleShot(5000, app.quit)
 
     sys.exit(app.exec())
+
+    def keyPressEvent(self, event):
+        """Ctrl+F 聚焦搜索；Esc 关闭市场。"""
+        from PyQt5.QtCore import Qt
+
+        if event.modifiers() & Qt.ControlModifier and event.key() == Qt.Key_F:
+            self.search_edit.setFocus()
+            self.search_edit.selectAll()
+            return
+        if event.key() == Qt.Key_Escape:
+            self.reject()
+            return
+        super().keyPressEvent(event)

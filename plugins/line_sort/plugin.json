@@ -1,0 +1,25 @@
+{
+  "name": "line_sort",
+  "display_name": "行排序",
+  "version": "1.0.0",
+  "description": "行排序：升序/降序/去重（选区或整文件）",
+  "author": "QingCao",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "tool",
+  "tags": [
+    "text",
+    "sort",
+    "tool"
+  ],
+  "permissions": [
+    "editor_read",
+    "editor_write",
+    "dialog"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100
+}

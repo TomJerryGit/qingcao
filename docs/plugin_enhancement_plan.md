@@ -145,3 +145,8 @@
 
 - 插件详情新增“提交到社区”按钮，预填评分 JSON 的 GitHub Issue；
 - 运营手册 `docs/ratings_campaign.md`；测试 `tests/test_v226_ratings_campaign.py`。
+
+### P4 市场体验（2026-11-16）
+
+- 市场支持 Ctrl+F 聚焦搜索、Esc 关闭；
+- 收藏/对比已上线；模板真实采用插件 line_sort（行排序）。
