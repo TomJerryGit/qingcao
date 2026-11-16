@@ -66,6 +66,21 @@ def tokens_for(tier: str) -> int:
     return TOKEN_TIERS.get(tier, DEFAULT_MAX_TOKENS)
 
 
+class _TransportResponse:
+    def __init__(self, payload):
+        self.status_code = int(payload.get("status") or 200)
+        self.text = str(payload.get("text") or "")
+
+    def json(self):
+        import json as _json
+
+        return _json.loads(self.text)
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise AIClientError("HTTP %s" % self.status_code)
+
+
 class AIClientError(Exception):
     pass
 
@@ -148,6 +163,13 @@ class AIClient(QObject):
     response_ready = pyqtSignal(str)
     stream_chunk = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
+
+    _http_transport = None
+
+    @classmethod
+    def set_http_transport(cls, fn):
+        """注入宿主网络代理；None 恢复 requests。"""
+        cls._http_transport = staticmethod(fn) if fn is not None else None
 
     def __init__(
         self,
@@ -263,6 +285,8 @@ class AIClient(QObject):
         return self._cancel.is_set()
 
     def chat_stream(self, prompt="", system="", callback=None, use_history=False):
+        if self._http_transport is not None:
+            raise AIClientError("宿主网络代理模式暂不支持流式，回退非流式")
         """流式对话（基类默认实现：非流式 + 一次性回调）。
 
         子类应重写本方法以提供**真正的增量输出**：
@@ -306,6 +330,11 @@ class AIClient(QObject):
             raise AIClientError("缺少 requests 库，请运行: pip install requests")
 
         timeout = timeout or self.timeout
+        if self._http_transport is not None and not stream:
+            payload = self._http_transport(
+                url=url, headers=headers, json_data=json_data, timeout=timeout
+            )
+            return _TransportResponse(payload)
         try:
             if stream:
                 resp = requests.post(
@@ -403,6 +432,8 @@ class OpenAIClient(AIClient):
         return choices[0].get("message", {}).get("content", "")
 
     def chat_stream(self, prompt="", system="", callback=None, use_history=False, max_tokens=None):
+        if self._http_transport is not None:
+            raise AIClientError("宿主网络代理模式暂不支持流式，回退非流式")
         """流式对话（OpenAI 兼容族：OpenAI / Ollama / DeepSeek / 通义 /
         Moonshot / 智谱）。
 
@@ -519,6 +550,8 @@ class ClaudeClient(AIClient):
         return "".join(text_parts)
 
     def chat_stream(self, prompt="", system="", callback=None, use_history=False, max_tokens=None):
+        if self._http_transport is not None:
+            raise AIClientError("宿主网络代理模式暂不支持流式，回退非流式")
         """Anthropic Messages API 的**真正流式**实现（SSE）。
 
         与 OpenAI 的区别：

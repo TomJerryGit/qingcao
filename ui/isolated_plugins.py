@@ -187,6 +187,11 @@ class WindowHostAPI:
         root = GitClient().find_root(filepath)
         return GitClient(root) if root else None
 
+    def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
+        from core.ai_http import request_json
+
+        return request_json(url, headers=headers, json_data=json_data, timeout=timeout)
+
     def git_status(self, filepath):
         git = self._git_client(filepath)
         return git.status() if git else {}

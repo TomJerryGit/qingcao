@@ -2,6 +2,12 @@
 
 ### 安全
 
+- **B3 AI 网络代理试点**：`AIClient` 可注入宿主 transport（非流式；流式自动回退），默认 flag 关闭；broker/PluginAPI 提供 `ai_http_request`。
+
+## [Unreleased]
+
+### 安全
+
 - **B3 信任门控**：高风险 API 仅 `trusted` 插件且显式允许时放行；git_deep 已隔离，ai/debugger 进程内待后续。
 
 ## [Unreleased]

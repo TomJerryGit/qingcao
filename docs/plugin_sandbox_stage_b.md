@@ -197,3 +197,13 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 已完成：git_deep 经宿主受控 Git API 隔离；
 - **未完成**：ai_assistant/ python_debugger 的完整进程隔离需要宿主 HTTP 代理与调试会话服务，按 B3 后续排期；当前仍进程内，受权限确认保护。
 - 测试：`tests/test_v226_b3_trust.py`（3/3）。
+
+
+## B3 AI 网络代理（试点，2026-11-16）
+
+- 新增 `core/ai_http.py`：仅 http/https、JSON POST、4MB 上限；
+- `AIClient.set_http_transport(fn)`：注入宿主代理；启用后**非流式**请求走代理，流式调用抛错并由 `AIWorker` 回退非流式；
+- `PluginAPI.ai_http_request`（network 权限）与隔离 broker `ai_http_request` 已提供；
+- ai_assistant 仅在 `QINGCAO_AI_NETWORK_BROKER=1` 时启用（默认关闭），停用恢复 requests；
+- 测试：`tests/test_v226_ai_broker.py`（transport/流式回退/broker 权限）。
+- **未完成**：流式逐块代理、debugger 宿主服务仍待后续。

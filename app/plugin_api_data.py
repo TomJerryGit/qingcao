@@ -210,6 +210,15 @@ class DataMixin:
             self.show_status(f"网络请求失败: {e}", 3000, "error")
             return None
 
+    def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
+        """AI 网络宿主代理（B3）：需 network 权限。"""
+        if not self.require_permission(PERMISSION_NETWORK):
+            raise RuntimeError("network permission denied")
+        from core.ai_http import request_json
+
+        return request_json(url, headers=headers, json_data=json_data,
+                            timeout=timeout)
+
     def download_file(self, url: str, filepath: str, timeout: int = 30) -> bool:
         """下载文件"""
         if not self.require_permission(PERMISSION_NETWORK):

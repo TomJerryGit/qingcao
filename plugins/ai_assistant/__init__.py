@@ -42,6 +42,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     # --------------------------------------------------------
     # 生命周期
     # --------------------------------------------------------
+    def _host_transport(self, url, headers=None, json_data=None, timeout=60):
+        return self.api.ai_http_request(url, headers=headers, json_data=json_data, timeout=timeout)
+
     def on_activate(self):
         """激活时调用"""
         self.api.log(f"AI 助手 v{self.VERSION} 已激活")
@@ -87,6 +90,12 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     # Ollama 管理面板
     # --------------------------------------------------------
     def on_deactivate(self):
+        try:
+            from core.ai_client import AIClient
+
+            AIClient.set_http_transport(None)
+        except Exception:
+            pass
         """卸载时调用"""
         # 停止内联补全（清建议 + 作废在途请求）
         try:

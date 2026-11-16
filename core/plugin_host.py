@@ -47,6 +47,7 @@ METHOD_PERMISSIONS = {
     "git_push": "filesystem",
     "git_pull": "filesystem",
     "git_switch": "filesystem",
+    "ai_http_request": "network",
     "run_command": "process",
     "run_python": "process",
 }
@@ -285,6 +286,10 @@ class RemoteAPI:
 
     def http_request(self, url, method="GET", headers=None, data=None, timeout=10):
         return self._call("http_request", url, method, headers or {}, data, timeout)
+
+    def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
+        return self._call("ai_http_request", url, headers or {},
+                          json_data, timeout)
 
     def git_status(self, filepath):
         return self._call("git_status", filepath)
