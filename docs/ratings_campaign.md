@@ -37,3 +37,9 @@
 
 - `Ratings Report` 工作流每周一 06:00 UTC 生成并上传 `docs/ratings_report.md` artifact（30 天）；
 - 报告区分“维护者种子”与真实本地/社区评分。
+
+## 跟进记录（2026-11-16）
+
+- Issue #1 已追加跟进评论并加标签 `good first issue` / `help wanted`；
+- README 增加「给插件评分」30 秒入口；
+- 当前真实社区评分仍为 0，等待用户响应。

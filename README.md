@@ -547,3 +547,10 @@ GitHub：https://github.com/qingcao-editor/qingcao
 ```
 
 ```
+## 给插件评分（30 秒）
+
+1. 打开「插件市场 → 插件详情」，选择星级并填写简短评价，点击「保存评分」；
+2. 点击「提交到社区」提交预填 Issue；
+3. 真实用户评分会汇总到 `docs/ratings_report.md`（维护者种子单独标注）。
+
+邀请与说明见：https://github.com/TomJerryGit/qingcao/issues/1
