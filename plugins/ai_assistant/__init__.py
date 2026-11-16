@@ -42,6 +42,12 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     # --------------------------------------------------------
     # 生命周期
     # --------------------------------------------------------
+    def _host_stream(self, url, headers=None, json_data=None, timeout=60):
+        from core.ai_http import stream_json
+
+        return stream_json(url, headers=headers, json_data=json_data,
+                           timeout=timeout)
+
     def _host_transport(self, url, headers=None, json_data=None, timeout=60):
         return self.api.ai_http_request(url, headers=headers, json_data=json_data, timeout=timeout)
 
@@ -94,6 +100,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             from core.ai_client import AIClient
 
             AIClient.set_http_transport(None)
+            AIClient.set_stream_transport(None)
         except Exception:
             pass
         """卸载时调用"""

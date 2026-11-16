@@ -55,3 +55,24 @@ def test_broker_ai_http_permission():
         broker.dispatch("ai_http_request", ["https://x", {}, None, 10])
     ok = CapabilityBroker(["network"], Host(), trusted=True)
     assert ok.dispatch("ai_http_request", ["https://x", {}, None, 10])["status"] == 200
+
+
+def test_stream_transport_chunks():
+    from core.ai_client import AIClient, OpenAIClient
+
+    lines = [
+        'data: {"choices":[{"delta":{"content":"He"}}]}\n',
+        'data: {"choices":[{"delta":{"content":"llo"}}]}\n',
+        "data: [DONE]\n",
+    ]
+    AIClient.set_http_transport(lambda **kwargs: {"status": 200, "text": "{}"})
+    AIClient.set_stream_transport(lambda **kwargs: iter(lines))
+    try:
+        client = OpenAIClient(api_key="x")
+        chunks = []
+        text = client.chat_stream(prompt="hi", callback=chunks.append)
+        assert text == "Hello"
+        assert chunks == ["He", "llo"]
+    finally:
+        AIClient.set_http_transport(None)
+        AIClient.set_stream_transport(None)

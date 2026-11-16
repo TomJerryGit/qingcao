@@ -2,6 +2,13 @@
 
 ### 安全
 
+- **B3 AI 流式宿主代理**：stream transport + SSE 分块；默认 flag 关闭；
+- 调试器宿主服务设计稿（未实现）。
+
+## [Unreleased]
+
+### 安全
+
 - **B3 AI 网络代理试点**：`AIClient` 可注入宿主 transport（非流式；流式自动回退），默认 flag 关闭；broker/PluginAPI 提供 `ai_http_request`。
 
 ## [Unreleased]

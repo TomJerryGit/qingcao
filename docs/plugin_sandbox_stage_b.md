@@ -207,3 +207,15 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - ai_assistant 仅在 `QINGCAO_AI_NETWORK_BROKER=1` 时启用（默认关闭），停用恢复 requests；
 - 测试：`tests/test_v226_ai_broker.py`（transport/流式回退/broker 权限）。
 - **未完成**：流式逐块代理、debugger 宿主服务仍待后续。
+
+
+### AI 流式代理（2026-11-16）
+
+- `AIClient.set_stream_transport(fn)`；OpenAI/Claude `chat_stream` 经宿主逐行 SSE 解析；
+- ai_assistant `QINGCAO_AI_NETWORK_BROKER=1` 同时启用普通/流式 transport；
+- 测试：分块内容与 callback。
+
+### 调试器宿主服务
+
+- 设计稿：`docs/debugger_host_service.md`（未实现，5–8 天）；
+- 当前 debugger 仍进程内，被调试代码已在 driver 子进程。

@@ -28,3 +28,22 @@ def request_json(url, headers=None, json_data=None, timeout=60):
             return {"status": getattr(resp, "status", 200), "text": text}
     except Exception as e:
         raise AIHTTPError("AI HTTP 请求失败: %s" % e)
+
+
+def stream_json(url, headers=None, json_data=None, timeout=60):
+    """流式 POST，逐行 yield 文本（SSE）。"""
+    parsed = urllib.parse.urlparse(str(url))
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise AIHTTPError("invalid AI URL: %s" % url)
+    data = None
+    hdrs = dict(headers or {})
+    if json_data is not None:
+        data = json.dumps(json_data).encode("utf-8")
+        hdrs.setdefault("Content-Type", "application/json")
+    req = urllib.request.Request(str(url), data=data, method="POST", headers=hdrs)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw in resp:
+                yield raw.decode("utf-8", "replace")
+    except Exception as e:
+        raise AIHTTPError("AI 流式请求失败: %s" % e)
