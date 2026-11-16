@@ -181,6 +181,51 @@ class WindowHostAPI:
             return "plugins/%s/%s" % (plugin_name, key)
         return "plugins/%s" % key
 
+    def _git_client(self, filepath):
+        from core.git_client import GitClient
+
+        root = GitClient().find_root(filepath)
+        return GitClient(root) if root else None
+
+    def git_status(self, filepath):
+        git = self._git_client(filepath)
+        return git.status() if git else {}
+
+    def git_branch(self, filepath):
+        git = self._git_client(filepath)
+        return git.current_branch() if git else ""
+
+    def git_diff(self, filepath, staged=False):
+        git = self._git_client(filepath)
+        if not git:
+            return ""
+        return git.diff_staged(filepath) if staged else git.diff(filepath)
+
+    def git_log(self, filepath, limit=30):
+        git = self._git_client(filepath)
+        return git.log(int(limit)) if git else []
+
+    def git_commit(self, filepath, message):
+        git = self._git_client(filepath)
+        if not git:
+            return [False, "不在 Git 仓库"]
+        for path in git.status() or {}:
+            git.add(path)
+        ok, out = git.commit(message)
+        return [bool(ok), out]
+
+    def git_push(self, filepath):
+        git = self._git_client(filepath)
+        return list(git.push()) if git else [False, "不在 Git 仓库"]
+
+    def git_pull(self, filepath):
+        git = self._git_client(filepath)
+        return list(git.pull()) if git else [False, "不在 Git 仓库"]
+
+    def git_switch(self, filepath, name, create=False):
+        git = self._git_client(filepath)
+        return list(git.switch_branch(name, bool(create))) if git else [False, "不在 Git 仓库"]
+
     def get_config(self, key, default=None, plugin_name=None):
         return self.settings.value(self._cfg_key(key, plugin_name), default)
 

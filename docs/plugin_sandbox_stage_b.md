@@ -179,3 +179,12 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `markdown_preview`：隔离模式远程 markdown 面板（`setMarkdown` 渲染），符号 provider 暂不跨进程；
 - 灰度集合扩展为：demo、wordcount、json_formatter、todo_panel、markdown_preview（+sandbox_demo）；
 - logtail 仍待定：需要宿主侧文件跟随/路径白名单，避免子进程直接读任意日志。
+
+
+## B3 高风险插件隔离（git_deep 试点，2026-11-16）
+
+- 子进程不再直接执行 git/系统命令；宿主提供受控 API：`git_status/git_branch/git_diff/git_log/git_commit/git_push/git_pull/git_switch`（权限 `filesystem`，参数白名单由 GitClient 执行）；
+- `git_deep` 在 `is_isolated` 时使用 `_HostGit` 适配器，所有 git 操作经 broker 往返；
+- 隔离模式下 hunk 暂存明确提示暂不支持；
+- 效果：demo/all 模式下 git_deep 可在子进程运行，process 权限不再由插件进程直接使用；
+- 测试：`tests/test_v226_git_isolation.py` + 隔离集合断言。

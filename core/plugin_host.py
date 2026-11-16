@@ -39,6 +39,14 @@ METHOD_PERMISSIONS = {
     "register_hover_provider": "editor_read",
     "register_code_action_provider": "editor_write",
     "add_editor_context_menu": None,
+    "git_status": "filesystem",
+    "git_branch": "filesystem",
+    "git_diff": "filesystem",
+    "git_log": "filesystem",
+    "git_commit": "filesystem",
+    "git_push": "filesystem",
+    "git_pull": "filesystem",
+    "git_switch": "filesystem",
     "run_command": "process",
     "run_python": "process",
 }
@@ -223,6 +231,15 @@ class RemoteAPI:
         self.log("[sandbox] completion provider not bridged yet", "warning")
         return True
 
+    def register_command(self, *args, **kwargs):
+        return True
+
+    def register_shortcut(self, *args, **kwargs):
+        return True
+
+    def add_toolbar_action(self, *args, **kwargs):
+        return True
+
     def register_symbol_provider(self, provider, language_ids=None, **kw):
         # B2.2：符号 provider 暂未跨进程（大纲保持本地）
         return True
@@ -262,6 +279,30 @@ class RemoteAPI:
 
     def http_request(self, url, method="GET", headers=None, data=None, timeout=10):
         return self._call("http_request", url, method, headers or {}, data, timeout)
+
+    def git_status(self, filepath):
+        return self._call("git_status", filepath)
+
+    def git_branch(self, filepath):
+        return self._call("git_branch", filepath)
+
+    def git_diff(self, filepath, staged=False):
+        return self._call("git_diff", filepath, staged)
+
+    def git_log(self, filepath, limit=30):
+        return self._call("git_log", filepath, limit)
+
+    def git_commit(self, filepath, message):
+        return self._call("git_commit", filepath, message)
+
+    def git_push(self, filepath):
+        return self._call("git_push", filepath)
+
+    def git_pull(self, filepath):
+        return self._call("git_pull", filepath)
+
+    def git_switch(self, filepath, name, create=False):
+        return self._call("git_switch", filepath, name, bool(create))
 
     def read_file(self, path):
         return self._call("read_file", path)

@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全
+
+- **B3 高风险隔离试点**：git_deep 通过宿主受控 Git API 在子进程运行（process 不再下放）；hunk 暂存隔离模式明确禁用。
+
+## [Unreleased]
+
 ### 生态
 
 - **插件开发指南**（`docs/plugin_development.md`）；

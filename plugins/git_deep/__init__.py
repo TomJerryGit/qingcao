@@ -6,6 +6,44 @@ import os
 from app.plugins import PluginBase
 
 
+class _HostGit:
+    """隔离模式：把 Git 操作转给宿主受控 API（子进程不执行 git）。"""
+
+    def __init__(self, api, filepath):
+        self.api = api
+        self.filepath = filepath
+
+    def current_branch(self):
+        return self.api.git_branch(self.filepath)
+
+    def status(self):
+        return self.api.git_status(self.filepath) or {}
+
+    def diff(self, filepath=None):
+        return self.api.git_diff(self.filepath, False)
+
+    def diff_staged(self, filepath=None):
+        return self.api.git_diff(self.filepath, True)
+
+    def add(self, filepath=None):
+        return True
+
+    def commit(self, message):
+        return tuple(self.api.git_commit(self.filepath, message))
+
+    def push(self):
+        return tuple(self.api.git_push(self.filepath))
+
+    def pull(self):
+        return tuple(self.api.git_pull(self.filepath))
+
+    def log(self, limit=30):
+        return self.api.git_log(self.filepath, limit)
+
+    def switch_branch(self, name, create=False):
+        return tuple(self.api.git_switch(self.filepath, name, create))
+
+
 class Plugin(PluginBase):
     NAME = "git_deep"
     VERSION = "1.0.0"
@@ -135,6 +173,9 @@ class Plugin(PluginBase):
         self._refresh_status()
 
     def stage_hunks(self):
+        if getattr(self.api, "is_isolated", False):
+            self.api.show_status("隔离模式暂不支持 hunk 暂存（请用宿主 Git 面板）", 3000)
+            return
         git = self._get_git()
         if not git:
             return
@@ -203,6 +244,9 @@ class Plugin(PluginBase):
             if not filepath:
                 self.api.show_status("没有打开的文件", 2000)
                 return None
+
+            if getattr(self.api, "is_isolated", False):
+                return _HostGit(self.api, filepath)
 
             git = GitClient()
             root = git.find_root(filepath)

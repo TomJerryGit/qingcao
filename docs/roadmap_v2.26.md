@@ -26,7 +26,7 @@
 | R1.1 ✅ | demo + wordcount 远程面板 + json_formatter provider 灰度；`all` 模式仅隔离已验证集合（其他保持进程内） | 3 插件功能对等 | 2d |
 | R1.2 ✅ | 隔离插件设置 schema：宿主侧动态对话框（bool/int/float/choice/str）+「工具/插件设置」入口 + 按插件前缀持久化；测试 3/3 | 2d |
 | R1.3 ✅ | 网络 broker：manifest `network_allowlist` + 60/min 限流 + 拒绝审计 + 1MB 响应上限；4 测试通过 | 2d |
-| R1.4 | 高风险 API（process/terminal/debugger）默认拒绝 + Ed25519 信任要求 | 未签名插件调用被拒；签名插件逐次确认 | 2d |
+| R1.4 🟡 | git_deep 经宿主受控 Git API 隔离（process 不下放）；ai/debugger 仍进程内待 B3 | 高风险 API 门控 |
 | R1.5 | 沙箱回归套件：14 插件烟测 + 崩溃注入 | CI 新 job 通过 | 1d |
 
 **里程碑 M1**：沙箱可承载低风险插件；评分 8.7。
