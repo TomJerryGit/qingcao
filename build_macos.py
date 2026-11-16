@@ -46,6 +46,16 @@ def build_pyinstaller():
         "QingCaoEditor",
         "--hidden-import",
         "PyQt5.Qsci",
+        "--hidden-import",
+        "core.ollama_client",
+        "--collect-submodules",
+        "core",
+        "--collect-submodules",
+        "app",
+        "--collect-submodules",
+        "ui",
+        "--collect-submodules",
+        "infrastructure",
     ]
     for extra in ("resources", "locales"):
         src = os.path.join(ROOT, extra)
