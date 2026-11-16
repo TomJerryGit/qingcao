@@ -233,3 +233,9 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 会话信号桥接：`debug.break/output/exit/error` 事件；
 - 测试：断点事件、单步命令、退出清理；
 - 下一步 D4：locals/stack/eval + 远程面板。
+
+### 调试器宿主服务 D5（2026-11-16）
+
+- 新增 `ui/debug_host_panel.py`：监听 `DebugService.event`，展示调用栈/变量/状态；
+- 测试：事件驱动更新（break/stack/locals/exit）；
+- 下一步 D6：插件隔离分支 + 远程对接（D5 面板目前为宿主组件）。
