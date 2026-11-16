@@ -36,7 +36,7 @@
 | D1 ✅ | DebugService 骨架 + RPC schema（`core/debug_service.py`） | 单测 4/4：schema/权限/生命周期 |
 | D2 ✅ | start/stop 迁移（真实 DebugSession） | 真实脚本启停、无孤儿、失败清理、shutdown 幂等 |
 | D3 ✅ | continue/step/断点事件迁移（`debug.set_breakpoints`） | 断点/单步命令与事件广播测试 |
-| D4 | locals/stack/eval | 面板数据对等 |
+| D4 ✅ | locals/stack/eval RPC + 结果事件 | 信号替身验证；真实断点集成测试暂缓（曾挂起） |
 | D5 | 远程面板（栈/变量/监视） | 隔离模式可视化 |
 | D6 | 插件隔离分支 + feature flag | `QINGCAO_DEBUGGER_HOST=1` 灰度 |
 | D7 | 故障注入/崩溃/超时 | 子进程崩溃不影响主进程 |

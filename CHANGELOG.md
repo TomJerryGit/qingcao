@@ -2,6 +2,12 @@
 
 ### 工程
 
+- **调试器宿主服务 D4**：locals/stack/eval 结果事件与缓存（真实断点集成测试暂缓）；
+
+## [Unreleased]
+
+### 工程
+
 - **调试器宿主服务 D3**：断点/continue/step + 事件广播；
 
 ## [Unreleased]

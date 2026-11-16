@@ -68,7 +68,8 @@ def test_start_continue_stop_permission():
     assert svc.handle("debug.continue")["ok"]
     assert svc.handle("debug.step", {"kind": "over"})["ok"]
     assert svc.handle("debug.locals")["ok"]
-    assert svc.handle("debug.eval", {"expr": "1+1"})["value"] == 42
+    assert svc.handle("debug.eval", {"expr": "1+1"})["ok"]
+    assert ("eval", "1+1") in svc.session.calls
     assert svc.handle("debug.stop")["ok"]
     assert svc.session is None
 
@@ -145,3 +146,37 @@ def test_break_event_and_step_commands():
     assert "into" in session.calls
     session.finished.emit(0)
     assert svc.state == "idle" and svc.session is None
+
+
+def test_result_events_for_locals_stack_eval():
+    from PyQt5.QtCore import QObject, pyqtSignal
+
+    from core.debug_service import DebugService
+
+    class S(_Session, QObject):
+        break_hit = pyqtSignal(str, int)
+        finished = pyqtSignal(int)
+        failed = pyqtSignal(str)
+        output_received = pyqtSignal(str, str)
+        event_received = pyqtSignal(dict)
+
+        def __init__(self):
+            QObject.__init__(self)
+            _Session.__init__(self)
+
+        def set_breakpoints(self, files):
+            return True
+
+    svc = DebugService(trusted=True, session_factory=S)
+    events = []
+    svc.event.connect(events.append)
+    svc.handle("debug.start", {"script": "a.py"})
+    session = svc.session
+    session.event_received.emit({"event": "result", "kind": "locals", "value": {"x": 1}})
+    session.event_received.emit({"event": "result", "kind": "stack", "value": [{"name": "f"}]})
+    session.event_received.emit({"event": "result", "kind": "eval", "value": 42})
+    names = [e["event"] for e in events]
+    assert "debug.locals" in names and "debug.stack" in names
+    assert "debug.eval" in names
+    assert svc.last_locals == {"x": 1} and svc.last_eval == 42
+    svc.shutdown()

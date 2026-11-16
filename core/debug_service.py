@@ -84,6 +84,9 @@ class DebugService(QObject):
         self.session = None
         self.state = "idle"
         self.last_break = None
+        self.last_locals = None
+        self.last_stack = None
+        self.last_eval = None
 
     def _require_trusted(self):
         if not self.trusted:
@@ -117,8 +120,8 @@ class DebugService(QObject):
             self.session.request_stack()
             return {"ok": True}
         if method == "debug.eval":
-            result = self.session.evaluate(values["expr"])
-            return {"ok": True, "value": result}
+            self.session.evaluate(values["expr"])
+            return {"ok": True}
         raise DebugRpcError(-32601, method)
 
     def _start(self, values):
@@ -164,6 +167,7 @@ class DebugService(QObject):
             session.finished.connect(self._on_finished)
             session.failed.connect(self._on_failed)
             session.output_received.connect(self._on_output)
+            session.event_received.connect(self._on_event)
         except Exception:
             pass
 
@@ -180,6 +184,21 @@ class DebugService(QObject):
 
     def _on_failed(self, message):
         self.event.emit({"event": "debug.error", "data": {"message": str(message)}})
+
+    def _on_event(self, payload):
+        if not isinstance(payload, dict) or payload.get("event") != "result":
+            return
+        kind = payload.get("kind")
+        value = payload.get("value")
+        if kind == "locals":
+            self.last_locals = value
+            self.event.emit({"event": "debug.locals", "data": {"values": value}})
+        elif kind == "stack":
+            self.last_stack = value
+            self.event.emit({"event": "debug.stack", "data": {"frames": value}})
+        elif kind == "eval":
+            self.last_eval = value
+            self.event.emit({"event": "debug.eval", "data": {"value": value}})
 
     def _on_output(self, stream, text):
         self.event.emit(
