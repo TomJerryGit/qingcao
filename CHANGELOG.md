@@ -1,5 +1,13 @@
 ﻿
 
+## [2.26.3] - 2026-11-13
+
+### 生态/工程
+
+- 评分汇总工具 	ools/ratings_report.py + docs/ratings_ops.md；
+- 插件脚手架采用测试；样例清理（my_plugin 默认禁用 + docs/plugin_samples.md）；
+- CI：Test 主路径迁移托管（fallback 队列 3s/耗时 P95 178s）。
+
 ### 生态
 
 - **P4 生态**：	ools/ratings_report.py 评分汇总；脚手架采用测试；新增 docs/ratings_ops.md、docs/plugin_samples.md。
