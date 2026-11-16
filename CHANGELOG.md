@@ -1,3 +1,11 @@
+## [Unreleased]
+
+### 生态
+
+- **插件开发指南**（`docs/plugin_development.md`）；
+- 低风险插件激活冒烟测试（8 个插件统一 FakeAPI）；
+- 插件目录/性能趋势工具与每周工作流。
+
 ﻿## [Unreleased]
 
 ## [2.26.7] - 2026-11-16

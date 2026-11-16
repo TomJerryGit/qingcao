@@ -554,3 +554,9 @@ GitHub：https://github.com/qingcao-editor/qingcao
 3. 真实用户评分会汇总到 `docs/ratings_report.md`（维护者种子单独标注）。
 
 邀请与说明见：https://github.com/TomJerryGit/qingcao/issues/1
+
+## 插件开发
+
+- 10 分钟上手：`docs/plugin_development.md`；
+- 插件目录：`docs/plugin_catalog.md`；
+- 模板：`python tools/new_plugin.py --name hello_tool`。
