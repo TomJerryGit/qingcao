@@ -188,3 +188,12 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 隔离模式下 hunk 暂存明确提示暂不支持；
 - 效果：demo/all 模式下 git_deep 可在子进程运行，process 权限不再由插件进程直接使用；
 - 测试：`tests/test_v226_git_isolation.py` + 隔离集合断言。
+
+
+## B3 信任门控（2026-11-16）
+
+- `CapabilityBroker` 新增 `trusted`：**process/terminal/debugger** 等高风险 API 仅在 `trusted=True` 且 `allow_high_risk=True` 时放行；
+- `PluginProcess` 透传 trusted（默认 False）；未签名/未授权插件调用返回 `-32001`；
+- 已完成：git_deep 经宿主受控 Git API 隔离；
+- **未完成**：ai_assistant/ python_debugger 的完整进程隔离需要宿主 HTTP 代理与调试会话服务，按 B3 后续排期；当前仍进程内，受权限确认保护。
+- 测试：`tests/test_v226_b3_trust.py`（3/3）。

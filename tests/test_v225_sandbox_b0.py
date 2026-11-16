@@ -67,7 +67,7 @@ def test_broker_permission_and_high_risk():
     from core.sandbox_rpc import RpcError
 
     host = _HostAPI()
-    broker = CapabilityBroker(["editor_read"], host)
+    broker = CapabilityBroker(["editor_read"], host, trusted=True)
     assert broker.dispatch("get_current_text", []) == "hello from host"
     with pytest.raises(RpcError) as e1:
         broker.dispatch("run_command", ["whoami"])

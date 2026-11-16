@@ -2,6 +2,12 @@
 
 ### 安全
 
+- **B3 信任门控**：高风险 API 仅 `trusted` 插件且显式允许时放行；git_deep 已隔离，ai/debugger 进程内待后续。
+
+## [Unreleased]
+
+### 安全
+
 - **B3 高风险隔离试点**：git_deep 通过宿主受控 Git API 在子进程运行（process 不再下放）；hunk 暂存隔离模式明确禁用。
 
 ## [Unreleased]

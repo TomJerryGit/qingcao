@@ -70,10 +70,11 @@ class CapabilityBroker:
     NETWORK_MAX_PER_MIN = 60
     NETWORK_MAX_BYTES = 1024 * 1024
 
-    def __init__(self, permissions, host_api, allow_high_risk=False, policy=None):
+    def __init__(self, permissions, host_api, allow_high_risk=False, policy=None, trusted=False):
         self.permissions = set(permissions or [])
         self.host_api = host_api
         self.allow_high_risk = allow_high_risk
+        self.trusted = bool(trusted)
         self.policy = policy
         self._net_times = []
         self.network_denials = []
@@ -84,8 +85,13 @@ class CapabilityBroker:
             raise RpcError(-32601, "unknown api: %s" % name)
         if perm and perm not in self.permissions:
             raise RpcError(ERROR_PERMISSION_DENIED, "permission denied: %s" % perm)
-        if perm in HIGH_RISK and not self.allow_high_risk:
-            raise RpcError(ERROR_PERMISSION_DENIED, "high-risk api disabled: %s" % name)
+        if perm in HIGH_RISK:
+            if not self.trusted:
+                raise RpcError(
+                    ERROR_PERMISSION_DENIED, "high-risk api requires trusted plugin: %s" % name
+                )
+            if not self.allow_high_risk:
+                raise RpcError(ERROR_PERMISSION_DENIED, "high-risk api disabled: %s" % name)
         if name in ("read_file", "write_file"):
             path = (args or [None])[0]
             if self.policy is None or not self.policy.check_path(path):
