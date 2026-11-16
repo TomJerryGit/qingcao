@@ -63,10 +63,14 @@ def test_plugin_scaffold_generates_importable_plugin(tmp_path):
 def test_seed_marking():
     mod = _load()
     rows = mod.build_rows(
-        {"demo": {"stars": 5, "comment": "维护者种子评分（非社区真实用户）"},
-         "wordcount": {"stars": 5, "comment": "真实用户"}},
+        {
+            "demo": {"stars": 5, "comment": "维护者种子评分（非社区真实用户）"},
+            "wordcount": {"stars": 5, "comment": "真实用户"},
+        },
         {},
     )
     by = {r["plugin"]: r for r in rows}
     assert by["demo"]["seed"] is True
     assert by["wordcount"]["seed"] is False
+    by2 = {r["plugin"]: r for r in mod.build_rows({"legacy": {"stars": 5, "comment": ""}}, {})}
+    assert by2["legacy"]["seed"] is True

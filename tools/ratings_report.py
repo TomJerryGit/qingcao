@@ -39,7 +39,8 @@ def is_seed(record):
     comment = ""
     if isinstance(record, dict):
         comment = str(record.get("comment") or "").lower()
-    return ("种子" in comment) or ("seed" in comment)
+    # 无评论的历史评分按种子处理，避免把维护者数据误报为真实用户
+    return (not comment.strip()) or ("种子" in comment) or ("seed" in comment)
 
 
 def build_rows(local, community):
