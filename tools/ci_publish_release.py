@@ -192,7 +192,13 @@ def upload_asset(token, repo, release_id, path):
         urllib.parse.quote(name),
     )
     status, resp = api_request(
-        token=token, method="POST", url=url, data=data, content_type="application/octet-stream"
+        token=token,
+        method="POST",
+        url=url,
+        data=data,
+        content_type="application/octet-stream",
+        retries=3,
+        timeout=900,
     )
     if not isinstance(resp, dict) or not resp.get("name") or int(resp.get("size") or 0) <= 0:
         raise SystemExit("[release] 上传校验失败: %r" % (resp,))

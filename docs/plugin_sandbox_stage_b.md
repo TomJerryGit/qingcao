@@ -247,3 +247,9 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 修复隔离子进程相对导入（按文件路径加载 mixin）；新增子进程 stderr 日志采集；
 - 隔离激活实测 PASS；
 - **待 D7**：隔离模式下真实脚本端到端调试（启动/断点/变量）。
+
+### 调试器宿主服务 D8（2026-11-16）
+
+- 全量测试通过；v2.26.9 发布；
+- 发布 workflow 上传大资产超时，`ci_publish_release.py` 上传超时增至 900s 并支持重试；
+- 手动补传 ZIP/SHA/sig 成功。
