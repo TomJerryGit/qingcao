@@ -74,9 +74,12 @@ def test_api_error_does_not_crash(monkeypatch):
 
     monkeypatch.setattr(mod, "workflow_latest", boom)
     # 不应抛异常；等待窗口为 0 时返回 False
-    assert mod.wait_all("o/r", "sha", None, 0, 0,
-                        ("test.yml", "security.yml", "lint.yml"),
-                        "test-fallback.yml") is False
+    assert (
+        mod.wait_all(
+            "o/r", "sha", None, 0, 0, ("test.yml", "security.yml", "lint.yml"), "test-fallback.yml"
+        )
+        is False
+    )
 
 
 def test_fallback_failure_waits_for_timeout(monkeypatch):
@@ -87,8 +90,10 @@ def test_fallback_failure_waits_for_timeout(monkeypatch):
         "lint.yml": {"status": "completed", "conclusion": "success", "id": 3},
         "test-fallback.yml": {"status": "completed", "conclusion": "failure", "id": 4},
     }
-    monkeypatch.setattr(mod, "workflow_latest",
-                        lambda repo, wf, sha, token=None: runs.get(wf))
-    assert mod.wait_all("o/r", "sha", None, 0, 0,
-                        ("test.yml", "security.yml", "lint.yml"),
-                        "test-fallback.yml") is False
+    monkeypatch.setattr(mod, "workflow_latest", lambda repo, wf, sha, token=None: runs.get(wf))
+    assert (
+        mod.wait_all(
+            "o/r", "sha", None, 0, 0, ("test.yml", "security.yml", "lint.yml"), "test-fallback.yml"
+        )
+        is False
+    )
