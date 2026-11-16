@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """macOS 打包（.app + .dmg）"""
+
 import os
 import plistlib
 import shutil
@@ -16,8 +17,8 @@ except ImportError:  # pragma: no cover
     # 发布准备时修复：原为硬编码 "2.1.0"（version.py 导入失败时静默
     # 产出过期版本）。改为读 VERSION 文件；两者都不可用则明确报错。
     import os as _os
-    _vf = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
-                        "VERSION")
+
+    _vf = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "VERSION")
     try:
         with open(_vf, encoding="utf-8") as _f:
             VERSION = _f.read().strip()
@@ -28,22 +29,54 @@ except ImportError:  # pragma: no cover
 APP_NAME = "QingCaoEditor.app"
 
 
+def build_pyinstaller():
+    """若无 PyInstaller 输出，先在 macOS 上构建（onedir）。"""
+    import subprocess
+
+    target = os.path.join(ROOT, "dist", "QingCaoEditor")
+    if os.path.isdir(target):
+        return True
+    args = [
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--noconfirm",
+        "--windowed",
+        "--name",
+        "QingCaoEditor",
+        "--hidden-import",
+        "PyQt5.Qsci",
+    ]
+    for extra in ("resources", "locales"):
+        src = os.path.join(ROOT, extra)
+        if os.path.isdir(src):
+            args += ["--add-data", "%s:%s" % (src, extra)]
+    args.append("main.py")
+    print("[build] PyInstaller:", " ".join(args))
+    try:
+        rc = subprocess.call(args, cwd=ROOT)
+        print("[build] PyInstaller rc=%s" % rc)
+    except Exception as e:
+        print("[build] PyInstaller 失败: %s" % e)
+        return False
+    return os.path.isdir(target)
+
+
 def create_app_bundle():
     """创建 .app 包"""
-    app_dir = os.path.join(ROOT, 'dist', APP_NAME)
+    app_dir = os.path.join(ROOT, "dist", APP_NAME)
 
     # 目录结构
-    contents = os.path.join(app_dir, 'Contents')
-    macos = os.path.join(contents, 'MacOS')
-    resources = os.path.join(contents, 'Resources')
+    contents = os.path.join(app_dir, "Contents")
+    macos = os.path.join(contents, "MacOS")
+    resources = os.path.join(contents, "Resources")
 
     for d in [app_dir, contents, macos, resources]:
         os.makedirs(d, exist_ok=True)
 
     # 复制 PyInstaller 输出
-    pyinstaller_output = os.path.join(
-        ROOT, 'dist', 'QingCaoEditor'
-    )
+    build_pyinstaller()
+    pyinstaller_output = os.path.join(ROOT, "dist", "QingCaoEditor")
     if os.path.isdir(pyinstaller_output):
         for item in os.listdir(pyinstaller_output):
             src = os.path.join(pyinstaller_output, item)
@@ -55,24 +88,26 @@ def create_app_bundle():
 
     # Info.plist
     plist_data = {
-        'CFBundleName': 'QingCao Editor',
-        'CFBundleDisplayName': '青草编辑器',
-        'CFBundleIdentifier': 'com.qingcao.editor',
-        'CFBundleVersion': VERSION,
-        'CFBundleShortVersionString': VERSION,
-        'CFBundleExecutable': 'QingCaoEditor',
-        'CFBundleIconFile': 'qingcao.icns',
-        'CFBundlePackageType': 'APPL',
-        'NSHighResolutionCapable': True,
-        'LSMinimumSystemVersion': '10.14',
-        'CFBundleDocumentTypes': [{
-            'CFBundleTypeName': 'Text Document',
-            'CFBundleTypeRole': 'Editor',
-            'LSItemContentTypes': ['public.text', 'public.plain-text'],
-        }],
+        "CFBundleName": "QingCao Editor",
+        "CFBundleDisplayName": "青草编辑器",
+        "CFBundleIdentifier": "com.qingcao.editor",
+        "CFBundleVersion": VERSION,
+        "CFBundleShortVersionString": VERSION,
+        "CFBundleExecutable": "QingCaoEditor",
+        "CFBundleIconFile": "qingcao.icns",
+        "CFBundlePackageType": "APPL",
+        "NSHighResolutionCapable": True,
+        "LSMinimumSystemVersion": "10.14",
+        "CFBundleDocumentTypes": [
+            {
+                "CFBundleTypeName": "Text Document",
+                "CFBundleTypeRole": "Editor",
+                "LSItemContentTypes": ["public.text", "public.plain-text"],
+            }
+        ],
     }
 
-    with open(os.path.join(contents, 'Info.plist'), 'wb') as f:
+    with open(os.path.join(contents, "Info.plist"), "wb") as f:
         plistlib.dump(plist_data, f)
 
     return app_dir
@@ -80,24 +115,29 @@ def create_app_bundle():
 
 def create_dmg(app_dir):
     """创建 .dmg 安装包"""
-    if not shutil.which('create-dmg'):
+    if not shutil.which("create-dmg"):
         print("[WARN] create-dmg 未安装，跳过 .dmg 构建")
         print("  安装: brew install create-dmg")
         return None
 
-    output = os.path.join(
-        ROOT, 'installer',
-        'QingCaoEditor_v%s.dmg' % VERSION
-    )
+    output = os.path.join(ROOT, "installer", "QingCaoEditor_v%s.dmg" % VERSION)
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     cmd = [
-        'create-dmg',
-        '--volname', 'QingCao Editor',
-        '--window-pos', '200', '120',
-        '--window-size', '600', '400',
-        '--icon-size', '100',
-        '--app-drop-link', '450', '180',
+        "create-dmg",
+        "--volname",
+        "QingCao Editor",
+        "--window-pos",
+        "200",
+        "120",
+        "--window-size",
+        "600",
+        "400",
+        "--icon-size",
+        "100",
+        "--app-drop-link",
+        "450",
+        "180",
         output,
         app_dir,
     ]
