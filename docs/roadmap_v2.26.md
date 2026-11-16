@@ -105,3 +105,10 @@
 | CI 单 runner | 托管 Windows 兜底常态化；仍不足则申请第二 runner |
 | macOS 维护成本 | 先 MVP 决策门，不默认承诺 |
 | 证书关闭影响 | 不阻塞发布；仅 SmartScreen 提示，文档说明 |
+
+
+## B3 调试器宿主服务（立项）
+
+- 计划：`docs/debugger_host_service_plan.md`（8 天、M1–M4）；
+- 设计：`docs/debugger_host_service.md`；
+- 状态：立项，下一迭代实施；默认 flag 关闭。
