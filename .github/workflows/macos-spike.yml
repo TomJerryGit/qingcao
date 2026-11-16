@@ -68,7 +68,7 @@ jobs:
           python - "$BIN" <<'PY' 2>&1 | tee -a macos_spike.log
           import subprocess, sys
           try:
-              rc = subprocess.call([sys.argv[1]], timeout=60)
+              rc = subprocess.call([sys.argv[1]], timeout=20)
           except subprocess.TimeoutExpired:
               rc = 124
           print("APP_SMOKE_RC=%d" % rc)

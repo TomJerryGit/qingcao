@@ -71,3 +71,10 @@ macOS Spike 工作流（macos-latest / arm64）成功：
 - `[posix-pty] echo=PASS alt-screen=PASS`（`tools/verify_terminal_posix.py`）；
 - PyInstaller 构建：**APP_OK**（`dist/*.app` 生成）；
 - 结论：macOS 终端与打包可行性验证通过；剩余为 `.app` 启动冒烟、签名/公证与 CI 常驻成本。
+
+
+### 2026-11-16 .app 冒烟结果
+
+- PyInstaller onedir 构建成功，`.app/Contents/MacOS/QingCaoEditor` 存在；
+- 离屏启动冒烟 **超时（APP_SMOKE_FAIL, rc=124）**：windowed 二进制在无 GUI/codesign 的 hosted 环境未进入事件循环；
+- 结论：打包链路可行，**运行冒烟需真实 macOS GUI 会话 + codesign**；暂不阻塞发布。
