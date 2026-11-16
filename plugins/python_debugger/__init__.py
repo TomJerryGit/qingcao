@@ -33,7 +33,19 @@ import sys
 
 from app.plugins import PluginBase
 
-from .debug_guards_mixin import DebugGuardsMixin  # noqa: E402
+
+try:  # 包导入与隔离子进程直载（无父包）都兼容
+    from .debug_guards_mixin import DebugGuardsMixin  # noqa: E402
+except ImportError:  # pragma: no cover - 隔离子进程直载路径
+    import importlib.util as _ilu
+    import os as _os
+
+    _mix_path = _os.path.join(_os.path.dirname(__file__),
+                              "debug_guards_mixin.py")
+    _spec = _ilu.spec_from_file_location("debug_guards_mixin", _mix_path)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    DebugGuardsMixin = _mod.DebugGuardsMixin
 
 
 logger = logging.getLogger(__name__)
@@ -216,7 +228,21 @@ class Plugin(DebugGuardsMixin, PluginBase):
         except Exception:
             pass
 
+    def _isolated_mode(self):
+        return bool(getattr(self.api, "is_isolated", False))
+
     def debug_current(self):
+        if self._isolated_mode():
+            filepath = self.api.get_current_filepath()
+            if not filepath:
+                self.api.show_status("没有打开的文件", 2000)
+                return False
+            result = self.api.debug_start(filepath)
+            if result.get("ok"):
+                self.api.show_status("调试已启动（宿主服务）", 3000, "success")
+                return True
+            self._notify_error("无法调试", result.get("error", "未知错误"))
+            return False
         """启动调试会话（D3 主入口）。"""
         try:
             proxy = self.api.current_editor()
@@ -300,6 +326,9 @@ class Plugin(DebugGuardsMixin, PluginBase):
         return result
 
     def _send_breakpoints(self):
+        if self._isolated_mode():
+            files = self._collect_breakpoints()
+            return bool(self.api.debug_set_breakpoints(files).get("ok"))
         session = self._session
         if session is None or not session.is_running:
             return False
@@ -339,30 +368,42 @@ class Plugin(DebugGuardsMixin, PluginBase):
         return session
 
     def debug_continue(self):
+        if self._isolated_mode():
+            return bool(self.api.debug_continue().get("ok"))
         session = self._require_session("继续")
         if session is None:
             return False
         return session.continue_()
 
     def debug_step_over(self):
+        if self._isolated_mode():
+            return bool(self.api.debug_step("over").get("ok"))
         session = self._require_session("单步跳过")
         if session is None:
             return False
         return session.step_over()
 
     def debug_step_into(self):
+        if self._isolated_mode():
+            return bool(self.api.debug_step("into").get("ok"))
         session = self._require_session("单步进入")
         if session is None:
             return False
         return session.step_into()
 
     def debug_step_out(self):
+        if self._isolated_mode():
+            return bool(self.api.debug_step("out").get("ok"))
         session = self._require_session("单步跳出")
         if session is None:
             return False
         return session.step_out()
 
     def stop_debug(self):
+        if self._isolated_mode():
+            self.api.debug_stop()
+            self.api.show_status("调试已停止（宿主服务）", 3000)
+            return True
         """终止调试并确保不留孤儿进程。"""
         session = self._session
         if session is None:
@@ -505,6 +546,9 @@ class Plugin(DebugGuardsMixin, PluginBase):
     # 面板与查看
     # --------------------------------------------------------
     def show_panel(self):
+        if self._isolated_mode():
+            self.api.show_status("隔离模式：调试面板由宿主提供", 3000)
+            return
         if self._panel is None:
             try:
                 self._panel = DebuggerPanel(
@@ -522,6 +566,15 @@ class Plugin(DebugGuardsMixin, PluginBase):
         return self._panel
 
     def show_locals(self):
+        if self._isolated_mode():
+            result = self.api.debug_locals()
+            self.api.show_status(
+                "已请求变量（宿主面板）"
+                if result.get("ok")
+                else "请求失败：%s" % result.get("error", ""),
+                2500,
+            )
+            return
         session = self._require_session("查看局部变量")
         if session is None:
             return False
@@ -529,6 +582,15 @@ class Plugin(DebugGuardsMixin, PluginBase):
         return session.request_locals()
 
     def show_stack(self):
+        if self._isolated_mode():
+            result = self.api.debug_stack()
+            self.api.show_status(
+                "已请求调用栈（宿主面板）"
+                if result.get("ok")
+                else "请求失败：%s" % result.get("error", ""),
+                2500,
+            )
+            return
         session = self._require_session("查看调用栈")
         if session is None:
             return False

@@ -48,6 +48,14 @@ METHOD_PERMISSIONS = {
     "git_pull": "filesystem",
     "git_switch": "filesystem",
     "ai_http_request": "network",
+    "debug_start": "debugger",
+    "debug_stop": "debugger",
+    "debug_continue": "debugger",
+    "debug_step": "debugger",
+    "debug_set_breakpoints": "debugger",
+    "debug_locals": "debugger",
+    "debug_stack": "debugger",
+    "debug_eval": "debugger",
     "run_command": "process",
     "run_python": "process",
 }
@@ -287,9 +295,32 @@ class RemoteAPI:
     def http_request(self, url, method="GET", headers=None, data=None, timeout=10):
         return self._call("http_request", url, method, headers or {}, data, timeout)
 
+    def debug_start(self, script, args=None):
+        return self._call("debug_start", script, args or [])
+
+    def debug_stop(self):
+        return self._call("debug_stop")
+
+    def debug_continue(self):
+        return self._call("debug_continue")
+
+    def debug_step(self, kind="over"):
+        return self._call("debug_step", kind)
+
+    def debug_set_breakpoints(self, files):
+        return self._call("debug_set_breakpoints", files or {})
+
+    def debug_locals(self):
+        return self._call("debug_locals")
+
+    def debug_stack(self):
+        return self._call("debug_stack")
+
+    def debug_eval(self, expr):
+        return self._call("debug_eval", expr)
+
     def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
-        return self._call("ai_http_request", url, headers or {},
-                          json_data, timeout)
+        return self._call("ai_http_request", url, headers or {}, json_data, timeout)
 
     def git_status(self, filepath):
         return self._call("git_status", filepath)

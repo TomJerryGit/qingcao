@@ -239,3 +239,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 新增 `ui/debug_host_panel.py`：监听 `DebugService.event`，展示调用栈/变量/状态；
 - 测试：事件驱动更新（break/stack/locals/exit）；
 - 下一步 D6：插件隔离分支 + 远程对接（D5 面板目前为宿主组件）。
+
+### 调试器宿主服务 D6（2026-11-16）
+
+- broker/WindowHostAPI 增加 `debug_*`（权限 `debugger`）；
+- `python_debugger` 加入隔离集合，`_isolated_mode()` 分支调用 `api.debug_*`；
+- 修复隔离子进程相对导入（按文件路径加载 mixin）；新增子进程 stderr 日志采集；
+- 隔离激活实测 PASS；
+- **待 D7**：隔离模式下真实脚本端到端调试（启动/断点/变量）。

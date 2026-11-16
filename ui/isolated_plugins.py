@@ -187,6 +187,37 @@ class WindowHostAPI:
         root = GitClient().find_root(filepath)
         return GitClient(root) if root else None
 
+    def _debug_service(self):
+        from core.debug_service import get_debug_service
+
+        return get_debug_service()
+
+    def debug_start(self, script, args=None):
+        return self._debug_service().handle(
+            "debug.start", {"script": str(script), "args": list(args or [])}
+        )
+
+    def debug_stop(self):
+        return self._debug_service().handle("debug.stop")
+
+    def debug_continue(self):
+        return self._debug_service().handle("debug.continue")
+
+    def debug_step(self, kind="over"):
+        return self._debug_service().handle("debug.step", {"kind": kind})
+
+    def debug_set_breakpoints(self, files):
+        return self._debug_service().handle("debug.set_breakpoints", {"files": files or {}})
+
+    def debug_locals(self):
+        return self._debug_service().handle("debug.locals")
+
+    def debug_stack(self):
+        return self._debug_service().handle("debug.stack")
+
+    def debug_eval(self, expr):
+        return self._debug_service().handle("debug.eval", {"expr": str(expr)})
+
     def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
         from core.ai_http import request_json
 
@@ -452,6 +483,8 @@ class IsolatedPluginHost(QObject):
                 logger.info("isolated plugin started: %s", name)
             except PluginHostError as e:
                 logger.warning("isolated plugin failed: %s (%s)", name, e)
+                for level, msg in (proc.logs or [])[-20:]:
+                    logger.warning("  child[%s] %s", level, msg)
                 proc.stop()
         app = QApplication.instance()
         if app is not None:

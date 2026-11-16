@@ -65,6 +65,9 @@ class PluginProcess:
         )
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()
+        self._stderr_thread = threading.Thread(
+            target=self._drain_stderr, daemon=True)
+        self._stderr_thread.start()
         self._wait(self._hello, "handshake")
         # 同意握手并放行激活
         self._send(rpc.response(0, {"ok": True}))
@@ -129,6 +132,15 @@ class PluginProcess:
         with self._reply_lock:
             self.proc.stdin.write(rpc.encode(obj))
             self.proc.stdin.flush()
+
+    def _drain_stderr(self):
+        try:
+            for line in self.proc.stderr:
+                line = line.rstrip()
+                if line:
+                    self.logs.append(("stderr", line[:500]))
+        except Exception:
+            pass
 
     def _reader(self):
         try:

@@ -7,6 +7,7 @@ import os
 ISOLATABLE_PLUGINS = {
     "demo", "wordcount", "json_formatter", "sandbox_demo",
     "todo_panel", "markdown_preview", "logtail", "git_deep",
+    "python_debugger",
 }
 DEMO_PLUGINS = ISOLATABLE_PLUGINS
 
