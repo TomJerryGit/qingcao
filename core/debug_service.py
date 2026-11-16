@@ -218,3 +218,14 @@ class DebugService(QObject):
     def _emit_break(self, payload):
         self.last_break = payload
         self.event.emit({"event": "debug.break", "data": payload})
+
+
+_SERVICE = None
+
+
+def get_debug_service():
+    """宿主单例（仅用于宿主侧 PluginAPI；隔离插件经 broker 后续接入）。"""
+    global _SERVICE
+    if _SERVICE is None:
+        _SERVICE = DebugService(trusted=True)
+    return _SERVICE

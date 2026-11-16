@@ -5,12 +5,15 @@
 from app.plugin_api_common import *  # noqa: F401,F403,F405
 from app.plugin_api_common import _BackgroundBridge  # noqa: F401
 from app.plugin_api_data import DataMixin
+from app.plugin_api_debug import DebugMixin
 from app.plugin_api_editor import EditorAccessMixin
 from app.plugin_api_events import EventMixin
 from app.plugin_api_ui import UiMixin
 
 
-class PluginAPI(EditorAccessMixin, UiMixin, DataMixin, EventMixin, QObject):
+class PluginAPI(
+    EditorAccessMixin, UiMixin, DataMixin, EventMixin, DebugMixin, QObject
+):
     """
     暴露给插件的 API 接口。
 

@@ -38,7 +38,7 @@
 | D3 ✅ | continue/step/断点事件迁移（`debug.set_breakpoints`） | 断点/单步命令与事件广播测试 |
 | D4 ✅ | locals/stack/eval RPC + 结果事件 | 信号替身验证；真实断点集成测试暂缓（曾挂起） |
 | D5 ✅ | 宿主面板（栈/变量，`ui/debug_host_panel.py`） | 事件驱动更新测试；插件隔离接入留 D6 |
-| D6 | 插件隔离分支 + feature flag | `QINGCAO_DEBUGGER_HOST=1` 灰度 |
+| D6 🟡 | `PluginAPI.debug_*` + feature flag + 宿主面板 | flag 测试 11/11；隔离插件分支未接（需 broker debug_*） |
 | D7 | 故障注入/崩溃/超时 | 子进程崩溃不影响主进程 |
 | D8 | 回归 + 文档 + 发布门禁 | 全量测试、性能对比、发布说明 |
 
