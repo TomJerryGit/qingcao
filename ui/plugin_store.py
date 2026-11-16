@@ -5,6 +5,8 @@
 拆分为：plugin_client（常量/工具/PluginInfo/Client/Worker）、plugin_detail（详情/安装进度）、本文件（列表/卡片/主对话框）。
 """
 
+from PyQt5.QtWidgets import QCheckBox
+
 from ui.plugin_client import *  # noqa: F401,F403
 from ui.plugin_compare import PluginCompareDialog
 from ui.plugin_detail import *  # noqa: F401,F403
@@ -319,8 +321,6 @@ class PluginStoreDialog(QDialog):
             self.rating_combo.addItem(_label, _key)
         self.rating_combo.currentIndexChanged.connect(self._on_rating_changed)
         filter_row.addWidget(self.rating_combo)
-
-        from PyQt5.QtWidgets import QCheckBox
 
         self.favorites_check = QCheckBox("⭐ 收藏")
         self.favorites_check.toggled.connect(lambda *a: self._apply_filters())
