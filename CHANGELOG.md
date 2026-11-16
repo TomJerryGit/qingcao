@@ -2,6 +2,12 @@
 
 ### 工程
 
+- **调试器宿主服务 D2**：真实会话 start/stop、无孤儿清理与 shutdown；
+
+## [Unreleased]
+
+### 工程
+
 - **调试器宿主服务 D1**：RPC schema + DebugService 骨架（默认 flag 关闭）；
 - AI 流式宿主代理/生态文档已随 v2.26.8 发布。
 

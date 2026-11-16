@@ -81,3 +81,32 @@ def test_invalid_params():
         svc.handle("debug.step", {"kind": "bad"})
     with pytest.raises(DebugRpcError):
         svc.handle("debug.nope", {})
+
+
+def test_start_stop_real_session_no_orphan(tmp_path):
+    from core.debug_service import DebugService
+
+    script = tmp_path / "sleeper.py"
+    script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    svc = DebugService(trusted=True)
+    try:
+        result = svc.handle("debug.start", {"script": str(script)})
+        assert result["ok"], result
+        proc = svc.session._proc
+        assert proc is not None and proc.poll() is None
+        assert svc.is_running()
+        assert svc.handle("debug.stop")["ok"]
+        assert svc.session is None and not svc.is_running()
+        proc.wait(timeout=10)
+        assert proc.poll() is not None
+    finally:
+        svc.shutdown()
+
+
+def test_start_failure_cleans_state(tmp_path):
+    from core.debug_service import DebugService
+
+    svc = DebugService(trusted=True)
+    result = svc.handle("debug.start", {"script": str(tmp_path / "missing.py")})
+    assert result["ok"] is False
+    assert svc.session is None and svc.state == "idle"

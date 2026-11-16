@@ -34,7 +34,7 @@
 | 天 | 任务 | 交付/验收 |
 |---|---|---|
 | D1 ✅ | DebugService 骨架 + RPC schema（`core/debug_service.py`） | 单测 4/4：schema/权限/生命周期 |
-| D2 | start/stop 迁移 | 真实脚本启动/终止，无孤儿进程 |
+| D2 ✅ | start/stop 迁移（真实 DebugSession） | 真实脚本启停、无孤儿、失败清理、shutdown 幂等 |
 | D3 | continue/step 迁移 | 断点命中、单步 over/into/out |
 | D4 | locals/stack/eval | 面板数据对等 |
 | D5 | 远程面板（栈/变量/监视） | 隔离模式可视化 |

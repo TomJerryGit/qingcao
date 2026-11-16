@@ -147,6 +147,16 @@ class DebugService(QObject):
         self.state = "idle"
         return {"ok": True}
 
+    def is_running(self):
+        return self.session is not None and self.state in ("starting", "running", "paused")
+
+    def shutdown(self):
+        """退出/停用时的幂等清理，保证无孤儿调试进程。"""
+        if self.session is None:
+            self.state = "idle"
+            return True
+        return bool(self._stop().get("ok"))
+
     def _emit_break(self, payload):
         self.last_break = payload
         self.event.emit({"event": "debug.break", "data": payload})
