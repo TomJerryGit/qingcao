@@ -127,12 +127,15 @@ class DebugService(QObject):
     def _start(self, values):
         if self.session is not None:
             self._stop()
-        if self._factory is not None:
-            session = self._factory()
-        else:
-            from plugins.python_debugger.session import DebugSession
+        try:
+            if self._factory is not None:
+                session = self._factory()
+            else:
+                from plugins.python_debugger.session import DebugSession
 
-            session = DebugSession()
+                session = DebugSession()
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
         self.session = session
         self._wire(session)
         self.state = "starting"

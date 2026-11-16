@@ -39,7 +39,7 @@
 | D4 ✅ | locals/stack/eval RPC + 结果事件 | 信号替身验证；真实断点集成测试暂缓（曾挂起） |
 | D5 ✅ | 宿主面板（栈/变量，`ui/debug_host_panel.py`） | 事件驱动更新测试；插件隔离接入留 D6 |
 | D6 ✅ | `PluginAPI.debug_*` + broker `debug_*` + 插件隔离分支 | 隔离激活 PASS；22 项相关测试通过；端到端隔离调试留 D7 |
-| D7 | 故障注入/崩溃/超时 | 子进程崩溃不影响主进程 |
+| D7 ✅ | 故障注入 + 真实断点端到端（processEvents 轮询） | 真实断点/变量、factory/stop 失败、error 事件 |
 | D8 | 回归 + 文档 + 发布门禁 | 全量测试、性能对比、发布说明 |
 
 ## 5. 里程碑
