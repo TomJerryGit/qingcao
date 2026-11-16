@@ -1,5 +1,9 @@
 ﻿
 
+### 生态
+
+- **P4 生态**：	ools/ratings_report.py 评分汇总；脚手架采用测试；新增 docs/ratings_ops.md、docs/plugin_samples.md。
+
 ## [2.26.2] - 2026-11-13
 
 ### 功能/工程
