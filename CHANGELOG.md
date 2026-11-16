@@ -1,4 +1,11 @@
-## [Unreleased]
+﻿## [Unreleased]
+
+## [2.26.9] - 2026-11-16
+
+### 工程（B3 调试器宿主服务）
+
+- D1–D7：DebugService/RPC、真实会话启停、断点/单步/变量/栈、宿主面板、隔离分支、端到端/故障注入；
+- 默认 QINGCAO_DEBUGGER_HOST=1 关闭；子进程 stderr 采集。
 
 ### 工程
 
