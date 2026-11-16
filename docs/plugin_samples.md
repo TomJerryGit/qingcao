@@ -19,3 +19,8 @@
 - 示例插件保留用于说明扩展点，但默认不干扰普通用户（`my_plugin` 禁用）；
 - 市场分类中标记 `sample`/`sandbox`，避免与生产插件混淆；
 - 新增插件请以 `demo` 为模板，不使用 `my_plugin` 作为起点。
+
+## 目录与趋势
+
+- 自动生成插件目录：`python tools/plugin_catalog.py` → `docs/plugin_catalog.md`；
+- 每周性能趋势：`Ratings Report` 同款 `Perf Trend` 工作流（周一 06:30 UTC）。

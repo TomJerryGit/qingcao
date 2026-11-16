@@ -1,0 +1,26 @@
+﻿name: Perf Trend
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build performance trend
+        run: python tools/perf_trend.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perf-trend
+          path: docs/perf_trend.md
+          retention-days: 30
