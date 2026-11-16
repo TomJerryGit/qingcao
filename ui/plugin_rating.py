@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import time
+import urllib.parse
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -111,3 +112,28 @@ class LocalRatings:
 
     def all(self):
         return dict(self._load().get("plugins", {}))
+
+
+def community_issue_url(
+    plugin_name, stars, comment="", repo="TomJerryGit/qingcao", template="plugin-rating.yml"
+):
+    """生成预填评分 JSON 的 GitHub Issue 链接（引导真实用户提交）。"""
+    payload = {
+        "version": 1,
+        "plugins": {
+            str(plugin_name): {
+                "stars": int(stars),
+                "comment": str(comment or ""),
+            }
+        },
+    }
+    body = "```json\n%s\n```" % json.dumps(payload, ensure_ascii=False, indent=2)
+    params = urllib.parse.urlencode(
+        {
+            "template": template,
+            "title": "[评分] %s" % plugin_name,
+            "body": body,
+            "labels": "plugin-rating",
+        }
+    )
+    return "https://github.com/%s/issues/new?%s" % (repo, params)

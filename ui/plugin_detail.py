@@ -130,12 +130,35 @@ class PluginDetailDialog(QDialog):
         save_btn = QPushButton("保存评分")
         save_btn.clicked.connect(self._save_local_rating)
         row2.addWidget(save_btn)
+
+        submit_btn = QPushButton("提交到社区")
+        submit_btn.setToolTip("打开 GitHub Issue（预填本插件评分 JSON）")
+        submit_btn.clicked.connect(self._submit_to_community)
+        row2.addWidget(submit_btn)
         self.rating_status = QLabel("")
         self.rating_status.setStyleSheet("color: #888; font-size: 11px;")
         row2.addWidget(self.rating_status)
         row2.addStretch()
         vbox.addLayout(row2)
         return group
+
+    def _submit_to_community(self):
+        if self._local_stars <= 0:
+            self.rating_status.setText("请先选择星级")
+            return
+        try:
+            from PyQt5.QtCore import QUrl
+            from PyQt5.QtGui import QDesktopServices
+
+            from ui.plugin_rating import community_issue_url
+
+            url = community_issue_url(
+                self.info.name, self._local_stars, self.rating_comment.text().strip()
+            )
+            QDesktopServices.openUrl(QUrl(url))
+            self.rating_status.setText("已打开 GitHub 评分页 ✓")
+        except Exception as e:
+            self.rating_status.setText("打开失败: %s" % e)
 
     def _set_local_stars(self, stars):
         from ui.plugin_rating import rating_text

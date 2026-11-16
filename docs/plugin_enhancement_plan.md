@@ -140,3 +140,8 @@
 - 收藏：卡片星标持久化到 QSettings，筛选栏『仅收藏』；
 - 对比：选择两个插件，表格对比版本/作者/类型/权限/评分/安全/状态/描述；
 - 测试：tests/test_v226_market_favorites_compare.py。
+
+### 评分运营（2026-11）
+
+- 插件详情新增“提交到社区”按钮，预填评分 JSON 的 GitHub Issue；
+- 运营手册 `docs/ratings_campaign.md`；测试 `tests/test_v226_ratings_campaign.py`。
