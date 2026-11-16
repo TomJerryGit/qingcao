@@ -46,6 +46,28 @@ jobs:
           python build_macos.py 2>&1 | tee -a macos_spike.log || true
           ls -d dist/*.app 2>/dev/null && echo "APP_OK" | tee -a macos_spike.log || echo "APP_MISSING" | tee -a macos_spike.log
 
+      - name: App smoke (offscreen)
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QINGCAO_HEADLESS_SMOKE: "1"
+        run: |
+          BIN=$(find dist -path '*.app/Contents/MacOS/*' -type f 2>/dev/null | head -1)
+          echo "APP_BIN=$BIN" | tee -a macos_spike.log
+          if [ -z "$BIN" ]; then
+            echo "APP_SMOKE_MISSING" | tee -a macos_spike.log
+            exit 0
+          fi
+          python - "$BIN" <<'PY' 2>&1 | tee -a macos_spike.log
+          import subprocess, sys
+          try:
+              rc = subprocess.call([sys.argv[1]], timeout=60)
+          except subprocess.TimeoutExpired:
+              rc = 124
+          print("APP_SMOKE_RC=%d" % rc)
+          print("APP_SMOKE_OK" if rc == 0 else "APP_SMOKE_FAIL")
+          PY
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
