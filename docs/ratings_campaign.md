@@ -32,3 +32,8 @@
 
 - GitHub Issue #1：邀请 3 位用户试用并评分（https://github.com/TomJerryGit/qingcao/issues/1）。
 - 维护者种子评分（demo/wordcount/json_formatter 5★）已通过应用详情页保存，仅本地，不冒充社区用户。
+
+## 自动化
+
+- `Ratings Report` 工作流每周一 06:00 UTC 生成并上传 `docs/ratings_report.md` artifact（30 天）；
+- 报告区分“维护者种子”与真实本地/社区评分。

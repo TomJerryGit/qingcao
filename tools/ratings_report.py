@@ -34,6 +34,14 @@ def load_community(path):
     return {k: _community_entry(v) for k, v in raw.items()}
 
 
+def is_seed(record):
+    """维护者种子评分：comment 含“种子/seed”。"""
+    comment = ""
+    if isinstance(record, dict):
+        comment = str(record.get("comment") or "").lower()
+    return ("种子" in comment) or ("seed" in comment)
+
+
 def build_rows(local, community):
     names = sorted(set(local) | set(community))
     rows = []
@@ -50,6 +58,7 @@ def build_rows(local, community):
             {
                 "plugin": name,
                 "local_stars": local_stars,
+                "seed": bool(is_seed(local.get(name))),
                 "community_count": count,
                 "community_avg": round(avg, 2),
             }
@@ -59,20 +68,28 @@ def build_rows(local, community):
 
 def render(rows, out):
     total_local = sum(1 for r in rows if r["local_stars"] > 0)
+    seeds = sum(1 for r in rows if r.get("seed"))
+    real_local = total_local - seeds
     total_community = sum(r["community_count"] for r in rows)
     lines = [
         "# 插件评分报告",
         "",
-        "- 有本地评分的插件：%d" % total_local,
+        "- 有本地评分的插件：%d（维护者种子 %d，真实本地 %d）" % (total_local, seeds, real_local),
         "- 社区评分样本：%d" % total_community,
         "",
-        "| 插件 | 本地星级 | 社区人数 | 社区均分 |",
-        "|---|---|---|---|",
+        "| 插件 | 本地星级 | 来源 | 社区人数 | 社区均分 |",
+        "|---|---|---|---|---|",
     ]
     for r in rows:
         lines.append(
-            "| %s | %s | %d | %.2f |"
-            % (r["plugin"], r["local_stars"] or "-", r["community_count"], r["community_avg"])
+            "| %s | %s | %s | %d | %.2f |"
+            % (
+                r["plugin"],
+                r["local_stars"] or "-",
+                "种子" if r.get("seed") else "用户",
+                r["community_count"],
+                r["community_avg"],
+            )
         )
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     io.open(out, "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
