@@ -110,3 +110,38 @@ def test_start_failure_cleans_state(tmp_path):
     result = svc.handle("debug.start", {"script": str(tmp_path / "missing.py")})
     assert result["ok"] is False
     assert svc.session is None and svc.state == "idle"
+
+
+def test_break_event_and_step_commands():
+    from PyQt5.QtCore import QObject, pyqtSignal
+
+    from core.debug_service import DebugService
+
+    class SignalSession(_Session, QObject):
+        break_hit = pyqtSignal(str, int)
+        finished = pyqtSignal(int)
+        failed = pyqtSignal(str)
+        output_received = pyqtSignal(str, str)
+
+        def __init__(self):
+            QObject.__init__(self)
+            _Session.__init__(self)
+
+        def set_breakpoints(self, files):
+            self.calls.append(("breakpoints", files))
+            return True
+
+    svc = DebugService(trusted=True, session_factory=SignalSession)
+    events = []
+    svc.event.connect(events.append)
+    assert svc.handle("debug.start", {"script": "a.py"})["ok"]
+    session = svc.session
+    assert svc.handle("debug.set_breakpoints", {"files": {"a.py": [2]}})["count"] == 1
+    session.break_hit.emit("a.py", 2)
+    assert events and events[-1]["event"] == "debug.break"
+    assert svc.state == "paused"
+    assert svc.handle("debug.continue")["ok"]
+    assert svc.handle("debug.step", {"kind": "into"})["ok"]
+    assert "into" in session.calls
+    session.finished.emit(0)
+    assert svc.state == "idle" and svc.session is None

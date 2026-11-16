@@ -226,3 +226,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 默认关闭（`QINGCAO_DEBUGGER_HOST=1`），仅 trusted 可调用；
 - 测试：`tests/test_v226_debug_service.py` 4/4；
 - 下一步 D2：真实脚本 start/stop + 无孤儿进程。
+
+### 调试器宿主服务 D3（2026-11-16）
+
+- `debug.set_breakpoints`、continue/step over/into/out 接入；
+- 会话信号桥接：`debug.break/output/exit/error` 事件；
+- 测试：断点事件、单步命令、退出清理；
+- 下一步 D4：locals/stack/eval + 远程面板。

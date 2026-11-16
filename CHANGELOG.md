@@ -2,6 +2,12 @@
 
 ### 工程
 
+- **调试器宿主服务 D3**：断点/continue/step + 事件广播；
+
+## [Unreleased]
+
+### 工程
+
 - **调试器宿主服务 D2**：真实会话 start/stop、无孤儿清理与 shutdown；
 
 ## [Unreleased]

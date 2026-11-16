@@ -16,6 +16,10 @@ RPC_SCHEMA = {
         "returns": {"ok": "bool", "error": "str?"},
     },
     "debug.stop": {"params": {}, "returns": {"ok": "bool"}},
+    "debug.set_breakpoints": {
+        "params": {"files": "dict"},
+        "returns": {"ok": "bool", "count": "int"},
+    },
     "debug.continue": {"params": {}, "returns": {"ok": "bool"}},
     "debug.step": {
         "params": {"kind": "over|into|out"},
@@ -94,10 +98,16 @@ class DebugService(QObject):
             return self._stop()
         if self.session is None:
             raise DebugRpcError(-32002, "no debug session")
+        if method == "debug.set_breakpoints":
+            files = values.get("files") or {}
+            self.session.set_breakpoints(files)
+            return {"ok": True, "count": len(files)}
         if method == "debug.continue":
+            self.state = "running"
             self.session.continue_()
             return {"ok": True}
         if method == "debug.step":
+            self.state = "running"
             getattr(self.session, "step_" + values["kind"])()
             return {"ok": True}
         if method == "debug.locals":
@@ -121,6 +131,7 @@ class DebugService(QObject):
 
             session = DebugSession()
         self.session = session
+        self._wire(session)
         self.state = "starting"
         try:
             ok = session.start(
@@ -146,6 +157,34 @@ class DebugService(QObject):
         self.session = None
         self.state = "idle"
         return {"ok": True}
+
+    def _wire(self, session):
+        try:
+            session.break_hit.connect(self._on_break)
+            session.finished.connect(self._on_finished)
+            session.failed.connect(self._on_failed)
+            session.output_received.connect(self._on_output)
+        except Exception:
+            pass
+
+    def _on_break(self, filepath, line):
+        self.state = "paused"
+        payload = {"file": str(filepath), "line": int(line), "reason": "break"}
+        self.last_break = payload
+        self.event.emit({"event": "debug.break", "data": payload})
+
+    def _on_finished(self, code):
+        self.state = "idle"
+        self.event.emit({"event": "debug.exit", "data": {"code": int(code)}})
+        self.session = None
+
+    def _on_failed(self, message):
+        self.event.emit({"event": "debug.error", "data": {"message": str(message)}})
+
+    def _on_output(self, stream, text):
+        self.event.emit(
+            {"event": "debug.output", "data": {"stream": str(stream), "text": str(text)}}
+        )
 
     def is_running(self):
         return self.session is not None and self.state in ("starting", "running", "paused")
