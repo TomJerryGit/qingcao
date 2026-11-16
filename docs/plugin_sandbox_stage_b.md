@@ -253,3 +253,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 全量测试通过；v2.26.9 发布；
 - 发布 workflow 上传大资产超时，`ci_publish_release.py` 上传超时增至 900s 并支持重试；
 - 手动补传 ZIP/SHA/sig 成功。
+
+
+## 隔离插件 UI 级 e2e（2026-11-16）
+
+- 真实 `IsolatedPluginHost` + QMainWindow + 隔离 `git_deep`：
+  菜单「查看状态」→ 子进程 RPC → 宿主 Git API → 对话框；
+- 补齐隔离 API：`get_current_filepath`、`show_text_dialog`；git_deep 声明 `editor_read`；
+- 测试：`tests/test_v226_isolated_e2e.py`（1/1）。

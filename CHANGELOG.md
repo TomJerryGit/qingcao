@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### 测试/安全
+
+- **隔离插件 UI 级 e2e**：git_deep 菜单→宿主 Git API→对话框；补齐 filepath/dialog API。
+
 ﻿## [Unreleased]
 
 ## [2.26.9] - 2026-11-16

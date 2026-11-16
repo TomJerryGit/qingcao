@@ -24,6 +24,8 @@ from core.sandbox_rpc import (
 METHOD_PERMISSIONS = {
     "log": None,
     "get_current_text": "editor_read",
+    "get_current_filepath": "editor_read",
+    "show_text_dialog": "dialog",
     "set_current_text": "editor_write",
     "show_message": "dialog",
     "add_menu": "dialog",
@@ -191,6 +193,12 @@ class RemoteAPI:
             self._write(notification("plugin.log", {"level": level, "message": str(message)}))
         except Exception:
             pass
+
+    def get_current_filepath(self):
+        return self._call("get_current_filepath")
+
+    def show_text_dialog(self, title, text, width=600, height=400):
+        return self._call("show_text_dialog", title, text, width, height)
 
     def get_current_text(self):
         return self._call("get_current_text") or ""

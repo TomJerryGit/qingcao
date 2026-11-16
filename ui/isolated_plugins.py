@@ -92,6 +92,25 @@ class WindowHostAPI:
             except Exception:
                 pass
 
+    def get_current_filepath(self):
+        proxy = self._current_proxy()
+        if proxy is None:
+            return ""
+        for attr in ("get_filepath", "filepath"):
+            try:
+                value = getattr(proxy, attr)
+                return str(value() if callable(value) else value) or ""
+            except Exception:
+                continue
+        try:
+            return str(getattr(proxy.document, "filepath", "") or "")
+        except Exception:
+            return ""
+
+    def show_text_dialog(self, title, text, width=600, height=400):
+        self._bridge.submit(lambda: QMessageBox.information(self.window, str(title), str(text)))
+        return True
+
     def get_current_text(self):
         app = QApplication.instance()
         if app is not None and QThread.currentThread() is app.thread():

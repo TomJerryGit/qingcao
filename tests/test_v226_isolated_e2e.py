@@ -1,0 +1,70 @@
+# -*- coding: utf-8 -*-
+"""v2.26：隔离插件 UI 级 e2e（git_deep 菜单 → 宿主 Git API → 对话框）"""
+
+import os
+import sys
+
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QTabWidget, QWidget
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+
+def _pump(app, predicate, timeout_ms=5000):
+    import time
+
+    deadline = time.time() + timeout_ms / 1000.0
+    while time.time() < deadline:
+        app.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return predicate()
+
+
+class _Proxy:
+    def text(self):
+        return "b\na\n"
+
+    def get_filepath(self):
+        return os.path.join(ROOT, "README.md")
+
+
+class _Editor(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.proxy = _Proxy()
+
+
+class _Win(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.tabs = QTabWidget(self)
+        self.tabs.addTab(_Editor(), "README")
+        self.setCentralWidget(self.tabs)
+
+
+def test_isolated_git_deep_menu_e2e(qapp, monkeypatch):
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    captured = {}
+    monkeypatch.setattr(
+        QMessageBox,
+        "information",
+        lambda *a, **k: captured.setdefault("msg", a[2] if len(a) > 2 else a),
+    )
+    win = _Win()
+    host = IsolatedPluginHost(win)
+    try:
+        host.start({"git_deep"})
+        assert _pump(qapp, lambda: bool(host.api.menus)), "隔离菜单未注册"
+        action = next((a for a in host.api.menus.values() if a.text() == "查看状态"), None)
+        assert action is not None, [a.text() for a in host.api.menus.values()]
+        action.trigger()
+        assert _pump(qapp, lambda: bool(captured.get("msg"))), "未弹出 Git 状态"
+        assert "分支" in str(captured["msg"]) or "无变更" in str(captured["msg"])
+    finally:
+        host.stop_all()
+        win.close()

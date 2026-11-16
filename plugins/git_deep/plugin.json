@@ -12,6 +12,7 @@
     "vcs"
   ],
   "permissions": [
+    "editor_read",
     "process",
     "filesystem",
     "dialog"
@@ -22,5 +23,9 @@
   "auto_load": true,
   "load_order": 60,
   "homepage": "https://github.com/TomJerryGit/qingcao",
-  "keywords": []
+  "keywords": [
+    "git",
+    "vcs",
+    "version-control"
+  ]
 }
