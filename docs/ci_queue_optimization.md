@@ -66,3 +66,9 @@
 - **结论**：发布主路径（hosted fallback）队列 2s、耗时 ~4 分钟；Release 队列 3s，迁移目标达成；
 - **异常**：一个自托管 Test 定时 job 耗时 **33,770s（~9.4h）**，需排查 Runner 卡住/取消逻辑（watchdog 应介入）；
 - 建议：若异常复现，将自托管 Test 改为仅手动，或缩短 job timeout / 增强 watchdog。
+
+## Release gate fallback 修复（2026-11-16）
+
+- 门禁在 fallback 失败/API 抖动时不再立即失败，保持等待到窗口结束；
+- `test-fallback` 增加 tag 触发（`v*`），发布标签会创建同 SHA 的新 fallback 运行；
+- 并发组 `cancel-in-progress: true`，避免重复运行互相干扰。

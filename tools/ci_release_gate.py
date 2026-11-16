@@ -60,15 +60,21 @@ def wait_all(repo, sha, token, wait_min, interval, workflows=WORKFLOWS, fallback
     results = {}
     while pending and time.time() < deadline:
         for wf in list(pending):
-            run = workflow_latest(repo, wf, sha, token)
-            ok, state, msg = evaluate(run)
-            if ok is not True and fallback_workflow and wf == "test.yml":
-                fb = workflow_latest(repo, fallback_workflow, sha, token)
-                fb_ok, fb_state, fb_msg = evaluate(fb)
-                if fb_ok is True:
-                    ok, state, msg = True, "fallback", "fallback %s" % fb_msg
-                elif fb_ok is False:
-                    ok, state, msg = False, fb_state, fb_msg
+            try:
+                run = workflow_latest(repo, wf, sha, token)
+                ok, state, msg = evaluate(run)
+                if ok is not True and fallback_workflow and wf == "test.yml":
+                    fb = workflow_latest(repo, fallback_workflow, sha, token)
+                    fb_ok, fb_state, fb_msg = evaluate(fb)
+                    if fb_ok is True:
+                        ok, state, msg = True, "fallback", "fallback %s" % fb_msg
+                    elif fb_ok is False:
+                        # 不立即失败：可能是旧运行/并发取消，等待标签触发的
+                        # 新 fallback 运行；超时仍未成功才失败。
+                        ok, state, msg = None, "fallback-%s" % fb_state, fb_msg
+            except Exception as e:
+                # API 抖动/限流/工作流尚未创建：保持 pending，等待下一轮
+                ok, state, msg = None, "api-error", str(e)
             results[wf] = (ok, state, msg)
             print("[gate] %-14s %-9s %s" % (wf, state, msg))
             if ok is not None:

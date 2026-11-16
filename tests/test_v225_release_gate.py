@@ -64,3 +64,31 @@ def test_fallback_alternative_success(monkeypatch):
         )
         is True
     )
+
+
+def test_api_error_does_not_crash(monkeypatch):
+    mod = _load()
+
+    def boom(repo, wf, sha, token=None):
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(mod, "workflow_latest", boom)
+    # 不应抛异常；等待窗口为 0 时返回 False
+    assert mod.wait_all("o/r", "sha", None, 0, 0,
+                        ("test.yml", "security.yml", "lint.yml"),
+                        "test-fallback.yml") is False
+
+
+def test_fallback_failure_waits_for_timeout(monkeypatch):
+    mod = _load()
+    runs = {
+        "test.yml": None,
+        "security.yml": {"status": "completed", "conclusion": "success", "id": 2},
+        "lint.yml": {"status": "completed", "conclusion": "success", "id": 3},
+        "test-fallback.yml": {"status": "completed", "conclusion": "failure", "id": 4},
+    }
+    monkeypatch.setattr(mod, "workflow_latest",
+                        lambda repo, wf, sha, token=None: runs.get(wf))
+    assert mod.wait_all("o/r", "sha", None, 0, 0,
+                        ("test.yml", "security.yml", "lint.yml"),
+                        "test-fallback.yml") is False
