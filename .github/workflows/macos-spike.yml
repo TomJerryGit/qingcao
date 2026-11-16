@@ -52,7 +52,14 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QINGCAO_HEADLESS_SMOKE: "1"
         run: |
-          BIN=$(ls dist/*.app/Contents/MacOS/* 2>/dev/null | head -1)
+          BIN="dist/QingCaoEditor.app/Contents/MacOS/QingCaoEditor"
+          if [ ! -f "$BIN" ]; then
+            BIN=$(find dist -type f -name QingCaoEditor 2>/dev/null | head -1)
+          fi
+          if [ -z "$BIN" ]; then
+            echo "APP_TREE:" | tee -a macos_spike.log
+            find dist -maxdepth 5 -print 2>/dev/null | head -30 | tee -a macos_spike.log
+          fi
           echo "APP_BIN=$BIN" | tee -a macos_spike.log
           if [ -z "$BIN" ]; then
             echo "APP_SMOKE_MISSING" | tee -a macos_spike.log
