@@ -78,3 +78,10 @@ macOS Spike 工作流（macos-latest / arm64）成功：
 - PyInstaller onedir 构建成功，`.app/Contents/MacOS/QingCaoEditor` 存在；
 - 离屏启动冒烟 **超时（APP_SMOKE_FAIL, rc=124）**：windowed 二进制在无 GUI/codesign 的 hosted 环境未进入事件循环；
 - 结论：打包链路可行，**运行冒烟需真实 macOS GUI 会话 + codesign**；暂不阻塞发布。
+
+
+## 决策（2026-11-16）
+
+- 维护方**无 Apple 开发者账号/设备/预算**，不做签名与公证；
+- macOS 维持「源码可行、.app 可构建」的社区实验状态，不发布官方 macOS 安装包；
+- 后续如社区提供签名账号/设备，可按本文件流程恢复。
