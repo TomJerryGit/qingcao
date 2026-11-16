@@ -42,7 +42,7 @@ def build_rows(local, community):
         if isinstance(local.get(name), dict):
             local_stars = int(local[name].get("stars") or 0)
         entry = community.get(name, (0, 0.0))
-        if isinstance(entry, dict) or isinstance(entry, (int, float)):
+        if isinstance(entry, (dict, int, float)):
             count, avg = _community_entry(entry)
         else:
             count, avg = entry
