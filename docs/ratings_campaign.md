@@ -27,3 +27,8 @@
 1. 发布 v2.26.4 时附评分入口；
 2. 在 1 个社区渠道（Discussion/issue）邀请 3 位用户试用并评分；
 3. 复核 `docs/ratings_report.md` 是否出现第一条真实社区评分。
+
+## 已发布邀请
+
+- GitHub Issue #1：邀请 3 位用户试用并评分（https://github.com/TomJerryGit/qingcao/issues/1）。
+- 维护者种子评分（demo/wordcount/json_formatter 5★）已通过应用详情页保存，仅本地，不冒充社区用户。
