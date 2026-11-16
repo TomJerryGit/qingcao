@@ -219,3 +219,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 
 - 设计稿：`docs/debugger_host_service.md`（未实现，5–8 天）；
 - 当前 debugger 仍进程内，被调试代码已在 driver 子进程。
+
+### 调试器宿主服务 D1（2026-11-16）
+
+- 新增 `core/debug_service.py`：RPC schema（start/stop/continue/step/locals/stack/eval + 事件）、`DebugService` 骨架；
+- 默认关闭（`QINGCAO_DEBUGGER_HOST=1`），仅 trusted 可调用；
+- 测试：`tests/test_v226_debug_service.py` 4/4；
+- 下一步 D2：真实脚本 start/stop + 无孤儿进程。

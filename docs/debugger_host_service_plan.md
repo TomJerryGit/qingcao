@@ -33,7 +33,7 @@
 
 | 天 | 任务 | 交付/验收 |
 |---|---|---|
-| D1 | DebugService 骨架 + RPC schema | 单测：编码/权限/生命周期 |
+| D1 ✅ | DebugService 骨架 + RPC schema（`core/debug_service.py`） | 单测 4/4：schema/权限/生命周期 |
 | D2 | start/stop 迁移 | 真实脚本启动/终止，无孤儿进程 |
 | D3 | continue/step 迁移 | 断点命中、单步 over/into/out |
 | D4 | locals/stack/eval | 面板数据对等 |
