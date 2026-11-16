@@ -52,7 +52,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QINGCAO_HEADLESS_SMOKE: "1"
         run: |
-          BIN=$(find dist -path '*.app/Contents/MacOS/*' -type f 2>/dev/null | head -1)
+          BIN=$(ls dist/*.app/Contents/MacOS/* 2>/dev/null | head -1)
           echo "APP_BIN=$BIN" | tee -a macos_spike.log
           if [ -z "$BIN" ]; then
             echo "APP_SMOKE_MISSING" | tee -a macos_spike.log
