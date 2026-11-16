@@ -1,4 +1,12 @@
-## [Unreleased]
+﻿## [Unreleased]
+
+## [2.26.10] - 2026-11-16
+
+### 测试/安全
+
+- 隔离插件 UI 级 e2e（git_deep 菜单→宿主 Git API→对话框）；
+- 隔离 API 补 get_current_filepath/show_text_dialog；git_deep 声明 editor_read；
+- 发布上传超时 900s+重试。
 
 ### 测试/安全
 
