@@ -4,6 +4,7 @@
 
 from ui.plugin_client import *  # noqa: F401,F403
 from ui.plugin_detail import *  # noqa: F401,F403
+from ui.plugin_favorites import is_favorite, toggle_favorite
 
 
 class PluginCard(QFrame):
@@ -96,6 +97,12 @@ class PluginCard(QFrame):
             else "font-size: 11px; color: #ff9800;"
         )
         title_layout.addWidget(self.compat_label)
+
+        self.fav_btn = QPushButton("★" if is_favorite(self.info.name) else "☆")
+        self.fav_btn.setFixedSize(24, 24)
+        self.fav_btn.setToolTip("收藏/取消收藏")
+        self.fav_btn.clicked.connect(self._toggle_favorite)
+        title_layout.addWidget(self.fav_btn)
 
         # 认证标记
         if self.info.verified:
@@ -255,6 +262,13 @@ class PluginCard(QFrame):
             self.action_btn.setText("不兼容")
             self.action_btn.setEnabled(False)
             self.action_btn.setToolTip(self._compat_reason)
+
+    def _toggle_favorite(self):
+        state = toggle_favorite(self.info.name)
+        try:
+            self.fav_btn.setText("★" if state else "☆")
+        except Exception:
+            pass
 
     def _on_action_clicked(self):
         """按钮点击"""

@@ -6,7 +6,9 @@
 """
 
 from ui.plugin_client import *  # noqa: F401,F403
+from ui.plugin_compare import PluginCompareDialog
 from ui.plugin_detail import *  # noqa: F401,F403
+from ui.plugin_favorites import load_favorites
 from ui.plugin_store_card import *  # noqa: F401,F403
 
 
@@ -317,6 +319,16 @@ class PluginStoreDialog(QDialog):
             self.rating_combo.addItem(_label, _key)
         self.rating_combo.currentIndexChanged.connect(self._on_rating_changed)
         filter_row.addWidget(self.rating_combo)
+
+        from PyQt5.QtWidgets import QCheckBox
+
+        self.favorites_check = QCheckBox("⭐ 收藏")
+        self.favorites_check.toggled.connect(lambda *a: self._apply_filters())
+        filter_row.addWidget(self.favorites_check)
+
+        self.compare_btn = QPushButton("⚖ 对比")
+        self.compare_btn.clicked.connect(self._on_compare)
+        filter_row.addWidget(self.compare_btn)
 
         outer.addLayout(filter_row)
 
@@ -683,6 +695,9 @@ class PluginStoreDialog(QDialog):
             # 按下载量 + 评分综合
             plugins.sort(key=lambda p: p.downloads * 0.7 + p.rating * 100 * 0.3, reverse=True)
 
+        if getattr(self, "favorites_check", None) is not None and self.favorites_check.isChecked():
+            favs = load_favorites()
+            plugins = [p for p in plugins if getattr(p, "name", "") in favs]
         self._filtered_plugins = plugins
         self._render_plugins()
         self._refresh_rating_invite()
@@ -852,6 +867,10 @@ class PluginStoreDialog(QDialog):
             self._load_plugins()
         else:
             QMessageBox.critical(self, "更新失败", msg)
+
+    def _on_compare(self):
+        dlg = PluginCompareDialog(self._all_plugins, self)
+        dlg.exec_()
 
     def _on_show_detail(self, info: PluginInfo):
         """显示详情"""
