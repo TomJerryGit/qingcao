@@ -17,7 +17,9 @@ CHECKS = {
         "search_btn",
     ],
     "ui/plugin_store_card.py": ["fav_btn"],
+    "ui/plugin_store.py": ["usage_btn"],
     "ui/debug_host_panel.py": ["stack_tree", "locals_tree"],
+    "ui/plugin_usage_dialog.py": ["table"],
 }
 
 

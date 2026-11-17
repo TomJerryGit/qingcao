@@ -52,3 +52,9 @@
 
 - 补充 my_plugin/demo/logtail 行为测试（`tests/test_v226_plugin_coverage_extra.py`）；
 - 已发布插件注册表：`plugin-registry` release，13 个插件版本已同步（2026-11-17）。
+
+## P2：使用统计 UI + 性能观察
+
+- 插件市场工具栏「📊 使用统计」：本地激活次数/最近使用，可清空；
+- 无障碍检查扩展到统计表/按钮；
+- 性能趋势：见 `docs/perf_trend.md`（阈值内）。

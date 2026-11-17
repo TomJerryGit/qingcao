@@ -330,6 +330,12 @@ class PluginStoreDialog(QDialog):
         self.compare_btn.clicked.connect(self._on_compare)
         filter_row.addWidget(self.compare_btn)
 
+        self.usage_btn = QPushButton("📊 使用统计")
+        self.usage_btn.setToolTip("查看本地插件使用统计")
+        self.usage_btn.setAccessibleName("插件使用统计")
+        self.usage_btn.clicked.connect(self._on_usage_stats)
+        filter_row.addWidget(self.usage_btn)
+
         outer.addLayout(filter_row)
 
         return toolbar
@@ -867,6 +873,11 @@ class PluginStoreDialog(QDialog):
             self._load_plugins()
         else:
             QMessageBox.critical(self, "更新失败", msg)
+
+    def _on_usage_stats(self):
+        from ui.plugin_usage_dialog import PluginUsageDialog
+
+        PluginUsageDialog(self).exec_()
 
     def _on_compare(self):
         dlg = PluginCompareDialog(self._all_plugins, self)

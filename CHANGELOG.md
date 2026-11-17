@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 生态
+
+- P2：插件使用统计 UI、无障碍覆盖扩展；性能趋势复核。
+
+## [Unreleased]
+
 ### 安全
 
 - AI 完整 UI 隔离增量：远程面板状态推送（`update_remote_panel`）+ 子进程 AI 输出面板。
