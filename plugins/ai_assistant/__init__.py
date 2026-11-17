@@ -142,6 +142,16 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         if not text:
             self.api.show_status("暂无 AI 结果", 2000)
             return
+        if getattr(self.api, "is_isolated", False):
+            controls = {"controls": [
+                {"id": "output", "kind": "text_view", "value": text},
+                {"id": "insert", "kind": "button", "text": "插入到光标",
+                 "action": "ai_apply_result:insert"},
+                {"id": "replace", "kind": "button", "text": "替换选中",
+                 "action": "ai_apply_result:replace"},
+            ]}
+            self.api.show_remote_ui_dialog("AI 结果", controls)
+            return
         self.api.show_text_dialog("AI 结果", text, 900, 600)
 
     def _isolated_action(self, title, template):
