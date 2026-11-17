@@ -293,3 +293,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 面板在 GUI 线程创建（bridge），避免跨线程 QWidget；
 - 测试：隔离 AI e2e 流式文本 `abc` 可见；
 - 限制：仍无结果对话框/插入/diff/多会话管理。
+
+
+### AI 隔离多会话/结果菜单（2026-11-17）
+
+- `AIService` 按 session 维护消息历史；`ai_reset_history(session)` 新会话；
+- 隔离插件菜单：打开输出面板 / 显示完整结果（宿主 show_text_dialog）/ 新会话；
+- 测试：多会话历史隔离、隔离 AI e2e。

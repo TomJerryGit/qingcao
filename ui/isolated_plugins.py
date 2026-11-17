@@ -237,15 +237,19 @@ class WindowHostAPI:
     def debug_eval(self, expr):
         return self._debug_service().handle("debug.eval", {"expr": str(expr)})
 
-    def ai_run(self, prompt, system="", max_tokens=None, stream=False, use_history=False):
+    def ai_run(
+        self, prompt, system="", max_tokens=None, stream=False, use_history=False, session="default"
+    ):
         from core.ai_service import get_ai_service
 
-        return get_ai_service().run(prompt, system, max_tokens, bool(stream), bool(use_history))
+        return get_ai_service().run(
+            prompt, system, max_tokens, bool(stream), bool(use_history), str(session)
+        )
 
-    def ai_reset_history(self):
+    def ai_reset_history(self, session="default"):
         from core.ai_service import get_ai_service
 
-        return get_ai_service().reset_history()
+        return get_ai_service().reset_history(str(session))
 
     def ai_show_panel(self):
         from ui.ai_host_panel import AIHostPanel

@@ -67,6 +67,13 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         self.api.add_menu("工具/AI 助手/打开输出面板", lambda: self.api.ai_show_panel())
         self.api.add_menu("工具/AI 助手/重置对话", lambda: self.api.ai_reset_history())
 
+    def _show_isolated_result(self):
+        text = getattr(self, "_last_isolated_result", "")
+        if not text:
+            self.api.show_status("暂无 AI 结果", 2000)
+            return
+        self.api.show_text_dialog("AI 结果", text, 900, 600)
+
     def _isolated_action(self, title, template):
         try:
             code = self.api.get_current_text() or ""

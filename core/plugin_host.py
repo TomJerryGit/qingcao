@@ -331,12 +331,12 @@ class RemoteAPI:
         return self._call("debug_eval", expr)
 
     def ai_run(self, prompt, system="", max_tokens=None, stream=False,
-               use_history=False):
+               use_history=False, session="default"):
         return self._call("ai_run", prompt, system, max_tokens,
-                          bool(stream), bool(use_history))
+                          bool(stream), bool(use_history), str(session))
 
-    def ai_reset_history(self):
-        return self._call("ai_reset_history")
+    def ai_reset_history(self, session="default"):
+        return self._call("ai_reset_history", str(session))
 
     def ai_show_panel(self):
         return self._call("ai_show_panel")

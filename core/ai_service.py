@@ -13,6 +13,7 @@ class AIService:
     def __init__(self, client=None):
         self._client = client
         self._stream_listener = None
+        self._sessions = {}
 
     def set_stream_listener(self, fn):
         self._stream_listener = fn
@@ -22,13 +23,13 @@ class AIService:
             self._client = load_ai_client_from_settings()
         return self._client
 
-    def reset_history(self):
-        client = self._ensure()
-        if client is not None and hasattr(client, "reset_history"):
-            client.reset_history()
+    def reset_history(self, session="default"):
+        self._sessions.pop(str(session), None)
         return {"ok": True}
 
-    def run(self, prompt, system="", max_tokens=None, stream=False, use_history=False):
+    def run(
+        self, prompt, system="", max_tokens=None, stream=False, use_history=False, session="default"
+    ):
         if not str(prompt or "").strip():
             return {"ok": False, "error": "empty prompt"}
         client = self._ensure()
@@ -57,12 +58,17 @@ class AIService:
                     **kwargs,
                 )
                 return {"ok": True, "text": str(text or ""), "chunks": chunks}
+            history = self._sessions.setdefault(str(session), [])
+            messages = history + [{"role": "user", "content": str(prompt)}]
             text = client.chat(
                 prompt=str(prompt),
                 system=str(system or ""),
-                use_history=use_history,
+                messages=messages,
+                use_history=False,
                 **kwargs,
             )
+            history.append({"role": "user", "content": str(prompt)})
+            history.append({"role": "assistant", "content": str(text or "")})
             return {"ok": True, "text": str(text or "")}
         except AIConfigError as e:
             return {"ok": False, "error": str(e)}

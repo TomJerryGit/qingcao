@@ -45,3 +45,26 @@ def test_broker_has_ai_run():
     from core.plugin_host import METHOD_PERMISSIONS
 
     assert METHOD_PERMISSIONS.get("ai_run") == "network"
+
+
+def test_sessions_isolated_history():
+    from core.ai_service import AIService
+
+    class C:
+        def __init__(self):
+            self.seen = []
+
+        def chat(self, prompt, system="", messages=None, use_history=False, **kwargs):
+            self.seen.append(list(messages or []))
+            return "ok"
+
+    c = C()
+    svc = AIService(client=c)
+    svc.run("a", session="s1")
+    svc.run("b", session="s2")
+    svc.run("c", session="s1")
+    assert len(c.seen[2]) == 3  # s1 历史 2 条 + 本轮 user
+    assert c.seen[1] == [{"role": "user", "content": "b"}]
+    svc.reset_history("s1")
+    svc.run("d", session="s1")
+    assert len(c.seen[-1]) == 1

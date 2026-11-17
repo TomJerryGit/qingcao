@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全/测试
+
+- **AI 隔离多会话/结果菜单**；flaky 事件率观察（11 起，逐文件通过 8）。
+
+## [Unreleased]
+
 ### 安全
 
 - **AI 隔离流式/历史**：宿主 `AIService` stream/history + 宿主输出面板（跨线程安全）。
