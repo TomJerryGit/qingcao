@@ -94,17 +94,44 @@ class AIService:
         except Exception:
             return False
 
-    def export_sessions(self, path):
+    def search_sessions(self, query, session=None, limit=100):
+        q = str(query or "").strip().lower()
+        if not q:
+            return {"ok": True, "matches": [], "count": 0}
+        names = [str(session)] if session else list(self._sessions)
+        matches = []
+        for name in names:
+            for idx, msg in enumerate(self._sessions.get(name, [])):
+                content = str((msg or {}).get("content", ""))
+                role = str((msg or {}).get("role", ""))
+                if q in content.lower() or q in role.lower():
+                    matches.append(
+                        {
+                            "session": name,
+                            "index": idx,
+                            "role": role,
+                            "content": content[:200],
+                        }
+                    )
+                    if len(matches) >= max(1, int(limit)):
+                        return {"ok": True, "matches": matches, "count": len(matches)}
+        return {"ok": True, "matches": matches, "count": len(matches)}
+
+    def export_sessions(self, path, names=None):
+        sessions = self._sessions
+        if names is not None:
+            wanted = {str(n) for n in names}
+            sessions = {k: v for k, v in self._sessions.items() if k in wanted}
         payload = {
             "version": 1,
             "current": self._current_session,
-            "sessions": self._sessions,
+            "sessions": sessions,
         }
         try:
             io.open(path, "w", encoding="utf-8", newline="\n").write(
                 json.dumps(payload, ensure_ascii=False, indent=2)
             )
-            return {"ok": True, "count": len(self._sessions)}
+            return {"ok": True, "count": len(sessions)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 

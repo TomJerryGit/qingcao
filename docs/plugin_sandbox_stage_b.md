@@ -357,3 +357,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `AIService.preview_import(path, conflict)` 返回新增/冲突计划，不修改状态；
 - 面板导入前显示新增数、冲突映射，确认后再执行；
 - 测试：预览计划/不修改状态；AI 套件连续 3 轮 16/16。
+
+
+### AI 会话搜索/导出范围（2026-11-17）
+
+- `search_sessions`（按会话/角色/内容，限制 100 条）；面板搜索框+查找；
+- `export_sessions(names=...)` 支持全部/当前会话；面板范围选择；
+- 测试：搜索、范围导出、面板按钮。

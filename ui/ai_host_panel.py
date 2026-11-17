@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QDockWidget,
     QHBoxLayout,
+    QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
@@ -38,6 +39,13 @@ class AIHostPanel(QDockWidget):
         self.import_btn = QPushButton("导入")
         self.import_btn.clicked.connect(self._import_sessions)
         row.addWidget(self.import_btn)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("搜索会话内容...")
+        self.search_edit.setMaximumWidth(180)
+        row.addWidget(self.search_edit)
+        self.search_btn = QPushButton("查找")
+        self.search_btn.clicked.connect(self._search_sessions)
+        row.addWidget(self.search_btn)
         layout.addLayout(row)
         self._refresh_sessions("default")
         self.view = QPlainTextEdit()
@@ -97,6 +105,23 @@ class AIHostPanel(QDockWidget):
             return
         service.delete_session(name)
         self._refresh_sessions()
+
+    def _search_sessions(self):
+        from PyQt5.QtWidgets import QMessageBox
+
+        from core.ai_service import get_ai_service
+
+        result = get_ai_service().search_sessions(self.search_edit.text())
+        if not result.get("ok"):
+            QMessageBox.warning(self, "搜索失败", result.get("error", ""))
+            return
+        matches = result.get("matches") or []
+        lines = ["命中 %d 条" % len(matches)]
+        for m in matches[:20]:
+            lines.append(
+                "[%s #%d] %s: %s" % (m["session"], m["index"], m["role"], m["content"][:80])
+            )
+        QMessageBox.information(self, "搜索会话", "\n".join(lines))
 
     def _export_sessions(self):
         from PyQt5.QtWidgets import QFileDialog, QMessageBox

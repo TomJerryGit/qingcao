@@ -143,3 +143,33 @@ def test_preview_import_plan(tmp_path):
     assert preview["conflicts"][0]["result"] == "s1 (2)"
     # 预览不修改
     assert "s2" not in target.session_names()
+
+
+def test_search_and_scoped_export(tmp_path):
+    from core.ai_service import AIService
+
+    svc = AIService(client=_Client())
+    svc.run("alpha", session="s1")
+    svc.run("beta", session="s2")
+    out = svc.search_sessions("alp")
+    assert out["ok"] and out["count"] >= 1
+    assert out["matches"][0]["session"] == "s1"
+
+    path = tmp_path / "one.json"
+    assert svc.export_sessions(str(path), names=["s2"])["count"] == 1
+    imported = AIService(client=_Client())
+    imported.import_sessions(str(path))
+    assert "s2" in imported.session_names()
+    assert "s1" not in imported.session_names()
+
+
+def test_panel_has_search_and_scope_buttons(qapp):
+    from core.ai_service import set_ai_service
+    from ui.ai_host_panel import AIHostPanel
+
+    set_ai_service(None)
+    panel = AIHostPanel()
+    try:
+        assert panel.search_edit is not None and panel.search_btn is not None
+    finally:
+        panel.close()
