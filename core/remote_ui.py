@@ -28,6 +28,9 @@ class RemoteControlTree:
             raise ValueError("控件数量超过上限")
         if len(str(text)) > MAX_TEXT or len(str(value)) > MAX_TEXT:
             raise ValueError("文本超过上限")
+        action = str(action or "")[:64]
+        if action and not all(c.isalnum() or c in "_.:-" for c in action):
+            raise ValueError("非法 action")
         self._nodes[cid] = {
             "id": cid,
             "kind": kind,
@@ -35,6 +38,7 @@ class RemoteControlTree:
             "value": str(value),
             "enabled": bool(enabled),
             "visible": bool(visible),
+            "action": action,
         }
         if cid not in self._order:
             self._order.append(cid)

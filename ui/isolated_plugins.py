@@ -608,6 +608,27 @@ class WindowHostAPI:
         self._bridge.submit(_apply)
         return True
 
+    def _dispatch_remote_ui_action(self, action):
+        allowed = {
+            "ai_apply_result:insert": lambda: self.ai_apply_result("insert"),
+            "ai_apply_result:replace": lambda: self.ai_apply_result("replace"),
+            "ai_show_panel": self.ai_show_panel,
+            "debug_show_panel": self.debug_show_panel,
+        }
+        fn = allowed.get(str(action))
+        if fn is None:
+            return False
+        try:
+            fn()
+            return True
+        except Exception:
+            return False
+
+    def _on_remote_control_event(self, panel_id, control_id, event, value):
+        if event == "click" and value:
+            self._dispatch_remote_ui_action(value)
+        self.enqueue_remote_ui_event(panel_id, control_id, event, value)
+
     def enqueue_remote_ui_event(self, panel_id, control_id, event, value=""):
         self.remote_ui_events.append(
             {
