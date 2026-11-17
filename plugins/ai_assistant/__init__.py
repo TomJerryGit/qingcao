@@ -65,7 +65,25 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 lambda t=template, g=tag: self._isolated_action(g, t),
             )
         self.api.add_menu("工具/AI 助手/打开输出面板", lambda: self.api.ai_show_panel())
-        self.api.add_menu("工具/AI 助手/重置对话", lambda: self.api.ai_reset_history())
+        self.api.add_menu("工具/AI 助手/显示完整结果", self._show_isolated_result)
+        self.api.add_menu("工具/AI 助手/新会话", self._isolated_new_session)
+        self.api.register_settings_schema(
+            [
+                {
+                    "key": "auto_result_dialog",
+                    "label": "结果自动弹窗",
+                    "type": "bool",
+                    "default": True,
+                },
+            ]
+        )
+
+    def _isolated_new_session(self):
+        try:
+            session = self.api.ai_current_session()
+        except Exception:
+            session = "isolated"
+        self.api.ai_reset_history(session)
 
     def _show_isolated_result(self):
         text = getattr(self, "_last_isolated_result", "")
@@ -87,11 +105,27 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             self.api.ai_show_panel()
         except Exception:
             pass
+        try:
+            session = self.api.ai_current_session()
+        except Exception:
+            session = "isolated"
         result = self.api.ai_run(
-            prompt, system="你是代码助手，回答使用中文。", stream=True, use_history=True
+            prompt,
+            system="你是代码助手，回答使用中文。",
+            stream=True,
+            use_history=True,
+            session=session,
         )
         if result.get("ok"):
-            self.api.show_status("AI 输出已更新（%d 字符）" % len(result.get("text", "")), 2500)
+            text = result.get("text", "")
+            self._last_isolated_result = text
+            self.api.show_status("AI 输出已更新（%d 字符）" % len(text), 2500)
+            try:
+                auto = bool(self.api.get_config("auto_result_dialog", True))
+            except Exception:
+                auto = True
+            if auto:
+                self.api.show_text_dialog(title, text, 900, 600)
         else:
             self.api.show_message("AI 不可用", result.get("error", "未知错误"))
 

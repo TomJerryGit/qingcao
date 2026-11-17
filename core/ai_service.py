@@ -14,6 +14,7 @@ class AIService:
         self._client = client
         self._stream_listener = None
         self._sessions = {}
+        self._current_session = "default"
 
     def set_stream_listener(self, fn):
         self._stream_listener = fn
@@ -22,6 +23,18 @@ class AIService:
         if self._client is None:
             self._client = load_ai_client_from_settings()
         return self._client
+
+    def current_session(self):
+        return self._current_session
+
+    def set_current_session(self, session):
+        name = str(session or "default").strip() or "default"
+        self._current_session = name
+        self._sessions.setdefault(name, [])
+        return {"ok": True, "session": name}
+
+    def session_names(self):
+        return sorted(self._sessions)
 
     def reset_history(self, session="default"):
         self._sessions.pop(str(session), None)

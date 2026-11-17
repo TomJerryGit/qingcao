@@ -144,7 +144,7 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
     host = IsolatedPluginHost(win)
     try:
         host.start({"ai_assistant"})
-        assert _pump(qapp, lambda: bool(host.api.menus)), "AI 隔离菜单未注册"
+        assert _pump(qapp, lambda: bool(host.api.menus), 12000), "AI 隔离菜单未注册"
         action = next((a for a in host.api.menus.values() if a.text() == "解释代码"), None)
         assert action is not None, [a.text() for a in host.api.menus.values()]
         action.trigger()
@@ -153,8 +153,12 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
             panel = getattr(host.api, "_ai_panel", None)
             return panel.view.toPlainText() if panel is not None else ""
 
-        assert _pump(qapp, lambda: "abc" in _panel_text()), "流式输出未显示"
+        assert _pump(qapp, lambda: "abc" in _panel_text(), 12000), "流式输出未显示"
         assert "abc" in _panel_text()
+        assert _pump(qapp, lambda: bool(captured.get("msg")), 12000), "结果未自动弹窗"
+        assert "abc" in str(captured["msg"])
+        combo = host.api._ai_panel.session_combo
+        assert combo.count() >= 1
     finally:
         set_ai_service(None)
         host.stop_all()

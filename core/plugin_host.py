@@ -52,6 +52,8 @@ METHOD_PERMISSIONS = {
     "ai_http_request": "network",
     "ai_run": "network",
     "ai_reset_history": "network",
+    "ai_current_session": "network",
+    "ai_set_current_session": "network",
     "ai_show_panel": "dialog",
     "debug_start": "debugger",
     "debug_stop": "debugger",
@@ -337,6 +339,12 @@ class RemoteAPI:
 
     def ai_reset_history(self, session="default"):
         return self._call("ai_reset_history", str(session))
+
+    def ai_current_session(self):
+        return self._call("ai_current_session")
+
+    def ai_set_current_session(self, session):
+        return self._call("ai_set_current_session", str(session))
 
     def ai_show_panel(self):
         return self._call("ai_show_panel")

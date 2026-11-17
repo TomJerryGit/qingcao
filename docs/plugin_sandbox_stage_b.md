@@ -300,3 +300,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `AIService` 按 session 维护消息历史；`ai_reset_history(session)` 新会话；
 - 隔离插件菜单：打开输出面板 / 显示完整结果（宿主 show_text_dialog）/ 新会话；
 - 测试：多会话历史隔离、隔离 AI e2e。
+
+
+### AI 结果自动弹窗/多会话 UI（2026-11-17）
+
+- AIHostPanel 增加会话下拉 + 新会话按钮；当前会话经 `ai_current_session` 传给子进程；
+- 隔离插件设置 `auto_result_dialog`（默认开）：结果经宿主 `show_text_dialog` 自动弹出；
+- 菜单：打开输出面板 / 显示完整结果 / 新会话；
+- 测试：隔离 AI e2e 验证面板流式 + 自动弹窗 + 会话下拉。

@@ -246,6 +246,16 @@ class WindowHostAPI:
             prompt, system, max_tokens, bool(stream), bool(use_history), str(session)
         )
 
+    def ai_current_session(self):
+        from core.ai_service import get_ai_service
+
+        return get_ai_service().current_session()
+
+    def ai_set_current_session(self, session):
+        from core.ai_service import get_ai_service
+
+        return get_ai_service().set_current_session(session)
+
     def ai_reset_history(self, session="default"):
         from core.ai_service import get_ai_service
 
