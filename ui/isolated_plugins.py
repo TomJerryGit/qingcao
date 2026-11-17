@@ -558,6 +558,24 @@ class WindowHostAPI:
         self._bridge.submit(_create)
         return True
 
+    def enqueue_remote_ui_event(self, panel_id, control_id, event, value=""):
+        self.remote_ui_events.append(
+            {
+                "panel_id": int(panel_id),
+                "id": str(control_id),
+                "event": str(event),
+                "value": str(value),
+            }
+        )
+        if len(self.remote_ui_events) > 200:
+            self.remote_ui_events = self.remote_ui_events[-200:]
+        return True
+
+    def poll_remote_ui_events(self):
+        events = list(self.remote_ui_events)
+        self.remote_ui_events = []
+        return events
+
     def update_remote_controls(self, panel_id, controls):
         rec = self.remote_panels.get(panel_id)
         if rec is None:
