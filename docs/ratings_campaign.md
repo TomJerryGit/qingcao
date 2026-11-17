@@ -48,4 +48,4 @@
 
 - Issue #1：open，1 条维护者跟进评论（非用户评分），标签 `good first issue`/`help wanted`；
 - 真实本地/社区评分仍为 **0**；
-- 已尝试置顶 Issue 提升可见性；下一步在下次 Release Notes 附评分入口。
+- **已置顶 Issue #1** 提升可见性；下一步在下次 Release Notes 附评分入口。
