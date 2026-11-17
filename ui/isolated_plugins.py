@@ -571,6 +571,43 @@ class WindowHostAPI:
         self._bridge.submit(_create)
         return True
 
+    def show_remote_ui_dialog(self, title, controls):
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout
+
+        from ui.remote_ui_renderer import RemoteUIRenderer
+
+        def _create():
+            dlg = getattr(self, "_remote_ui_dialog", None)
+            if dlg is None:
+                dlg = QDialog(self.window)
+                dlg.setWindowTitle(str(title or "远程对话框"))
+                dlg.resize(760, 560)
+                layout = QVBoxLayout(dlg)
+                renderer = RemoteUIRenderer()
+                renderer.control_event.connect(
+                    lambda cid, ev, val: self.enqueue_remote_ui_event(0, cid, ev, val)
+                )
+                layout.addWidget(renderer)
+                self._remote_ui_dialog = dlg
+                self._remote_ui_renderer = renderer
+            self._remote_ui_renderer.update_tree(controls)
+            dlg.show()
+            dlg.raise_()
+
+        self._bridge.submit(_create)
+        return 0
+
+    def update_remote_dialog_controls(self, controls):
+        renderer = getattr(self, "_remote_ui_renderer", None)
+        if renderer is None:
+            return False
+
+        def _apply():
+            renderer.update_tree(controls)
+
+        self._bridge.submit(_apply)
+        return True
+
     def enqueue_remote_ui_event(self, panel_id, control_id, event, value=""):
         self.remote_ui_events.append(
             {

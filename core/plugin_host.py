@@ -71,6 +71,7 @@ METHOD_PERMISSIONS = {
     "debug_context": "debugger",
     "remote_ui_poll": "dialog",
     "remote_ui_update": "dialog",
+    "remote_ui_dialog": "dialog",
     "update_remote_panel": "dialog",
     "run_command": "process",
     "run_python": "process",
@@ -352,6 +353,9 @@ class RemoteAPI:
 
     def update_remote_controls(self, panel_id, controls):
         return self._call("remote_ui_update", int(panel_id), controls)
+
+    def show_remote_ui_dialog(self, title, controls):
+        return self._call("remote_ui_dialog", str(title), controls)
 
     def update_remote_panel(self, panel_id, text):
         return self._call("update_remote_panel", int(panel_id), str(text))
