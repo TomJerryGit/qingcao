@@ -227,6 +227,15 @@ def test_isolated_debugger_breakpoint(qapp, tmp_path, monkeypatch):
             qapp.processEvents()
             time.sleep(0.02)
         assert service.last_break is not None, "未命中隔离调试断点"
+        for label, attr in (("查看局部变量", "last_locals"), ("查看调用栈", "last_stack")):
+            action = next((a for a in host.api.menus.values() if a.text() == label), None)
+            assert action is not None, label + " 菜单缺失"
+            action.trigger()
+            deadline = time.time() + 8
+            while time.time() < deadline and getattr(service, attr) is None:
+                qapp.processEvents()
+                time.sleep(0.02)
+            assert getattr(service, attr) is not None, label + " 未返回"
     finally:
         service.shutdown()
         host.stop_all()

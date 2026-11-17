@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全
+
+- B3 插件签名信任（`plugin.json.sig`）；调试器隔离 locals/stack e2e。
+
+## [Unreleased]
+
 ### 工程
 
 - 沙箱插件设置实际生效；AI/隔离组合测试清理稳定化（连续 3 轮）。

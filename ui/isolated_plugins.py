@@ -619,13 +619,19 @@ class IsolatedPluginHost(QObject):
                 for x in os.environ.get("QINGCAO_TRUSTED_PLUGINS", "").split(",")
                 if x.strip()
             }
+            try:
+                from core.plugin_trust import verify_plugin_signature
+
+                signed_ok, _msg = verify_plugin_signature(plugin_dir)
+            except Exception:
+                signed_ok = False
             proc = PluginProcess(
                 plugin_dir,
                 self.api,
                 timeout=15,
                 policy=policy,
-                trusted=name in trusted_names,
-                allow_high_risk=name in trusted_names,
+                trusted=(name in trusted_names) or signed_ok,
+                allow_high_risk=(name in trusted_names) or signed_ok,
             )
             self.api.host = proc
             try:
