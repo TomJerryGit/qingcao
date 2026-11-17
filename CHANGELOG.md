@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 工程
+
+- 原生崩溃排查：WER dump 尝试 + 5 次定向复跑未复现（根因未定位，文档记录）。
+
+## [Unreleased]
+
 ### 安全
 
 - B3 插件签名信任（`plugin.json.sig`）；调试器隔离 locals/stack e2e。

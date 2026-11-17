@@ -30,3 +30,9 @@
 python tools/run_tests_sharded.py --shards 3 --retries 1 --parallel
 python tools/flaky_report.py
 ```
+
+## 2026-11-17 排查
+
+- 启用 WER dump 后全量 1 次 + part1 定向 4 次均未复现；
+- 根因仍未定位，详见 `docs/flaky_investigation_2026-11-17.md`；
+- 保持逐文件复跑门禁，若复现优先抓 dump。
