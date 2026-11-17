@@ -73,6 +73,7 @@ class WindowHostAPI:
         self.schemas = {}
         self._settings_actions = {}
         self.remote_panels = {}
+        self.remote_ui_events = []
         self.providers = {"hover": {}, "code_action": {}, "completion": {}}
         self._panel_seq = 0
 
