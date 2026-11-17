@@ -172,7 +172,10 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             text = result.get("text", "")
             self._last_isolated_result = text
             try:
-                if getattr(self, "_remote_panel", None) is not None:
+                if getattr(self, "_remote_ui", None) is not None:
+                    self._remote_ui.update("output", value=text)
+                    self._remote_ui.poll()
+                elif getattr(self, "_remote_panel", None) is not None:
                     self.api.update_remote_panel(self._remote_panel, text)
             except Exception:
                 pass
