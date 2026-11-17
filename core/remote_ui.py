@@ -5,6 +5,12 @@ MAX_NODES = 200
 MAX_TEXT = 10_000
 KINDS = {"label", "button", "line_edit", "check_box", "text_view", "box"}
 EVENTS = {"click", "text_changed", "checked_changed"}
+ALLOWED = {
+    "button": {"click"},
+    "line_edit": {"text_changed"},
+    "text_view": {"text_changed"},
+    "check_box": {"checked_changed"},
+}
 
 
 class RemoteControlTree:
@@ -53,6 +59,8 @@ class RemoteControlTree:
         if cid not in self._nodes:
             return None
         if event not in EVENTS:
+            return None
+        if event not in ALLOWED.get(self._nodes[cid]["kind"], set()):
             return None
         node = self._nodes[cid]
         if not node["enabled"]:
