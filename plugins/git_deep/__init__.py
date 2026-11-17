@@ -174,7 +174,28 @@ class Plugin(PluginBase):
 
     def stage_hunks(self):
         if getattr(self.api, "is_isolated", False):
-            self.api.show_status("隔离模式暂不支持 hunk 暂存（请用宿主 Git 面板）", 3000)
+            filepath = self.api.get_current_filepath()
+            hunks = self.api.git_hunks(filepath)
+            if not hunks:
+                self.api.show_status("当前文件没有未暂存 hunk", 3000)
+                return
+            labels = ["[%d] %s" % (h["index"], h["preview"].splitlines()[0]) for h in hunks]
+            choice, ok = self.api.ask_string(
+                "暂存 Hunk", "输入索引（逗号分隔）：0-%d" % (len(hunks) - 1), "0"
+            )
+            if not ok:
+                return
+            try:
+                indices = [int(x.strip()) for x in str(choice).split(",") if x.strip()]
+            except ValueError:
+                self.api.show_message("Git 错误", "索引格式无效")
+                return
+            success, out = self.api.git_stage_hunks(filepath, indices)
+            self.api.show_status(
+                "已暂存 %d 个 hunk" % len(indices) if success else "暂存失败：%s" % out,
+                3000,
+                "success" if success else "error",
+            )
             return
         git = self._get_git()
         if not git:

@@ -44,6 +44,13 @@ class _API:
     def git_switch(self, filepath, name, create=False):
         return True, "ok"
 
+    def git_hunks(self, filepath):
+        return [{"index": 0, "preview": "@@ -1 +1 @@"}]
+
+    def git_stage_hunks(self, filepath, indices):
+        self.calls.append(("stage", indices))
+        return True, "ok"
+
     def log(self, *a, **k):
         pass
 
@@ -54,7 +61,7 @@ class _API:
         pass
 
     def ask_string(self, *a, **k):
-        return ("x", True)
+        return ("0", True)
 
 
 def test_isolated_adapter_uses_host_git():
@@ -89,3 +96,13 @@ def test_git_deep_in_isolatable_set():
     from app.plugin_isolation import ISOLATABLE_PLUGINS
 
     assert "git_deep" in ISOLATABLE_PLUGINS
+
+
+def test_isolated_stage_hunks():
+    from plugins.git_deep import Plugin
+
+    plugin = Plugin()
+    api = _API()
+    plugin.api = api
+    plugin.stage_hunks()
+    assert ("stage", [0]) in api.calls

@@ -40,8 +40,7 @@ except ImportError:  # pragma: no cover - 隔离子进程直载路径
     import importlib.util as _ilu
     import os as _os
 
-    _mix_path = _os.path.join(_os.path.dirname(__file__),
-                              "debug_guards_mixin.py")
+    _mix_path = _os.path.join(_os.path.dirname(__file__), "debug_guards_mixin.py")
     _spec = _ilu.spec_from_file_location("debug_guards_mixin", _mix_path)
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
@@ -547,7 +546,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
     # --------------------------------------------------------
     def show_panel(self):
         if self._isolated_mode():
-            self.api.show_status("隔离模式：调试面板由宿主提供", 3000)
+            self.api.debug_show_panel()
             return
         if self._panel is None:
             try:

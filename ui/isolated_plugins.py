@@ -237,6 +237,21 @@ class WindowHostAPI:
     def debug_eval(self, expr):
         return self._debug_service().handle("debug.eval", {"expr": str(expr)})
 
+    def debug_show_panel(self):
+        from ui.debug_host_panel import DebugHostPanel
+
+        def _create():
+            panel = getattr(self, "_debug_panel", None)
+            if panel is None:
+                panel = DebugHostPanel(self._debug_service(), self.window)
+                self._debug_panel = panel
+                self.window.addDockWidget(Qt.BottomDockWidgetArea, panel)
+            panel.show()
+            panel.raise_()
+
+        self._bridge.submit(_create)
+        return True
+
     def ai_run(
         self, prompt, system="", max_tokens=None, stream=False, use_history=False, session="default"
     ):
@@ -396,6 +411,21 @@ class WindowHostAPI:
     def git_pull(self, filepath):
         git = self._git_client(filepath)
         return list(git.pull()) if git else [False, "不在 Git 仓库"]
+
+    def git_hunks(self, filepath):
+        git = self._git_client(filepath)
+        if not git:
+            return []
+        _code, diff, _err = git._run(["diff", "--", filepath])
+        _header, hunks = git.parse_hunks(diff)
+        return [{"index": i, "preview": "\n".join(h.splitlines()[:4])} for i, h in enumerate(hunks)]
+
+    def git_stage_hunks(self, filepath, indices):
+        git = self._git_client(filepath)
+        if not git:
+            return [False, "不在 Git 仓库"]
+        ok, out = git.stage_hunks(filepath, indices)
+        return [bool(ok), out]
 
     def git_switch(self, filepath, name, create=False):
         git = self._git_client(filepath)

@@ -227,6 +227,14 @@ def test_isolated_debugger_breakpoint(qapp, tmp_path, monkeypatch):
             qapp.processEvents()
             time.sleep(0.02)
         assert service.last_break is not None, "未命中隔离调试断点"
+        panel_action = next(
+            (a for a in host.api.menus.values() if a.text() == "显示调试面板"), None
+        )
+        assert panel_action is not None
+        panel_action.trigger()
+        assert _pump(qapp, lambda: getattr(host.api, "_debug_panel", None) is not None, 8000), (
+            "宿主调试面板未创建"
+        )
         for label, attr in (("查看局部变量", "last_locals"), ("查看调用栈", "last_stack")):
             action = next((a for a in host.api.menus.values() if a.text() == label), None)
             assert action is not None, label + " 菜单缺失"

@@ -49,6 +49,8 @@ METHOD_PERMISSIONS = {
     "git_push": "filesystem",
     "git_pull": "filesystem",
     "git_switch": "filesystem",
+    "git_hunks": "filesystem",
+    "git_stage_hunks": "filesystem",
     "ai_http_request": "network",
     "ai_run": "network",
     "ai_reset_history": "network",
@@ -65,6 +67,7 @@ METHOD_PERMISSIONS = {
     "debug_locals": "debugger",
     "debug_stack": "debugger",
     "debug_eval": "debugger",
+    "debug_show_panel": "dialog",
     "run_command": "process",
     "run_python": "process",
 }
@@ -334,6 +337,9 @@ class RemoteAPI:
     def debug_eval(self, expr):
         return self._call("debug_eval", expr)
 
+    def debug_show_panel(self):
+        return self._call("debug_show_panel")
+
     def ai_run(self, prompt, system="", max_tokens=None, stream=False,
                use_history=False, session="default"):
         return self._call("ai_run", prompt, system, max_tokens,
@@ -380,6 +386,12 @@ class RemoteAPI:
 
     def git_pull(self, filepath):
         return self._call("git_pull", filepath)
+
+    def git_hunks(self, filepath):
+        return self._call("git_hunks", filepath)
+
+    def git_stage_hunks(self, filepath, indices):
+        return self._call("git_stage_hunks", filepath, list(indices))
 
     def git_switch(self, filepath, name, create=False):
         return self._call("git_switch", filepath, name, bool(create))

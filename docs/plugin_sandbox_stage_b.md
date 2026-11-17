@@ -392,3 +392,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `ai_show_panel` 将 AIHostPanel 注册进 `remote_panels["ai_output"]`，宿主统一发现/控制；
 - 隔离 python_debugger：菜单启动 → 宿主 DebugService 真实会话 → 设置断点/continue → 命中 `last_break`；
 - e2e 连续 3 轮通过。
+
+
+### P1 收尾：调试器宿主面板 + git 隔离 hunk（2026-11-17）
+
+- `debug_show_panel`（dialog 权限）：宿主创建 DebugHostPanel 并挂载；隔离插件菜单可直接打开；
+- `git_hunks/git_stage_hunks`（filesystem）：隔离 git_deep 支持 hunk 暂存（宿主执行，子进程不写索引）；
+- 测试：隔离 e2e + hunk 适配器。
