@@ -32,6 +32,12 @@ class AIHostPanel(QDockWidget):
         self.delete_btn = QPushButton("删除")
         self.delete_btn.clicked.connect(self._delete_session)
         row.addWidget(self.delete_btn)
+        self.export_btn = QPushButton("导出")
+        self.export_btn.clicked.connect(self._export_sessions)
+        row.addWidget(self.export_btn)
+        self.import_btn = QPushButton("导入")
+        self.import_btn.clicked.connect(self._import_sessions)
+        row.addWidget(self.import_btn)
         layout.addLayout(row)
         self._refresh_sessions("default")
         self.view = QPlainTextEdit()
@@ -91,6 +97,37 @@ class AIHostPanel(QDockWidget):
             return
         service.delete_session(name)
         self._refresh_sessions()
+
+    def _export_sessions(self):
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+
+        from core.ai_service import get_ai_service
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出 AI 会话", "ai_sessions.json", "JSON (*.json)"
+        )
+        if not path:
+            return
+        result = get_ai_service().export_sessions(path)
+        if result.get("ok"):
+            QMessageBox.information(self, "导出成功", "已导出 %d 个会话" % result["count"])
+        else:
+            QMessageBox.warning(self, "导出失败", result.get("error", ""))
+
+    def _import_sessions(self):
+        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+
+        from core.ai_service import get_ai_service
+
+        path, _ = QFileDialog.getOpenFileName(self, "导入 AI 会话", "", "JSON (*.json)")
+        if not path:
+            return
+        result = get_ai_service().import_sessions(path, merge=True)
+        if result.get("ok"):
+            self._refresh_sessions()
+            QMessageBox.information(self, "导入成功", "已导入 %d 个会话" % result["count"])
+        else:
+            QMessageBox.warning(self, "导入失败", result.get("error", ""))
 
     def _select_session(self):
         from core.ai_service import get_ai_service

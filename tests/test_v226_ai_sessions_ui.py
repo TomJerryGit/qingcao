@@ -54,3 +54,33 @@ def test_panel_rename_delete_buttons(qapp, monkeypatch):
     finally:
         set_ai_service(None)
         panel.close()
+
+
+def test_session_persistence_and_export(tmp_path):
+    from core.ai_service import AIService
+
+    path = tmp_path / "sessions.json"
+    svc = AIService(client=_Client(), history_path=str(path))
+    svc.run("a", session="s1")
+    assert path.is_file()
+    svc2 = AIService(client=_Client(), history_path=str(path))
+    assert "s1" in svc2.session_names()
+    export = tmp_path / "export.json"
+    assert svc2.export_sessions(str(export))["ok"]
+    svc3 = AIService(client=_Client(), history_path=str(tmp_path / "other.json"))
+    assert svc3.import_sessions(str(export))["ok"]
+    assert "s1" in svc3.session_names()
+
+
+def test_panel_export_import_buttons(qapp):
+    from core.ai_service import AIService, set_ai_service
+    from ui.ai_host_panel import AIHostPanel
+
+    service = AIService(client=_Client())
+    set_ai_service(service)
+    panel = AIHostPanel()
+    try:
+        assert panel.export_btn is not None and panel.import_btn is not None
+    finally:
+        set_ai_service(None)
+        panel.close()

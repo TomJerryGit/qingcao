@@ -330,3 +330,16 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - AIHostPanel 增加重命名/删除按钮；AIService `rename_session/delete_session`；
 - 删除当前会话回退 default；目标重名拒绝；
 - 测试：服务与面板 UI。
+
+
+### AI 会话持久化/导出（2026-11-17）
+
+- `AIService(history_path=...)` 自动加载/保存 `data/ai_host_sessions.json`（原子写）；
+- `export_sessions/import_sessions`；面板「导出/导入」按钮（QFileDialog）；
+- 测试：持久化跨实例、导出导入、面板按钮；AI 套件连续 3 轮 13/13。
+
+
+### AI e2e 稳定化（2026-11-17）
+
+- e2e 关闭自动弹窗（避免模态与 diff 断言竞态），流式/面板/插入/差异分别断言；
+- 连续 5 轮综合 AI 测试全绿（13/13）。

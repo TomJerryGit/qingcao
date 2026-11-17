@@ -2,6 +2,18 @@
 
 ### 安全
 
+- AI 会话持久化/导出导入；AI e2e 稳定化（自动弹窗与 diff 解耦）。
+
+## [Unreleased]
+
+### 安全
+
+- AI 会话历史持久化（data/ai_host_sessions.json）+ 导出/导入 UI。
+
+## [Unreleased]
+
+### 安全
+
 - AI 隔离会话重命名/删除 UI（服务+面板）。
 
 ## [Unreleased]
