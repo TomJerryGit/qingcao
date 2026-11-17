@@ -28,11 +28,13 @@ def load_manifest(plugin_dir):
 class PluginProcess:
     """管理单个插件子进程；主进程侧执行权限校验。"""
 
-    def __init__(self, plugin_dir, host_api, timeout=10.0, allow_high_risk=False, policy=None):
+    def __init__(
+        self, plugin_dir, host_api, timeout=10.0, allow_high_risk=False, policy=None, trusted=False
+    ):
         self.plugin_dir = os.path.abspath(plugin_dir)
         self.manifest = load_manifest(self.plugin_dir)
         self.permissions = self.manifest.get("permissions", [])
-        self.broker = CapabilityBroker(self.permissions, host_api, allow_high_risk, policy)
+        self.broker = CapabilityBroker(self.permissions, host_api, allow_high_risk, policy, trusted)
         self.timeout = timeout
         self.proc = None
         self._thread = None
@@ -65,8 +67,7 @@ class PluginProcess:
         )
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()
-        self._stderr_thread = threading.Thread(
-            target=self._drain_stderr, daemon=True)
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, daemon=True)
         self._stderr_thread.start()
         self._wait(self._hello, "handshake")
         # 同意握手并放行激活

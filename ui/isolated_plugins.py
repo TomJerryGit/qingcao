@@ -494,7 +494,19 @@ class IsolatedPluginHost(QObject):
             except Exception:
                 pass
             policy = SandboxPolicy([plugin_dir, ROOT], allowed_hosts)
-            proc = PluginProcess(plugin_dir, self.api, timeout=15, policy=policy)
+            trusted_names = {
+                x.strip()
+                for x in os.environ.get("QINGCAO_TRUSTED_PLUGINS", "").split(",")
+                if x.strip()
+            }
+            proc = PluginProcess(
+                plugin_dir,
+                self.api,
+                timeout=15,
+                policy=policy,
+                trusted=name in trusted_names,
+                allow_high_risk=name in trusted_names,
+            )
             self.api.host = proc
             try:
                 proc.start()

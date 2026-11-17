@@ -17,7 +17,8 @@
     "process",
     "editor_read",
     "editor_write",
-    "dialog"
+    "dialog",
+    "debugger"
   ],
   "dependencies": [],
   "api_version": "2.0.0",

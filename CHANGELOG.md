@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### 测试/安全
+
+- 隔离调试器 UI e2e（真实启停）+ `QINGCAO_TRUSTED_PLUGINS` 白名单；PluginProcess trusted 传递修复。
+
 ﻿## [Unreleased]
 
 ## [2.26.10] - 2026-11-16

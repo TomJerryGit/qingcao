@@ -68,3 +68,49 @@ def test_isolated_git_deep_menu_e2e(qapp, monkeypatch):
     finally:
         host.stop_all()
         win.close()
+
+
+def test_isolated_python_debugger_e2e(qapp, tmp_path, monkeypatch):
+    import time
+
+    from core.debug_service import get_debug_service
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    script = tmp_path / "target.py"
+    script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    win = _Win()
+    win.tabs.currentWidget().proxy = _DebugProxy(str(script))
+    monkeypatch.setenv("QINGCAO_TRUSTED_PLUGINS", "python_debugger")
+    host = IsolatedPluginHost(win)
+    service = get_debug_service()
+    try:
+        host.start({"python_debugger"})
+        assert _pump(qapp, lambda: bool(host.api.menus)), "调试器菜单未注册"
+        start = next((a for a in host.api.menus.values() if a.text() == "调试当前文件"), None)
+        assert start is not None, [a.text() for a in host.api.menus.values()]
+        start.trigger()
+        deadline = time.time() + 15
+        while time.time() < deadline and service.session is None:
+            qapp.processEvents()
+            time.sleep(0.02)
+        assert service.session is not None, "宿主调试会话未启动"
+        stop = next((a for a in host.api.menus.values() if a.text() == "终止调试"), None)
+        assert stop is not None
+        stop.trigger()
+        deadline = time.time() + 10
+        while time.time() < deadline and service.session is not None:
+            qapp.processEvents()
+            time.sleep(0.02)
+        assert service.session is None, "调试会话未停止"
+    finally:
+        service.shutdown()
+        host.stop_all()
+        win.close()
+
+
+class _DebugProxy(_Proxy):
+    def __init__(self, path):
+        self._path = path
+
+    def get_filepath(self):
+        return self._path

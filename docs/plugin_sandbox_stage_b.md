@@ -261,3 +261,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
   菜单「查看状态」→ 子进程 RPC → 宿主 Git API → 对话框；
 - 补齐隔离 API：`get_current_filepath`、`show_text_dialog`；git_deep 声明 `editor_read`；
 - 测试：`tests/test_v226_isolated_e2e.py`（1/1）。
+
+
+## 隔离调试器 UI e2e + 信任白名单（2026-11-17）
+
+- `QINGCAO_TRUSTED_PLUGINS`（逗号分隔）显式授予 `trusted` + `allow_high_risk`；默认空；
+- `python_debugger` 隔离 e2e：菜单「调试当前文件」→ broker `debug_start` → 宿主 DebugService 真实会话 → 「终止调试」→ 会话清理；
+- 测试：`tests/test_v226_isolated_e2e.py` 2/2（git_deep + python_debugger）。
