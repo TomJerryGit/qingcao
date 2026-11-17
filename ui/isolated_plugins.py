@@ -558,6 +558,20 @@ class WindowHostAPI:
         self._bridge.submit(_create)
         return True
 
+    def update_remote_controls(self, panel_id, controls):
+        rec = self.remote_panels.get(panel_id)
+        if rec is None:
+            return False
+        rec["controls"] = controls
+        widget = rec.get("renderer")
+
+        def _apply():
+            if widget is not None:
+                widget.update_tree(controls)
+
+        self._bridge.submit(_apply)
+        return True
+
     def update_remote_panel(self, panel_id, text):
         rec = self.remote_panels.get(panel_id)
         if rec is None:
