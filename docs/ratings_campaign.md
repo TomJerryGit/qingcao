@@ -43,3 +43,9 @@
 - Issue #1 已追加跟进评论并加标签 `good first issue` / `help wanted`；
 - README 增加「给插件评分」30 秒入口；
 - 当前真实社区评分仍为 0，等待用户响应。
+
+## 最新跟进（2026-11-17）
+
+- Issue #1：open，1 条维护者跟进评论（非用户评分），标签 `good first issue`/`help wanted`；
+- 真实本地/社区评分仍为 **0**；
+- 已尝试置顶 Issue 提升可见性；下一步在下次 Release Notes 附评分入口。
