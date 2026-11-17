@@ -35,3 +35,8 @@
 
 - 本地隐私安全采集（激活次数/时间戳），见 `docs/plugin_usage.md`；
 - 关闭：`QINGCAO_PLUGIN_USAGE=0`。
+
+## P2：无障碍
+
+- `tools/check_accessibility.py` 检查关键插件 UI 的 tooltip/accessibleName；
+- AI 面板、调试面板已补齐；CI 可用。
