@@ -24,3 +24,9 @@
 
 - 自动生成插件目录：`python tools/plugin_catalog.py` → `docs/plugin_catalog.md`；
 - 每周性能趋势：`Ratings Report` 同款 `Perf Trend` 工作流（周一 06:30 UTC）。
+
+## P2：插件设置覆盖
+
+- 三个沙箱样例补齐 `config_schema/on_config`；
+- `tools/check_plugin_settings.py`：15/15 插件有设置 schema；
+- 测试：`tests/test_v226_plugin_settings.py`。

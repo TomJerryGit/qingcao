@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""空白符只读检查（沙箱试点插件，v2.16 P3）"""
+"""空白符只读检查（沙箱试点插件，v2.16 P3）。"""
 
 MAX_LINE = 120
 
 
 class Plugin:
     NAME = "whitespace_sandbox"
-    VERSION = "1.0.0"
+    VERSION = "1.0.1"
 
     def on_activate(self):
         return True
@@ -23,20 +23,46 @@ class Plugin:
         items = []
         for i, line in enumerate((text or "").split("\n")):
             if line.rstrip() != line:
-                items.append({"line": i, "col": max(0, len(line.rstrip())),
-                              "severity": "warning",
-                              "message": "行尾存在空白",
-                              "code": "trailing-ws"})
+                items.append(
+                    {
+                        "line": i,
+                        "col": max(0, len(line.rstrip())),
+                        "severity": "warning",
+                        "message": "行尾存在空白",
+                        "code": "trailing-ws",
+                    }
+                )
             if line.startswith("\t"):
-                items.append({"line": i, "col": 0, "severity": "info",
-                              "message": "使用 Tab 缩进",
-                              "code": "tab-indent"})
+                items.append(
+                    {
+                        "line": i,
+                        "col": 0,
+                        "severity": "info",
+                        "message": "使用 Tab 缩进",
+                        "code": "tab-indent",
+                    }
+                )
             if len(line) > MAX_LINE:
-                items.append({"line": i, "col": MAX_LINE,
-                              "severity": "info",
-                              "message": "行过长（>%d）" % MAX_LINE,
-                              "code": "long-line"})
+                items.append(
+                    {
+                        "line": i,
+                        "col": MAX_LINE,
+                        "severity": "info",
+                        "message": "行过长（>%d）" % MAX_LINE,
+                        "code": "long-line",
+                    }
+                )
         return items
 
     def menu_items(self):
         return []
+
+    def config_schema(self):
+        return {
+            "max_line_length": {"type": "int", "label": "最大行宽", "default": 120},
+            "ignore_glob": {"type": "str", "label": "忽略 glob", "default": ""},
+        }
+
+    def on_config(self, values):
+        self._config = dict(values or {})
+        return True

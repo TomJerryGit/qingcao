@@ -2,6 +2,12 @@
 
 ### 生态
 
+- P2 插件设置覆盖率：沙箱样例补齐设置；检查工具 15/15。
+
+## [Unreleased]
+
+### 生态
+
 - P1 插件补齐：JSONL、日志过滤高亮、Markdown 目录/HTML 导出。
 
 ## [Unreleased]

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""字数统计（沙箱试点插件）
+"""字数统计（沙箱试点插件）。
 
 宿主通过 RPC 传入当前文本，插件只返回状态栏文本。
 """
@@ -7,7 +7,7 @@
 
 class Plugin:
     NAME = "wordcount_sandbox"
-    VERSION = "1.0.0"
+    VERSION = "1.0.2"
 
     def on_activate(self):
         return True
@@ -24,3 +24,13 @@ class Plugin:
 
     def menu_items(self):
         return []
+
+    def config_schema(self):
+        return {
+            "count_mode": {"type": "str", "label": "统计口径", "default": "chars"},
+            "max_chars": {"type": "int", "label": "最大统计字符", "default": 200000},
+        }
+
+    def on_config(self, values):
+        self._config = dict(values or {})
+        return True
