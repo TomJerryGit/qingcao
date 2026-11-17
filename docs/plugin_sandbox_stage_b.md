@@ -350,3 +350,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 默认宿主服务 `encrypt=True`：Fernet + 安全存储密钥，文件为加密 envelope；兼容旧明文；
 - 导入冲突策略：rename（默认）/overwrite/skip；面板 QInputDialog 选择；
 - 测试：加密跨实例、三种冲突策略；AI 套件连续 3 轮 15/15。
+
+
+### AI 会话导入预览（2026-11-17）
+
+- `AIService.preview_import(path, conflict)` 返回新增/冲突计划，不修改状态；
+- 面板导入前显示新增数、冲突映射，确认后再执行；
+- 测试：预览计划/不修改状态；AI 套件连续 3 轮 16/16。

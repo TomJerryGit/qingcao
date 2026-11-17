@@ -123,3 +123,23 @@ def test_import_conflict_policies(tmp_path):
     overwritten.run("y", session="s1")
     out = overwritten.import_sessions(str(export), conflict="overwrite")
     assert out["overwritten"] == 1
+
+
+def test_preview_import_plan(tmp_path):
+    from core.ai_service import AIService
+
+    export = tmp_path / "e.json"
+    src = AIService(client=_Client())
+    src.run("x", session="s1")
+    src.run("y", session="s2")
+    src.export_sessions(str(export))
+
+    target = AIService(client=_Client())
+    target.run("z", session="s1")
+    preview = target.preview_import(str(export), conflict="rename")
+    assert preview["ok"]
+    assert preview["new"] == ["s2"]
+    assert preview["conflicts"][0]["action"] == "rename"
+    assert preview["conflicts"][0]["result"] == "s1 (2)"
+    # 预览不修改
+    assert "s2" not in target.session_names()
