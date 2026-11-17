@@ -1,0 +1,25 @@
+{
+  "name": "whitespace_sandbox",
+  "display_name": "空白符检查（沙箱）",
+  "version": "1.0.1",
+  "api_version": "2.0.0",
+  "author": "TomJerry",
+  "description": "空白检查：行尾/Tab/超长行",
+  "enabled": true,
+  "sandbox": true,
+  "category": "tools",
+  "license": "MIT",
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": [
+    "lint",
+    "whitespace"
+  ],
+  "permissions": [
+    "editor_read"
+  ],
+  "tags": [
+    "whitespace",
+    "lint",
+    "sandbox"
+  ]
+}

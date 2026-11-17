@@ -1,0 +1,36 @@
+{
+  "name": "python_debugger",
+  "display_name": "Python 调试器",
+  "version": "2.1.0",
+  "description": "Python 调试器：断点/单步/变量/栈、条件断点/监视、宿主服务",
+  "author": "TomJerry",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "integration",
+  "tags": [
+    "python",
+    "debug",
+    "bdb",
+    "breakpoint",
+    "debugger",
+    "host-service"
+  ],
+  "permissions": [
+    "process",
+    "editor_read",
+    "editor_write",
+    "dialog",
+    "debugger"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 100,
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": [
+    "debugger",
+    "python",
+    "host-service"
+  ]
+}

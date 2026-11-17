@@ -532,8 +532,20 @@ class AIResultDialog(QDialog):
         question = self.follow_edit.text().strip()
         if not question:
             return
-        if self._client is None or not self._system_prompt:
-            return
+        if self._client is None:
+            try:
+                from core.ai_client import get_ai_client
+
+                self._client = get_ai_client()
+            except Exception:
+                self._start_waiting("AI 未配置")
+                self.status_label.setText("AI 未配置：请先在设置中填写 API")
+                self.progress.setVisible(False)
+                self.follow_edit.setEnabled(True)
+                self.follow_btn.setEnabled(True)
+                return
+        if not self._system_prompt:
+            self._system_prompt = "你是一个编程助手，请用中文简洁回答。"
 
         # 把本轮问答追加到显示区，保持对话可读
         try:

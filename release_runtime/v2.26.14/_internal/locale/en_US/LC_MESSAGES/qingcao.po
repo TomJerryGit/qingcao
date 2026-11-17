@@ -1,0 +1,155 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: QingCao 2.1\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: tools/build_translations.py\n"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Close Tab"
+msgstr "Close Tab"
+
+msgid "Command Palette"
+msgstr "Command Palette"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Cut"
+msgstr "Cut"
+
+msgid "Directory Tree"
+msgstr "Directory Tree"
+
+msgid "Distraction Free"
+msgstr "Distraction Free"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Exit"
+msgstr "Exit"
+
+msgid "File"
+msgstr "File"
+
+msgid "Find"
+msgstr "Find"
+
+msgid "Find in Files"
+msgstr "Find in Files"
+
+msgid "Full Screen"
+msgstr "Full Screen"
+
+msgid "Go to Line"
+msgstr "Go to Line"
+
+msgid "Help"
+msgstr "Help"
+
+msgid "Information"
+msgstr "Information"
+
+msgid "Keyboard Shortcuts"
+msgstr "Keyboard Shortcuts"
+
+msgid "Language"
+msgstr "Language"
+
+msgid "Loading..."
+msgstr "Loading..."
+
+msgid "Minimap"
+msgstr "Minimap"
+
+msgid "Modified"
+msgstr "Modified"
+
+msgid "New File"
+msgstr "New File"
+
+msgid "No"
+msgstr "No"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Open File"
+msgstr "Open File"
+
+msgid "Open Folder"
+msgstr "Open Folder"
+
+msgid "Outline"
+msgstr "Outline"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Performance Monitor"
+msgstr "Performance Monitor"
+
+msgid "Plugin Manager"
+msgstr "Plugin Manager"
+
+msgid "Plugin Store"
+msgstr "Plugin Store"
+
+msgid "Preferences"
+msgstr "Preferences"
+
+msgid "Python Console"
+msgstr "Python Console"
+
+msgid "Ready"
+msgstr "Ready"
+
+msgid "Redo"
+msgstr "Redo"
+
+msgid "Replace"
+msgstr "Replace"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Save All"
+msgstr "Save All"
+
+msgid "Save As"
+msgstr "Save As"
+
+msgid "Saved"
+msgstr "Saved"
+
+msgid "Saving..."
+msgstr "Saving..."
+
+msgid "Select All"
+msgstr "Select All"
+
+msgid "Tools"
+msgstr "Tools"
+
+msgid "Undo"
+msgstr "Undo"
+
+msgid "Untitled"
+msgstr "Untitled"
+
+msgid "View"
+msgstr "View"
+
+msgid "Warning"
+msgstr "Warning"
+
+msgid "Yes"
+msgstr "Yes"

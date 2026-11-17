@@ -1,0 +1,30 @@
+{
+  "name": "MyLang",
+  "extensions": [
+    ".mylang",
+    ".ml"
+  ],
+  "keywords": [
+    "if",
+    "else",
+    "for",
+    "while",
+    "return",
+    "func",
+    "let"
+  ],
+  "case_sensitive": false,
+  "line_comment": "//",
+  "block_comment": [
+    "/*",
+    "*/"
+  ],
+  "strings": [
+    "\"",
+    "'"
+  ],
+  "folding": {
+    "start": "{",
+    "end": "}"
+  }
+}

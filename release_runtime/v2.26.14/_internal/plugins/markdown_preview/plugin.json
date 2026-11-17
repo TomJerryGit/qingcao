@@ -1,0 +1,31 @@
+{
+  "name": "markdown_preview",
+  "display_name": "Markdown 预览",
+  "version": "1.1.0",
+  "description": "Markdown 预览：远程面板/诊断",
+  "author": "TomJerry",
+  "license": "MIT",
+  "type": "plugin",
+  "category": "editor",
+  "tags": [
+    "markdown",
+    "preview",
+    "sandbox"
+  ],
+  "permissions": [
+    "editor_read",
+    "dialog",
+    "filesystem"
+  ],
+  "dependencies": [],
+  "api_version": "2.0.0",
+  "enabled": true,
+  "auto_load": true,
+  "load_order": 90,
+  "homepage": "https://github.com/TomJerryGit/qingcao",
+  "keywords": [
+    "markdown",
+    "preview",
+    "sandbox"
+  ]
+}
