@@ -47,3 +47,8 @@
 - wordcount_sandbox：`count_mode/max_chars` 实际生效；
 - sandbox_demo：`message` 用于 status_text；
 - 测试：`tests/test_v226_sandbox_settings_effective.py`。
+
+## P2：#6 测试覆盖/注册表发布
+
+- 补充 my_plugin/demo/logtail 行为测试（`tests/test_v226_plugin_coverage_extra.py`）；
+- 已发布插件注册表：`plugin-registry` release，13 个插件版本已同步（2026-11-17）。
