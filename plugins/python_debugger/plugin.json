@@ -1,8 +1,8 @@
 {
   "name": "python_debugger",
   "display_name": "Python 调试器",
-  "version": "2.0.0",
-  "description": "编辑器内 Python 调试器：断点、单步（跳过/进入/跳出）、继续、局部变量与调用栈、终止。基于 Python 标准库 bdb + 管道 JSON 协议，无需安装任何第三方依赖；断点在行号装订线单击或按 F9 切换，调试启动快捷键 F7。",
+  "version": "2.1.0",
+  "description": "Python 调试器：断点/单步/变量/栈、条件断点/监视、宿主服务",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
@@ -11,7 +11,9 @@
     "python",
     "debug",
     "bdb",
-    "breakpoint"
+    "breakpoint",
+    "debugger",
+    "host-service"
   ],
   "permissions": [
     "process",
@@ -26,5 +28,9 @@
   "auto_load": true,
   "load_order": 100,
   "homepage": "https://github.com/TomJerryGit/qingcao",
-  "keywords": []
+  "keywords": [
+    "debugger",
+    "python",
+    "host-service"
+  ]
 }

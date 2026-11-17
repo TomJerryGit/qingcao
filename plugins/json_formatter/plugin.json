@@ -1,15 +1,16 @@
 {
   "name": "json_formatter",
   "display_name": "JSON 格式化",
-  "version": "1.0.0",
-  "description": "格式化、压缩、验证 JSON",
+  "version": "1.1.0",
+  "description": "JSON 格式化：JSONC/JSON Schema/选区",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",
   "tags": [
     "json",
-    "format"
+    "format",
+    "schema"
   ],
   "permissions": [
     "editor_read",
@@ -22,5 +23,9 @@
   "auto_load": true,
   "load_order": 70,
   "homepage": "https://github.com/TomJerryGit/qingcao",
-  "keywords": []
+  "keywords": [
+    "json",
+    "format",
+    "schema"
+  ]
 }

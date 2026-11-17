@@ -1,8 +1,8 @@
 {
   "name": "ai_assistant",
   "display_name": "AI 助手",
-  "version": "1.0.0",
-  "description": "在编辑器内使用 AI 进行代码解释、重构、生成测试",
+  "version": "2.0.0",
+  "description": "AI 助手：隔离 headless/流式、多会话、加密持久化、diff/插入",
   "author": "TomJerry",
   "author_email": "1265338136@qq.com",
   "license": "MIT",
@@ -10,7 +10,9 @@
   "category": "editor",
   "tags": [
     "ai",
-    "code"
+    "code",
+    "assistant",
+    "isolation"
   ],
   "permissions": [
     "network",
@@ -27,5 +29,9 @@
   "load_order": 50,
   "defer_activation": true,
   "homepage": "https://github.com/TomJerryGit/qingcao",
-  "keywords": []
+  "keywords": [
+    "ai",
+    "assistant",
+    "isolation"
+  ]
 }

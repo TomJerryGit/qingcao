@@ -1,10 +1,10 @@
 {
   "name": "whitespace_sandbox",
   "display_name": "空白符检查（沙箱）",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "api_version": "2.0.0",
   "author": "TomJerry",
-  "description": "沙箱子进程只读诊断：行尾空白、Tab 缩进、超长行",
+  "description": "空白检查：行尾/Tab/超长行",
   "enabled": true,
   "sandbox": true,
   "category": "tools",
@@ -16,5 +16,10 @@
   ],
   "permissions": [
     "editor_read"
+  ],
+  "tags": [
+    "whitespace",
+    "lint",
+    "sandbox"
   ]
 }

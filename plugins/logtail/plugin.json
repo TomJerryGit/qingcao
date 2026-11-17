@@ -1,15 +1,16 @@
 {
   "name": "logtail",
   "display_name": "日志实时监视",
-  "version": "1.0.0",
-  "description": "监视日志文件的变化并自动滚动",
+  "version": "1.1.0",
+  "description": "日志监视：过滤/暂停/多文件/轮转",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "tool",
   "tags": [
     "log",
-    "tail"
+    "tail",
+    "filter"
   ],
   "permissions": [
     "filesystem",
@@ -21,5 +22,9 @@
   "auto_load": true,
   "load_order": 80,
   "homepage": "https://github.com/TomJerryGit/qingcao",
-  "keywords": []
+  "keywords": [
+    "log",
+    "tail",
+    "filter"
+  ]
 }

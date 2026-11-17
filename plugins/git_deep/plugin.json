@@ -1,15 +1,16 @@
 {
   "name": "git_deep",
   "display_name": "Git 深度集成",
-  "version": "1.0.0",
-  "description": "Git 状态、差异、提交、推送、拉取",
+  "version": "1.1.0",
+  "description": "Git 深度集成：状态栏/分支/diff/hunk、隔离宿主 Git API",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
   "category": "integration",
   "tags": [
     "git",
-    "vcs"
+    "vcs",
+    "isolation"
   ],
   "permissions": [
     "editor_read",

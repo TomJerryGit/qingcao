@@ -1,7 +1,7 @@
 {
   "name": "line_sort",
   "display_name": "行排序",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "行排序：升序/降序/去重（选区或整文件）",
   "author": "QingCao",
   "license": "MIT",

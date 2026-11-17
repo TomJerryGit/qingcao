@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 生态
+
+- 插件版本号与市场说明更新：ai_assistant 2.0.0、git_deep 1.1.0、python_debugger 2.1.0、json/wordcount/logtail/markdown/todo/spell/line_sort 1.1.0 等。
+
+## [Unreleased]
+
 ### 安全
 
 - AI 面板注册为远程面板；调试器隔离断点 e2e。
