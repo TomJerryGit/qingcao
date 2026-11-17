@@ -2,6 +2,12 @@
 
 ### 生态
 
+- P1 插件补齐：JSONL、日志过滤高亮、Markdown 目录/HTML 导出。
+
+## [Unreleased]
+
+### 生态
+
 - 插件版本号与市场说明更新：ai_assistant 2.0.0、git_deep 1.1.0、python_debugger 2.1.0、json/wordcount/logtail/markdown/todo/spell/line_sort 1.1.0 等。
 
 ## [Unreleased]

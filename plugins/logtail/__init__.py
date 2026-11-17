@@ -32,6 +32,28 @@ def filter_lines(text, pattern):
     return "\n".join(line for line in (text or "").splitlines() if matcher(line))
 
 
+def find_matches(text, pattern):
+    """返回 pattern 在 text 中的 (start,end) 位置列表（正则/子串）。"""
+    text = text or ""
+    if not pattern:
+        return []
+    try:
+        import re as _re
+
+        rx = _re.compile(pattern)
+        return [(m.start(), m.end()) for m in rx.finditer(text)]
+    except Exception:
+        out = []
+        start = 0
+        while True:
+            idx = text.find(pattern, start)
+            if idx < 0:
+                break
+            out.append((idx, idx + len(pattern)))
+            start = idx + 1
+        return out
+
+
 class LogTailPanel(QDockWidget):
     """日志监视面板"""
 
@@ -176,6 +198,26 @@ class LogTailPanel(QDockWidget):
         if path and path != self.current_file:
             self.watch(path)
 
+    def _highlight_filter(self):
+        from PyQt5.QtGui import QColor, QTextCharFormat, QTextCursor
+        from PyQt5.QtWidgets import QTextEdit
+
+        pattern = self.filter_edit.text()
+        text = self.view.toPlainText()
+        selections = []
+        for start, end in find_matches(text, pattern):
+            cursor = QTextCursor(self.view.document())
+            cursor.setPosition(start)
+            cursor.setPosition(end, QTextCursor.KeepAnchor)
+            fmt = QTextCharFormat()
+            fmt.setBackground(QColor("#ffd700"))
+            sel = QTextEdit.ExtraSelection()
+            sel.cursor = cursor
+            sel.format = fmt
+            selections.append(sel)
+        self.view.setExtraSelections(selections)
+        return len(selections)
+
     def _set_paused(self, paused):
         self._paused = bool(paused)
         self.pause_btn.setText("继续" if self._paused else "暂停")
@@ -187,6 +229,7 @@ class LogTailPanel(QDockWidget):
             with open(self.current_file, encoding="utf-8", errors="replace") as f:
                 content = f.read()
             self.view.setPlainText(filter_lines(content, self.filter_edit.text()))
+            self._highlight_filter()
         except Exception:
             pass
 

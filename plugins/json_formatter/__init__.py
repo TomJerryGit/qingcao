@@ -44,6 +44,7 @@ class Plugin(PluginBase):
         self.api.add_menu("工具/JSON/排序键", self.sort_keys)
         self.api.add_menu("工具/JSON/检查并报告到问题面板", self.check_and_report)
         self.api.add_menu("工具/JSON/按 Schema 校验...", self.validate_schema)
+        self.api.add_menu("工具/JSON/格式化 JSONL（逐行）", self.format_jsonl)
 
     def on_deactivate(self):
         try:
@@ -314,6 +315,26 @@ class Plugin(PluginBase):
             self.api.show_status("格式化成功", 2000, "success")
         except json.JSONDecodeError as e:
             self.api.show_message("JSON 错误", f"第 {e.lineno} 行 第 {e.colno} 列: {e.msg}")
+
+    def format_jsonl(self):
+        """逐行格式化 JSONL（每行一个 JSON/JSONC 值）。"""
+        text, is_selection = self._get_json_text()
+        if not text.strip():
+            self.api.show_status("没有内容", 2000)
+            return
+        out = []
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                out.append("")
+                continue
+            try:
+                data = self._parse_json(line)
+            except Exception as e:
+                self.api.show_message("JSONL 错误", "第 %d 行: %s" % (lineno, e))
+                return
+            out.append(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+        self._apply("\n".join(out), is_selection)
+        self.api.show_status("JSONL 已格式化（%d 行）" % len(out), 2000, "success")
 
     def compress(self):
         """压缩"""

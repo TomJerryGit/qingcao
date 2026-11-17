@@ -150,3 +150,10 @@
 
 - 市场支持 Ctrl+F 聚焦搜索、Esc 关闭；
 - 收藏/对比已上线；模板真实采用插件 line_sort（行排序）。
+
+
+### P1 功能补齐（2026-11-17）
+
+- json_formatter：JSONL 逐行格式化；
+- logtail：过滤命中高亮（ExtraSelection）、匹配位置 helper；
+- markdown_preview：标题目录、导出 HTML（非隔离）。

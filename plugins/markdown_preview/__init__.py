@@ -10,6 +10,20 @@ from PyQt5.QtWidgets import QDockWidget, QTextBrowser
 from app.plugins import PluginBase
 
 
+def extract_headings(text):
+    """提取 Markdown 标题 → [(level, title, line)]。"""
+    out = []
+    for idx, line in enumerate((text or "").splitlines()):
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            continue
+        level = len(stripped) - len(stripped.lstrip("#"))
+        title = stripped[level:].strip()
+        if 1 <= level <= 6 and title:
+            out.append((level, title, idx + 1))
+    return out
+
+
 class MarkdownPanel(QDockWidget):
     """Markdown 预览面板"""
 
@@ -84,6 +98,8 @@ class Plugin(PluginBase):
 
         # 2) 诊断：把 Markdown 结构问题发布到「问题」面板
         self.api.add_menu("工具/Markdown/检查并报告到问题面板", self.check_and_report)
+        self.api.add_menu("工具/Markdown/目录...", self.show_toc)
+        self.api.add_menu("工具/Markdown/导出 HTML...", self.export_html)
         # 2) 设置 schema：「工具 → 插件设置」（无需 dialog 权限）
         self.api.register_settings_schema(
             [
@@ -201,6 +217,39 @@ class Plugin(PluginBase):
                 }
             )
         return issues[:max_items]
+
+    def show_toc(self):
+        text = self.api.get_current_text() or ""
+        headings = extract_headings(text)
+        if not headings:
+            self.api.show_status("没有 Markdown 标题", 2000)
+            return
+        lines = [
+            "%s%s（第 %d 行）" % ("  " * (level - 1), title, line)
+            for level, title, line in headings
+        ]
+        self.api.show_text_dialog("Markdown 目录", "\n".join(lines), 600, 420)
+
+    def export_html(self):
+        if getattr(self.api, "is_isolated", False):
+            self.api.show_status("隔离模式暂不支持导出", 2500)
+            return
+        if self._panel is None:
+            self.api.show_status("请先打开预览", 2000)
+            return
+        from PyQt5.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self.api._host_window(), "导出 HTML", "preview.html", "HTML (*.html)"
+        )
+        if not path:
+            return
+        try:
+            html = self._panel.browser.document().toHtml()
+            open(path, "w", encoding="utf-8").write(html)
+            self.api.show_status("已导出 HTML", 2000, "success")
+        except Exception as e:
+            self.api.show_message("导出失败", str(e))
 
     def check_and_report(self):
         """检查当前 Markdown 并把问题发布到「问题」面板"""
