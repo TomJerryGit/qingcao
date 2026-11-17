@@ -26,7 +26,14 @@ class AIHostPanel(QDockWidget):
         self.new_session_btn = QPushButton("新会话")
         self.new_session_btn.clicked.connect(self._new_session)
         row.addWidget(self.new_session_btn)
+        self.rename_btn = QPushButton("重命名")
+        self.rename_btn.clicked.connect(self._rename_session)
+        row.addWidget(self.rename_btn)
+        self.delete_btn = QPushButton("删除")
+        self.delete_btn.clicked.connect(self._delete_session)
+        row.addWidget(self.delete_btn)
         layout.addLayout(row)
+        self._refresh_sessions("default")
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
         layout.addWidget(self.view)
@@ -34,10 +41,56 @@ class AIHostPanel(QDockWidget):
         self.session_combo.currentTextChanged.connect(lambda *_: self._select_session())
 
     def _new_session(self):
+        from core.ai_service import get_ai_service
+
         name = "s%d" % (self.session_combo.count() + 1)
+        get_ai_service().set_current_session(name)
         self.session_combo.addItem(name)
         self.session_combo.setCurrentText(name)
         self._select_session()
+        self._refresh_sessions(name)
+
+    def _refresh_sessions(self, current=None):
+        from core.ai_service import get_ai_service
+
+        service = get_ai_service()
+        names = service.session_names() or ["default"]
+        if current not in names:
+            current = service.current_session()
+        if current not in names:
+            current = names[0]
+        self.session_combo.blockSignals(True)
+        self.session_combo.clear()
+        self.session_combo.addItems(names)
+        self.session_combo.setCurrentText(current)
+        self.session_combo.blockSignals(False)
+        service.set_current_session(current)
+
+    def _rename_session(self):
+        from PyQt5.QtWidgets import QInputDialog
+
+        from core.ai_service import get_ai_service
+
+        service = get_ai_service()
+        old = self.session_combo.currentText()
+        new, ok = QInputDialog.getText(self, "重命名会话", "新名称:", text=old)
+        if not ok or not str(new).strip():
+            return
+        result = service.rename_session(old, str(new).strip())
+        if result.get("ok"):
+            self._refresh_sessions(str(new).strip())
+
+    def _delete_session(self):
+        from PyQt5.QtWidgets import QMessageBox
+
+        from core.ai_service import get_ai_service
+
+        service = get_ai_service()
+        name = self.session_combo.currentText()
+        if QMessageBox.question(self, "删除会话", "确定删除会话「%s」？" % name) != QMessageBox.Yes:
+            return
+        service.delete_session(name)
+        self._refresh_sessions()
 
     def _select_session(self):
         from core.ai_service import get_ai_service

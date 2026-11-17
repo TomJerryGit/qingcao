@@ -36,6 +36,30 @@ class AIService:
     def session_names(self):
         return sorted(self._sessions)
 
+    def rename_session(self, old, new):
+        old = str(old or "").strip() or "default"
+        new = str(new or "").strip() or "default"
+        if old == new:
+            return {"ok": True, "session": new}
+        if old not in self._sessions:
+            return {"ok": False, "error": "会话不存在"}
+        if new in self._sessions:
+            return {"ok": False, "error": "目标会话已存在"}
+        self._sessions[new] = self._sessions.pop(old)
+        if self._current_session == old:
+            self._current_session = new
+        return {"ok": True, "session": new}
+
+    def delete_session(self, session):
+        name = str(session or "").strip() or "default"
+        if name not in self._sessions:
+            return {"ok": False, "error": "会话不存在"}
+        self._sessions.pop(name, None)
+        if self._current_session == name:
+            self._current_session = "default"
+            self._sessions.setdefault("default", [])
+        return {"ok": True}
+
     def reset_history(self, session="default"):
         self._sessions.pop(str(session), None)
         return {"ok": True}

@@ -323,3 +323,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - broker `ai_preview_diff`（权限 `editor_read`）；宿主用 difflib 生成 unified diff 并弹窗；
 - 隔离菜单「预览差异」；不写编辑器；
 - 测试：e2e 验证 `+abc` 出现；连续 5 轮综合测试全绿（14/14）。
+
+
+### AI 会话重命名/删除 UI（2026-11-17）
+
+- AIHostPanel 增加重命名/删除按钮；AIService `rename_session/delete_session`；
+- 删除当前会话回退 default；目标重名拒绝；
+- 测试：服务与面板 UI。

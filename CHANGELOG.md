@@ -2,6 +2,12 @@
 
 ### 安全
 
+- AI 隔离会话重命名/删除 UI（服务+面板）。
+
+## [Unreleased]
+
+### 安全
+
 - **AI 隔离差异预览**（editor_read，不写编辑器）；AI e2e 连续 5 轮稳定。
 
 ## [Unreleased]
