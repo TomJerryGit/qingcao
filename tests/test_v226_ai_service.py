@@ -64,7 +64,7 @@ def test_sessions_isolated_history():
     svc.run("b", session="s2")
     svc.run("c", session="s1")
     assert len(c.seen[2]) == 3  # s1 历史 2 条 + 本轮 user
-    assert c.seen[1] == [{"role": "user", "content": "b"}]
+    assert [m["content"] for m in c.seen[1]] == ["b"]
     svc.reset_history("s1")
     svc.run("d", session="s1")
     assert len(c.seen[-1]) == 1

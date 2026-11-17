@@ -220,3 +220,31 @@ def test_panel_search_filters_exist(qapp):
         assert panel.role_combo.count() >= 3
     finally:
         panel.close()
+
+
+def test_search_group_and_sort():
+    from core.ai_service import AIService
+
+    svc = AIService(client=_Client())
+    import time
+
+    svc.run("alpha s1", session="s1")
+    time.sleep(0.02)
+    svc.run("alpha s2", session="s2")
+    out = svc.search_sessions("alpha", sort="session", group=True)
+    assert out["ok"]
+    assert [g["session"] for g in out["groups"]] == ["s1", "s2"]
+    assert out["matches"][0]["session"] == "s1"
+    assert svc.search_sessions("alpha", sort="time")["matches"][0]["session"] == "s2"
+
+
+def test_panel_sort_combo_exists(qapp):
+    from core.ai_service import set_ai_service
+    from ui.ai_host_panel import AIHostPanel
+
+    set_ai_service(None)
+    panel = AIHostPanel()
+    try:
+        assert panel.sort_combo.count() >= 2
+    finally:
+        panel.close()

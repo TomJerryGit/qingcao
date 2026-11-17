@@ -378,3 +378,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `search_sessions(current_only, role)`：仅当前会话、按角色筛选；
 - 面板：仅当前会话勾选 + 角色下拉；
 - 测试：过滤逻辑/面板控件；AI 套件连续 3 轮 21/21。
+
+
+### AI 搜索分组/时间排序（2026-11-17）
+
+- 消息记录 ts；`search_sessions(sort=time|session, group=True)`；
+- 面板排序下拉 + 按会话分组标签/跳转；
+- 测试：分组/时间排序/面板控件；AI 套件连续 3 轮 23/23。

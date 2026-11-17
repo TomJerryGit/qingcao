@@ -4,6 +4,7 @@
 import io
 import json
 import os
+import time
 
 from core.ai_client import (
     AIClientError,
@@ -97,8 +98,16 @@ class AIService:
     def get_session(self, name):
         return [dict(m) for m in self._sessions.get(str(name), [])]
 
-    def search_sessions(self, query, session=None, limit=100,
-                        role=None, current_only=False):
+    def search_sessions(
+        self,
+        query,
+        session=None,
+        limit=100,
+        role=None,
+        current_only=False,
+        sort="time",
+        group=False,
+    ):
         q = str(query or "").strip().lower()
         if not q:
             return {"ok": True, "matches": [], "count": 0}
@@ -120,11 +129,25 @@ class AIService:
                             "index": idx,
                             "role": role,
                             "content": content[:200],
+                            "ts": float((msg or {}).get("ts") or 0),
                         }
                     )
                     if len(matches) >= max(1, int(limit)):
-                        return {"ok": True, "matches": matches, "count": len(matches)}
-        return {"ok": True, "matches": matches, "count": len(matches)}
+                        break
+            if len(matches) >= max(1, int(limit)):
+                break
+        if sort == "session":
+            matches.sort(key=lambda m: (m["session"], m["index"]))
+        else:
+            matches.sort(key=lambda m: (m["ts"], m["index"]), reverse=True)
+        if not group:
+            return {"ok": True, "matches": matches, "count": len(matches)}
+        groups = []
+        for m in matches:
+            if not groups or groups[-1]["session"] != m["session"]:
+                groups.append({"session": m["session"], "matches": []})
+            groups[-1]["matches"].append(m)
+        return {"ok": True, "matches": matches, "count": len(matches), "groups": groups}
 
     def export_sessions(self, path, names=None):
         sessions = self._sessions
@@ -311,7 +334,7 @@ class AIService:
                 )
                 return {"ok": True, "text": str(text or ""), "chunks": chunks}
             history = self._sessions.setdefault(str(session), [])
-            messages = history + [{"role": "user", "content": str(prompt)}]
+            messages = history + [{"role": "user", "content": str(prompt), "ts": time.time()}]
             text = client.chat(
                 prompt=str(prompt),
                 system=str(system or ""),
@@ -319,8 +342,8 @@ class AIService:
                 use_history=False,
                 **kwargs,
             )
-            history.append({"role": "user", "content": str(prompt)})
-            history.append({"role": "assistant", "content": str(text or "")})
+            history.append(messages[-1])
+            history.append({"role": "assistant", "content": str(text or ""), "ts": time.time()})
             self.save_history()
             return {"ok": True, "text": str(text or "")}
         except AIConfigError as e:
