@@ -68,6 +68,7 @@ METHOD_PERMISSIONS = {
     "debug_stack": "debugger",
     "debug_eval": "debugger",
     "debug_show_panel": "dialog",
+    "debug_context": "debugger",
     "update_remote_panel": "dialog",
     "run_command": "process",
     "run_python": "process",
@@ -340,6 +341,9 @@ class RemoteAPI:
 
     def debug_show_panel(self):
         return self._call("debug_show_panel")
+
+    def debug_context(self):
+        return self._call("debug_context")
 
     def update_remote_panel(self, panel_id, text):
         return self._call("update_remote_panel", int(panel_id), str(text))

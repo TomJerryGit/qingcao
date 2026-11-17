@@ -237,6 +237,14 @@ class WindowHostAPI:
     def debug_eval(self, expr):
         return self._debug_service().handle("debug.eval", {"expr": str(expr)})
 
+    def debug_context(self):
+        service = self._debug_service()
+        return {
+            "locals": getattr(service, "last_locals", None),
+            "stack": getattr(service, "last_stack", None),
+            "breakpoint": getattr(service, "last_break", None),
+        }
+
     def debug_show_panel(self):
         from ui.debug_host_panel import DebugHostPanel
 

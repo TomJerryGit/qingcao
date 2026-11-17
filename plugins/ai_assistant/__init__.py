@@ -80,6 +80,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             "工具/AI 助手/替换选中代码", lambda: self._apply_isolated_result("replace")
         )
         self.api.add_menu("工具/AI 助手/新会话", self._isolated_new_session)
+        self.api.add_menu("工具/AI 助手/分析调试上下文", self._on_debug_context_ai)
         self.api.register_settings_schema(
             [
                 {
@@ -90,6 +91,24 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 },
             ]
         )
+
+    def _on_debug_context_ai(self):
+        import json
+
+        try:
+            ctx = self.api.debug_context()
+        except Exception as e:
+            self.api.show_status("调试上下文不可用: %s" % e, 3000)
+            return
+        prompt = (
+            "分析以下调试上下文，指出可能原因并给出修复建议：\n"
+            + json.dumps(ctx, ensure_ascii=False, default=str)[:6000]
+        )
+        result = self.api.ai_run(prompt=prompt, stream=False, use_history=True)
+        if result.get("ok"):
+            self.api.show_text_dialog("AI 调试分析", result.get("text", ""), 900, 600)
+        else:
+            self.api.show_status(result.get("error", "AI 调用失败"), 3000)
 
     def _isolated_new_session(self):
         try:
