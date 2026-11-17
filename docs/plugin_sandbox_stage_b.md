@@ -284,3 +284,12 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - ai_assistant 隔离模式仅注册 headless 动作（解释/重构/生成测试/审查），经宿主 `ai_run` 调用，Key 不进子进程；
 - 限制：无流式/历史/diff/插入/面板；
 - 测试：隔离 AI e2e + loader 相对导入。
+
+
+### AI 隔离流式/历史（2026-11-17）
+
+- `AIService.run(stream=True,use_history=True)`：宿主侧流式回调/历史，Key 不进子进程；
+- 新增 `ui/ai_host_panel.py`：隔离插件 `ai_show_panel` → 宿主面板逐块显示；
+- 面板在 GUI 线程创建（bridge），避免跨线程 QWidget；
+- 测试：隔离 AI e2e 流式文本 `abc` 可见；
+- 限制：仍无结果对话框/插入/diff/多会话管理。

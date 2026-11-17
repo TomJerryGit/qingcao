@@ -64,6 +64,8 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 "工具/AI 助手/" + label,
                 lambda t=template, g=tag: self._isolated_action(g, t),
             )
+        self.api.add_menu("工具/AI 助手/打开输出面板", lambda: self.api.ai_show_panel())
+        self.api.add_menu("工具/AI 助手/重置对话", lambda: self.api.ai_reset_history())
 
     def _isolated_action(self, title, template):
         try:
@@ -74,9 +76,15 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             self.api.show_status("没有可分析的代码", 2000)
             return
         prompt = template.format(code=code)
-        result = self.api.ai_run(prompt, system="你是代码助手，回答使用中文。")
+        try:
+            self.api.ai_show_panel()
+        except Exception:
+            pass
+        result = self.api.ai_run(
+            prompt, system="你是代码助手，回答使用中文。", stream=True, use_history=True
+        )
         if result.get("ok"):
-            self.api.show_text_dialog(title, result.get("text", ""), 900, 600)
+            self.api.show_status("AI 输出已更新（%d 字符）" % len(result.get("text", "")), 2500)
         else:
             self.api.show_message("AI 不可用", result.get("error", "未知错误"))
 

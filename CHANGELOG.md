@@ -2,6 +2,12 @@
 
 ### 安全
 
+- **AI 隔离流式/历史**：宿主 `AIService` stream/history + 宿主输出面板（跨线程安全）。
+
+## [Unreleased]
+
+### 安全
+
 - **AI 隔离 headless 分支**：加载器支持相对导入；ai_assistant 隔离动作经宿主 ai_run（Key 不进子进程）。
 
 ## [Unreleased]

@@ -120,6 +120,14 @@ class _AIClient:
     def chat(self, prompt, system="", use_history=False, **kwargs):
         return "AI-REPLY:" + prompt[:20]
 
+    def chat_stream(self, prompt, system="", callback=None, use_history=False, **kwargs):
+        text = "STREAM:"
+        for part in ("a", "b", "c"):
+            text += part
+            if callback:
+                callback(part)
+        return text
+
 
 def test_isolated_ai_assistant_headless(qapp, monkeypatch):
     from core.ai_service import AIService, set_ai_service
@@ -140,8 +148,13 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         action = next((a for a in host.api.menus.values() if a.text() == "解释代码"), None)
         assert action is not None, [a.text() for a in host.api.menus.values()]
         action.trigger()
-        assert _pump(qapp, lambda: bool(captured.get("msg"))), "AI 结果未返回"
-        assert "AI-REPLY" in str(captured["msg"])
+
+        def _panel_text():
+            panel = getattr(host.api, "_ai_panel", None)
+            return panel.view.toPlainText() if panel is not None else ""
+
+        assert _pump(qapp, lambda: "abc" in _panel_text()), "流式输出未显示"
+        assert "abc" in _panel_text()
     finally:
         set_ai_service(None)
         host.stop_all()

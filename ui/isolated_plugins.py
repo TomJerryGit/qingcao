@@ -237,10 +237,50 @@ class WindowHostAPI:
     def debug_eval(self, expr):
         return self._debug_service().handle("debug.eval", {"expr": str(expr)})
 
-    def ai_run(self, prompt, system="", max_tokens=None):
+    def ai_run(self, prompt, system="", max_tokens=None, stream=False, use_history=False):
         from core.ai_service import get_ai_service
 
-        return get_ai_service().run(prompt, system, max_tokens)
+        return get_ai_service().run(prompt, system, max_tokens, bool(stream), bool(use_history))
+
+    def ai_reset_history(self):
+        from core.ai_service import get_ai_service
+
+        return get_ai_service().reset_history()
+
+    def ai_show_panel(self):
+        from ui.ai_host_panel import AIHostPanel
+
+        buf = getattr(self, "_ai_buf", None)
+        if buf is None:
+            buf = []
+            self._ai_buf = buf
+
+        def _listener(chunk):
+            panel = getattr(self, "_ai_panel", None)
+            if panel is None:
+                buf.append(str(chunk))
+            else:
+                self._bridge.submit(lambda c=str(chunk): panel.append_chunk(c))
+
+        from core.ai_service import get_ai_service
+
+        get_ai_service().set_stream_listener(_listener)
+
+        def _create():
+            if getattr(self, "_ai_panel", None) is None:
+                panel = AIHostPanel(self.window)
+                self._ai_panel = panel
+                self.window.addDockWidget(Qt.BottomDockWidgetArea, panel)
+            panel = self._ai_panel
+            panel.clear()
+            for chunk in buf:
+                panel.append_chunk(chunk)
+            buf.clear()
+            panel.show()
+            panel.raise_()
+
+        self._bridge.submit(_create)
+        return True
 
     def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
         from core.ai_http import request_json
