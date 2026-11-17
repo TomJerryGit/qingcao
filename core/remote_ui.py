@@ -18,7 +18,7 @@ class RemoteControlTree:
         self._nodes = {}
         self._order = []
 
-    def add(self, control_id, kind, text="", value="", enabled=True, visible=True):
+    def add(self, control_id, kind, text="", value="", enabled=True, visible=True, action=""):
         cid = str(control_id)[:64]
         if not cid:
             raise ValueError("control_id 不能为空")
