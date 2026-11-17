@@ -97,16 +97,22 @@ class AIService:
     def get_session(self, name):
         return [dict(m) for m in self._sessions.get(str(name), [])]
 
-    def search_sessions(self, query, session=None, limit=100):
+    def search_sessions(self, query, session=None, limit=100,
+                        role=None, current_only=False):
         q = str(query or "").strip().lower()
         if not q:
             return {"ok": True, "matches": [], "count": 0}
+        if current_only:
+            session = self._current_session
         names = [str(session)] if session else list(self._sessions)
+        wanted_role = str(role or "").strip().lower()
         matches = []
         for name in names:
             for idx, msg in enumerate(self._sessions.get(name, [])):
                 content = str((msg or {}).get("content", ""))
                 role = str((msg or {}).get("role", ""))
+                if wanted_role and role.lower() != wanted_role:
+                    continue
                 if q in content.lower() or q in role.lower():
                     matches.append(
                         {

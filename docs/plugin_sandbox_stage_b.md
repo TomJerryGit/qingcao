@@ -371,3 +371,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 搜索命中列表选择后跳转到会话并显示历史；
 - `QTextEdit.ExtraSelection` 高亮全部命中；
 - 测试：跳转会话/高亮计数；AI 套件连续 3 轮 19/19。
+
+
+### AI 搜索过滤（2026-11-17）
+
+- `search_sessions(current_only, role)`：仅当前会话、按角色筛选；
+- 面板：仅当前会话勾选 + 角色下拉；
+- 测试：过滤逻辑/面板控件；AI 套件连续 3 轮 21/21。

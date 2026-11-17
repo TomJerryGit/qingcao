@@ -195,3 +195,28 @@ def test_search_jump_and_highlight(qapp):
     finally:
         set_ai_service(None)
         panel.close()
+
+
+def test_search_filters():
+    from core.ai_service import AIService
+
+    svc = AIService(client=_Client())
+    svc.run("alpha one", session="s1")
+    svc.run("alpha two", session="s2")
+    svc.set_current_session("s1")
+    assert svc.search_sessions("alpha", current_only=True)["count"] == 1
+    assert svc.search_sessions("alpha", role="user")["count"] >= 1
+    assert svc.search_sessions("alpha", role="assistant")["count"] == 0
+
+
+def test_panel_search_filters_exist(qapp):
+    from core.ai_service import set_ai_service
+    from ui.ai_host_panel import AIHostPanel
+
+    set_ai_service(None)
+    panel = AIHostPanel()
+    try:
+        assert panel.current_only_check is not None
+        assert panel.role_combo.count() >= 3
+    finally:
+        panel.close()

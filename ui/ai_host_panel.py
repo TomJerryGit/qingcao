@@ -2,6 +2,7 @@
 """AI 宿主面板：隔离插件流式输出展示。"""
 
 from PyQt5.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDockWidget,
     QHBoxLayout,
@@ -46,6 +47,13 @@ class AIHostPanel(QDockWidget):
         self.search_btn = QPushButton("查找")
         self.search_btn.clicked.connect(self._search_sessions)
         row.addWidget(self.search_btn)
+        self.current_only_check = QCheckBox("仅当前会话")
+        row.addWidget(self.current_only_check)
+        self.role_combo = QComboBox()
+        self.role_combo.addItem("全部角色", "")
+        self.role_combo.addItem("用户", "user")
+        self.role_combo.addItem("助手", "assistant")
+        row.addWidget(self.role_combo)
         layout.addLayout(row)
         self._refresh_sessions("default")
         self.view = QPlainTextEdit()
