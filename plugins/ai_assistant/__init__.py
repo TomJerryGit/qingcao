@@ -345,6 +345,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         # C1: 避开主窗口的 Ctrl+Shift+E / Ctrl+Shift+R
         menu_items = [
             ("工具/AI 助手/💬 打开 AI 对话窗口", self._on_open_session_window, None),
+            ("工具/AI 助手/🛠 自动调试当前文件", self._on_auto_debug, None),
             ("工具/AI 助手/💡 解释代码", self._on_explain, "Ctrl+Alt+E"),
             ("工具/AI 助手/🔧 重构代码", self._on_refactor, "Ctrl+Alt+Shift+R"),
             ("工具/AI 助手/🐛 修复 Bug", self._on_fix, None),
@@ -820,6 +821,38 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     # --------------------------------------------------------
     # 具体动作
     # --------------------------------------------------------
+    def _on_auto_debug(self):
+        path = self.api.get_current_filepath()
+        if not path or not str(path).lower().endswith(".py"):
+            self.api.show_message("自动调试", "请先打开一个 .py 文件")
+            return
+        rounds, ok = self.api.ask_string("自动调试", "最多修复轮数（1-5）", "3")
+        if not ok:
+            return
+        try:
+            rounds = max(1, min(5, int(str(rounds).strip() or "3")))
+        except ValueError:
+            rounds = 3
+        from core.ai_autodebug import auto_debug
+
+        try:
+            client = self.api.get_ai_client()
+        except Exception as e:
+            self.api.show_message("自动调试", "AI 未配置：%s" % e)
+            return
+
+        self.api.show_status("自动调试中（最多 %d 轮）..." % rounds, 5000)
+
+        def ai_call(prompt):
+            return client.chat(prompt=prompt, system="你是一个 Python 调试助手", use_history=False)
+
+        result = auto_debug(str(path), ai_call, max_rounds=rounds)
+        self.api.show_message(
+            "自动调试结果",
+            ("成功" if result.get("ok") else "失败")
+            + "（%d 轮）\n%s" % (int(result.get("rounds") or 0), result.get("error") or ""),
+        )
+
     def _on_explain(self):
         """解释代码"""
         self._run_ai_action(
