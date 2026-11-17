@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 工程
+
+- **Flaky 崩溃治理**：`tools/flaky_report.py` + `docs/flaky_governance.md`（0xC0000005 事件 11 起/逐文件通过 8）。
+
+## [Unreleased]
+
 ### 安全
 
 - **AI 宿主服务**：`ai_run` broker/API（Key 不进子进程）；ai_assistant 子进程分支待续。
