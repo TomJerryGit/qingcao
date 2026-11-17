@@ -756,6 +756,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             # 立刻绑定当前客户端，使"新会话/追问"在首轮动作之前
             # 也能正常工作（不能等到 _run_ai_action 才赋值）
             dlg._client = self._client
+            dlg.set_idle_state()
             self._session_window = dlg
             # 关闭时只隐藏，保留上下文；真正销毁交给 on_deactivate
             dlg.finished.connect(lambda _r: None)

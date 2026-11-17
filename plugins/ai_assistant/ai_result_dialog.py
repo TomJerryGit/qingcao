@@ -482,6 +482,22 @@ class AIResultDialog(QDialog):
         except Exception:
             pass
 
+    def set_idle_state(self):
+        """空会话初始态：没有 Worker 时不要假装"正在生成"。"""
+        if self._worker is not None and self._worker.isRunning():
+            return
+        self.status_label.setText("就绪：选择代码后执行 AI 动作，或在下方继续追问")
+        self.status_label.setStyleSheet("color: #888; padding: 4px; font-size: 12px;")
+        self.progress.setVisible(False)
+        self.cancel_btn.setVisible(False)
+        self.follow_edit.setEnabled(True)
+        self.follow_btn.setEnabled(True)
+        self.copy_btn.setEnabled(bool(self._result_text))
+        for name in ("replace_btn", "insert_btn", "diff_btn"):
+            btn = getattr(self, name, None)
+            if btn is not None:
+                btn.setEnabled(bool(self._result_text))
+
     def set_worker(self, worker: AIWorker):
         """绑定 Worker（首轮）"""
         self._worker = worker
