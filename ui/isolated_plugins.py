@@ -237,6 +237,11 @@ class WindowHostAPI:
     def debug_eval(self, expr):
         return self._debug_service().handle("debug.eval", {"expr": str(expr)})
 
+    def ai_run(self, prompt, system="", max_tokens=None):
+        from core.ai_service import get_ai_service
+
+        return get_ai_service().run(prompt, system, max_tokens)
+
     def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
         from core.ai_http import request_json
 

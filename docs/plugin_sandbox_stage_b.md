@@ -268,3 +268,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `QINGCAO_TRUSTED_PLUGINS`（逗号分隔）显式授予 `trusted` + `allow_high_risk`；默认空；
 - `python_debugger` 隔离 e2e：菜单「调试当前文件」→ broker `debug_start` → 宿主 DebugService 真实会话 → 「终止调试」→ 会话清理；
 - 测试：`tests/test_v226_isolated_e2e.py` 2/2（git_deep + python_debugger）。
+
+
+## B3 AI 宿主服务（2026-11-17）
+
+- 新增 `core/ai_service.py`：宿主侧持有 AI 客户端/Key，`ai_run(prompt,system,max_tokens)` 返回文本；
+- broker/WindowHostAPI/RemoteAPI 增加 `ai_run`（权限 `network`）；
+- 用途：后续隔离 ai_assistant 仅传 prompt，**API Key 不进入子进程**；
+- 未完成：ai_assistant 插件子进程分支（UI/相对导入改造量大），当前仍进程内。

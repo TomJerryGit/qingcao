@@ -50,6 +50,7 @@ METHOD_PERMISSIONS = {
     "git_pull": "filesystem",
     "git_switch": "filesystem",
     "ai_http_request": "network",
+    "ai_run": "network",
     "debug_start": "debugger",
     "debug_stop": "debugger",
     "debug_continue": "debugger",
@@ -326,6 +327,9 @@ class RemoteAPI:
 
     def debug_eval(self, expr):
         return self._call("debug_eval", expr)
+
+    def ai_run(self, prompt, system="", max_tokens=None):
+        return self._call("ai_run", prompt, system, max_tokens)
 
     def ai_http_request(self, url, headers=None, json_data=None, timeout=60):
         return self._call("ai_http_request", url, headers or {}, json_data, timeout)

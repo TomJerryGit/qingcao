@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全
+
+- **AI 宿主服务**：`ai_run` broker/API（Key 不进子进程）；ai_assistant 子进程分支待续。
+
+## [Unreleased]
+
 ### 测试/安全
 
 - 隔离调试器 UI e2e（真实启停）+ `QINGCAO_TRUSTED_PLUGINS` 白名单；PluginProcess trusted 传递修复。
