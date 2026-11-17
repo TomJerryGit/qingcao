@@ -792,6 +792,15 @@ class AIResultDialog(QDialog):
                 QMessageBox.warning(self, "替换失败", "结果为空")
                 return
 
+            from plugins.ai_assistant.validation import validate_result
+
+            ok, err = validate_result(
+                code, getattr(proxy, "filepath", "") or "")
+            if not ok:
+                if QMessageBox.question(
+                        self, "校验警告",
+                        "%s\n仍要应用？" % err) != QMessageBox.Yes:
+                    return
             proxy.sc.replaceSelectedText(code)
             self.status_label.setText("✓ 已替换选中代码")
             self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
@@ -816,6 +825,15 @@ class AIResultDialog(QDialog):
                 QMessageBox.warning(self, "插入失败", "结果为空")
                 return
 
+            from plugins.ai_assistant.validation import validate_result
+
+            ok, err = validate_result(
+                code, getattr(proxy, "filepath", "") or "")
+            if not ok:
+                if QMessageBox.question(
+                        self, "校验警告",
+                        "%s\n仍要应用？" % err) != QMessageBox.Yes:
+                    return
             pos = proxy.sc.SendScintilla(proxy.sc.SCI_GETCURRENTPOS)
             proxy.sc.SendScintilla(proxy.sc.SCI_INSERTTEXT, pos, code.encode("utf-8"))
             self.status_label.setText("✓ 已插入到光标处")
