@@ -54,6 +54,8 @@ def test_panel_rename_delete_buttons(qapp, monkeypatch):
     finally:
         set_ai_service(None)
         panel.close()
+        panel.deleteLater()
+        qapp.processEvents()
 
 
 def test_session_persistence_and_export(tmp_path):
@@ -84,6 +86,8 @@ def test_panel_export_import_buttons(qapp):
     finally:
         set_ai_service(None)
         panel.close()
+        panel.deleteLater()
+        qapp.processEvents()
 
 
 def test_encrypted_session_roundtrip(tmp_path):
@@ -195,6 +199,8 @@ def test_search_jump_and_highlight(qapp):
     finally:
         set_ai_service(None)
         panel.close()
+        panel.deleteLater()
+        qapp.processEvents()
 
 
 def test_search_filters():

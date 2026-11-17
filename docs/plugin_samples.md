@@ -40,3 +40,10 @@
 
 - `tools/check_accessibility.py` 检查关键插件 UI 的 tooltip/accessibleName；
 - AI 面板、调试面板已补齐；CI 可用。
+
+## P1：沙箱设置生效
+
+- whitespace_sandbox：`max_line_length` 实际控制长行诊断；
+- wordcount_sandbox：`count_mode/max_chars` 实际生效；
+- sandbox_demo：`message` 用于 status_text；
+- 测试：`tests/test_v226_sandbox_settings_effective.py`。

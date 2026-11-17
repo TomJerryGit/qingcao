@@ -17,9 +17,16 @@ class Plugin:
 
     def status_text(self, text=""):
         text = text or ""
+        cfg = getattr(self, "_config", {})
+        max_chars = int(cfg.get("max_chars") or 200000)
+        if len(text) > max_chars:
+            text = text[:max_chars]
         chars = len(text)
         words = len([w for w in text.replace("\n", " ").split(" ") if w.strip()])
         lines = text.count("\n") + 1 if text else 0
+        mode = str(cfg.get("count_mode") or "chars")
+        if mode == "words":
+            return "词数: %d | 行: %d" % (words, lines)
         return "字数: %d | 字符: %d | 行: %d" % (words, chars, lines)
 
     def menu_items(self):

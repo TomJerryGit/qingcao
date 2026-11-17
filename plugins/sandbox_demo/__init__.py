@@ -24,6 +24,9 @@ class Plugin:
                 items.append({"name": s[3:].strip(), "type": "namespace", "line": idx})
         return items
 
+    def status_text(self, text=""):
+        return str(getattr(self, "_config", {}).get("message") or "sandbox-demo")
+
     def config_schema(self):
         return {
             "message": {"type": "str", "label": "示例消息", "default": "sandbox-demo"},

@@ -21,6 +21,7 @@ class Plugin:
 
     def diagnostics(self, text=""):
         items = []
+        max_line = int(getattr(self, "_config", {}).get("max_line_length", MAX_LINE) or MAX_LINE)
         for i, line in enumerate((text or "").split("\n")):
             if line.rstrip() != line:
                 items.append(
@@ -42,13 +43,13 @@ class Plugin:
                         "code": "tab-indent",
                     }
                 )
-            if len(line) > MAX_LINE:
+            if len(line) > max_line:
                 items.append(
                     {
                         "line": i,
-                        "col": MAX_LINE,
+                        "col": max_line,
                         "severity": "info",
-                        "message": "行过长（>%d）" % MAX_LINE,
+                        "message": "行过长（>%d）" % max_line,
                         "code": "long-line",
                     }
                 )
