@@ -106,6 +106,12 @@ class PluginBase:
 
         try:
             self.on_activate()
+            try:
+                from core.plugin_usage import record
+
+                record(self.NAME, "activate")
+            except Exception:
+                pass
         except Exception as e:
             # 安全地记录错误（避免 api 为 None 时二次崩溃）
             try:
@@ -128,6 +134,12 @@ class PluginBase:
         """由 PluginLoader 调用"""
         try:
             self.on_deactivate()
+            try:
+                from core.plugin_usage import record
+
+                record(self.NAME, "deactivate")
+            except Exception:
+                pass
         except Exception as e:
             if self.api is not None:
                 try:

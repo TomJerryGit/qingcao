@@ -30,3 +30,8 @@
 - 三个沙箱样例补齐 `config_schema/on_config`；
 - `tools/check_plugin_settings.py`：15/15 插件有设置 schema；
 - 测试：`tests/test_v226_plugin_settings.py`。
+
+## P2：使用统计
+
+- 本地隐私安全采集（激活次数/时间戳），见 `docs/plugin_usage.md`；
+- 关闭：`QINGCAO_PLUGIN_USAGE=0`。
