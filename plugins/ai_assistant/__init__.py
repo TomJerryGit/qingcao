@@ -836,7 +836,13 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         from core.ai_autodebug import auto_debug
 
         try:
-            client = self.api.get_ai_client()
+            getter = getattr(self.api, "get_ai_client", None)
+            if getter is not None:
+                client = getter()
+            else:
+                from core.ai_client import get_ai_client
+
+                client = get_ai_client()
         except Exception as e:
             self.api.show_message("自动调试", "AI 未配置：%s" % e)
             return
