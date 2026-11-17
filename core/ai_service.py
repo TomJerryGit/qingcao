@@ -9,24 +9,52 @@ from core.ai_client import (
     AIClientError,
     AIConfigError,
     load_ai_client_from_settings,
+    load_secret,
+    save_secret,
     set_ai_client,
 )
 
 
 class AIService:
-    def __init__(self, client=None, history_path=None):
+    def __init__(self, client=None, history_path=None, encrypt=False, cipher_key=None):
         self._client = client
         self._stream_listener = None
         self._sessions = {}
         self._current_session = "default"
         self._history_path = history_path
+        self._encrypt = bool(encrypt)
+        self._cipher_key = cipher_key
         self.reload_history()
+
+    def _fernet(self):
+        if not self._encrypt:
+            return None
+        try:
+            from cryptography.fernet import Fernet
+        except Exception:
+            return None
+        key = self._cipher_key
+        if not key:
+            key = load_secret("ai_sessions_key", "")
+            if not key:
+                key = Fernet.generate_key().decode("ascii")
+                save_secret("ai_sessions_key", key)
+        try:
+            return Fernet(key.encode("ascii") if isinstance(key, str) else key)
+        except Exception:
+            return None
 
     def reload_history(self):
         if not self._history_path or not os.path.isfile(self._history_path):
             return False
         try:
-            data = json.load(io.open(self._history_path, encoding="utf-8"))
+            raw = io.open(self._history_path, encoding="utf-8").read()
+            data = json.loads(raw)
+            if isinstance(data, dict) and data.get("encrypted"):
+                fernet = self._fernet()
+                if fernet is None:
+                    return False
+                data = json.loads(fernet.decrypt(str(data.get("data", "")).encode("utf-8")))
             sessions = data.get("sessions") or {}
             if not isinstance(sessions, dict):
                 return False
@@ -50,9 +78,15 @@ class AIService:
                 "current": self._current_session,
                 "sessions": self._sessions,
             }
-            io.open(tmp, "w", encoding="utf-8", newline="\n").write(
-                json.dumps(payload, ensure_ascii=False, indent=2)
-            )
+            text = json.dumps(payload, ensure_ascii=False, indent=2)
+            fernet = self._fernet()
+            if fernet is not None:
+                text = json.dumps({
+                    "version": 1,
+                    "encrypted": True,
+                    "data": fernet.encrypt(text.encode("utf-8")).decode("ascii"),
+                })
+            io.open(tmp, "w", encoding="utf-8", newline="\n").write(text)
             os.replace(tmp, self._history_path)
             return True
         except Exception:
@@ -72,20 +106,49 @@ class AIService:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-    def import_sessions(self, path, merge=True):
+    def import_sessions(self, path, merge=True, conflict="rename"):
         try:
             data = json.load(io.open(path, encoding="utf-8"))
+            if isinstance(data, dict) and data.get("encrypted"):
+                fernet = self._fernet()
+                if fernet is None:
+                    return {"ok": False, "error": "需要加密密钥"}
+                data = json.loads(fernet.decrypt(str(data.get("data", "")).encode("utf-8")))
             sessions = data.get("sessions")
             if not isinstance(sessions, dict):
                 return {"ok": False, "error": "格式错误"}
             imported = {str(k): list(v) for k, v in sessions.items() if isinstance(v, list)}
-            if merge:
-                self._sessions.update(imported)
-            else:
+            if not merge:
                 self._sessions = imported
+                self.save_history()
+                return {
+                    "ok": True,
+                    "count": len(imported),
+                    "renamed": 0,
+                    "skipped": 0,
+                    "overwritten": 0,
+                }
+            stats = {"renamed": 0, "skipped": 0, "overwritten": 0}
+            for name, messages in imported.items():
+                if name not in self._sessions:
+                    self._sessions[name] = messages
+                    continue
+                if conflict == "skip":
+                    stats["skipped"] += 1
+                elif conflict == "overwrite":
+                    self._sessions[name] = messages
+                    stats["overwritten"] += 1
+                else:
+                    base = name
+                    idx = 2
+                    while name in self._sessions:
+                        name = "%s (%d)" % (base, idx)
+                        idx += 1
+                    self._sessions[name] = messages
+                    stats["renamed"] += 1
             self._sessions.setdefault(self._current_session, [])
             self.save_history()
-            return {"ok": True, "count": len(imported)}
+            return {"ok": True, "count": len(imported), **stats}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 

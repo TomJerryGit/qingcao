@@ -84,3 +84,42 @@ def test_panel_export_import_buttons(qapp):
     finally:
         set_ai_service(None)
         panel.close()
+
+
+def test_encrypted_session_roundtrip(tmp_path):
+    from cryptography.fernet import Fernet
+
+    from core.ai_service import AIService
+
+    key = Fernet.generate_key().decode("ascii")
+    path = tmp_path / "enc.json"
+    svc = AIService(client=_Client(), history_path=str(path), encrypt=True, cipher_key=key)
+    svc.run("secret-prompt", session="s1")
+    raw = path.read_text(encoding="utf-8")
+    assert "secret-prompt" not in raw
+    svc2 = AIService(client=_Client(), history_path=str(path), encrypt=True, cipher_key=key)
+    assert "s1" in svc2.session_names()
+
+
+def test_import_conflict_policies(tmp_path):
+    from core.ai_service import AIService
+
+    export = tmp_path / "e.json"
+    source = AIService(client=_Client())
+    source.run("x", session="s1")
+    source.export_sessions(str(export))
+
+    target = AIService(client=_Client())
+    target.run("y", session="s1")
+    out = target.import_sessions(str(export), conflict="rename")
+    assert out["renamed"] == 1 and "s1 (2)" in target.session_names()
+
+    skipped = AIService(client=_Client())
+    skipped.run("y", session="s1")
+    out = skipped.import_sessions(str(export), conflict="skip")
+    assert out["skipped"] == 1
+
+    overwritten = AIService(client=_Client())
+    overwritten.run("y", session="s1")
+    out = overwritten.import_sessions(str(export), conflict="overwrite")
+    assert out["overwritten"] == 1

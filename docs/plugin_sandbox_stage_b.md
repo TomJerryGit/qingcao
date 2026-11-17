@@ -343,3 +343,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 
 - e2e 关闭自动弹窗（避免模态与 diff 断言竞态），流式/面板/插入/差异分别断言；
 - 连续 5 轮综合 AI 测试全绿（13/13）。
+
+
+### AI 会话加密/冲突策略（2026-11-17）
+
+- 默认宿主服务 `encrypt=True`：Fernet + 安全存储密钥，文件为加密 envelope；兼容旧明文；
+- 导入冲突策略：rename（默认）/overwrite/skip；面板 QInputDialog 选择；
+- 测试：加密跨实例、三种冲突策略；AI 套件连续 3 轮 15/15。
