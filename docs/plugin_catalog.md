@@ -9,7 +9,7 @@
 | `ai_assistant` | AI 助手 | 1.0.0 | editor | network, editor_read, editor_write, dialog | — | ✅ | 在编辑器内使用 AI 进行代码解释、重构、生成测试 |
 | `markdown_preview` | Markdown 预览 | 1.0.0 | editor | editor_read, dialog | — | ✅ | Markdown 实时预览（分屏） |
 | `git_deep` | Git 深度集成 | 1.0.0 | integration | editor_read, process, filesystem, dialog | — | ✅ | Git 状态、差异、提交、推送、拉取 |
-| `python_debugger` | Python 调试器 | 2.0.0 | integration | process, editor_read, editor_write, dialog | — | ✅ | 编辑器内 Python 调试器：断点、单步（跳过/进入/跳出）、继续、局部变量与调用栈、终止。基于  |
+| `python_debugger` | Python 调试器 | 2.0.0 | integration | process, editor_read, editor_write, dialog, debugger | — | ✅ | 编辑器内 Python 调试器：断点、单步（跳过/进入/跳出）、继续、局部变量与调用栈、终止。基于  |
 | `demo` | Demo | 1.0.0 | other | editor_read, dialog | — | ✅ | 青草编辑器最小示例插件 |
 | `my_plugin` | My Plugin | 1.0.0 | other | - | — | — | 脚手架示例（默认禁用） |
 | `json_formatter` | JSON 格式化 | 1.0.0 | tool | editor_read, editor_write, dialog | — | ✅ | 格式化、压缩、验证 JSON |

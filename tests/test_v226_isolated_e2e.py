@@ -114,3 +114,35 @@ class _DebugProxy(_Proxy):
 
     def get_filepath(self):
         return self._path
+
+
+class _AIClient:
+    def chat(self, prompt, system="", use_history=False, **kwargs):
+        return "AI-REPLY:" + prompt[:20]
+
+
+def test_isolated_ai_assistant_headless(qapp, monkeypatch):
+    from core.ai_service import AIService, set_ai_service
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    set_ai_service(AIService(client=_AIClient()))
+    captured = {}
+    monkeypatch.setattr(
+        QMessageBox,
+        "information",
+        lambda *a, **k: captured.setdefault("msg", a[2] if len(a) > 2 else a),
+    )
+    win = _Win()
+    host = IsolatedPluginHost(win)
+    try:
+        host.start({"ai_assistant"})
+        assert _pump(qapp, lambda: bool(host.api.menus)), "AI 隔离菜单未注册"
+        action = next((a for a in host.api.menus.values() if a.text() == "解释代码"), None)
+        assert action is not None, [a.text() for a in host.api.menus.values()]
+        action.trigger()
+        assert _pump(qapp, lambda: bool(captured.get("msg"))), "AI 结果未返回"
+        assert "AI-REPLY" in str(captured["msg"])
+    finally:
+        set_ai_service(None)
+        host.stop_all()
+        win.close()

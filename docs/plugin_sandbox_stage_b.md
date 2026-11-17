@@ -276,3 +276,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - broker/WindowHostAPI/RemoteAPI 增加 `ai_run`（权限 `network`）；
 - 用途：后续隔离 ai_assistant 仅传 prompt，**API Key 不进入子进程**；
 - 未完成：ai_assistant 插件子进程分支（UI/相对导入改造量大），当前仍进程内。
+
+
+## AI 隔离 headless 分支（2026-11-17）
+
+- 隔离加载器注册 `sys.modules[qc_isolated_plugin]`，支持插件包相对导入；
+- ai_assistant 隔离模式仅注册 headless 动作（解释/重构/生成测试/审查），经宿主 `ai_run` 调用，Key 不进子进程；
+- 限制：无流式/历史/diff/插入/面板；
+- 测试：隔离 AI e2e + loader 相对导入。

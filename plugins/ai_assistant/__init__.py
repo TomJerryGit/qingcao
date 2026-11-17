@@ -45,14 +45,46 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _host_stream(self, url, headers=None, json_data=None, timeout=60):
         from core.ai_http import stream_json
 
-        return stream_json(url, headers=headers, json_data=json_data,
-                           timeout=timeout)
+        return stream_json(url, headers=headers, json_data=json_data, timeout=timeout)
 
     def _host_transport(self, url, headers=None, json_data=None, timeout=60):
         return self.api.ai_http_request(url, headers=headers, json_data=json_data, timeout=timeout)
 
+    def _activate_isolated(self):
+        """隔离模式：仅注册 headless AI 动作（无面板/流式/历史）。"""
+        self.api.log("AI 助手隔离模式已激活")
+        actions = (
+            ("解释代码", "请用中文解释以下代码，分点说明：\n```\n{code}\n```", "isolation-explain"),
+            ("重构代码", "请重构以下代码并说明改动：\n```\n{code}\n```", "isolation-refactor"),
+            ("生成测试", "请为以下代码生成 pytest 测试：\n```\n{code}\n```", "isolation-tests"),
+            ("审查代码", "请审查以下代码的问题与风险：\n```\n{code}\n```", "isolation-review"),
+        )
+        for label, template, tag in actions:
+            self.api.add_menu(
+                "工具/AI 助手/" + label,
+                lambda t=template, g=tag: self._isolated_action(g, t),
+            )
+
+    def _isolated_action(self, title, template):
+        try:
+            code = self.api.get_current_text() or ""
+        except Exception:
+            code = ""
+        if not code.strip():
+            self.api.show_status("没有可分析的代码", 2000)
+            return
+        prompt = template.format(code=code)
+        result = self.api.ai_run(prompt, system="你是代码助手，回答使用中文。")
+        if result.get("ok"):
+            self.api.show_text_dialog(title, result.get("text", ""), 900, 600)
+        else:
+            self.api.show_message("AI 不可用", result.get("error", "未知错误"))
+
     def on_activate(self):
         """激活时调用"""
+        if getattr(self.api, "is_isolated", False):
+            self._activate_isolated()
+            return
         self.api.log(f"AI 助手 v{self.VERSION} 已激活")
 
         # 检查依赖
@@ -96,6 +128,8 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     # Ollama 管理面板
     # --------------------------------------------------------
     def on_deactivate(self):
+        if getattr(self.api, "is_isolated", False):
+            return
         try:
             from core.ai_client import AIClient
 

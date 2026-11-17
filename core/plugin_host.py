@@ -375,6 +375,8 @@ def load_plugin(plugin_dir):
         submodule_search_locations=[plugin_dir],
     )
     mod = importlib.util.module_from_spec(spec)
+    # 相对导入需要包名已注册（否则 from .x import y 失败）
+    sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     cls = getattr(mod, "Plugin", None)
     if cls is None:

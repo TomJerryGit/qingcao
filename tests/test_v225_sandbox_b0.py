@@ -175,10 +175,10 @@ def test_isolation_flag_helpers(monkeypatch):
     assert isolation_mode() == "off" and not should_isolate("demo")
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "demo")
     assert should_isolate("demo") and should_isolate("wordcount")
-    assert not should_isolate("ai_assistant")
+    assert not should_isolate("my_plugin")
     monkeypatch.setenv("QINGCAO_PLUGIN_ISOLATION", "all")
     assert should_isolate("wordcount")
-    assert not should_isolate("ai_assistant")
+    assert not should_isolate("my_plugin")
 
 
 def test_isolated_names_only_compatible(monkeypatch):

@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### 安全
+
+- **AI 隔离 headless 分支**：加载器支持相对导入；ai_assistant 隔离动作经宿主 ai_run（Key 不进子进程）。
+
+## [Unreleased]
+
 ### 工程
 
 - **Flaky 崩溃治理**：`tools/flaky_report.py` + `docs/flaky_governance.md`（0xC0000005 事件 11 起/逐文件通过 8）。
