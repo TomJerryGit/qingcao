@@ -385,3 +385,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 消息记录 ts；`search_sessions(sort=time|session, group=True)`；
 - 面板排序下拉 + 按会话分组标签/跳转；
 - 测试：分组/时间排序/面板控件；AI 套件连续 3 轮 23/23。
+
+
+### AI 远程面板注册 + 调试器隔离断点 e2e（2026-11-17）
+
+- `ai_show_panel` 将 AIHostPanel 注册进 `remote_panels["ai_output"]`，宿主统一发现/控制；
+- 隔离 python_debugger：菜单启动 → 宿主 DebugService 真实会话 → 设置断点/continue → 命中 `last_break`；
+- e2e 连续 3 轮通过。

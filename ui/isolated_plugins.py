@@ -345,6 +345,14 @@ class WindowHostAPI:
             buf.clear()
             panel.show()
             panel.raise_()
+            # 远程面板注册：宿主侧统一发现/控制
+            self.remote_panels["ai_output"] = {
+                "dock": panel,
+                "values": {},
+                "cb": None,
+                "kind": "ai",
+                "text_widget": panel.view,
+            }
 
         self._bridge.submit(_create)
         return True

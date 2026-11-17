@@ -167,6 +167,7 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
 
         assert _pump(qapp, lambda: "abc" in _panel_text(), 12000), "流式输出未显示"
         assert "abc" in _panel_text()
+        assert "ai_output" in host.api.remote_panels
         combo = host.api._ai_panel.session_combo
         assert combo.count() >= 1
         editor = win.tabs.currentWidget()
@@ -188,5 +189,45 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         assert "+abc" in msg or "abc" in msg
     finally:
         set_ai_service(None)
+        host.stop_all()
+        win.close()
+
+
+def test_isolated_debugger_breakpoint(qapp, tmp_path, monkeypatch):
+    import time
+
+    from core.debug_service import get_debug_service
+    from ui.isolated_plugins import IsolatedPluginHost
+
+    script = tmp_path / "loop.py"
+    script.write_text(
+        "import time\nx = 0\nfor i in range(30):\n    x = i\n    time.sleep(0.05)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("QINGCAO_TRUSTED_PLUGINS", "python_debugger")
+    win = _Win()
+    win.tabs.currentWidget().proxy = _DebugProxy(str(script))
+    host = IsolatedPluginHost(win)
+    service = get_debug_service()
+    try:
+        host.start({"python_debugger"})
+        assert _pump(qapp, lambda: bool(host.api.menus)), "调试器菜单未注册"
+        start = next((a for a in host.api.menus.values() if a.text() == "调试当前文件"), None)
+        assert start is not None
+        start.trigger()
+        deadline = time.time() + 15
+        while time.time() < deadline and service.session is None:
+            qapp.processEvents()
+            time.sleep(0.02)
+        assert service.session is not None, "宿主调试会话未启动"
+        service.handle("debug.set_breakpoints", {"files": {str(script): [3]}})
+        service.handle("debug.continue")
+        deadline = time.time() + 10
+        while time.time() < deadline and service.last_break is None:
+            qapp.processEvents()
+            time.sleep(0.02)
+        assert service.last_break is not None, "未命中隔离调试断点"
+    finally:
+        service.shutdown()
         host.stop_all()
         win.close()
