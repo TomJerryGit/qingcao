@@ -153,3 +153,5 @@ coverage.xml
 
 # 插件自检报告（运行时生成）
 plugin_report.txt
+
+release_runtime/
