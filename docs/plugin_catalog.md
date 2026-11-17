@@ -7,7 +7,7 @@
 | 插件 | 名称 | 版本 | 分类 | 权限 | 沙箱 | 启用 | 说明 |
 |---|---|---|---|---|---|---|---|
 | `ai_assistant` | AI 助手 | 2.0.0 | editor | network, editor_read, editor_write, dialog | — | ✅ | AI 助手：隔离 headless/流式、多会话、加密持久化、diff/插入 |
-| `markdown_preview` | Markdown 预览 | 1.1.0 | editor | editor_read, dialog | — | ✅ | Markdown 预览：远程面板/诊断 |
+| `markdown_preview` | Markdown 预览 | 1.1.0 | editor | editor_read, dialog, filesystem | — | ✅ | Markdown 预览：远程面板/诊断 |
 | `git_deep` | Git 深度集成 | 1.1.0 | integration | editor_read, process, filesystem, dialog | — | ✅ | Git 深度集成：状态栏/分支/diff/hunk、隔离宿主 Git API |
 | `python_debugger` | Python 调试器 | 2.1.0 | integration | process, editor_read, editor_write, dialog, debugger | — | ✅ | Python 调试器：断点/单步/变量/栈、条件断点/监视、宿主服务 |
 | `demo` | Demo | 1.0.0 | other | editor_read, dialog | — | ✅ | 青草编辑器最小示例插件 |

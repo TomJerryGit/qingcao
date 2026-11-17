@@ -3,6 +3,7 @@
   "allow": {
     "ai_assistant": "warn",
     "python_debugger": "review",
-    "spell_check": "warn"
+    "spell_check": "warn",
+    "markdown_preview": "warn"
   }
 }
