@@ -15,7 +15,7 @@ def test_renderer_builds_and_emits(qapp):
 
     r = RemoteUIRenderer()
     events = []
-    r.event.connect(lambda i, e, v: events.append((i, e, v)))
+    r.control_event.connect(lambda i, e, v: events.append((i, e, v)))
     r.update_tree(
         {
             "controls": [

@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 
 
 class RemoteUIRenderer(QWidget):
-    event = pyqtSignal(str, str, str)
+    control_event = pyqtSignal(str, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,15 +56,19 @@ class RemoteUIRenderer(QWidget):
                 w = QLabel(text)
             elif kind == "button":
                 w = QPushButton(text or cid)
-                w.clicked.connect(lambda _=False, i=cid: self.event.emit(i, "click", ""))
+                w.clicked.connect(lambda _=False, i=cid: self.control_event.emit(i, "click", ""))
             elif kind == "line_edit":
                 w = QLineEdit(value)
-                w.textChanged.connect(lambda v, i=cid: self.event.emit(i, "text_changed", v))
+                w.textChanged.connect(
+                    lambda v, i=cid: self.control_event.emit(i, "text_changed", v)
+                )
             elif kind == "check_box":
                 w = QCheckBox(text)
                 w.setChecked(value in ("1", "true", "True"))
                 w.toggled.connect(
-                    lambda on, i=cid: self.event.emit(i, "checked_changed", "1" if on else "0")
+                    lambda on, i=cid: self.control_event.emit(
+                        i, "checked_changed", "1" if on else "0"
+                    )
                 )
             elif kind == "text_view":
                 w = QTextEdit()
