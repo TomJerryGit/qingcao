@@ -64,6 +64,12 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 "工具/AI 助手/" + label,
                 lambda t=template, g=tag: self._isolated_action(g, t),
             )
+        try:
+            self._remote_panel = self.api.register_remote_panel(
+                "AI 输出", [], self._isolated_panel_refresh, kind="text"
+            )
+        except Exception:
+            self._remote_panel = None
         self.api.add_menu("工具/AI 助手/打开输出面板", lambda: self.api.ai_show_panel())
         self.api.add_menu("工具/AI 助手/显示完整结果", self._show_isolated_result)
         self.api.add_menu("工具/AI 助手/预览差异", self._preview_isolated_diff)
@@ -91,6 +97,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         except Exception:
             session = "isolated"
         self.api.ai_reset_history(session)
+
+    def _isolated_panel_refresh(self, _text=""):
+        return getattr(self, "_last_isolated_result", "") or "(暂无输出)"
 
     def _preview_isolated_diff(self):
         text = getattr(self, "_last_isolated_result", "")
@@ -143,6 +152,11 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         if result.get("ok"):
             text = result.get("text", "")
             self._last_isolated_result = text
+            try:
+                if getattr(self, "_remote_panel", None) is not None:
+                    self.api.update_remote_panel(self._remote_panel, text)
+            except Exception:
+                pass
             self.api.show_status("AI 输出已更新（%d 字符）" % len(text), 2500)
             try:
                 auto = bool(self.api.get_config("auto_result_dialog", True))

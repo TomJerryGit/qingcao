@@ -399,3 +399,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `debug_show_panel`（dialog 权限）：宿主创建 DebugHostPanel 并挂载；隔离插件菜单可直接打开；
 - `git_hunks/git_stage_hunks`（filesystem）：隔离 git_deep 支持 hunk 暂存（宿主执行，子进程不写索引）；
 - 测试：隔离 e2e + hunk 适配器。
+
+
+### AI 完整 UI 隔离增量：远程面板状态推送（2026-11-17）
+
+- `update_remote_panel(panel_id,text)`（dialog 权限）：子进程可推送文本到宿主远程面板；
+- ai_assistant 隔离模式注册「AI 输出」远程面板，结果完成后推送全文；
+- 仍未完成：主面板控件/结果对话框仍由宿主渲染，未实现子进程 Qt UI 全隔离；
+- 测试：`tests/test_v226_remote_panel_update.py`。

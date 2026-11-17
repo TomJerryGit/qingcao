@@ -550,6 +550,19 @@ class WindowHostAPI:
         self._bridge.submit(_create)
         return True
 
+    def update_remote_panel(self, panel_id, text):
+        rec = self.remote_panels.get(panel_id)
+        if rec is None:
+            return False
+        widget = rec.get("text_widget")
+
+        def _apply():
+            if widget is not None:
+                widget.setPlainText(str(text))
+
+        self._bridge.submit(_apply)
+        return True
+
     def show_remote_panel(self, panel_id=0):
         def _show():
             rec = self.remote_panels.get(panel_id) or next(iter(self.remote_panels.values()), None)
