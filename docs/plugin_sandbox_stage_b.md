@@ -407,3 +407,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - ai_assistant 隔离模式注册「AI 输出」远程面板，结果完成后推送全文；
 - 仍未完成：主面板控件/结果对话框仍由宿主渲染，未实现子进程 Qt UI 全隔离；
 - 测试：`tests/test_v226_remote_panel_update.py`。
+
+
+### 完整 UI 隔离：远程控件嵌入完成（2026-11-17）
+
+- 子进程控件树 → 宿主原生面板/对话框渲染（嵌入语义）；
+- 事件/动作回传：`remote_ui_events` + 动作白名单派发；
+- AI 隔离面板与结果对话框已迁移；
+- 剩余：全链路按钮级 e2e、发布。
