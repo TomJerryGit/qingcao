@@ -50,7 +50,12 @@ class AIHostPanel(QDockWidget):
         self._refresh_sessions("default")
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
-        layout.addWidget(self.view)
+        layout.addWidget(self.view, 2)
+        self.history_view = QPlainTextEdit()
+        self.history_view.setReadOnly(True)
+        self.history_view.setMaximumHeight(160)
+        self.history_view.setPlaceholderText("会话历史（搜索结果跳转）")
+        layout.addWidget(self.history_view, 1)
         self.setWidget(body)
         self.session_combo.currentTextChanged.connect(lambda *_: self._select_session())
 
@@ -105,6 +110,45 @@ class AIHostPanel(QDockWidget):
             return
         service.delete_session(name)
         self._refresh_sessions()
+
+    def show_session_history(self, session):
+        from core.ai_service import get_ai_service
+
+        messages = get_ai_service().get_session(session)
+        lines = []
+        for msg in messages:
+            lines.append("[%s] %s" % (msg.get("role", "?"), msg.get("content", "")))
+        self.history_view.setPlainText("\n\n".join(lines))
+
+    def highlight_query(self, query):
+        from PyQt5.QtGui import QColor, QTextCharFormat, QTextCursor
+        from PyQt5.QtWidgets import QTextEdit
+
+        q = str(query or "").strip()
+        self.history_view.setExtraSelections([])
+        if not q:
+            return 0
+        selections = []
+        doc = self.history_view.document()
+        cursor = QTextCursor(doc)
+        while True:
+            cursor = doc.find(q, cursor)
+            if cursor.isNull():
+                break
+            fmt = QTextCharFormat()
+            fmt.setBackground(QColor("#ffd700"))
+            sel = QTextEdit.ExtraSelection()
+            sel.cursor = cursor
+            sel.format = fmt
+            selections.append(sel)
+        self.history_view.setExtraSelections(selections)
+        return len(selections)
+
+    def jump_to_match(self, match, query=""):
+        session = str(match.get("session") or self.session_combo.currentText())
+        self.session_combo.setCurrentText(session)
+        self.show_session_history(session)
+        return self.highlight_query(query)
 
     def _search_sessions(self):
         from PyQt5.QtWidgets import QMessageBox

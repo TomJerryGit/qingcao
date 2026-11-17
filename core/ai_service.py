@@ -94,6 +94,9 @@ class AIService:
         except Exception:
             return False
 
+    def get_session(self, name):
+        return [dict(m) for m in self._sessions.get(str(name), [])]
+
     def search_sessions(self, query, session=None, limit=100):
         q = str(query or "").strip().lower()
         if not q:

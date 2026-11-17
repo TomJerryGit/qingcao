@@ -364,3 +364,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - `search_sessions`（按会话/角色/内容，限制 100 条）；面板搜索框+查找；
 - `export_sessions(names=...)` 支持全部/当前会话；面板范围选择；
 - 测试：搜索、范围导出、面板按钮。
+
+
+### AI 搜索结果跳转/高亮（2026-11-17）
+
+- 搜索命中列表选择后跳转到会话并显示历史；
+- `QTextEdit.ExtraSelection` 高亮全部命中；
+- 测试：跳转会话/高亮计数；AI 套件连续 3 轮 19/19。

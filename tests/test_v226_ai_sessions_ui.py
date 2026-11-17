@@ -173,3 +173,25 @@ def test_panel_has_search_and_scope_buttons(qapp):
         assert panel.search_edit is not None and panel.search_btn is not None
     finally:
         panel.close()
+
+
+def test_search_jump_and_highlight(qapp):
+    from core.ai_service import AIService, get_ai_service, set_ai_service
+    from ui.ai_host_panel import AIHostPanel
+
+    service = AIService(client=_Client())
+    service.run("alpha one", session="s1")
+    service.run("beta two", session="s2")
+    set_ai_service(service)
+    panel = AIHostPanel()
+    try:
+        matches = get_ai_service().search_sessions("alpha")["matches"]
+        assert matches and matches[0]["session"] == "s1"
+        count = panel.jump_to_match(matches[0], "alpha")
+        assert count >= 1
+        assert "alpha one" in panel.history_view.toPlainText()
+        assert panel.session_combo.currentText() == "s1"
+        assert panel.highlight_query("alpha") >= 1
+    finally:
+        set_ai_service(None)
+        panel.close()
