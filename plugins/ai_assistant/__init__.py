@@ -66,6 +66,12 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             )
         self.api.add_menu("工具/AI 助手/打开输出面板", lambda: self.api.ai_show_panel())
         self.api.add_menu("工具/AI 助手/显示完整结果", self._show_isolated_result)
+        self.api.add_menu(
+            "工具/AI 助手/插入结果到光标", lambda: self._apply_isolated_result("insert")
+        )
+        self.api.add_menu(
+            "工具/AI 助手/替换选中代码", lambda: self._apply_isolated_result("replace")
+        )
         self.api.add_menu("工具/AI 助手/新会话", self._isolated_new_session)
         self.api.register_settings_schema(
             [
@@ -84,6 +90,16 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         except Exception:
             session = "isolated"
         self.api.ai_reset_history(session)
+
+    def _apply_isolated_result(self, mode):
+        text = getattr(self, "_last_isolated_result", "")
+        if not text:
+            self.api.show_status("暂无 AI 结果", 2000)
+            return
+        self.api.ai_apply_result(text, mode)
+        self.api.show_status(
+            "已%s AI 结果" % ("替换" if mode == "replace" else "插入"), 2000, "success"
+        )
 
     def _show_isolated_result(self):
         text = getattr(self, "_last_isolated_result", "")

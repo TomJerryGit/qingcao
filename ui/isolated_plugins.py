@@ -246,6 +246,32 @@ class WindowHostAPI:
             prompt, system, max_tokens, bool(stream), bool(use_history), str(session)
         )
 
+    def ai_apply_result(self, text, mode="insert"):
+        def _apply():
+            proxy = self._current_proxy()
+            if proxy is None:
+                return
+            try:
+                if mode == "replace" and hasattr(proxy, "replace_selected_text"):
+                    proxy.replace_selected_text(str(text))
+                    return
+                if hasattr(proxy, "insert_text"):
+                    proxy.insert_text(str(text))
+                    return
+                sc = getattr(proxy, "sc", None)
+                if sc is None:
+                    return
+                if mode == "replace":
+                    sc.replaceSelectedText(str(text))
+                else:
+                    pos = sc.SendScintilla(sc.SCI_GETCURRENTPOS)
+                    sc.SendScintilla(sc.SCI_INSERTTEXT, pos, str(text).encode("utf-8"))
+            except Exception:
+                pass
+
+        self._bridge.submit(_apply)
+        return True
+
     def ai_current_session(self):
         from core.ai_service import get_ai_service
 

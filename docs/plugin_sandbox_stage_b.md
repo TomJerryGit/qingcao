@@ -308,3 +308,11 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 隔离插件设置 `auto_result_dialog`（默认开）：结果经宿主 `show_text_dialog` 自动弹出；
 - 菜单：打开输出面板 / 显示完整结果 / 新会话；
 - 测试：隔离 AI e2e 验证面板流式 + 自动弹窗 + 会话下拉。
+
+
+### AI 结果受限插入/替换（2026-11-17）
+
+- broker `ai_apply_result`（权限 `editor_write`）；
+- 宿主在 GUI 线程执行插入/替换（proxy API 或 Scintilla 回退）；
+- 隔离菜单：插入结果到光标 / 替换选中代码（仅用户显式触发，永不自动写入）；
+- e2e：AI 结果 `abc` 成功插入编辑器；权限拒绝测试通过。

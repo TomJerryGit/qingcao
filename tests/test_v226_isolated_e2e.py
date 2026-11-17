@@ -25,6 +25,16 @@ def _pump(app, predicate, timeout_ms=5000):
 
 
 class _Proxy:
+    def __init__(self):
+        self.inserted = []
+        self.replaced = []
+
+    def insert_text(self, text):
+        self.inserted.append(text)
+
+    def replace_selected_text(self, text):
+        self.replaced.append(text)
+
     def text(self):
         return "b\na\n"
 
@@ -159,6 +169,12 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         assert "abc" in str(captured["msg"])
         combo = host.api._ai_panel.session_combo
         assert combo.count() >= 1
+        editor = win.tabs.currentWidget()
+        insert = next((a for a in host.api.menus.values() if a.text() == "插入结果到光标"), None)
+        assert insert is not None
+        insert.trigger()
+        assert _pump(qapp, lambda: bool(editor.proxy.inserted), 8000)
+        assert "abc" in editor.proxy.inserted[-1]
     finally:
         set_ai_service(None)
         host.stop_all()

@@ -68,3 +68,18 @@ def test_sessions_isolated_history():
     svc.reset_history("s1")
     svc.run("d", session="s1")
     assert len(c.seen[-1]) == 1
+
+
+def test_ai_apply_requires_editor_write():
+    from core.plugin_host import CapabilityBroker
+    from core.sandbox_rpc import RpcError
+
+    class Host:
+        def ai_apply_result(self, text, mode="insert"):
+            return True
+
+    broker = CapabilityBroker([], Host(), trusted=True)
+    with pytest.raises(RpcError):
+        broker.dispatch("ai_apply_result", ["x", "insert"])
+    ok = CapabilityBroker(["editor_write"], Host(), trusted=True)
+    assert ok.dispatch("ai_apply_result", ["x", "insert"]) is True

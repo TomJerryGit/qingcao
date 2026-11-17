@@ -2,6 +2,12 @@
 
 ### 安全
 
+- **AI 结果受限插入/替换**：`ai_apply_result`（editor_write，用户显式触发）；多会话/自动弹窗已有。
+
+## [Unreleased]
+
+### 安全
+
 - AI 隔离多会话 UI（面板会话下拉/新会话）+ 结果自动弹窗（可设置关闭）；flaky 事件率 11/16 后无新增。
 
 ## [Unreleased]
