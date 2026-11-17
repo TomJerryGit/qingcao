@@ -490,7 +490,18 @@ class WindowHostAPI:
             body = QWidget(dock)
             values = {}
             text_widget = None
-            if kind in ("text", "markdown"):
+            if kind == "controls":
+                from ui.remote_ui_renderer import RemoteUIRenderer
+
+                renderer = RemoteUIRenderer()
+                renderer.control_event.connect(
+                    lambda cid, ev, val: self.enqueue_remote_ui_event(pid, cid, ev, val)
+                )
+                body_layout = QVBoxLayout(body)
+                body_layout.setContentsMargins(4, 4, 4, 4)
+                body_layout.addWidget(renderer)
+                text_widget = None
+            elif kind in ("text", "markdown"):
                 text_widget = QPlainTextEdit() if kind == "text" else QTextBrowser()
                 text_widget.setReadOnly(True) if kind == "text" else None
                 body_layout = QVBoxLayout(body)
@@ -515,6 +526,7 @@ class WindowHostAPI:
                 "cb": refresh_cb,
                 "kind": kind,
                 "text_widget": text_widget,
+                "renderer": locals().get("renderer"),
             }
 
             def refresh():
