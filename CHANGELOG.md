@@ -1,4 +1,11 @@
-## [Unreleased]
+﻿## [Unreleased]
+
+## [2.26.11] - 2026-11-17
+
+### 安全/AI 隔离
+
+- ai_assistant 隔离：headless 动作、流式/历史、多会话、自动弹窗、diff、插入/替换、持久化加密、导入预览/搜索/分组排序；
+- 隔离 UI e2e（git/debugger/AI）+ flaky 治理工具；AI e2e 稳定化。
 
 ### 安全
 
