@@ -55,6 +55,7 @@ METHOD_PERMISSIONS = {
     "ai_current_session": "network",
     "ai_set_current_session": "network",
     "ai_apply_result": "editor_write",
+    "ai_preview_diff": "editor_read",
     "ai_show_panel": "dialog",
     "debug_start": "debugger",
     "debug_stop": "debugger",
@@ -340,6 +341,9 @@ class RemoteAPI:
 
     def ai_reset_history(self, session="default"):
         return self._call("ai_reset_history", str(session))
+
+    def ai_preview_diff(self, text):
+        return self._call("ai_preview_diff", str(text))
 
     def ai_apply_result(self, text, mode="insert"):
         return self._call("ai_apply_result", str(text), str(mode))

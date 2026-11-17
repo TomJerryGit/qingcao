@@ -2,6 +2,12 @@
 
 ### 安全
 
+- **AI 隔离差异预览**（editor_read，不写编辑器）；AI e2e 连续 5 轮稳定。
+
+## [Unreleased]
+
+### 安全
+
 - **AI 结果受限插入/替换**：`ai_apply_result`（editor_write，用户显式触发）；多会话/自动弹窗已有。
 
 ## [Unreleased]

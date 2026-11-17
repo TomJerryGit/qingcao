@@ -316,3 +316,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 宿主在 GUI 线程执行插入/替换（proxy API 或 Scintilla 回退）；
 - 隔离菜单：插入结果到光标 / 替换选中代码（仅用户显式触发，永不自动写入）；
 - e2e：AI 结果 `abc` 成功插入编辑器；权限拒绝测试通过。
+
+
+### AI 差异预览（隔离，2026-11-17）
+
+- broker `ai_preview_diff`（权限 `editor_read`）；宿主用 difflib 生成 unified diff 并弹窗；
+- 隔离菜单「预览差异」；不写编辑器；
+- 测试：e2e 验证 `+abc` 出现；连续 5 轮综合测试全绿（14/14）。

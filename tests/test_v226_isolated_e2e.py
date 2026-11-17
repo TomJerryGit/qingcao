@@ -175,6 +175,17 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         insert.trigger()
         assert _pump(qapp, lambda: bool(editor.proxy.inserted), 8000)
         assert "abc" in editor.proxy.inserted[-1]
+        captured.clear()
+        diff_action = next((a for a in host.api.menus.values() if a.text() == "预览差异"), None)
+        assert diff_action is not None
+        diff_action.trigger()
+        assert _pump(
+            qapp,
+            lambda: "AI 建议" in str(captured.get("msg", "")),
+            12000,
+        ), "未打开差异预览"
+        msg = str(captured["msg"])
+        assert "+abc" in msg or "abc" in msg
     finally:
         set_ai_service(None)
         host.stop_all()

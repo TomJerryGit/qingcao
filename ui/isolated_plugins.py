@@ -246,6 +246,33 @@ class WindowHostAPI:
             prompt, system, max_tokens, bool(stream), bool(use_history), str(session)
         )
 
+    def ai_preview_diff(self, text):
+        import difflib
+
+        def _show():
+            proxy = self._current_proxy()
+            if proxy is None:
+                return
+            try:
+                selected = getattr(proxy, "selected_text", None)
+                old = str(selected() if callable(selected) else "")
+                if not old:
+                    old = str(proxy.text())
+            except Exception:
+                old = ""
+            diff = "".join(
+                difflib.unified_diff(
+                    old.splitlines(True),
+                    str(text).splitlines(True),
+                    fromfile="当前代码",
+                    tofile="AI 建议",
+                )
+            )
+            QMessageBox.information(self.window, "AI 差异预览", diff or "无差异")
+
+        self._bridge.submit(_show)
+        return True
+
     def ai_apply_result(self, text, mode="insert"):
         def _apply():
             proxy = self._current_proxy()
