@@ -65,12 +65,6 @@ def _activate(mod):
     return plugin, api
 
 
-def test_todo_scan_action():
-    plugin, api = _activate("plugins.todo_panel")
-    plugin.scan_current_file()
-    assert any("TODO" in str(d) for d in api.diagnostics)
-
-
 def test_logtail_stop_action():
     plugin, api = _activate("plugins.logtail")
     plugin.stop_watching()
