@@ -483,20 +483,9 @@ class AIResultDialog(QDialog):
             pass
 
     def set_idle_state(self):
-        """空会话初始态：没有 Worker 时不要假装"正在生成"。"""
-        if self._worker is not None and self._worker.isRunning():
-            return
-        self.status_label.setText("就绪：选择代码后执行 AI 动作，或在下方继续追问")
-        self.status_label.setStyleSheet("color: #888; padding: 4px; font-size: 12px;")
-        self.progress.setVisible(False)
-        self.cancel_btn.setVisible(False)
-        self.follow_edit.setEnabled(True)
-        self.follow_btn.setEnabled(True)
-        self.copy_btn.setEnabled(bool(self._result_text))
-        for name in ("replace_btn", "insert_btn", "diff_btn"):
-            btn = getattr(self, name, None)
-            if btn is not None:
-                btn.setEnabled(bool(self._result_text))
+        from plugins.ai_assistant.ai_idle import apply_idle_state
+
+        apply_idle_state(self)
 
     def set_worker(self, worker: AIWorker):
         """绑定 Worker（首轮）"""
@@ -794,12 +783,12 @@ class AIResultDialog(QDialog):
 
             from plugins.ai_assistant.validation import validate_result
 
-            ok, err = validate_result(
-                code, getattr(proxy, "filepath", "") or "")
+            ok, err = validate_result(code, getattr(proxy, "filepath", "") or "")
             if not ok:
-                if QMessageBox.question(
-                        self, "校验警告",
-                        "%s\n仍要应用？" % err) != QMessageBox.Yes:
+                if (
+                    QMessageBox.question(self, "校验警告", "%s\n仍要应用？" % err)
+                    != QMessageBox.Yes
+                ):
                     return
             proxy.sc.replaceSelectedText(code)
             self.status_label.setText("✓ 已替换选中代码")
@@ -827,12 +816,12 @@ class AIResultDialog(QDialog):
 
             from plugins.ai_assistant.validation import validate_result
 
-            ok, err = validate_result(
-                code, getattr(proxy, "filepath", "") or "")
+            ok, err = validate_result(code, getattr(proxy, "filepath", "") or "")
             if not ok:
-                if QMessageBox.question(
-                        self, "校验警告",
-                        "%s\n仍要应用？" % err) != QMessageBox.Yes:
+                if (
+                    QMessageBox.question(self, "校验警告", "%s\n仍要应用？" % err)
+                    != QMessageBox.Yes
+                ):
                     return
             pos = proxy.sc.SendScintilla(proxy.sc.SCI_GETCURRENTPOS)
             proxy.sc.SendScintilla(proxy.sc.SCI_INSERTTEXT, pos, code.encode("utf-8"))
