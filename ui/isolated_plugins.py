@@ -495,7 +495,7 @@ class WindowHostAPI:
 
                 renderer = RemoteUIRenderer()
                 renderer.control_event.connect(
-                    lambda cid, ev, val: self.enqueue_remote_ui_event(pid, cid, ev, val)
+                    lambda cid, ev, val: self._on_remote_control_event(pid, cid, ev, val)
                 )
                 body_layout = QVBoxLayout(body)
                 body_layout.setContentsMargins(4, 4, 4, 4)
@@ -571,6 +571,15 @@ class WindowHostAPI:
         self._bridge.submit(_create)
         return True
 
+    def remote_ui_update(self, panel_id, controls):
+        return self.update_remote_controls(panel_id, controls)
+
+    def remote_ui_poll(self):
+        return self.poll_remote_ui_events()
+
+    def remote_ui_dialog(self, title, controls):
+        return self.show_remote_ui_dialog(title, controls)
+
     def show_remote_ui_dialog(self, title, controls):
         from PyQt5.QtWidgets import QDialog, QVBoxLayout
 
@@ -585,7 +594,7 @@ class WindowHostAPI:
                 layout = QVBoxLayout(dlg)
                 renderer = RemoteUIRenderer()
                 renderer.control_event.connect(
-                    lambda cid, ev, val: self.enqueue_remote_ui_event(0, cid, ev, val)
+                    lambda cid, ev, val: self._on_remote_control_event(0, cid, ev, val)
                 )
                 layout.addWidget(renderer)
                 self._remote_ui_dialog = dlg

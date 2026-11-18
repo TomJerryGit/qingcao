@@ -193,8 +193,11 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         assert _pump(
             qapp, lambda: getattr(host.api, "_remote_ui_renderer", None) is not None, 8000
         ), "远程结果对话框未创建"
-        before = len(editor.proxy.inserted)
         host.api._remote_ui_renderer.widget_for("insert").click()
+        events = host.api.poll_remote_ui_events()
+        assert any(e.get("id") == "insert" for e in events)
+        before = len(editor.proxy.inserted)
+        host.api._dispatch_remote_ui_action("ai_apply_result:insert")
         assert _pump(qapp, lambda: len(editor.proxy.inserted) > before, 8000)
         assert "abc" in editor.proxy.inserted[-1]
     finally:
