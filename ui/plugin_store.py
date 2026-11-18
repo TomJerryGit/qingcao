@@ -193,6 +193,8 @@ class PluginStoreDialog(QDialog):
         bottom.addStretch()
 
         self.install_local_btn = QPushButton(tr("plugin.install_local", "📦 安装本地插件"))
+        self.install_local_btn.setToolTip("从本地 ZIP 安装插件")
+        self.install_local_btn.setAccessibleName("安装本地插件")
         self.install_local_btn.clicked.connect(self._install_local)
         bottom.addWidget(self.install_local_btn)
 
@@ -273,6 +275,8 @@ class PluginStoreDialog(QDialog):
 
         # 搜索框
         self.search_edit = QLineEdit()
+        self.search_edit.setAccessibleName("搜索插件")
+        self.search_edit.setToolTip("搜索插件（Ctrl+F）")
         self.search_edit.setPlaceholderText(tr("plugin.search_placeholder", "搜索插件...（Ctrl+F）"))
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._on_search_changed)
@@ -328,6 +332,8 @@ class PluginStoreDialog(QDialog):
         filter_row.addWidget(self.favorites_check)
 
         self.compare_btn = QPushButton(tr("plugin.compare", "⚖ 对比"))
+        self.compare_btn.setToolTip("对比已安装与市场版本")
+        self.compare_btn.setAccessibleName("对比插件版本")
         self.compare_btn.clicked.connect(self._on_compare)
         filter_row.addWidget(self.compare_btn)
 

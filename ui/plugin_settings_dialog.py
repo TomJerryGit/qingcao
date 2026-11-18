@@ -38,6 +38,8 @@ class SchemaSettingsDialog(QDialog):
 
     def __init__(self, plugin_name, schema, settings=None, parent=None):
         super().__init__(parent)
+        self.setAccessibleName("插件设置")
+        self.setToolTip("配置插件参数")
         self.plugin_name = plugin_name
         self.settings = settings or QSettings("QingCao", "PluginData")
         self.setWindowTitle(tr("plugin.settings_title", "插件设置 - {name}", name=plugin_name))

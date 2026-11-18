@@ -7,6 +7,12 @@ import os
 import sys
 
 
+REQUIRES = {
+    "ui/plugin_settings_dialog.py": ["setAccessibleName("],
+    "ui/remote_ui_renderer.py": ["setAccessibleName("],
+    "ui/debug_host_panel.py": ["setAccessibleName("],
+}
+
 CHECKS = {
     "ui/ai_host_panel.py": [
         "new_session_btn",
@@ -17,7 +23,13 @@ CHECKS = {
         "search_btn",
     ],
     "ui/plugin_store_card.py": ["fav_btn"],
-    "ui/plugin_store.py": ["usage_btn"],
+    "ui/plugin_store.py": [
+        "update_all_btn",
+        "install_local_btn",
+        "usage_btn",
+        "compare_btn",
+        "search_edit",
+    ],
     "ui/debug_host_panel.py": ["stack_tree", "locals_tree"],
     "ui/plugin_usage_dialog.py": ["table"],
 }
@@ -47,6 +59,15 @@ def run(root="."):
     issues = []
     for rel, widgets in CHECKS.items():
         issues.extend(check_file(os.path.join(root, rel), widgets))
+    for rel, patterns in REQUIRES.items():
+        try:
+            text = io.open(os.path.join(root, rel), encoding="utf-8").read()
+        except OSError:
+            issues.append("缺少文件: %s" % rel)
+            continue
+        for pat in patterns:
+            if pat not in text:
+                issues.append("%s: 缺少 %s" % (rel, pat))
     return issues
 
 
