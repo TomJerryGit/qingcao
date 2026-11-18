@@ -415,3 +415,10 @@ python tools/verify_plugin_isolation.py --plugin plugins/wordcount
 - 事件/动作回传：`remote_ui_events` + 动作白名单派发；
 - AI 隔离面板与结果对话框已迁移；
 - 剩余：全链路按钮级 e2e、发布。
+
+
+### 生产信任回退锁定（Sprint 1）
+
+- 默认 `QINGCAO_ENV=production`：环境变量信任**强制失效**，仅签名可信；
+- 测试/开发需同时设置 `QINGCAO_ENV=test|dev` 与 `QINGCAO_TRUST_ENV_FALLBACK=1`；
+- 双模式单元测试 + 隔离 e2e 通过。

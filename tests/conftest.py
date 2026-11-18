@@ -16,6 +16,7 @@ import os
 
 
 os.environ.setdefault("QINGCAO_TRUST_ENV_FALLBACK", "1")
+os.environ.setdefault("QINGCAO_ENV", "test")
 import sys as _sys
 
 

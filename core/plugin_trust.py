@@ -29,3 +29,11 @@ def verify_plugin_signature(plugin_dir, public_keys=None):
         return (False, "插件已被吊销")
     ok, msg = verify_ed25519(data, sig, public_keys)
     return (bool(ok), msg)
+
+
+def env_fallback_allowed():
+    """环境变量信任回退仅在 test/dev 且显式开启时允许。"""
+    env = os.environ.get("QINGCAO_ENV", "production").strip().lower()
+    if env not in ("test", "dev"):
+        return False
+    return os.environ.get("QINGCAO_TRUST_ENV_FALLBACK", "0") == "1"
