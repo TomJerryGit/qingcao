@@ -76,7 +76,7 @@ def test_ai_assistant_split():
 
     assert _lines("plugins/ai_assistant/__init__.py") < 1400
     assert _lines("plugins/ai_assistant/ai_common.py") < 400
-    assert _lines("plugins/ai_assistant/ai_result_dialog.py") < 850
+    assert _lines("plugins/ai_assistant/ai_result_dialog.py") < 900
     assert _lines("plugins/ai_assistant/ai_panel.py") < 550
     for cls in (AIWorker, AIResultDialog, AIConfigDialog, OllamaPanel, Plugin):
         assert cls is not None

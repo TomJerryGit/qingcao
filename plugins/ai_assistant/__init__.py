@@ -2,6 +2,8 @@
 # ruff: noqa: F401, F403, F405
 """AI 助手插件（v2.24 拆分：common/worker/dialog/config/panel）。"""
 
+from core.plugin_i18n import tr
+
 from .ai_common import *  # noqa: F401,F403,F405
 from .ai_config_dialog import AIConfigDialog  # noqa: F401
 from .ai_inline_mixin import InlineCompleterMixin  # noqa: E402
