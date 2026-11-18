@@ -330,7 +330,7 @@ class PluginStoreDialog(QDialog):
         self.compare_btn.clicked.connect(self._on_compare)
         filter_row.addWidget(self.compare_btn)
 
-        self.usage_btn = QPushButton("📊 使用统计")
+        self.usage_btn = QPushButton(tr("plugin.usage", "📊 使用统计"))
         self.usage_btn.setToolTip("查看本地插件使用统计")
         self.usage_btn.setAccessibleName("插件使用统计")
         self.usage_btn.clicked.connect(self._on_usage_stats)
