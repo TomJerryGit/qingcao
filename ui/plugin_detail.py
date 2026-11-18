@@ -88,7 +88,7 @@ class PluginDetailDialog(QDialog):
         btn_layout.addStretch()
 
         # 关闭按钮
-        close_btn = QPushButton("关闭")
+        close_btn = QPushButton(tr("common.close", "关闭"))
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
 
@@ -127,11 +127,11 @@ class PluginDetailDialog(QDialog):
         self.rating_comment.setPlaceholderText("简评（可选，仅本机保存）")
         vbox.addWidget(self.rating_comment)
         row2 = QHBoxLayout()
-        save_btn = QPushButton("保存评分")
+        save_btn = QPushButton(tr("plugin.save_rating", "保存评分"))
         save_btn.clicked.connect(self._save_local_rating)
         row2.addWidget(save_btn)
 
-        submit_btn = QPushButton("提交到社区")
+        submit_btn = QPushButton(tr("plugin.submit_community", "提交到社区"))
         submit_btn.setToolTip("打开 GitHub Issue（预填本插件评分 JSON）")
         submit_btn.clicked.connect(self._submit_to_community)
         row2.addWidget(submit_btn)
