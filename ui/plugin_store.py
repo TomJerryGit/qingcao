@@ -7,6 +7,7 @@
 
 from PyQt5.QtWidgets import QCheckBox
 
+from core.plugin_i18n import tr
 from ui.plugin_client import *  # noqa: F401,F403
 from ui.plugin_compare import PluginCompareDialog
 from ui.plugin_detail import *  # noqa: F401,F403
