@@ -2,6 +2,7 @@
 # ruff: noqa: F401, F403, F405
 """插件详情/安装进度对话框（v2.23 D3 拆分）。"""
 
+from core.plugin_i18n import tr
 from ui.plugin_client import *  # noqa: F401,F403
 
 
