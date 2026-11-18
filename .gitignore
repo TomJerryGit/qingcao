@@ -155,3 +155,6 @@ coverage.xml
 plugin_report.txt
 
 release_runtime/
+
+tools/procdump/
+tools/Procdump.zip
