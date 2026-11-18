@@ -14,6 +14,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from core.plugin_i18n import tr
+
 
 def normalize_schema(schema):
     """支持 list[dict] 或 dict{key:spec} 两种 schema。"""
@@ -38,7 +40,7 @@ class SchemaSettingsDialog(QDialog):
         super().__init__(parent)
         self.plugin_name = plugin_name
         self.settings = settings or QSettings("QingCao", "PluginData")
-        self.setWindowTitle("插件设置 - %s" % plugin_name)
+        self.setWindowTitle(tr("plugin.settings_title", "插件设置 - {name}", name=plugin_name))
         self.widgets = {}
         layout = QVBoxLayout(self)
         form = QFormLayout()
