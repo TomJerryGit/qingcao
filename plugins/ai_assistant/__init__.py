@@ -865,7 +865,29 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         def ai_call(prompt):
             return client.chat(prompt=prompt, system="你是一个 Python 调试助手", use_history=False)
 
-        result = auto_debug(str(path), ai_call, max_rounds=rounds)
+        from PyQt5.QtWidgets import QApplication, QProgressDialog
+
+        progress = QProgressDialog(
+            "自动调试中...", None, 0, rounds, self.api._host_window())
+        progress.setWindowTitle("自动调试")
+        progress.setMinimumDuration(0)
+        progress.setCancelButton(None)
+        progress.show()
+
+        def on_progress(round_no, run_result):
+            progress.setValue(min(round_no - 1, rounds))
+            progress.setLabelText(
+                "第 %d/%d 轮：%s" % (
+                    round_no, rounds,
+                    "运行通过" if run_result.get("ok")
+                    else "发现错误，等待 AI 修复"))
+            QApplication.processEvents()
+
+        try:
+            result = auto_debug(str(path), ai_call, max_rounds=rounds,
+                                on_progress=on_progress)
+        finally:
+            progress.close()
         self.api.show_message(
             "自动调试结果",
             ("成功" if result.get("ok") else "失败")
