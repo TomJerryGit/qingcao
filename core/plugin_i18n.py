@@ -6,6 +6,14 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "ai.config_save_failed": "Failed to save AI settings",
+    "ai.config_saved": "AI settings updated",
+    "ai.auto_debug": "Auto Debug",
+    "ai.session_title": "AI Chat (multi-turn)",
+    "ai.cache_unavailable": "Cache unavailable",
+    "ai.no_content": "AI returned no content",
+    "ai.no_code2": "No code",
+    "ai.unavailable": "AI unavailable",
     "ai.diff_title": "Preview Diff - {name}",
     "ai.generating": "Generating...",
     "ai.config_title": "AI Assistant Settings",

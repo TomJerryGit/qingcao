@@ -207,7 +207,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             if auto:
                 self.api.show_text_dialog(title, text, 900, 600)
         else:
-            self.api.show_message("AI 不可用", result.get("error", "未知错误"))
+            self.api.show_message(tr("ai.unavailable", "AI 不可用"), result.get("error", "未知错误"))
 
     def on_activate(self):
         """激活时调用"""
@@ -492,7 +492,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         """
         code, lang, _fp = self._get_context()
         if not code.strip():
-            self.api.show_message("无代码", "请先打开文件或选中代码。")
+            self.api.show_message(tr("ai.no_code2", "无代码"), "请先打开文件或选中代码。")
             return
         if not self._ensure_client():
             return
@@ -506,7 +506,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             self.api.show_message("AI 快速解释失败", str(e))
             return
         if not text:
-            self.api.show_status("AI 未返回内容", 3000, "warning")
+            self.api.show_status(tr("ai.no_content", "AI 未返回内容"), 3000, "warning")
             return
         try:
             QApplication.clipboard().setText(text)
@@ -519,7 +519,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         try:
             cache = get_result_cache()
             if cache is None:
-                self.api.show_status("缓存不可用", 3000, "warning")
+                self.api.show_status(tr("ai.cache_unavailable", "缓存不可用"), 3000, "warning")
                 return
             n = cache.stats().get("entries", 0)
             cache.clear()
@@ -586,7 +586,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _ensure_client(self) -> bool:
         """确保 AI 客户端可用"""
         if not _AI_CLIENT_OK:
-            self.api.show_message("AI 不可用", "core.ai_client 模块不可用。\n请确认项目结构完整。")
+            self.api.show_message(tr("ai.unavailable", "AI 不可用"), "core.ai_client 模块不可用。\n请确认项目结构完整。")
             return False
 
         if self._client is None:
@@ -632,7 +632,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         code, lang, filepath = self._get_context()
 
         if not code.strip():
-            self.api.show_message("无代码", "请先打开文件或选中代码。")
+            self.api.show_message(tr("ai.no_code2", "无代码"), "请先打开文件或选中代码。")
             return
 
         # 格式化提示词
@@ -795,7 +795,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             )
             # 非模态：不阻塞调用方
             dlg.setModal(False)
-            dlg.setWindowTitle("AI 对话（多轮，可继续追问）")
+            dlg.setWindowTitle(tr("ai.session_title", "AI 对话（多轮，可继续追问）"))
             # 立刻绑定当前客户端，使"新会话/追问"在首轮动作之前
             # 也能正常工作（不能等到 _run_ai_action 才赋值）
             dlg._client = self._client
@@ -847,9 +847,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _on_auto_debug(self):
         path = self.api.get_current_filepath()
         if not path or not str(path).lower().endswith(".py"):
-            self.api.show_message("自动调试", "请先打开一个 .py 文件")
+            self.api.show_message(tr("ai.auto_debug", "自动调试"), "请先打开一个 .py 文件")
             return
-        rounds, ok = self.api.ask_string("自动调试", "最多修复轮数（1-5）", "3")
+        rounds, ok = self.api.ask_string(tr("ai.auto_debug", "自动调试"), "最多修复轮数（1-5）", "3")
         if not ok:
             return
         try:
@@ -867,7 +867,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
 
                 client = get_ai_client()
         except Exception as e:
-            self.api.show_message("自动调试", "AI 未配置：%s" % e)
+            self.api.show_message(tr("ai.auto_debug", "自动调试"), "AI 未配置：%s" % e)
             return
 
         self.api.show_status("自动调试中（最多 %d 轮）..." % rounds, 5000)
@@ -878,7 +878,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         from PyQt5.QtWidgets import QApplication, QProgressDialog
 
         progress = QProgressDialog("自动调试中...", None, 0, rounds, self.api._host_window())
-        progress.setWindowTitle("自动调试")
+        progress.setWindowTitle(tr("ai.auto_debug", "自动调试"))
         progress.setMinimumDuration(0)
         progress.setCancelButton(None)
         progress.show()
@@ -1051,9 +1051,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 try:
                     self._client = load_ai_client_from_settings()
                     if self._client:
-                        self.api.show_status("AI 配置已更新", 2000, "success")
+                        self.api.show_status(tr("ai.config_saved", "AI 配置已更新"), 2000, "success")
                     else:
-                        self.api.show_status("AI 配置保存失败，请检查", 3000, "warning")
+                        self.api.show_status(tr("ai.config_save_failed", "AI 配置保存失败，请检查"), 3000, "warning")
                 except Exception as e:
                     self.api.log(f"重新加载客户端失败: {e}", "error")
         except Exception as e:
