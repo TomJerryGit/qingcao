@@ -6,6 +6,9 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "plugin.compare": "Compare",
+    "plugin.refresh": "Refresh",
+    "plugin.filter": "Filter",
     "plugin.market": "Plugin Market",
     "plugin.install": "Install",
     "plugin.uninstall": "Uninstall",

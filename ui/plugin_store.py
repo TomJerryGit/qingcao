@@ -327,7 +327,7 @@ class PluginStoreDialog(QDialog):
         self.favorites_check.toggled.connect(lambda *a: self._apply_filters())
         filter_row.addWidget(self.favorites_check)
 
-        self.compare_btn = QPushButton("⚖ 对比")
+        self.compare_btn = QPushButton(tr("plugin.compare", "⚖ 对比"))
         self.compare_btn.clicked.connect(self._on_compare)
         filter_row.addWidget(self.compare_btn)
 
