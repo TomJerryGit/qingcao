@@ -6,6 +6,9 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "line_sort.done": "Sorted {n} lines",
+    "line_sort.failed": "Sort failed",
+    "line_sort.empty": "No text to sort",
     "plugin.submit_community": "Submit to Community",
     "plugin.save_rating": "Save Rating",
     "plugin.install_local": "Install Local",

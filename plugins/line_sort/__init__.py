@@ -2,6 +2,7 @@
 """行排序 — 由 tools/new_plugin.py 生成后实现（P4 模板采用）。"""
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 class Plugin(PluginBase):
@@ -43,7 +44,7 @@ class Plugin(PluginBase):
             except Exception:
                 selected = ""
         if not selected.strip():
-            self.api.show_status("没有可排序的文本", 2000)
+            self.api.show_status(tr("line_sort.empty", "没有可排序的文本"), 2000)
             return 0
 
         lines = selected.splitlines()
@@ -66,7 +67,7 @@ class Plugin(PluginBase):
             else:
                 self.api.set_editor_text(result)
         except Exception as e:
-            self.api.show_message("行排序失败", str(e))
+            self.api.show_message(tr("line_sort.failed", "行排序失败"), str(e))
             return 0
-        self.api.show_status("已排序 %d 行" % len(lines), 2000, "success")
+        self.api.show_status(tr("line_sort.done", "已排序 {n} 行", n=len(lines)), 2000, "success")
         return len(lines)
