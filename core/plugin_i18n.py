@@ -130,6 +130,11 @@ _EN = {
     "common.search": "Search",
 }
 _JA = {
+    "line_sort.empty": "並べ替えるテキストがありません",
+    "json.error": "JSON エラー",
+    "debug.started": "デバッガ起動（ホストサービス）",
+    "ai.session_title": "AI チャット（マルチターン）",
+    "wordcount.words": "単語数: {n}",
     "plugin.market": "プラグイン市場",
     "plugin.install": "インストール",
     "plugin.uninstall": "アンインストール",
@@ -144,6 +149,11 @@ _JA = {
     "common.search": "検索",
 }
 _KO = {
+    "line_sort.empty": "정렬할 텍스트가 없습니다",
+    "json.error": "JSON 오류",
+    "debug.started": "디버거 시작(호스트 서비스)",
+    "ai.session_title": "AI 채팅(멀티턴)",
+    "wordcount.words": "단어 수: {n}",
     "plugin.market": "플러그인 마켓",
     "plugin.install": "설치",
     "plugin.uninstall": "제거",
