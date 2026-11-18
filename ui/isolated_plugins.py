@@ -817,8 +817,14 @@ class IsolatedPluginHost(QObject):
                 self.api,
                 timeout=15,
                 policy=policy,
-                trusted=(name in trusted_names) or signed_ok,
-                allow_high_risk=(name in trusted_names) or signed_ok,
+                env_trusted = name in trusted_names
+                if env_trusted and not signed_ok and os.environ.get(
+                        "QINGCAO_TRUST_ENV_FALLBACK", "1") != "0":
+                    logging.getLogger("QingCao.IsolatedPlugins").warning(
+                        "插件 %s 通过环境变量信任（非签名）；生产建议设置 "
+                        "QINGCAO_TRUST_ENV_FALLBACK=0", name)
+                trusted = signed_ok or env_trusted
+                allow_high_risk = signed_ok or env_trusted,
             )
             self.api.host = proc
             try:
