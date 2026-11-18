@@ -4,6 +4,7 @@
 import os
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 class _HostGit:
@@ -140,7 +141,7 @@ class Plugin(PluginBase):
             diff = git.diff_staged(filepath)
             self.api.show_text_dialog("Git 暂存差异", diff or "(无暂存差异)", 900, 600)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def switch_branch(self):
         git = self._get_git()
@@ -177,7 +178,7 @@ class Plugin(PluginBase):
             filepath = self.api.get_current_filepath()
             hunks = self.api.git_hunks(filepath)
             if not hunks:
-                self.api.show_status("当前文件没有未暂存 hunk", 3000)
+                self.api.show_status(tr("git.no_hunks", "当前文件没有未暂存 hunk"), 3000)
                 return
             labels = ["[%d] %s" % (h["index"], h["preview"].splitlines()[0]) for h in hunks]
             choice, ok = self.api.ask_string(
@@ -188,7 +189,7 @@ class Plugin(PluginBase):
             try:
                 indices = [int(x.strip()) for x in str(choice).split(",") if x.strip()]
             except ValueError:
-                self.api.show_message("Git 错误", "索引格式无效")
+                self.api.show_message(tr("git.error", "Git 错误"), "索引格式无效")
                 return
             success, out = self.api.git_stage_hunks(filepath, indices)
             self.api.show_status(
@@ -212,11 +213,11 @@ class Plugin(PluginBase):
             filepath = self.api.get_current_filepath()
             code, diff, err = git._run(["diff", "--", filepath])
             if code != 0:
-                self.api.show_message("Git 错误", err or "diff 失败")
+                self.api.show_message(tr("git.error", "Git 错误"), err or "diff 失败")
                 return
             header, hunks = git.parse_hunks(diff)
             if not hunks:
-                self.api.show_status("当前文件没有未暂存 hunk", 3000)
+                self.api.show_status(tr("git.no_hunks", "当前文件没有未暂存 hunk"), 3000)
                 return
             dlg = QDialog(self.api._host_window())
             dlg.setWindowTitle("暂存 Hunk - %s" % os.path.basename(filepath))
@@ -253,7 +254,7 @@ class Plugin(PluginBase):
             )
             self._refresh_status()
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     # --------------------------------------------------------
     def _get_git(self):
@@ -263,7 +264,7 @@ class Plugin(PluginBase):
 
             filepath = self.api.get_current_filepath()
             if not filepath:
-                self.api.show_status("没有打开的文件", 2000)
+                self.api.show_status(tr("git.no_file", "没有打开的文件"), 2000)
                 return None
 
             if getattr(self.api, "is_isolated", False):
@@ -299,7 +300,7 @@ class Plugin(PluginBase):
 
             self.api.show_text_dialog("Git 状态", "\n".join(lines), 600, 500)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def show_diff(self):
         """显示当前文件差异"""
@@ -312,7 +313,7 @@ class Plugin(PluginBase):
             diff = git.diff(filepath) or git.diff_staged(filepath)
             self.api.show_text_dialog("Git 差异", diff or "(无差异)", 900, 600)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def commit(self):
         """提交"""
@@ -332,11 +333,11 @@ class Plugin(PluginBase):
 
             success, output = git.commit(msg)
             if success:
-                self.api.show_status("提交成功", 2000, "success")
+                self.api.show_status(tr("git.commit_ok", "提交成功"), 2000, "success")
             else:
-                self.api.show_message("提交失败", output)
+                self.api.show_message(tr("git.commit_failed", "提交失败"), output)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def push(self):
         git = self._get_git()
@@ -345,11 +346,11 @@ class Plugin(PluginBase):
         try:
             success, output = git.push()
             if success:
-                self.api.show_status("推送成功", 2000, "success")
+                self.api.show_status(tr("git.push_ok", "推送成功"), 2000, "success")
             else:
-                self.api.show_message("推送失败", output)
+                self.api.show_message(tr("git.push_failed", "推送失败"), output)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def pull(self):
         git = self._get_git()
@@ -362,7 +363,7 @@ class Plugin(PluginBase):
             else:
                 self.api.show_message("拉取失败", output)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))
 
     def show_log(self):
         """查看日志"""
@@ -377,4 +378,4 @@ class Plugin(PluginBase):
                 lines.append(f"      {c['author']} · {c['when']}")
             self.api.show_text_dialog("Git 日志", "\n".join(lines), 700, 500)
         except Exception as e:
-            self.api.show_message("Git 错误", str(e))
+            self.api.show_message(tr("git.error", "Git 错误"), str(e))

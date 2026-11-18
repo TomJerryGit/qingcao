@@ -6,6 +6,13 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "git.push_failed": "Push failed",
+    "git.push_ok": "Push succeeded",
+    "git.commit_failed": "Commit failed",
+    "git.commit_ok": "Commit succeeded",
+    "git.no_file": "No open file",
+    "git.no_hunks": "No unstaged hunks",
+    "git.error": "Git Error",
     "markdown.ok": "Markdown check passed",
     "markdown.issues": "Markdown check: {n} issues reported",
     "markdown.not_markdown": "Current file is not Markdown",
