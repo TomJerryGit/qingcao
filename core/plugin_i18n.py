@@ -6,6 +6,15 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "ai.diff_title": "Preview Diff - {name}",
+    "ai.generating": "Generating...",
+    "ai.config_title": "AI Assistant Settings",
+    "debug.bad_breakpoint": "Cannot set breakpoint here (line out of range)",
+    "debug.watch_cleared": "Watch cleared",
+    "debug.watch_added": "Watch added: {expr}",
+    "debug.cond_cleared": "Conditional breakpoint cleared",
+    "debug.cond_set": "Conditional breakpoint: line {line} → {expr}",
+    "debug.need_cursor": "Open a file and move the cursor",
     "ai.no_code": "No code to analyze",
     "ai.no_result": "No AI result yet",
     "debug.no_editor": "No active editor",

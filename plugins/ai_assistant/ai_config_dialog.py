@@ -15,7 +15,7 @@ class AIConfigDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("AI 助手配置")
+        self.setWindowTitle(tr("ai.config_title", "AI 助手配置"))
         self.resize(520, 420)
 
         self._build_ui()

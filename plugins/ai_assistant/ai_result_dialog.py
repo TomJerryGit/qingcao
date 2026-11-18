@@ -11,6 +11,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from core.plugin_i18n import tr
+
 from .ai_common import *  # noqa: F401,F403,F405
 from .ai_worker import AIWorker
 
@@ -78,7 +80,7 @@ class AIResultDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # 状态标签
-        self.status_label = QLabel("正在生成...")
+        self.status_label = QLabel(tr("ai.generating", "正在生成..."))
         self.status_label.setStyleSheet("color: #f0ad4e; padding: 4px; font-size: 12px;")
         layout.addWidget(self.status_label)
 
@@ -730,7 +732,7 @@ class AIResultDialog(QDialog):
                 QMessageBox.information(self, "无差异", "AI 结果与当前代码一致。")
                 return
             dlg = QDialog(self)
-            dlg.setWindowTitle("预览差异 - %s" % (self._action_title or "AI"))
+            dlg.setWindowTitle(tr("ai.diff_title", "预览差异 - {name}", name=(self._action_title or "AI")))
             dlg.resize(760, 520)
             layout = QVBoxLayout(dlg)
             view = QPlainTextEdit()

@@ -478,7 +478,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
         proxy = self.api.current_editor()
         filepath = self.api.get_current_filepath()
         if proxy is None or not filepath:
-            self.api.show_status("请先打开文件并移动光标", 3000)
+            self.api.show_status(tr("debug.need_cursor", "请先打开文件并移动光标"), 3000)
             return
         try:
             line = int(proxy.sc.getCurrentLine())
@@ -490,10 +490,10 @@ class Plugin(DebugGuardsMixin, PluginBase):
             return
         if str(expr or "").strip():
             self._conditions[(filepath, line)] = str(expr).strip()
-            self.api.show_status("条件断点: 行 %d → %s" % (line + 1, expr), 3000, "success")
+            self.api.show_status(tr("debug.cond_set", "条件断点: 行 {line} → {expr}", line=line + 1, expr=expr), 3000, "success")
         else:
             self._conditions.pop((filepath, line), None)
-            self.api.show_status("已清除该行条件", 2000)
+            self.api.show_status(tr("debug.cond_cleared", "已清除该行条件"), 2000)
         self._send_breakpoints()
 
     def add_watch(self):
@@ -504,12 +504,12 @@ class Plugin(DebugGuardsMixin, PluginBase):
         if expr not in self._watches:
             self._watches.append(expr)
         self._send_breakpoints()
-        self.api.show_status("已添加监视: %s" % expr, 2000, "success")
+        self.api.show_status(tr("debug.watch_added", "已添加监视: {expr}", expr=expr), 2000, "success")
 
     def clear_watches(self):
         self._watches = []
         self._send_breakpoints()
-        self.api.show_status("已清除监视表达式", 2000)
+        self.api.show_status(tr("debug.watch_cleared", "已清除监视表达式"), 2000)
 
     def toggle_breakpoint(self):
         proxy = self.api.current_editor()
@@ -521,7 +521,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
         toggled = bool(proxy.toggle_breakpoint())
         lines = proxy.get_breakpoints() if hasattr(proxy, "get_breakpoints") else []
         if not toggled:
-            self.api.show_status("当前位置无法设置断点（行号越界）", 3000, "warning")
+            self.api.show_status(tr("debug.bad_breakpoint", "当前位置无法设置断点（行号越界）"), 3000, "warning")
             return False
         self.api.show_status(f"当前文件断点：{len(lines)} 个", 2500)
         return True
