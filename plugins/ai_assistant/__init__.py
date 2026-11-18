@@ -143,13 +143,23 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             self.api.show_status(tr("ai.no_result", "暂无 AI 结果"), 2000)
             return
         if getattr(self.api, "is_isolated", False):
-            controls = {"controls": [
-                {"id": "output", "kind": "text_view", "value": text},
-                {"id": "insert", "kind": "button", "text": "插入到光标",
-                 "action": "ai_apply_result:insert"},
-                {"id": "replace", "kind": "button", "text": "替换选中",
-                 "action": "ai_apply_result:replace"},
-            ]}
+            controls = {
+                "controls": [
+                    {"id": "output", "kind": "text_view", "value": text},
+                    {
+                        "id": "insert",
+                        "kind": "button",
+                        "text": "插入到光标",
+                        "action": "ai_apply_result:insert",
+                    },
+                    {
+                        "id": "replace",
+                        "kind": "button",
+                        "text": "替换选中",
+                        "action": "ai_apply_result:replace",
+                    },
+                ]
+            }
             self.api.show_remote_ui_dialog("AI 结果", controls)
             return
         self.api.show_text_dialog("AI 结果", text, 900, 600)
@@ -867,8 +877,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
 
         from PyQt5.QtWidgets import QApplication, QProgressDialog
 
-        progress = QProgressDialog(
-            "自动调试中...", None, 0, rounds, self.api._host_window())
+        progress = QProgressDialog("自动调试中...", None, 0, rounds, self.api._host_window())
         progress.setWindowTitle("自动调试")
         progress.setMinimumDuration(0)
         progress.setCancelButton(None)
@@ -877,15 +886,17 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         def on_progress(round_no, run_result):
             progress.setValue(min(round_no - 1, rounds))
             progress.setLabelText(
-                "第 %d/%d 轮：%s" % (
-                    round_no, rounds,
-                    "运行通过" if run_result.get("ok")
-                    else "发现错误，等待 AI 修复"))
+                "第 %d/%d 轮：%s"
+                % (
+                    round_no,
+                    rounds,
+                    "运行通过" if run_result.get("ok") else "发现错误，等待 AI 修复",
+                )
+            )
             QApplication.processEvents()
 
         try:
-            result = auto_debug(str(path), ai_call, max_rounds=rounds,
-                                on_progress=on_progress)
+            result = auto_debug(str(path), ai_call, max_rounds=rounds, on_progress=on_progress)
         finally:
             progress.close()
         self.api.show_message(
