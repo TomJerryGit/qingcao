@@ -5,6 +5,7 @@ import json
 import re
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 class Plugin(PluginBase):
@@ -177,7 +178,7 @@ class Plugin(PluginBase):
         sort_keys = self._settings_sort_keys()
         text, is_selection = self._get_json_text()
         if not text.strip():
-            self.api.show_status("没有内容", 2000)
+            self.api.show_status(tr("json.empty", "没有内容"), 2000)
             return
         try:
             data = self._parse_json(text)
@@ -185,7 +186,9 @@ class Plugin(PluginBase):
             self._apply(result, is_selection)
             self.api.show_status("格式化成功（%d 空格）" % indent, 2000, "success")
         except json.JSONDecodeError as e:
-            self.api.show_message("JSON 错误", "第 %d 行 第 %d 列: %s" % (e.lineno, e.colno, e.msg))
+            self.api.show_message(
+                tr("json.error", "JSON 错误"), "第 %d 行 第 %d 列: %s" % (e.lineno, e.colno, e.msg)
+            )
 
     def validate_schema(self):
         """按设置的 schema_path 做基础 JSON Schema 校验。"""
@@ -252,7 +255,7 @@ class Plugin(PluginBase):
         """校验并把错误发布到「问题」面板（v2.3 诊断 API）"""
         text = self._current_text()
         if not text.strip():
-            self.api.show_status("没有内容", 2000)
+            self.api.show_status(tr("json.empty", "没有内容"), 2000)
             return
         try:
             data = self._parse_json(text)
@@ -305,14 +308,14 @@ class Plugin(PluginBase):
         """格式化"""
         text, is_selection = self._get_json_text()
         if not text.strip():
-            self.api.show_status("没有内容", 2000)
+            self.api.show_status(tr("json.empty", "没有内容"), 2000)
             return
 
         try:
             data = self._parse_json(text)
             result = json.dumps(data, indent=indent, ensure_ascii=False)
             self._apply(result, is_selection)
-            self.api.show_status("格式化成功", 2000, "success")
+            self.api.show_status(tr("json.formatted", "格式化成功"), 2000, "success")
         except json.JSONDecodeError as e:
             self.api.show_message("JSON 错误", f"第 {e.lineno} 行 第 {e.colno} 列: {e.msg}")
 
@@ -320,7 +323,7 @@ class Plugin(PluginBase):
         """逐行格式化 JSONL（每行一个 JSON/JSONC 值）。"""
         text, is_selection = self._get_json_text()
         if not text.strip():
-            self.api.show_status("没有内容", 2000)
+            self.api.show_status(tr("json.empty", "没有内容"), 2000)
             return
         out = []
         for lineno, line in enumerate(text.splitlines(), 1):

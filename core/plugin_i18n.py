@@ -6,6 +6,9 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "json.formatted": "Formatted successfully",
+    "json.error": "JSON Error",
+    "json.empty": "No content",
     "line_sort.done": "Sorted {n} lines",
     "line_sort.failed": "Sort failed",
     "line_sort.empty": "No text to sort",
