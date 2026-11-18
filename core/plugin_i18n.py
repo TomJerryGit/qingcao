@@ -6,6 +6,10 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "wordcount.chars": "Chars: {n}",
+    "wordcount.words": "Words: {n}",
+    "wordcount.large": "Wordcount: large file",
+    "wordcount.unset": "Not set",
     "ai.inline_inserted": "AI completion inserted (Ctrl+Z to undo)",
     "ai.inline_need_cursor": "Move cursor after existing code (at least 3 columns)",
     "ai.inline_requesting": "Requesting completion…",

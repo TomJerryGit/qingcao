@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QDockWidget, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 def count_text_stats(text):
@@ -159,7 +160,7 @@ class WordCountPanel(QDockWidget):
                 pct = min(999, int(data["words"] * 100 / target))
                 self.stats["target"].setText("%d / %d (%d%%)" % (data["words"], target, pct))
             else:
-                self.stats["target"].setText("未设置")
+                self.stats["target"].setText(tr("wordcount.unset", "未设置"))
         except Exception:
             pass
 
@@ -237,14 +238,14 @@ class Plugin(PluginBase):
             except Exception:
                 pass
             if length > 2 * 1024 * 1024:
-                self._status_item.setText("字数: 大文件")
+                self._status_item.setText(tr("wordcount.large", "字数: 大文件"))
                 return
             text = self.api.get_current_text() or ""
             if str(self.api.get_config("mode", "chars")) == "words":
                 n = len(re.findall(r"\w+", text))
-                self._status_item.setText("词数: %d" % n)
+                self._status_item.setText(tr("wordcount.words", "词数: {n}", n=n))
             else:
-                self._status_item.setText("字数: %d" % len(text))
+                self._status_item.setText(tr("wordcount.chars", "字数: {n}", n=len(text)))
         except Exception:
             pass
 
