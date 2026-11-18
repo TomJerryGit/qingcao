@@ -3,6 +3,8 @@
 
 from PyQt5.QtCore import QSettings  # noqa: F401
 
+from core.plugin_i18n import tr
+
 from .ai_common import *  # noqa: F401,F403,F405
 
 
@@ -79,7 +81,7 @@ class InlineCompleterMixin:
         """开关行内补全"""
         comp = getattr(self, "inline_completer", None)
         if comp is None:
-            self.api.show_status("行内补全不可用", 3000, "warning")
+            self.api.show_status(tr("ai.inline_unavailable", "行内补全不可用"), 3000, "warning")
             return
         now = not comp.enabled
         comp.set_enabled(now)
@@ -109,12 +111,12 @@ class InlineCompleterMixin:
             return
         comp = self._sync_inline_editor()
         if comp is None:
-            self.api.show_status("没有可用的编辑器", 3000, "warning")
+            self.api.show_status(tr("ai.inline_no_editor", "没有可用的编辑器"), 3000, "warning")
             return
         if not comp.request_now(force=True):
             # 未发起：可能光标列数不足或正在请求
             if comp._busy:
-                self.api.show_status("正在请求补全…", 2000, "info")
+                self.api.show_status(tr("ai.inline_requesting", "正在请求补全…"), 2000, "info")
             else:
                 self.api.show_status("请先把光标移到已有代码行之后（至少 3 列）", 4000, "info")
 
@@ -124,7 +126,7 @@ class InlineCompleterMixin:
         if comp is None or not comp.has_suggestion():
             return
         if comp.accept_suggestion():
-            self.api.show_status("已插入 AI 补全（Ctrl+Z 可撤销）", 3000, "success")
+            self.api.show_status(tr("ai.inline_inserted", "已插入 AI 补全（Ctrl+Z 可撤销）"), 3000, "success")
 
     # --------------------------------------------------------
     # 命令面板集成

@@ -6,6 +6,18 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "ai.inline_inserted": "AI completion inserted (Ctrl+Z to undo)",
+    "ai.inline_need_cursor": "Move cursor after existing code (at least 3 columns)",
+    "ai.inline_requesting": "Requesting completion…",
+    "ai.inline_no_editor": "No editor available",
+    "ai.inline_disabled": "Inline completion disabled: Tools → AI Assistant → toggle",
+    "ai.inline_unavailable": "Inline completion unavailable",
+    "ai.not_configured": "AI not configured: set API in Settings",
+    "ai.inserted": "✓ Inserted at cursor",
+    "ai.replaced": "✓ Replaced selection",
+    "ai.done_time": "✓ Done · {sec:.1f}s",
+    "ai.done": "✓ Done",
+    "ai.new_session": "New session started · context cleared",
     "spell.cleared": "Spelling results cleared",
     "spell.clean": "No spelling issues",
     "spell.found": "{n} suspicious spellings found",

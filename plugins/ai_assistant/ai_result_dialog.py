@@ -297,7 +297,7 @@ class AIResultDialog(QDialog):
         except Exception:
             self.browser.setPlainText(self._result_text)
         if cleared:
-            self.status_label.setText("已开始新会话 · 上下文已清空")
+            self.status_label.setText(tr("ai.new_session", "已开始新会话 · 上下文已清空"))
         else:
             # 不要静默：没有客户端时上下文其实没被清，必须让用户知道
             self.status_label.setText("已开始新会话（注意：未绑定 AI 客户端，上下文未清空）")
@@ -530,7 +530,7 @@ class AIResultDialog(QDialog):
                 self._client = get_ai_client()
             except Exception:
                 self._start_waiting("AI 未配置")
-                self.status_label.setText("AI 未配置：请先在设置中填写 API")
+                self.status_label.setText(tr("ai.not_configured", "AI 未配置：请先在设置中填写 API"))
                 self.progress.setVisible(False)
                 self.follow_edit.setEnabled(True)
                 self.follow_btn.setEnabled(True)
@@ -589,7 +589,7 @@ class AIResultDialog(QDialog):
         if getattr(self, "_wait_start", None):
             elapsed = time.time() - self._wait_start
         self._stop_waiting()
-        self.status_label.setText("✓ 完成 · 总耗时 %.1f 秒" % elapsed if elapsed else "✓ 完成")
+        self.status_label.setText(tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed) if elapsed else tr("ai.done", "✓ 完成"))
         self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
@@ -656,7 +656,7 @@ class AIResultDialog(QDialog):
         except Exception:
             self.browser.setPlainText(self._result_text)
 
-        self.status_label.setText("✓ 完成")
+        self.status_label.setText(tr("ai.done", "✓ 完成"))
         self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
@@ -676,7 +676,7 @@ class AIResultDialog(QDialog):
             elapsed = time.time() - self._wait_start
         self._stop_waiting()
         if elapsed:
-            self.status_label.setText("✓ 完成 · 总耗时 %.1f 秒" % elapsed)
+            self.status_label.setText(tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed))
         # 首轮完成 → 允许追问
         self.follow_edit.setEnabled(True)
         self.follow_btn.setEnabled(True)
@@ -793,7 +793,7 @@ class AIResultDialog(QDialog):
                 ):
                     return
             proxy.sc.replaceSelectedText(code)
-            self.status_label.setText("✓ 已替换选中代码")
+            self.status_label.setText(tr("ai.replaced", "✓ 已替换选中代码"))
             self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
             self.accept()
 
@@ -827,7 +827,7 @@ class AIResultDialog(QDialog):
                     return
             pos = proxy.sc.SendScintilla(proxy.sc.SCI_GETCURRENTPOS)
             proxy.sc.SendScintilla(proxy.sc.SCI_INSERTTEXT, pos, code.encode("utf-8"))
-            self.status_label.setText("✓ 已插入到光标处")
+            self.status_label.setText(tr("ai.inserted", "✓ 已插入到光标处"))
             self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
             self.accept()
 
