@@ -3,7 +3,9 @@
 
 from PyQt5.QtWidgets import (
     QDockWidget,
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
@@ -21,6 +23,22 @@ class DebugHostPanel(QDockWidget):
         layout = QVBoxLayout(body)
         self.status = QLabel("未启动")
         layout.addWidget(self.status)
+        tools = QHBoxLayout()
+        self.continue_btn = QPushButton("继续")
+        self.pause_btn = QPushButton("暂停")
+        self.over_btn = QPushButton("步过")
+        self.stop_btn = QPushButton("终止")
+        for btn, name, cmd in (
+                (self.continue_btn, "继续调试", "debug.continue"),
+                (self.pause_btn, "暂停调试", "debug.pause"),
+                (self.over_btn, "步过当前行", "debug.over"),
+                (self.stop_btn, "终止调试", "debug.stop")):
+            btn.setAccessibleName(name)
+            btn.setToolTip(name)
+            btn.clicked.connect(
+                lambda _=False, c=cmd: self.service.handle(c))
+            tools.addWidget(btn)
+        layout.addLayout(tools)
         self.tabs = QTabWidget()
         self.stack_tree = QTreeWidget()
         self.stack_tree.setAccessibleName("调用栈")
