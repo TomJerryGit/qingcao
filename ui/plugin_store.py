@@ -176,7 +176,7 @@ class PluginStoreDialog(QDialog):
         self.check_updates_btn = QPushButton("🔍 检查更新")
         self.check_updates_btn.clicked.connect(self._check_updates)
         bottom.addWidget(self.check_updates_btn)
-        self.update_all_btn = QPushButton("⬆ 全部更新")
+        self.update_all_btn = QPushButton(tr("plugin.update_all", "⬆ 全部更新"))
         self.update_all_btn.setToolTip("检查并更新所有兼容的插件（不兼容项自动跳过）")
         self.update_all_btn.clicked.connect(self._check_updates)
         self.update_all_btn.setObjectName("update_all_btn")
@@ -192,7 +192,7 @@ class PluginStoreDialog(QDialog):
 
         bottom.addStretch()
 
-        self.install_local_btn = QPushButton("📦 安装本地插件")
+        self.install_local_btn = QPushButton(tr("plugin.install_local", "📦 安装本地插件"))
         self.install_local_btn.clicked.connect(self._install_local)
         bottom.addWidget(self.install_local_btn)
 
@@ -273,7 +273,7 @@ class PluginStoreDialog(QDialog):
 
         # 搜索框
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("搜索插件...（Ctrl+F）")
+        self.search_edit.setPlaceholderText(tr("plugin.search_placeholder", "搜索插件...（Ctrl+F）"))
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_edit, 1)
