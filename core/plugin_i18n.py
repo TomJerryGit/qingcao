@@ -6,6 +6,13 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "ai.no_code": "No code to analyze",
+    "ai.no_result": "No AI result yet",
+    "debug.no_editor": "No active editor",
+    "debug.no_session": "No debug session",
+    "debug.stopped": "Debugger stopped (host service)",
+    "debug.started": "Debugger started (host service)",
+    "debug.no_file": "No open file",
     "git.push_failed": "Push failed",
     "git.push_ok": "Push succeeded",
     "git.commit_failed": "Commit failed",

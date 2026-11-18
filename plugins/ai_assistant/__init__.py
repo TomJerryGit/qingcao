@@ -123,14 +123,14 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _preview_isolated_diff(self):
         text = getattr(self, "_last_isolated_result", "")
         if not text:
-            self.api.show_status("暂无 AI 结果", 2000)
+            self.api.show_status(tr("ai.no_result", "暂无 AI 结果"), 2000)
             return
         self.api.ai_preview_diff(text)
 
     def _apply_isolated_result(self, mode):
         text = getattr(self, "_last_isolated_result", "")
         if not text:
-            self.api.show_status("暂无 AI 结果", 2000)
+            self.api.show_status(tr("ai.no_result", "暂无 AI 结果"), 2000)
             return
         self.api.ai_apply_result(text, mode)
         self.api.show_status(
@@ -140,7 +140,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _show_isolated_result(self):
         text = getattr(self, "_last_isolated_result", "")
         if not text:
-            self.api.show_status("暂无 AI 结果", 2000)
+            self.api.show_status(tr("ai.no_result", "暂无 AI 结果"), 2000)
             return
         if getattr(self.api, "is_isolated", False):
             controls = {"controls": [
@@ -160,7 +160,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         except Exception:
             code = ""
         if not code.strip():
-            self.api.show_status("没有可分析的代码", 2000)
+            self.api.show_status(tr("ai.no_code", "没有可分析的代码"), 2000)
             return
         prompt = template.format(code=code)
         try:

@@ -32,6 +32,7 @@ import subprocess
 import sys
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 try:  # 包导入与隔离子进程直载（无父包）都兼容
@@ -234,11 +235,11 @@ class Plugin(DebugGuardsMixin, PluginBase):
         if self._isolated_mode():
             filepath = self.api.get_current_filepath()
             if not filepath:
-                self.api.show_status("没有打开的文件", 2000)
+                self.api.show_status(tr("debug.no_file", "没有打开的文件"), 2000)
                 return False
             result = self.api.debug_start(filepath)
             if result.get("ok"):
-                self.api.show_status("调试已启动（宿主服务）", 3000, "success")
+                self.api.show_status(tr("debug.started", "调试已启动（宿主服务）"), 3000, "success")
                 return True
             self._notify_error("无法调试", result.get("error", "未知错误"))
             return False
@@ -401,12 +402,12 @@ class Plugin(DebugGuardsMixin, PluginBase):
     def stop_debug(self):
         if self._isolated_mode():
             self.api.debug_stop()
-            self.api.show_status("调试已停止（宿主服务）", 3000)
+            self.api.show_status(tr("debug.stopped", "调试已停止（宿主服务）"), 3000)
             return True
         """终止调试并确保不留孤儿进程。"""
         session = self._session
         if session is None:
-            self.api.show_status("当前没有调试会话", 2000)
+            self.api.show_status(tr("debug.no_session", "当前没有调试会话"), 2000)
             return False
         try:
             exited = session.stop()
@@ -513,7 +514,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
     def toggle_breakpoint(self):
         proxy = self.api.current_editor()
         if proxy is None or not hasattr(proxy, "toggle_breakpoint"):
-            self.api.show_status("没有活动的编辑器", 3000, "warning")
+            self.api.show_status(tr("debug.no_editor", "没有活动的编辑器"), 3000, "warning")
             return False
         # 行号越界时 toggle_breakpoint 返回 False（markerAdd 对越界行是
         # 静默失败的），这里如实转达，不能报"成功"。
