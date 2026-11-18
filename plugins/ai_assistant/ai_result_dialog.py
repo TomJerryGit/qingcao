@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ruff: noqa: F401, F403, F405
 """AI 结果对话框（v2.24 拆出）。"""
 
@@ -530,7 +529,9 @@ class AIResultDialog(QDialog):
                 self._client = get_ai_client()
             except Exception:
                 self._start_waiting("AI 未配置")
-                self.status_label.setText(tr("ai.not_configured", "AI 未配置：请先在设置中填写 API"))
+                self.status_label.setText(
+                    tr("ai.not_configured", "AI 未配置：请先在设置中填写 API")
+                )
                 self.progress.setVisible(False)
                 self.follow_edit.setEnabled(True)
                 self.follow_btn.setEnabled(True)
@@ -589,7 +590,11 @@ class AIResultDialog(QDialog):
         if getattr(self, "_wait_start", None):
             elapsed = time.time() - self._wait_start
         self._stop_waiting()
-        self.status_label.setText(tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed) if elapsed else tr("ai.done", "✓ 完成"))
+        self.status_label.setText(
+            tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed)
+            if elapsed
+            else tr("ai.done", "✓ 完成")
+        )
         self.status_label.setStyleSheet("color: #7ec850; padding: 4px; font-size: 12px;")
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
@@ -676,7 +681,9 @@ class AIResultDialog(QDialog):
             elapsed = time.time() - self._wait_start
         self._stop_waiting()
         if elapsed:
-            self.status_label.setText(tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed))
+            self.status_label.setText(
+                tr("ai.done_time", "✓ 完成 · 总耗时 {sec:.1f} 秒", sec=elapsed)
+            )
         # 首轮完成 → 允许追问
         self.follow_edit.setEnabled(True)
         self.follow_btn.setEnabled(True)
@@ -732,7 +739,9 @@ class AIResultDialog(QDialog):
                 QMessageBox.information(self, "无差异", "AI 结果与当前代码一致。")
                 return
             dlg = QDialog(self)
-            dlg.setWindowTitle(tr("ai.diff_title", "预览差异 - {name}", name=(self._action_title or "AI")))
+            dlg.setWindowTitle(
+                tr("ai.diff_title", "预览差异 - {name}", name=(self._action_title or "AI"))
+            )
             dlg.resize(760, 520)
             layout = QVBoxLayout(dlg)
             view = QPlainTextEdit()

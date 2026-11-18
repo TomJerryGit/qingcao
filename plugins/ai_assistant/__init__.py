@@ -207,7 +207,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             if auto:
                 self.api.show_text_dialog(title, text, 900, 600)
         else:
-            self.api.show_message(tr("ai.unavailable", "AI 不可用"), result.get("error", "未知错误"))
+            self.api.show_message(
+                tr("ai.unavailable", "AI 不可用"), result.get("error", "未知错误")
+            )
 
     def on_activate(self):
         """激活时调用"""
@@ -586,7 +588,10 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
     def _ensure_client(self) -> bool:
         """确保 AI 客户端可用"""
         if not _AI_CLIENT_OK:
-            self.api.show_message(tr("ai.unavailable", "AI 不可用"), "core.ai_client 模块不可用。\n请确认项目结构完整。")
+            self.api.show_message(
+                tr("ai.unavailable", "AI 不可用"),
+                "core.ai_client 模块不可用。\n请确认项目结构完整。",
+            )
             return False
 
         if self._client is None:
@@ -849,7 +854,9 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         if not path or not str(path).lower().endswith(".py"):
             self.api.show_message(tr("ai.auto_debug", "自动调试"), "请先打开一个 .py 文件")
             return
-        rounds, ok = self.api.ask_string(tr("ai.auto_debug", "自动调试"), "最多修复轮数（1-5）", "3")
+        rounds, ok = self.api.ask_string(
+            tr("ai.auto_debug", "自动调试"), "最多修复轮数（1-5）", "3"
+        )
         if not ok:
             return
         try:
@@ -1051,9 +1058,13 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 try:
                     self._client = load_ai_client_from_settings()
                     if self._client:
-                        self.api.show_status(tr("ai.config_saved", "AI 配置已更新"), 2000, "success")
+                        self.api.show_status(
+                            tr("ai.config_saved", "AI 配置已更新"), 2000, "success"
+                        )
                     else:
-                        self.api.show_status(tr("ai.config_save_failed", "AI 配置保存失败，请检查"), 3000, "warning")
+                        self.api.show_status(
+                            tr("ai.config_save_failed", "AI 配置保存失败，请检查"), 3000, "warning"
+                        )
                 except Exception as e:
                     self.api.log(f"重新加载客户端失败: {e}", "error")
         except Exception as e:
