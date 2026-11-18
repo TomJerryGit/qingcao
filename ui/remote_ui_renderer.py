@@ -56,7 +56,11 @@ class RemoteUIRenderer(QWidget):
                 w = QLabel(text)
             elif kind == "button":
                 w = QPushButton(text or cid)
-                w.clicked.connect(lambda _=False, i=cid: self.control_event.emit(i, "click", ""))
+                action = str(c.get("action") or "")
+                w.setProperty("qc_action", action)
+                w.clicked.connect(
+                    lambda _=False, i=cid, a=action: self.control_event.emit(i, "click", a)
+                )
             elif kind == "line_edit":
                 w = QLineEdit(value)
                 w.textChanged.connect(

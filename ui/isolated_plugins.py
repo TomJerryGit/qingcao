@@ -617,10 +617,34 @@ class WindowHostAPI:
         self._bridge.submit(_apply)
         return True
 
+    def _remote_ui_output_text(self):
+        renderers = []
+        if getattr(self, "_remote_ui_renderer", None) is not None:
+            renderers.append(self._remote_ui_renderer)
+        for rec in self.remote_panels.values():
+            r = rec.get("renderer")
+            if r is not None:
+                renderers.append(r)
+        for renderer in renderers:
+            widget = renderer.widget_for("output")
+            if widget is None:
+                continue
+            if hasattr(widget, "toPlainText"):
+                text = widget.toPlainText()
+            else:
+                text = widget.text() if hasattr(widget, "text") else ""
+            if text:
+                return text
+        return ""
+
     def _dispatch_remote_ui_action(self, action):
         allowed = {
-            "ai_apply_result:insert": lambda: self.ai_apply_result("insert"),
-            "ai_apply_result:replace": lambda: self.ai_apply_result("replace"),
+            "ai_apply_result:insert": lambda: self.ai_apply_result(
+                self._remote_ui_output_text(), "insert"
+            ),
+            "ai_apply_result:replace": lambda: self.ai_apply_result(
+                self._remote_ui_output_text(), "replace"
+            ),
             "ai_show_panel": self.ai_show_panel,
             "debug_show_panel": self.debug_show_panel,
         }
