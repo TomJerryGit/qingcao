@@ -6,6 +6,19 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "spell.cleared": "Spelling results cleared",
+    "spell.clean": "No spelling issues",
+    "spell.found": "{n} suspicious spellings found",
+    "spell.none": "No suspicious spelling found",
+    "spell.empty": "Nothing to check",
+    "jsonl.done": "JSONL formatted ({n} lines)",
+    "jsonl.error": "JSONL Error",
+    "json.sorted": "Sorted",
+    "json.compressed": "Compressed",
+    "json.reported": "JSON errors reported to Problems",
+    "json.schema_ok": "✓ Schema validation passed",
+    "json.schema_fail": "Schema validation failed: {err}",
+    "json.no_schema": "No schema path provided",
     "ai.config_save_failed": "Failed to save AI settings",
     "ai.config_saved": "AI settings updated",
     "ai.auto_debug": "Auto Debug",

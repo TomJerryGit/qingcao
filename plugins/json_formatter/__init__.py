@@ -199,7 +199,7 @@ class Plugin(PluginBase):
             return
         schema_path = str(schema_path or "").strip()
         if not schema_path:
-            self.api.show_status("未提供 Schema 路径", 2000)
+            self.api.show_status(tr("json.no_schema", "未提供 Schema 路径"), 2000)
             return
         try:
             self.api.set_config("schema_path", schema_path)
@@ -213,10 +213,10 @@ class Plugin(PluginBase):
             self.api.publish_diagnostics(
                 [{"line": 0, "col": 0, "severity": "error", "message": error, "code": "JSON002"}]
             )
-            self.api.show_status("Schema 校验失败：%s" % error, 4000, "warning")
+            self.api.show_status(tr("json.schema_fail", "Schema 校验失败：{err}", err=error), 4000, "warning")
         else:
             self.api.clear_diagnostics()
-            self.api.show_status("✓ Schema 校验通过", 3000, "success")
+            self.api.show_status(tr("json.schema_ok", "✓ Schema 校验通过"), 3000, "success")
 
     def _schema_error(self, value, schema, path="$"):
         if not isinstance(schema, dict):
@@ -275,7 +275,7 @@ class Plugin(PluginBase):
                     }
                 ]
             )
-            self.api.show_status("JSON 错误已报告到问题面板", 3000, "warning")
+            self.api.show_status(tr("json.reported", "JSON 错误已报告到问题面板"), 3000, "warning")
             return n
         return 0
 
@@ -333,11 +333,11 @@ class Plugin(PluginBase):
             try:
                 data = self._parse_json(line)
             except Exception as e:
-                self.api.show_message("JSONL 错误", "第 %d 行: %s" % (lineno, e))
+                self.api.show_message(tr("jsonl.error", "JSONL 错误"), "第 %d 行: %s" % (lineno, e))
                 return
             out.append(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
         self._apply("\n".join(out), is_selection)
-        self.api.show_status("JSONL 已格式化（%d 行）" % len(out), 2000, "success")
+        self.api.show_status(tr("jsonl.done", "JSONL 已格式化（{n} 行）", n=len(out)), 2000, "success")
 
     def compress(self):
         """压缩"""
@@ -349,7 +349,7 @@ class Plugin(PluginBase):
             data = self._parse_json(text)
             result = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
             self._apply(result, is_selection)
-            self.api.show_status("已压缩", 2000, "success")
+            self.api.show_status(tr("json.compressed", "已压缩"), 2000, "success")
         except json.JSONDecodeError as e:
             self.api.show_message("JSON 错误", f"第 {e.lineno} 行: {e.msg}")
 
@@ -379,6 +379,6 @@ class Plugin(PluginBase):
             data = self._parse_json(text)
             result = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True)
             self._apply(result, is_selection)
-            self.api.show_status("已排序", 2000, "success")
+            self.api.show_status(tr("json.sorted", "已排序"), 2000, "success")
         except json.JSONDecodeError as e:
             self.api.show_message("JSON 错误", str(e))

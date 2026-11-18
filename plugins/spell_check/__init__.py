@@ -14,6 +14,7 @@ import os
 import re
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 # 技术/编程常见词（避免把代码标识符当拼写错误）
@@ -258,7 +259,7 @@ class Plugin(PluginBase):
         """把当前文档中所有可疑词加入忽略词文件（并清空本次诊断）"""
         text = self._get_current_text()
         if not text:
-            self.api.show_status("没有可检查的内容", 2500, "info")
+            self.api.show_status(tr("spell.empty", "没有可检查的内容"), 2500, "info")
             return 0
         issues = self._check_text(text, limit=500)
         words = []
@@ -268,7 +269,7 @@ class Plugin(PluginBase):
                 words.append(token.lower())
         words = sorted(set(words))
         if not words:
-            self.api.show_status("没有发现可疑拼写", 2500, "success")
+            self.api.show_status(tr("spell.none", "没有发现可疑拼写"), 2500, "success")
             return 0
         try:
             import os
@@ -301,21 +302,21 @@ class Plugin(PluginBase):
     def check_current(self):
         text = self._get_current_text()
         if not text:
-            self.api.show_status("没有可检查的内容", 2500, "info")
+            self.api.show_status(tr("spell.empty", "没有可检查的内容"), 2500, "info")
             return
         issues = self._check_text(text, limit=200)
         n = self.api.publish_diagnostics(issues)
         self._update_status(n)
         if n:
-            self.api.show_status("发现 %d 处可疑拼写" % n, 3000, "warning")
+            self.api.show_status(tr("spell.found", "发现 {n} 处可疑拼写", n=n), 3000, "warning")
         else:
-            self.api.show_status("未发现拼写问题", 2500, "success")
+            self.api.show_status(tr("spell.clean", "未发现拼写问题"), 2500, "success")
 
     def clear(self):
         try:
             self.api.clear_diagnostics()
             self._update_status(0)
-            self.api.show_status("已清除拼写检查结果", 2000, "info")
+            self.api.show_status(tr("spell.cleared", "已清除拼写检查结果"), 2000, "info")
         except Exception:
             pass
 
