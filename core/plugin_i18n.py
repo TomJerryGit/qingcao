@@ -19,7 +19,7 @@ _EN = {
     "common.save": "Save",
     "common.search": "Search",
 }
-_ZH = {k: v for k, v in _EN.items()}
+_ZH = {
 
 
 def set_locale(locale):
