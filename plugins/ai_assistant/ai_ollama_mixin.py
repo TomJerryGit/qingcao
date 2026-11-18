@@ -7,7 +7,7 @@ from PyQt5.QtCore import QTimer  # noqa: F401
 
 from core.plugin_i18n import tr  # noqa: F401,F403,F405
 
-from .ai_common import *
+from .ai_common import *  # noqa: F403,F405
 from .ai_panel import OllamaPanel, _OllamaStatusBridge  # noqa: F401
 
 
