@@ -184,7 +184,7 @@ class Plugin(PluginBase):
             data = self._parse_json(text)
             result = json.dumps(data, indent=indent, ensure_ascii=False, sort_keys=sort_keys)
             self._apply(result, is_selection)
-            self.api.show_status("格式化成功（%d 空格）" % indent, 2000, "success")
+            self.api.show_status(tr("json.format_ok", "格式化成功（{n} 空格）", n=indent), 2000, "success")
         except json.JSONDecodeError as e:
             self.api.show_message(
                 tr("json.error", "JSON 错误"), "第 %d 行 第 %d 列: %s" % (e.lineno, e.colno, e.msg)

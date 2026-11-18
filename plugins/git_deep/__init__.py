@@ -244,7 +244,7 @@ class Plugin(PluginBase):
                 if lst.item(i).checkState() == lst.item(i).Checked
             ]
             if not chosen:
-                self.api.show_status("未选择 hunk", 2000)
+                self.api.show_status(tr("git.no_hunk_selected", "未选择 hunk"), 2000)
                 return
             ok2, out = git.stage_hunks(filepath, chosen)
             self.api.show_status(
@@ -273,7 +273,7 @@ class Plugin(PluginBase):
             git = GitClient()
             root = git.find_root(filepath)
             if not root:
-                self.api.show_message("Git", "当前文件不在 Git 仓库中")
+                self.api.show_message(tr("git.title", "Git"), tr("git.not_repo", "当前文件不在 Git 仓库中"))
                 return None
 
             return GitClient(root)
@@ -359,9 +359,9 @@ class Plugin(PluginBase):
         try:
             success, output = git.pull()
             if success:
-                self.api.show_status("拉取成功", 2000, "success")
+                self.api.show_status(tr("git.pull_ok", "拉取成功"), 2000, "success")
             else:
-                self.api.show_message("拉取失败", output)
+                self.api.show_message(tr("git.pull_failed", "拉取失败"), output)
         except Exception as e:
             self.api.show_message(tr("git.error", "Git 错误"), str(e))
 

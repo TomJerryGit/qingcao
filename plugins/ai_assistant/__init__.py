@@ -100,7 +100,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         try:
             ctx = self.api.debug_context()
         except Exception as e:
-            self.api.show_status("调试上下文不可用: %s" % e, 3000)
+            self.api.show_status(tr("ai.debug_ctx_unavailable", "调试上下文不可用: {err}", err=e), 3000)
             return
         prompt = (
             "分析以下调试上下文，指出可能原因并给出修复建议：\n"
@@ -201,7 +201,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                     self.api.update_remote_panel(self._remote_panel, text)
             except Exception:
                 pass
-            self.api.show_status("AI 输出已更新（%d 字符）" % len(text), 2500)
+            self.api.show_status(tr("ai.output_updated", "AI 输出已更新（{n} 字符）", n=len(text)), 2500)
             try:
                 auto = bool(self.api.get_config("auto_result_dialog", True))
             except Exception:
@@ -222,7 +222,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
 
         # 检查依赖
         if not _AI_CLIENT_OK:
-            self.api.show_status("AI 助手：core.ai_client 不可用", 5000, "error")
+            self.api.show_status(tr("ai.core_unavailable", "AI 助手：core.ai_client 不可用"), 5000, "error")
             return
 
         if not _requests_ok():
@@ -516,7 +516,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             QApplication.clipboard().setText(text)
         except Exception:
             pass
-        self.api.show_status("AI 解释已复制到剪贴板（%d 字）" % len(text), 5000, "success")
+        self.api.show_status(tr("ai.explain_copied", "AI 解释已复制到剪贴板（{n} 字）", n=len(text)), 5000, "success")
 
     def _on_clear_cache(self):
         """清空 AI 结果缓存"""
@@ -527,7 +527,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
                 return
             n = cache.stats().get("entries", 0)
             cache.clear()
-            self.api.show_status("已清空 AI 结果缓存（%d 条）" % n, 4000, "success")
+            self.api.show_status(tr("ai.cache_cleared", "已清空 AI 结果缓存（{n} 条）", n=n), 4000, "success")
         except Exception as e:
             self.api.log("清空缓存失败: %s" % e, "error")
 
@@ -536,7 +536,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         try:
             cache = get_result_cache()
             if cache is None:
-                self.api.show_message("AI 缓存", "缓存不可用。")
+                self.api.show_message(tr("ai.cache_title", "AI 缓存"), tr("ai.cache_unavailable2", "缓存不可用。"))
                 return
             self.api.show_message(
                 "AI 结果缓存",
@@ -879,7 +879,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             self.api.show_message(tr("ai.auto_debug", "自动调试"), "AI 未配置：%s" % e)
             return
 
-        self.api.show_status("自动调试中（最多 %d 轮）..." % rounds, 5000)
+        self.api.show_status(tr("ai.auto_debug_running", "自动调试中（最多 {n} 轮）...", n=rounds), 5000)
 
         def ai_call(prompt):
             return client.chat(prompt=prompt, system="你是一个 Python 调试助手", use_history=False)

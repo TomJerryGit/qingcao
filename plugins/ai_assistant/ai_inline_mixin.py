@@ -105,7 +105,7 @@ class InlineCompleterMixin:
         if comp is None:
             return
         if not comp.enabled:
-            self.api.show_status("AI 行内补全未开启：工具 → AI 助手 → ⌨ 切换行内补全", 4000, "info")
+            self.api.show_status(tr("ai.inline_disabled_msg", "AI 行内补全未开启：工具 → AI 助手 → ⌨ 切换行内补全"), 4000, "info")
             return
         if not self._ensure_client():
             return
@@ -118,7 +118,7 @@ class InlineCompleterMixin:
             if comp._busy:
                 self.api.show_status(tr("ai.inline_requesting", "正在请求补全…"), 2000, "info")
             else:
-                self.api.show_status("请先把光标移到已有代码行之后（至少 3 列）", 4000, "info")
+                self.api.show_status(tr("ai.inline_cursor_msg", "请先把光标移到已有代码行之后（至少 3 列）"), 4000, "info")
 
     def _on_inline_accept(self):
         """快捷键：接受行内补全建议"""

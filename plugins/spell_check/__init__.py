@@ -201,9 +201,9 @@ class Plugin(PluginBase):
             from PyQt5.QtGui import QDesktopServices
             QDesktopServices.openUrl(
                 QUrl.fromLocalFile(self._ignore_path))
-            self.api.show_status("已打开忽略词文件", 2500, "info")
+            self.api.show_status(tr("spell.ignore_opened", "已打开忽略词文件"), 2500, "info")
         except Exception as e:
-            self.api.show_status("打开忽略词文件失败: %s" % e, 3000,
+            self.api.show_status(tr("spell.ignore_open_failed", "打开忽略词文件失败: {err}", err=e), 3000,
                                  "warning")
 
     def add_ignore_word(self, word):
@@ -287,7 +287,7 @@ class Plugin(PluginBase):
                     for w in added:
                         f.write(w + "\n")
         except Exception as e:
-            self.api.show_status("写入忽略词失败: %s" % e, 3000, "warning")
+            self.api.show_status(tr("spell.ignore_write_failed", "写入忽略词失败: {err}", err=e), 3000, "warning")
             return 0
         self._ignore = load_ignore_words(self._ignore_path)
         try:
