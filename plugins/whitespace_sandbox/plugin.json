@@ -1,10 +1,10 @@
 {
   "name": "whitespace_sandbox",
   "display_name": "空白符检查（沙箱）",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "api_version": "2.0.0",
   "author": "TomJerry",
-  "description": "空白检查：行尾/Tab/超长行",
+  "description": "空白检查：可配置行宽",
   "enabled": true,
   "sandbox": true,
   "category": "tools",

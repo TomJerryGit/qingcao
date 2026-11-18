@@ -110,7 +110,7 @@ atexit.register(_stop_all_sessions)
 # ============================================================
 class Plugin(DebugGuardsMixin, PluginBase):
     NAME = "python_debugger"
-    VERSION = "2.0.0"
+    VERSION = "2.2.0"
     DESCRIPTION = "基于标准库 bdb 的编辑器内 Python 调试器"
     AUTHOR = "TomJerry"
 

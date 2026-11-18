@@ -46,7 +46,7 @@ class _HostGit:
 
 class Plugin(PluginBase):
     NAME = "git_deep"
-    VERSION = "1.0.0"
+    VERSION = "1.2.0"
     DESCRIPTION = "Git 集成"
 
     def on_activate(self):

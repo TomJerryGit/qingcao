@@ -6,7 +6,7 @@ MAX_LINE = 120
 
 class Plugin:
     NAME = "whitespace_sandbox"
-    VERSION = "1.0.1"
+    VERSION = "1.0.2"
 
     def on_activate(self):
         return True

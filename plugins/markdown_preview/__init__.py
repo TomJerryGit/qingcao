@@ -79,7 +79,7 @@ class MarkdownPanel(QDockWidget):
 
 class Plugin(PluginBase):
     NAME = "markdown_preview"
-    VERSION = "1.0.0"
+    VERSION = "1.2.0"
     DESCRIPTION = "Markdown 预览"
     AUTHOR = "TomJerry"
 

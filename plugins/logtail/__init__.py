@@ -295,7 +295,7 @@ class LogTailPanel(QDockWidget):
 
 class Plugin(PluginBase):
     NAME = "logtail"
-    VERSION = "1.0.0"
+    VERSION = "1.2.0"
     DESCRIPTION = "日志实时监视"
     AUTHOR = "TomJerry"
 

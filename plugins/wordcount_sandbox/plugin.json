@@ -1,7 +1,7 @@
 {
   "name": "wordcount_sandbox",
   "display_name": "字数统计（沙箱）",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "TomJerry",
   "description": "字数统计沙箱样例",
   "enabled": true,

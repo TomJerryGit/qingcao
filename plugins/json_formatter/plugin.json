@@ -1,8 +1,8 @@
 {
   "name": "json_formatter",
   "display_name": "JSON 格式化",
-  "version": "1.1.0",
-  "description": "JSON 格式化：JSONC/JSON Schema/选区",
+  "version": "1.2.0",
+  "description": "JSON：JSONL、JSONC、Schema、选区",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",

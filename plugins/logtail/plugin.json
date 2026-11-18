@@ -1,8 +1,8 @@
 {
   "name": "logtail",
   "display_name": "日志实时监视",
-  "version": "1.1.0",
-  "description": "日志监视：过滤/暂停/多文件/轮转",
+  "version": "1.2.0",
+  "description": "日志：过滤高亮、暂停、多文件",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",

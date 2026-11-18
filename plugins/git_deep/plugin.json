@@ -1,8 +1,8 @@
 {
   "name": "git_deep",
   "display_name": "Git 深度集成",
-  "version": "1.1.0",
-  "description": "Git 深度集成：状态栏/分支/diff/hunk、隔离宿主 Git API",
+  "version": "1.2.0",
+  "description": "Git：隔离 hunk 暂存、宿主 API",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",

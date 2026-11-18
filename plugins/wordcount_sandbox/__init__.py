@@ -7,7 +7,7 @@
 
 class Plugin:
     NAME = "wordcount_sandbox"
-    VERSION = "1.0.2"
+    VERSION = "1.0.3"
 
     def on_activate(self):
         return True

@@ -1,8 +1,8 @@
 {
   "name": "ai_assistant",
   "display_name": "AI 助手",
-  "version": "2.0.0",
-  "description": "AI 助手：隔离 headless/流式、多会话、加密持久化、diff/插入",
+  "version": "2.1.0",
+  "description": "AI 助手：自动调试闭环、结果校验、完整 UI 隔离",
   "author": "TomJerry",
   "author_email": "1265338136@qq.com",
   "license": "MIT",

@@ -1,8 +1,8 @@
 {
   "name": "python_debugger",
   "display_name": "Python 调试器",
-  "version": "2.1.0",
-  "description": "Python 调试器：断点/单步/变量/栈、条件断点/监视、宿主服务",
+  "version": "2.2.0",
+  "description": "Python 调试器：宿主面板、调试上下文 AI",
   "author": "TomJerry",
   "license": "MIT",
   "type": "plugin",
