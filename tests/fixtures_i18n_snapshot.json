@@ -1,0 +1,68 @@
+{
+  "plugin.market": {
+    "zh_CN": "插件市场",
+    "en_US": "Plugin Market",
+    "ja_JP": "プラグイン市場",
+    "ko_KR": "플러그인 마켓"
+  },
+  "plugin.install": {
+    "zh_CN": "安装",
+    "en_US": "Install",
+    "ja_JP": "インストール",
+    "ko_KR": "설치"
+  },
+  "plugin.settings": {
+    "zh_CN": "设置",
+    "en_US": "Settings",
+    "ja_JP": "設定",
+    "ko_KR": "설정"
+  },
+  "plugin.usage": {
+    "zh_CN": "使用统计",
+    "en_US": "Usage",
+    "ja_JP": "使用状況",
+    "ko_KR": "사용 통계"
+  },
+  "common.close": {
+    "zh_CN": "关闭",
+    "en_US": "Close",
+    "ja_JP": "閉じる",
+    "ko_KR": "닫기"
+  },
+  "common.search": {
+    "zh_CN": "搜索",
+    "en_US": "Search",
+    "ja_JP": "検索",
+    "ko_KR": "검색"
+  },
+  "line_sort.empty": {
+    "zh_CN": "没有可排序的文本",
+    "en_US": "No text to sort",
+    "ja_JP": "並べ替えるテキストがありません",
+    "ko_KR": "정렬할 텍스트가 없습니다"
+  },
+  "json.error": {
+    "zh_CN": "JSON 错误",
+    "en_US": "JSON Error",
+    "ja_JP": "JSON エラー",
+    "ko_KR": "JSON 오류"
+  },
+  "debug.started": {
+    "zh_CN": "调试已启动（宿主服务）",
+    "en_US": "Debugger started (host service)",
+    "ja_JP": "デバッガ起動（ホストサービス）",
+    "ko_KR": "디버거 시작(호스트 서비스)"
+  },
+  "ai.session_title": {
+    "zh_CN": "AI 对话（多轮，可继续追问）",
+    "en_US": "AI Chat (multi-turn)",
+    "ja_JP": "AI チャット（マルチターン）",
+    "ko_KR": "AI 채팅(멀티턴)"
+  },
+  "wordcount.words": {
+    "zh_CN": "词数: {n}",
+    "en_US": "Words: {n}",
+    "ja_JP": "単語数: {n}",
+    "ko_KR": "단어 수: {n}"
+  }
+}
