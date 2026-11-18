@@ -157,7 +157,19 @@ _KO = {
     "common.save": "저장",
     "common.search": "검색",
 }
-_ZH = {}
+_ZH = {
+    "plugin.market": "插件市场",
+    "plugin.install": "安装",
+    "plugin.settings": "设置",
+    "plugin.usage": "使用统计",
+    "common.close": "关闭",
+    "common.search": "搜索",
+    "line_sort.empty": "没有可排序的文本",
+    "json.error": "JSON 错误",
+    "debug.started": "调试已启动（宿主服务）",
+    "ai.session_title": "AI 对话（多轮，可继续追问）",
+    "wordcount.words": "词数: {n}",
+}
 
 
 def set_locale(locale):
