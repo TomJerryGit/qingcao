@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
 )
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 def filter_lines(text, pattern):
@@ -380,11 +381,11 @@ class Plugin(PluginBase):
         if getattr(self.api, "is_isolated", False):
             self._watching = True
             self.show_panel()
-            self.api.show_status("监视: 当前文件（隔离模式）", 2000, "success")
+            self.api.show_status(tr("logtail.isolated", "监视: 当前文件（隔离模式）"), 2000, "success")
             return
         filepath = self.api.get_current_filepath()
         if not filepath:
-            self.api.show_status("没有打开的文件", 2000)
+            self.api.show_status(tr("logtail.no_file", "没有打开的文件"), 2000)
             return
 
         self.show_panel()
@@ -395,8 +396,8 @@ class Plugin(PluginBase):
         """停止监视"""
         if getattr(self.api, "is_isolated", False):
             self._watching = False
-            self.api.show_status("已停止监视", 2000)
+            self.api.show_status(tr("logtail.stopped", "已停止监视"), 2000)
             return
         if self._panel:
             self._panel.watch(None)
-            self.api.show_status("已停止监视", 2000)
+            self.api.show_status(tr("logtail.stopped", "已停止监视"), 2000)

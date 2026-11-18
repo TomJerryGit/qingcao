@@ -8,6 +8,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QDockWidget, QTextBrowser
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 def extract_headings(text):
@@ -222,7 +223,7 @@ class Plugin(PluginBase):
         text = self.api.get_current_text() or ""
         headings = extract_headings(text)
         if not headings:
-            self.api.show_status("没有 Markdown 标题", 2000)
+            self.api.show_status(tr("markdown.no_headings", "没有 Markdown 标题"), 2000)
             return
         lines = [
             "%s%s（第 %d 行）" % ("  " * (level - 1), title, line)
@@ -235,7 +236,7 @@ class Plugin(PluginBase):
             self.api.show_status("隔离模式暂不支持导出", 2500)
             return
         if self._panel is None:
-            self.api.show_status("请先打开预览", 2000)
+            self.api.show_status(tr("markdown.open_preview", "请先打开预览"), 2000)
             return
         from PyQt5.QtWidgets import QFileDialog
 
@@ -247,9 +248,9 @@ class Plugin(PluginBase):
         try:
             html = self._panel.browser.document().toHtml()
             open(path, "w", encoding="utf-8").write(html)
-            self.api.show_status("已导出 HTML", 2000, "success")
+            self.api.show_status(tr("markdown.exported", "已导出 HTML"), 2000, "success")
         except Exception as e:
-            self.api.show_message("导出失败", str(e))
+            self.api.show_message(tr("markdown.export_failed", "导出失败"), str(e))
 
     def check_and_report(self):
         """检查当前 Markdown 并把问题发布到「问题」面板"""

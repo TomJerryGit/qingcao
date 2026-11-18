@@ -6,6 +6,13 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "markdown.export_failed": "Export failed",
+    "markdown.exported": "HTML exported",
+    "markdown.open_preview": "Open preview first",
+    "markdown.no_headings": "No Markdown headings",
+    "logtail.isolated": "Watching current file (isolated)",
+    "logtail.no_file": "No open file",
+    "logtail.stopped": "Stopped watching",
     "json.formatted": "Formatted successfully",
     "json.error": "JSON Error",
     "json.empty": "No content",
