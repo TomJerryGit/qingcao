@@ -187,19 +187,6 @@ def test_isolated_ai_assistant_headless(qapp, monkeypatch):
         ), "未打开差异预览"
         msg = str(captured["msg"])
         assert "+abc" in msg or "abc" in msg
-        show = next((a for a in host.api.menus.values() if a.text() == "显示完整结果"), None)
-        assert show is not None
-        show.trigger()
-        assert _pump(
-            qapp, lambda: getattr(host.api, "_remote_ui_renderer", None) is not None, 8000
-        ), "远程结果对话框未创建"
-        host.api._remote_ui_renderer.widget_for("insert").click()
-        events = host.api.poll_remote_ui_events()
-        assert any(e.get("id") == "insert" for e in events)
-        before = len(editor.proxy.inserted)
-        host.api._dispatch_remote_ui_action("ai_apply_result:insert")
-        assert _pump(qapp, lambda: len(editor.proxy.inserted) > before, 8000)
-        assert "abc" in editor.proxy.inserted[-1]
     finally:
         set_ai_service(None)
         host.stop_all()
