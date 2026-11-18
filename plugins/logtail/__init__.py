@@ -106,7 +106,7 @@ class LogTailPanel(QDockWidget):
         self.pause_btn.toggled.connect(self._set_paused)
         toolbar.addWidget(self.pause_btn)
 
-        self.file_label = QLabel("(未选择)")
+        self.file_label = QLabel(tr("logtail.none", "(未选择)"))
         self.file_label.setStyleSheet("color: #888;")
         toolbar.addWidget(self.file_label)
 
@@ -170,7 +170,7 @@ class LogTailPanel(QDockWidget):
                 self.watcher.removePath(self.current_file)
             self.current_file = None
             self.last_size = 0
-            self.file_label.setText("(未选择)")
+            self.file_label.setText(tr("logtail.none", "(未选择)"))
             return
 
         if self.current_file == filepath:
@@ -374,7 +374,7 @@ class Plugin(PluginBase):
             self._watching = True
             self.show_panel()
             self._panel.watch(filepath)
-            self.api.show_status("监视: %s" % os.path.basename(filepath), 2000)
+            self.api.show_status(tr("logtail.watching", "监视: {name}", name=os.path.basename(filepath)), 2000)
 
     def watch_current(self):
         """监视当前文件"""

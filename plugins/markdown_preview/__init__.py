@@ -233,7 +233,7 @@ class Plugin(PluginBase):
 
     def export_html(self):
         if getattr(self.api, "is_isolated", False):
-            self.api.show_status("隔离模式暂不支持导出", 2500)
+            self.api.show_status(tr("markdown.isolated_export", "隔离模式暂不支持导出"), 2500)
             return
         if self._panel is None:
             self.api.show_status(tr("markdown.open_preview", "请先打开预览"), 2000)
@@ -257,16 +257,16 @@ class Plugin(PluginBase):
         try:
             filepath = self.api.get_current_filepath() or ""
             if not filepath.lower().endswith((".md", ".markdown")):
-                self.api.show_status("当前文件不是 Markdown", 2000, "warning")
+                self.api.show_status(tr("markdown.not_markdown", "当前文件不是 Markdown"), 2000, "warning")
                 return 0
             text = self.api.get_current_text() or ""
             issues = self._diagnose(text)
             self.api.clear_diagnostics()
             if issues:
                 n = self.api.publish_diagnostics(issues, filepath=filepath)
-                self.api.show_status("Markdown 检查：%d 个问题已报告" % n, 3000, "warning")
+                self.api.show_status(tr("markdown.issues", "Markdown 检查：{n} 个问题已报告", n=n), 3000, "warning")
                 return n
-            self.api.show_status("Markdown 检查通过", 2500, "success")
+            self.api.show_status(tr("markdown.ok", "Markdown 检查通过"), 2500, "success")
             return 0
         except Exception as e:
             self.api.log("Markdown 检查失败: %s" % e, "error")

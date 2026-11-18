@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
 )
 
 from app.plugins import PluginBase
+from core.plugin_i18n import tr
 
 
 TODO_PATTERN = re.compile(r"(#|//|/\*|\*)\s*(TODO|FIXME|XXX|HACK|NOTE)[:\s]*(.*)", re.IGNORECASE)
@@ -64,7 +65,7 @@ class TodoPanel(QDockWidget):
 
         # 搜索过滤
         filter_row = QHBoxLayout()
-        filter_row.addWidget(QLabel("过滤:"))
+        filter_row.addWidget(QLabel(tr("todo.filter", "过滤:")))
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("关键词...")
         self.filter_edit.textChanged.connect(self._apply_filter)

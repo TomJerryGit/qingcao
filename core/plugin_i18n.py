@@ -6,6 +6,14 @@ import os
 
 _LOCALE = os.environ.get("QINGCAO_LOCALE", "zh_CN")
 _EN = {
+    "markdown.ok": "Markdown check passed",
+    "markdown.issues": "Markdown check: {n} issues reported",
+    "markdown.not_markdown": "Current file is not Markdown",
+    "markdown.isolated_export": "Export not supported in isolation",
+    "logtail.watching": "Watching: {name}",
+    "logtail.none": "(none)",
+    "todo.count": "TODO: {n}",
+    "todo.filter": "Filter:",
     "markdown.export_failed": "Export failed",
     "markdown.exported": "HTML exported",
     "markdown.open_preview": "Open preview first",
