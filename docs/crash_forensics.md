@@ -24,3 +24,13 @@ cdb -z <dump> -c "!analyze -v; q"
 
 - ProcDump 仅取证，不自动上传；
 - 用户数据/隐私不入 dump 报告，导出前人工确认。
+
+## 崩溃报告（opt-in）
+
+```powershell
+python tools/crash_report.py --dump-dir data/crashes --out data/crash_report.json
+```
+
+- 内容：版本、生成时间、dump 文件名/大小/时间、异常码；
+- 仅本地生成，不自动上传；不含用户文本/路径/身份；
+- 可选 `--exception 0xC0000005` 补充人工异常信息。
