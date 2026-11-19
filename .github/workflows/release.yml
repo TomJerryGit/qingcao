@@ -23,6 +23,10 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python tools/ci_release_gate.py --sha "$GITHUB_SHA" --wait-min 35 --fallback-workflow test-fallback.yml
 
+      - name: Performance gate
+        if: hashFiles('data/perf_history.jsonl') != ''
+        run: python tools/perf_gate.py --strict
+
   build-release:
     needs: gates
     runs-on: [self-hosted, windows, x64]
