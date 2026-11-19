@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """首次启动向导"""
 
+import io
 import os
 
 from PyQt5.QtCore import QSettings, Qt
