@@ -8,6 +8,12 @@ from version import __version__  # noqa: F401
 
 
 def main():
+    try:
+        from core.subprocess_utils import install_no_window_default
+
+        install_no_window_default()
+    except Exception:
+        pass
     """应用入口"""
     # --------------------------------------------------------
     # 1. 解析命令行参数
