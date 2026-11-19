@@ -474,6 +474,47 @@ class WindowThemeMixin:
     # ========================================================
     # 运行 / 转到定义 / LSP（P8-2 / P6）
     # ========================================================
+    def _run_in_terminal(self, filepath):
+        """在交互式 PTY 终端中运行文件。"""
+        try:
+            if getattr(self, "terminal", None) is None:
+                if hasattr(self, "_ensure_panel"):
+                    self._ensure_panel("terminal")
+            terminal = getattr(self, "terminal", None)
+            if terminal is None:
+                self.status_bar.showMessage("终端面板不可用", 4000)
+                return False
+            terminal.show()
+            terminal.raise_()
+            tab = terminal.tabs.currentWidget()
+            if not hasattr(tab, "send_raw"):
+                tab = terminal.add_tab(cwd=os.path.dirname(filepath or ""), pty=True)
+            command = 'python "%s"' % filepath
+            terminal.input.setText(command)
+            terminal.run_command()
+            self.status_bar.showMessage("已在终端运行（可输入交互）", 4000)
+            return True
+        except Exception as e:
+            logger.error("终端运行失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"终端运行失败: {e}", 5000)
+            except Exception:
+                pass
+            return False
+
+    def _run_current_file_in_terminal(self):
+        proxy = self.tabs.current_proxy() if hasattr(self, "tabs") else None
+        if not proxy:
+            return
+        try:
+            filepath = (proxy.document.filepath or "") if proxy.document else ""
+        except Exception:
+            filepath = ""
+        if not filepath:
+            self.status_bar.showMessage("请先保存文件再运行", 4000)
+            return
+        self._run_in_terminal(filepath)
+
     def _run_current_file(self):
         """运行当前文件（P8-2: F5）。
 
@@ -495,6 +536,15 @@ class WindowThemeMixin:
             if not filepath:
                 self.status_bar.showMessage("请先保存文件再运行", 4000)
                 return
+
+            # 交互式 input() 脚本：调试运行无控制台输入，改走 PTY 终端
+            try:
+                text = proxy.get_text() or ""
+            except Exception:
+                text = ""
+            if filepath.lower().endswith(".py") and "input(" in text:
+                if self._run_in_terminal(filepath):
+                    return
 
             # 1) 已激活的调试插件
             for plugin in self.plugins or []:
