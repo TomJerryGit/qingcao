@@ -401,3 +401,50 @@ def apply_wizard_settings(wizard):
     prefs.set("telemetry", wizard.finish_page.is_telemetry())
 
     prefs.sync()
+
+
+def apply_wizard_selections(window, wizard):
+    """应用插件选择（下次启动生效）并打开示例文件。"""
+
+    from PyQt5.QtCore import QSettings
+
+    plugins = []
+    try:
+        plugins = wizard.plugins_page.get_plugins()
+    except Exception:
+        pass
+    if plugins:
+        s = QSettings("QingCao", "Plugins")
+        disabled = s.value("disabled", [], type=list)
+        if isinstance(disabled, str):
+            disabled = [disabled] if disabled else []
+        disabled = [x for x in disabled if x not in plugins]
+        s.setValue("disabled", disabled)
+
+    sample = ""
+    try:
+        sample = wizard.sample_page.get_sample()
+    except Exception:
+        pass
+    if not sample:
+        return None
+    samples = {
+        "python": (
+            "sample.py",
+            "def main():\n    print('Hello, QingCao!')\n\n\nif __name__ == '__main__':\n    main()\n",
+        ),
+        "markdown": ("sample.md", "# 青草编辑器\n\n这是 Markdown 示例。\n"),
+        "text": ("sample.txt", "这是青草编辑器的示例文本。\n"),
+    }
+    name, content = samples.get(sample, samples["text"])
+    base = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "samples"
+    )
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, name)
+    io.open(path, "w", encoding="utf-8", newline="\n").write(content)
+    try:
+        window.tabs.open_file(path)
+    except Exception:
+        pass
+    return path

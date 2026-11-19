@@ -287,6 +287,9 @@ def main():
             if wizard.exec_() == QWizard.Accepted:
                 try:
                     apply_wizard_settings(wizard)
+                    from ui.first_run_wizard import apply_wizard_selections
+
+                    apply_wizard_selections(window, wizard)
                 except Exception as e:
                     logger.error(f"应用向导配置失败: {e}")
                 mark_wizard_completed()
