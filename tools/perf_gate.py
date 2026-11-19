@@ -44,6 +44,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--history", default="data/perf_history.jsonl")
     ap.add_argument("--window", type=int, default=20)
+    ap.add_argument("--strict", action="store_true")
     args = ap.parse_args(argv)
     try:
         report, failed = evaluate(args.history, args.window)
