@@ -240,10 +240,17 @@ class WindowHostAPI:
 
     def debug_context(self):
         service = self._debug_service()
+        import time as _time
+
         return {
             "locals": getattr(service, "last_locals", None),
             "stack": getattr(service, "last_stack", None),
             "breakpoint": getattr(service, "last_break", None),
+            "status": ("paused"
+                       if getattr(service, "session", None) is not None
+                       and getattr(service, "last_break", None) is not None
+                       else "inactive"),
+            "timestamp": _time.time(),
         }
 
     def debug_show_panel(self):

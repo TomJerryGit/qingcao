@@ -94,11 +94,29 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
             ]
         )
 
+    def _debug_context_snapshot(self):
+        try:
+            return self.api.debug_context()
+        except Exception:
+            try:
+                from core.debug_service import get_debug_service
+
+                svc = get_debug_service()
+                return {
+                    "locals": getattr(svc, "last_locals", None),
+                    "stack": getattr(svc, "last_stack", None),
+                    "breakpoint": getattr(svc, "last_break", None),
+                }
+            except Exception:
+                return None
+
     def _on_debug_context_ai(self):
         import json
 
         try:
-            ctx = self.api.debug_context()
+            ctx = self._debug_context_snapshot()
+            if ctx is None:
+                raise RuntimeError("调试服务不可用")
         except Exception as e:
             self.api.show_status(
                 tr("ai.debug_ctx_unavailable", "调试上下文不可用: {err}", err=e), 3000
@@ -379,6 +397,7 @@ class Plugin(OllamaPanelMixin, InlineCompleterMixin, PluginBase):
         menu_items = [
             ("工具/AI 助手/💬 打开 AI 对话窗口", self._on_open_session_window, None),
             ("工具/AI 助手/🛠 自动调试当前文件", self._on_auto_debug, None),
+        ("工具/AI 助手/🧭 分析调试上下文", self._on_debug_context_ai, None),
             ("工具/AI 助手/💡 解释代码", self._on_explain, "Ctrl+Alt+E"),
             ("工具/AI 助手/🔧 重构代码", self._on_refactor, "Ctrl+Alt+Shift+R"),
             ("工具/AI 助手/🐛 修复 Bug", self._on_fix, None),
