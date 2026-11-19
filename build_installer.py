@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """构建 Windows 安装程序"""
+import io
 import os
 import shutil
 import subprocess
@@ -53,6 +54,8 @@ def find_inno_setup():
         r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
         r"C:\Program Files\Inno Setup 6\ISCC.exe",
         r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs",
+                     "Inno Setup 6", "ISCC.exe"),
     ]
     for path in candidates:
         if os.path.exists(path):
@@ -103,7 +106,20 @@ def main():
     # 5. 运行 Inno Setup 编译
     print()
     print("[RUN] 编译安装包...")
-    cmd = [iscc, ISS_FILE]
+    iss_file = ISS_FILE
+    try:
+        src = io.open(ISS_FILE, encoding="utf-8").read() if False else open(ISS_FILE, encoding="utf-8").read()
+        lang = os.path.join(os.path.dirname(iscc), "Languages",
+                            "ChineseSimplified.isl")
+        if "ChineseSimplified.isl" in src and not os.path.isfile(lang):
+            lines = [ln for ln in src.splitlines()
+                     if "ChineseSimplified.isl" not in ln]
+            iss_file = os.path.join(ROOT, "installer_local.iss")
+            open(iss_file, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+            print("[WARN] 缺少中文语言文件，使用英文安装界面编译")
+    except Exception as e:
+        print("[WARN] 准备本地 ISS 失败: %s" % e)
+    cmd = [iscc, iss_file]
 
     result = subprocess.run(cmd, cwd=ROOT)
     if result.returncode != 0:
