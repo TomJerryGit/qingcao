@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 def test_wizard_has_plugins_and_sample(qapp):
     from ui.first_run_wizard import FirstRunWizard
 
