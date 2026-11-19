@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """首次启动向导"""
+
 import os
 
 from PyQt5.QtCore import QSettings, Qt
@@ -136,9 +137,15 @@ class FontPage(QWizardPage):
 
         # 字体
         self.font_combo = QComboBox()
-        fonts = ["Consolas", "Fira Code", "JetBrains Mono",
-                 "Cascadia Code", "Source Code Pro",
-                 "Microsoft YaHei Mono", "Courier New"]
+        fonts = [
+            "Consolas",
+            "Fira Code",
+            "JetBrains Mono",
+            "Cascadia Code",
+            "Source Code Pro",
+            "Microsoft YaHei Mono",
+            "Courier New",
+        ]
         self.font_combo.addItems(fonts)
         layout.addRow("字体:", self.font_combo)
 
@@ -152,15 +159,10 @@ class FontPage(QWizardPage):
         # 预览
         preview_group = QGroupBox("预览")
         preview_layout = QVBoxLayout(preview_group)
-        self.preview_label = QLabel(
-            'def hello():\n'
-            '    print("Hello, 青草！")\n'
-            '    return 42'
-        )
+        self.preview_label = QLabel('def hello():\n    print("Hello, 青草！")\n    return 42')
         self.preview_label.setFont(QFont("Consolas", 12))
         self.preview_label.setStyleSheet(
-            "background-color: #1e1e1e; color: #d4d4d4; "
-            "padding: 10px; border-radius: 4px;"
+            "background-color: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 4px;"
         )
         preview_layout.addWidget(self.preview_label)
         layout.addRow(preview_group)
@@ -170,8 +172,7 @@ class FontPage(QWizardPage):
         self.font_size.valueChanged.connect(self._update_preview)
 
     def _update_preview(self):
-        font = QFont(self.font_combo.currentText(),
-                     self.font_size.value())
+        font = QFont(self.font_combo.currentText(), self.font_size.value())
         self.preview_label.setFont(font)
 
     def get_font_family(self):
@@ -219,18 +220,69 @@ class KeymapPage(QWizardPage):
         return btn.property("code") if btn else "default"
 
 
+class PluginsPage(QWizardPage):
+    """常用插件选择页"""
+
+    def __init__(self):
+        super().__init__()
+        self.setTitle("常用插件")
+        self.setSubTitle("选择需要的插件（之后可在插件市场调整）。")
+        layout = QVBoxLayout(self)
+        self._checks = {}
+        for name, label in (
+            ("line_sort", "行排序"),
+            ("json_formatter", "JSON 格式化"),
+            ("wordcount", "字数统计"),
+            ("markdown_preview", "Markdown 预览"),
+            ("logtail", "日志监视"),
+            ("todo_panel", "TODO 面板"),
+        ):
+            cb = QCheckBox(label)
+            cb.setChecked(True)
+            self._checks[name] = cb
+            layout.addWidget(cb)
+        layout.addStretch()
+
+    def get_plugins(self):
+        return [k for k, cb in self._checks.items() if cb.isChecked()]
+
+
+class SamplePage(QWizardPage):
+    """示例文件页"""
+
+    def __init__(self):
+        super().__init__()
+        self.setTitle("示例文件")
+        self.setSubTitle("可选：打开一个示例快速开始。")
+        layout = QVBoxLayout(self)
+        self.open_check = QCheckBox("启动后打开示例文件")
+        self.open_check.setChecked(True)
+        layout.addWidget(self.open_check)
+        self.kind = QComboBox()
+        self.kind.addItem("Python 示例", "python")
+        self.kind.addItem("Markdown 示例", "markdown")
+        self.kind.addItem("纯文本示例", "text")
+        layout.addWidget(self.kind)
+        layout.addStretch()
+
+    def get_sample(self):
+        if not self.open_check.isChecked():
+            return ""
+        return self.kind.currentData()
+
+
 class FinishPage(QWizardPage):
     """完成页"""
 
     def __init__(self):
         super().__init__()
         self.setTitle("设置完成")
-        self.setSubTitle("点击\"完成\"开始使用。")
+        self.setSubTitle('点击"完成"开始使用。')
 
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            "所有设置都可以在\"工具 → 首选项\"中修改。\n\n"
+            '所有设置都可以在"工具 → 首选项"中修改。\n\n'
             "快速上手：\n"
             "  · Ctrl+Shift+P 打开命令面板\n"
             "  · Ctrl+P 快速打开文件\n"
@@ -275,6 +327,8 @@ class FirstRunWizard(QWizard):
         self.theme_page = ThemePage()
         self.font_page = FontPage()
         self.keymap_page = KeymapPage()
+        self.plugins_page = PluginsPage()
+        self.sample_page = SamplePage()
         self.finish_page = FinishPage()
 
         self.addPage(self.welcome_page)
@@ -282,6 +336,8 @@ class FirstRunWizard(QWizard):
         self.addPage(self.theme_page)
         self.addPage(self.font_page)
         self.addPage(self.keymap_page)
+        self.addPage(self.plugins_page)
+        self.addPage(self.sample_page)
         self.addPage(self.finish_page)
 
         # 样式
