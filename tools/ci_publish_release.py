@@ -13,6 +13,7 @@
 """
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -35,6 +36,29 @@ def get_version() -> str:
 def notes_path(tag: str) -> str:
     p = os.path.join(ROOT, "docs", "release_notes_%s.md" % tag)
     return p if os.path.exists(p) else os.path.join(ROOT, "CHANGELOG.md")
+
+
+def ensure_package(zip_path: str):
+    """CI 打包缺失时，从 dist/QingCaoEditor 重新生成 ZIP + SHA。"""
+    if os.path.exists(zip_path):
+        return True
+    src = os.path.join(ROOT, "dist", "QingCaoEditor")
+    if not os.path.isdir(src):
+        return False
+    import hashlib
+    import shutil
+
+    os.makedirs(os.path.dirname(zip_path) or ".", exist_ok=True)
+    shutil.make_archive(zip_path[:-4], "zip", root_dir=src)
+    h = hashlib.sha256()
+    with open(zip_path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    io.open(zip_path + ".sha256.txt", "w", encoding="ascii", newline="\n").write(
+        "%s  %s\n" % (h.hexdigest(), os.path.basename(zip_path))
+    )
+    print("[release] 已重新打包: %s" % os.path.basename(zip_path))
+    return True
 
 
 def installer_path(version: str):
@@ -239,6 +263,7 @@ def main():
     tag = args.tag or ("v" + version)
     notes = notes_path(tag)
     zip_path, sha_path = asset_paths(version)
+    ensure_package(zip_path)
     sig_path = sign_release_zip(zip_path)
     installer = installer_path(version)
     assets = [p for p in (zip_path, sha_path, sig_path) if p]
