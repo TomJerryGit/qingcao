@@ -69,6 +69,12 @@ def record(plugin_name, event="activate"):
     rec["activations"] = int(rec.get("activations") or 0) + (1 if event == "activate" else 0)
     rec["deactivations"] = int(rec.get("deactivations") or 0) + (1 if event == "deactivate" else 0)
     rec["last_" + event] = time.time()
+    day = time.strftime("%Y-%m-%d")
+    daily = data.setdefault("daily", {})
+    bucket = daily.setdefault(day, {"activate": 0, "deactivate": 0})
+    bucket[event] = int(bucket.get(event) or 0) + 1
+    if len(daily) > 90:
+        data["daily"] = dict(sorted(daily.items())[-90:])
     return _save(data)
 
 
@@ -78,3 +84,13 @@ def snapshot():
 
 def reset():
     return _save({"version": 1, "plugins": {}})
+
+
+def trend(days=14):
+    """返回最近 N 天的本地激活/停用趋势（无内容/无路径）。"""
+    data = _load()
+    daily = data.get("daily") or {}
+    return [{"date": d,
+             "activate": int(daily[d].get("activate") or 0),
+             "deactivate": int(daily[d].get("deactivate") or 0)}
+            for d in sorted(daily)[-max(1, int(days)):]]

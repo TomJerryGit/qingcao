@@ -25,7 +25,13 @@ class PluginUsageDialog(QDialog):
         self.table.setToolTip("本地插件使用次数（不上传）")
         self.table.setHorizontalHeaderLabels(["插件", "激活", "停用", "最近使用"])
         self.table.verticalHeader().setVisible(False)
-        layout.addWidget(self.table, 1)
+        layout.addWidget(self.table, 2)
+        self.trend_table = QTableWidget(0, 3)
+        self.trend_table.setHorizontalHeaderLabels(["日期", "激活", "停用"])
+        self.trend_table.verticalHeader().setVisible(False)
+        self.trend_table.setAccessibleName("使用趋势")
+        self.trend_table.setToolTip("最近 14 天本地使用趋势")
+        layout.addWidget(self.trend_table, 1)
         buttons = QDialogButtonBox()
         reset = QPushButton("清空统计")
         reset.setToolTip("清空本地插件使用统计")
@@ -60,6 +66,14 @@ class PluginUsageDialog(QDialog):
             for c, value in enumerate(row):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
         self.table.resizeColumnsToContents()
+        from core.plugin_usage import trend
+
+        rows = trend(14)
+        self.trend_table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for c, key in enumerate(("date", "activate", "deactivate")):
+                self.trend_table.setItem(r, c, QTableWidgetItem(str(row[key])))
+        self.trend_table.resizeColumnsToContents()
 
     def _reset(self):
         if QMessageBox.question(self, "清空统计", "确定清空本地插件使用统计？") != QMessageBox.Yes:
