@@ -145,3 +145,11 @@ jobs:
           $rc = $LASTEXITCODE
           Get-Content $out -Encoding UTF8 | Tee-Object -FilePath "D:\actions-runner\release.log" -Append
           if ($rc -ne 0) { throw "release failed: rc=$rc" }
+
+      - name: Verify release assets
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ver = (Get-Content VERSION -Raw).Trim()
+          python tools/release_verify.py --tag "v$ver" --download-sha
