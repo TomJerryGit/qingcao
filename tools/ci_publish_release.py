@@ -38,8 +38,7 @@ def notes_path(tag: str) -> str:
 
 
 def installer_path(version: str):
-    return os.path.join(ROOT, "installer",
-                        "QingCaoEditor_Setup_v%s.exe" % version)
+    return os.path.join(ROOT, "installer", "QingCaoEditor_Setup_v%s.exe" % version)
 
 
 def asset_paths(version: str):
