@@ -13,7 +13,7 @@ netsh winhttp show proxy 2>&1
 
 $targets = @("github.com", "api.github.com", "broker.actions.githubusercontent.com")
 foreach ($target in $targets) {
-  Write-Host "`n=== $target:443 ==="
+  Write-Host ("`n=== " + $target + ":443 ===")
   try {
     $tcp = New-Object System.Net.Sockets.TcpClient
     $tcp.Connect($target, 443)
