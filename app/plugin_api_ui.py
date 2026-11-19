@@ -32,12 +32,12 @@ class UiMixin:
                     action.setShortcut(QKeySequence(shortcut))
                 menu.addAction(action)
                 self._registered_actions.append(action)
-            try:
-                from core.feature_usage import instrument_action
+                try:
+                    from core.feature_usage import instrument_action
 
-                instrument_action(action, path)
-            except Exception:
-                pass
+                    instrument_action(action, path)
+                except Exception:
+                    pass
                 return action
 
             # 查找顶级菜单
