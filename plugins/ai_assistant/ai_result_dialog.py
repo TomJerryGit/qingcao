@@ -579,12 +579,17 @@ class AIResultDialog(QDialog):
         """追问完成"""
         tail = full_text or ""
         # 片段已逐个追加过；这里只做收尾状态
-        if not tail and len(self._result_text) <= getattr(self, "_chunk_start", 0):
-            self._result_text += "（无输出）"
+        if not str(tail or "").strip() and len(self._result_text) <= getattr(
+            self, "_chunk_start", 0
+        ):
+            self._result_text += (
+                "\n\n**AI 返回空内容**\n\n请检查：提供商/模型配置、API Key、网络或服务端状态。"
+            )
         try:
             self.browser.setMarkdown(self._result_text)
         except Exception:
             self.browser.setPlainText(self._result_text)
+        self._scroll_bottom()
 
         elapsed = 0.0
         if getattr(self, "_wait_start", None):
@@ -604,6 +609,13 @@ class AIResultDialog(QDialog):
         self.follow_edit.setEnabled(True)
         self.follow_btn.setEnabled(True)
         self.follow_edit.setFocus()
+
+    def _scroll_bottom(self):
+        try:
+            sb = self.browser.verticalScrollBar()
+            sb.setValue(sb.maximum())
+        except Exception:
+            pass
 
     def _on_chunk(self, text: str):
         """收到流式片段
