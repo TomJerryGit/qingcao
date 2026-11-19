@@ -332,6 +332,22 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if item.get_closest_marker("isolated") is not None:
             item.add_marker(skip)
+    import io as _io
+    import json as _json
+    import os as _os
+
+    if _os.environ.get("QINGCAO_RUN_FLAKY", "0") == "1":
+        return
+    _qpath = _os.path.join(_os.path.dirname(__file__), "flaky_quarantine.json")
+    try:
+        _listed = set(_json.load(_io.open(_qpath, encoding="utf-8")).get("tests") or [])
+    except Exception:
+        _listed = set()
+    if _listed:
+        _skip_flaky = _pytest.mark.skip(reason="flaky quarantine")
+        for item in items:
+            if item.nodeid in _listed:
+                item.add_marker(_skip_flaky)
 
 
 # 稳定性专项：把 QSettings 重定向到临时目录。
