@@ -641,7 +641,8 @@ class AIResultDialog(QDialog):
         # 若拿原始路径去比，`D:\a.py` 与 `d:\a.py` 会被误判成两个会话，
         # 结果是**同会话的片段被丢进后台缓冲** → 表现为"AI 没输出"。
         origin = self.session_key(getattr(self, "_chunk_session_key", ""))
-        if origin and origin != self._active_key:
+        active = self.session_key(self._active_key) if self._active_key else self.session_key("")
+        if origin != active:
             self._background_bufs[origin] = self._background_bufs.get(origin, "") + text
             return
 
