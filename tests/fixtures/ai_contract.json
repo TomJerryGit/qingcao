@@ -1,0 +1,14 @@
+﻿{
+  "openai_success": {
+    "request": {"prompt": "hi", "model": "gpt-4o"},
+    "response": {"status": 200, "text": "{\"id\":\"c1\",\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":1}}"}
+  },
+  "openai_error": {
+    "request": {"prompt": "hi", "model": "gpt-4o"},
+    "response": {"status": 401, "text": "{\"error\":{\"message\":\"invalid api key\"}}"}
+  },
+  "claude_success": {
+    "request": {"prompt": "hi", "model": "claude-3-5-sonnet-latest"},
+    "response": {"status": 200, "text": "{\"id\":\"m1\",\"content\":[{\"type\":\"text\",\"text\":\"claude-ok\"}],\"usage\":{\"input_tokens\":2,\"output_tokens\":1}}"}
+  }
+}
