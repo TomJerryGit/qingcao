@@ -37,6 +37,11 @@ def notes_path(tag: str) -> str:
     return p if os.path.exists(p) else os.path.join(ROOT, "CHANGELOG.md")
 
 
+def installer_path(version: str):
+    return os.path.join(ROOT, "installer",
+                        "QingCaoEditor_Setup_v%s.exe" % version)
+
+
 def asset_paths(version: str):
     zip_path = os.path.join(ROOT, "dist", "QingCaoEditor-v%s-windows.zip" % version)
     return zip_path, zip_path + ".sha256.txt"
@@ -236,7 +241,10 @@ def main():
     notes = notes_path(tag)
     zip_path, sha_path = asset_paths(version)
     sig_path = sign_release_zip(zip_path)
+    installer = installer_path(version)
     assets = [p for p in (zip_path, sha_path, sig_path) if p]
+    if os.path.isfile(installer):
+        assets.append(installer)
     print("[release] version=%s tag=%s" % (version, tag))
     print("[release] notes=%s" % os.path.relpath(notes, ROOT))
     for p in assets:
@@ -282,6 +290,8 @@ def main():
         raise SystemExit("[release] Release id 缺失: %r" % (rel,))
     existing = {a.get("name") for a in (rel.get("assets") or []) if int(a.get("size") or 0) > 0}
     needed = needed_asset_names(version, signed=bool(sig_path))
+    if os.path.isfile(installer):
+        needed.append(os.path.basename(installer))
     for p in assets:
         name = os.path.basename(p)
         if name in existing:

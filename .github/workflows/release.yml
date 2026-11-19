@@ -123,6 +123,11 @@ jobs:
           "ZIP=$zip`nSHA256=$hash" | Out-File $log -Append -Encoding utf8
           "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
 
+      - name: Build installer (optional)
+        continue-on-error: true
+        shell: powershell
+        run: python build_installer.py
+
       - name: Release (Python)
         shell: powershell
         env:

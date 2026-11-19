@@ -109,7 +109,7 @@ def main():
     iss_file = ISS_FILE
     try:
         src = io.open(ISS_FILE, encoding="utf-8").read() if False else open(ISS_FILE, encoding="utf-8").read()
-        lang = os.path.join(os.path.dirname(iscc), "Languages",
+        lang = os.path.join(ROOT, "installer",
                             "ChineseSimplified.isl")
         if "ChineseSimplified.isl" in src and not os.path.isfile(lang):
             lines = [ln for ln in src.splitlines()
