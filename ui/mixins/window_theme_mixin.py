@@ -485,22 +485,26 @@ class WindowThemeMixin:
                 or "python")
 
     def _run_in_terminal(self, filepath):
-        """交互式脚本：在新控制台窗口运行（保证 input() 可用）。"""
+        """在软件内嵌运行控制台执行交互脚本。"""
         try:
-            import subprocess
+            from PyQt5.QtCore import Qt
 
-            flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            subprocess.Popen(
-                [self._python_executable(), "-i", filepath],
-                cwd=os.path.dirname(filepath or "") or None,
-                creationflags=flags,
-            )
-            self.status_bar.showMessage("已在新控制台运行（可输入交互）", 4000)
+            panel = getattr(self, "run_console", None)
+            if panel is None:
+                from ui.run_console_panel import RunConsolePanel
+
+                panel = RunConsolePanel(self)
+                self.run_console = panel
+                self.addDockWidget(Qt.BottomDockWidgetArea, panel)
+            panel.show()
+            panel.raise_()
+            panel.run_file(filepath, self._python_executable())
+            self.status_bar.showMessage("已在运行控制台启动（支持输入）", 4000)
             return True
         except Exception as e:
-            logger.error("新控制台运行失败: %s", e)
+            logger.error("内嵌运行控制台失败: %s", e)
             try:
-                self.status_bar.showMessage(f"运行失败: {e}", 5000)
+                self.status_bar.showMessage(f"运行控制台失败: {e}", 5000)
             except Exception:
                 pass
             return False

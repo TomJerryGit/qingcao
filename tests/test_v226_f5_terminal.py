@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-"""F5 交互脚本：使用真实 Python 解释器"""
-
+﻿# -*- coding: utf-8 -*-
+"""F5 智能运行：input() 分支进入内嵌控制台"""
 import os
 import sys
 
@@ -34,30 +33,33 @@ class _Status:
         self.messages.append(msg)
 
 
+class _Panel:
+    def __init__(self):
+        self.calls = []
+
+    def show(self):
+        pass
+
+    def raise_(self):
+        pass
+
+    def run_file(self, path, interpreter="python"):
+        self.calls.append((path, interpreter))
+
+
 class _Fake:
     def __init__(self):
         self.tabs = _Tabs()
         self.status_bar = _Status()
         self.plugins = []
+        self.run_console = _Panel()
 
 
-def test_uses_python_not_editor(qapp, monkeypatch):
-    import subprocess
-
+def test_input_script_uses_embedded_console(qapp):
     from ui.mixins.window_theme_mixin import WindowThemeMixin
 
-    calls = []
-
-    class _Popen:
-        def __init__(self, args, **kwargs):
-            calls.append((args, kwargs))
-
-    monkeypatch.setattr(subprocess, "Popen", _Popen)
     fake = _Fake()
     fake._run_in_terminal = WindowThemeMixin._run_in_terminal.__get__(fake)
-    fake._python_executable = lambda: "python-test"
     WindowThemeMixin._run_current_file(fake)
-    assert calls, "未启动控制台"
-    assert calls[0][0][0] == "python-test"
-    assert calls[0][0][1] == "-i"
-    assert "demo.py" in calls[0][0][2]
+    assert fake.run_console.calls
+    assert "demo.py" in fake.run_console.calls[0][0]
