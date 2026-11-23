@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""F5 智能运行：input() 分支使用新控制台"""
+"""F5 交互脚本：使用真实 Python 解释器"""
 
 import os
 import sys
@@ -18,7 +18,7 @@ class _Proxy:
     document = _Doc()
 
     def get_text(self):
-        return "name = input('name?')\nprint(name)\n"
+        return "name = input('name?')\n"
 
 
 class _Tabs:
@@ -41,7 +41,7 @@ class _Fake:
         self.plugins = []
 
 
-def test_input_script_uses_console(qapp, monkeypatch):
+def test_uses_python_not_editor(qapp, monkeypatch):
     import subprocess
 
     from ui.mixins.window_theme_mixin import WindowThemeMixin
@@ -49,12 +49,14 @@ def test_input_script_uses_console(qapp, monkeypatch):
     calls = []
 
     class _Popen:
-        def __init__(self, *a, **k):
-            calls.append((a, k))
+        def __init__(self, args, **kwargs):
+            calls.append((args, kwargs))
 
     monkeypatch.setattr(subprocess, "Popen", _Popen)
     fake = _Fake()
     fake._run_in_terminal = WindowThemeMixin._run_in_terminal.__get__(fake)
+    fake._python_executable = lambda: "python-test"
     WindowThemeMixin._run_current_file(fake)
-    assert calls, "未启动新控制台"
-    assert calls[0][1].get("creationflags") & subprocess.CREATE_NEW_CONSOLE
+    assert calls, "未启动控制台"
+    assert calls[0][0][0] == "python-test"
+    assert "demo.py" in calls[0][0][1]

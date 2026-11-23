@@ -474,6 +474,16 @@ class WindowThemeMixin:
     # ========================================================
     # 运行 / 转到定义 / LSP（P8-2 / P6）
     # ========================================================
+    def _python_executable(self):
+        """返回可启动脚本的 Python 解释器（打包后 sys.executable 是编辑器自身）。"""
+        import shutil
+
+        base = os.path.basename(sys.executable or "").lower()
+        if base.startswith("python"):
+            return sys.executable
+        return (shutil.which("python") or shutil.which("python3")
+                or "python")
+
     def _run_in_terminal(self, filepath):
         """交互式脚本：在新控制台窗口运行（保证 input() 可用）。"""
         try:
@@ -481,7 +491,7 @@ class WindowThemeMixin:
 
             flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
             subprocess.Popen(
-                [sys.executable, filepath],
+                [self._python_executable(), filepath],
                 cwd=os.path.dirname(filepath or "") or None,
                 creationflags=flags,
             )
