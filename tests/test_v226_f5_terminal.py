@@ -34,6 +34,7 @@ class _Terminal:
     def __init__(self):
         self._tab = _Tab()
         self.input = self._tab.input
+        self.tabs = self
 
     def currentWidget(self):
         return self._tab
