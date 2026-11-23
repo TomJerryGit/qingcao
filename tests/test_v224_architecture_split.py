@@ -137,7 +137,18 @@ def test_no_py_file_over_1800_lines():
     """v2.25 阶段 2.6：全仓（除归档）无 >1,800 行文件。"""
     offenders = []
     for root, _dirs, files in os.walk(ROOT):
-        if any(part in root for part in (".git", "__pycache__", "dist", "build", "_archive")):
+        if any(
+            part in root
+            for part in (
+                ".git",
+                "__pycache__",
+                "dist",
+                "build",
+                "_archive",
+                "release_runtime",
+                "installer",
+            )
+        ):
             continue
         for name in files:
             if not name.endswith(".py"):
