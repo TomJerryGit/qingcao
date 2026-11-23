@@ -209,7 +209,7 @@ class MenuBuilderMixin:
 
         # P8-2: F5 = 运行当前文件（原来的"插入日期时间"已改绑 Ctrl+Alt+D）
         self._add_action(self.tools_menu, "▶ 运行当前文件", "F5", self._run_current_file)
-        self._add_action(self.tools_menu, "▶ 在终端运行当前文件", None,
+        self._add_action(self.tools_menu, "▶ 在新控制台运行当前文件", None,
                          self._run_current_file_in_terminal)
         # P6: F12 = 转到定义，把 LspClient.request_definition 接进生产路径
         self._add_action(self.tools_menu, "🔎 转到定义", "F12", self._goto_definition)
