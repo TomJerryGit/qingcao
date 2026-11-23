@@ -30,3 +30,20 @@ powershell -ExecutionPolicy Bypass -File tools\cleanup_runner_artifacts.ps1 -Inc
 ## 日志
 
 `tools/cleanup_runner_artifacts.log`
+
+
+## 总入口（推荐）
+
+```powershell
+# 预览（无需管理员）
+powershell -ExecutionPolicy Bypass -File tools\cleanup_all.ps1 -DryRun
+
+# 执行（管理员；含 Runner 清理）
+powershell -ExecutionPolicy Bypass -File tools\cleanup_all.ps1
+
+# 只清理项目、不动 Runner
+powershell -ExecutionPolicy Bypass -File tools\cleanup_all.ps1 -SkipRunner
+
+# 包含 _work 构建缓存
+powershell -ExecutionPolicy Bypass -File tools\cleanup_all.ps1 -IncludeWorkCache
+```
