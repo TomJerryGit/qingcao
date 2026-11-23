@@ -85,6 +85,7 @@ def test_input_script_uses_terminal(qapp):
     from ui.mixins.window_theme_mixin import WindowThemeMixin
 
     fake = _Fake()
+    fake._run_in_terminal = WindowThemeMixin._run_in_terminal.__get__(fake)
     WindowThemeMixin._run_current_file(fake)
     assert fake.terminal._tab.sent
     assert "demo.py" in fake.terminal._tab.sent[-1]
