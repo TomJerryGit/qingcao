@@ -490,8 +490,9 @@ class WindowThemeMixin:
             import subprocess
 
             flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            command = '"%s" "%s"' % (self._python_executable(), filepath)
             subprocess.Popen(
-                [self._python_executable(), filepath],
+                ["cmd.exe", "/k", command],
                 cwd=os.path.dirname(filepath or "") or None,
                 creationflags=flags,
             )

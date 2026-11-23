@@ -58,5 +58,5 @@ def test_uses_python_not_editor(qapp, monkeypatch):
     fake._python_executable = lambda: "python-test"
     WindowThemeMixin._run_current_file(fake)
     assert calls, "未启动控制台"
-    assert calls[0][0][0] == "python-test"
-    assert "demo.py" in calls[0][0][1]
+    assert calls[0][0][0].lower() == "cmd.exe"
+    assert "demo.py" in " ".join(calls[0][0])
