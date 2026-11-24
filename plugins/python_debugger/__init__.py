@@ -161,6 +161,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
 
         self._session = None
         self._panel = None
+        self._panel_dock = None
         self._watched_proxies = set()
         self._conditions = {}
         self._watches = []
@@ -215,6 +216,14 @@ class Plugin(DebugGuardsMixin, PluginBase):
 
         panel = self._panel
         self._panel = None
+        dock = self._panel_dock
+        self._panel_dock = None
+        if dock is not None:
+            try:
+                dock.close()
+                dock.deleteLater()
+            except Exception:
+                pass
         if panel is not None:
             try:
                 panel.close()
@@ -490,7 +499,11 @@ class Plugin(DebugGuardsMixin, PluginBase):
             return
         if str(expr or "").strip():
             self._conditions[(filepath, line)] = str(expr).strip()
-            self.api.show_status(tr("debug.cond_set", "条件断点: 行 {line} → {expr}", line=line + 1, expr=expr), 3000, "success")
+            self.api.show_status(
+                tr("debug.cond_set", "条件断点: 行 {line} → {expr}", line=line + 1, expr=expr),
+                3000,
+                "success",
+            )
         else:
             self._conditions.pop((filepath, line), None)
             self.api.show_status(tr("debug.cond_cleared", "已清除该行条件"), 2000)
@@ -504,7 +517,9 @@ class Plugin(DebugGuardsMixin, PluginBase):
         if expr not in self._watches:
             self._watches.append(expr)
         self._send_breakpoints()
-        self.api.show_status(tr("debug.watch_added", "已添加监视: {expr}", expr=expr), 2000, "success")
+        self.api.show_status(
+            tr("debug.watch_added", "已添加监视: {expr}", expr=expr), 2000, "success"
+        )
 
     def clear_watches(self):
         self._watches = []
@@ -521,7 +536,9 @@ class Plugin(DebugGuardsMixin, PluginBase):
         toggled = bool(proxy.toggle_breakpoint())
         lines = proxy.get_breakpoints() if hasattr(proxy, "get_breakpoints") else []
         if not toggled:
-            self.api.show_status(tr("debug.bad_breakpoint", "当前位置无法设置断点（行号越界）"), 3000, "warning")
+            self.api.show_status(
+                tr("debug.bad_breakpoint", "当前位置无法设置断点（行号越界）"), 3000, "warning"
+            )
             return False
         self.api.show_status(f"当前文件断点：{len(lines)} 个", 2500)
         return True
@@ -551,16 +568,27 @@ class Plugin(DebugGuardsMixin, PluginBase):
             return
         if self._panel is None:
             try:
-                self._panel = DebuggerPanel(
-                    session=self._session,
-                    parent=self.api.get_main_window(),
-                )
+                from PyQt5.QtCore import Qt
+                from PyQt5.QtWidgets import QDockWidget
+
+                win = self.api.get_main_window()
+                dock = QDockWidget("Python 调试", win)
+                dock.setObjectName("DebuggerDock")
+                self._panel = DebuggerPanel(session=self._session, parent=dock)
+                self._panel.setWindowFlags(Qt.Widget)
+                dock.setWidget(self._panel)
+                win.addDockWidget(Qt.BottomDockWidgetArea, dock)
+                self._panel_dock = dock
             except Exception as exc:
                 self._notify_error("无法打开调试面板", str(exc))
                 return None
         try:
-            self._panel.show()
-            self._panel.raise_()
+            if self._panel_dock is not None:
+                self._panel_dock.show()
+                self._panel_dock.raise_()
+            else:
+                self._panel.show()
+                self._panel.raise_()
         except Exception:
             pass
         return self._panel
