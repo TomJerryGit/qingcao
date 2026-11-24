@@ -8,7 +8,7 @@
 #if FileExists("installer_version.iss")
 #include "installer_version.iss"
 #else
-#define MyAppVersion "2.26.33"
+#define MyAppVersion "2.26.34"
 #endif
 #define MyAppPublisher "TomJerry"
 #define MyAppURL "https://github.com/qingcao-editor/qingcao"

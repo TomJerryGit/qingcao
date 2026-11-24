@@ -216,7 +216,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
 
         panel = self._panel
         self._panel = None
-        dock = self._panel_dock
+        dock = getattr(self, "_panel_dock", None)
         self._panel_dock = None
         if dock is not None:
             try:
@@ -583,7 +583,7 @@ class Plugin(DebugGuardsMixin, PluginBase):
                 self._notify_error("无法打开调试面板", str(exc))
                 return None
         try:
-            if self._panel_dock is not None:
+            if getattr(self, "_panel_dock", None) is not None:
                 self._panel_dock.show()
                 self._panel_dock.raise_()
             else:
