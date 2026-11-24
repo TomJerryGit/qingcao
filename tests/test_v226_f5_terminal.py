@@ -61,6 +61,7 @@ def test_input_script_uses_embedded_console(qapp):
     fake = _Fake()
     fake._run_in_terminal = WindowThemeMixin._run_in_terminal.__get__(fake)
     fake._python_executable = lambda: "python-test"
+    fake._show_run_console = lambda: fake.run_console
     WindowThemeMixin._run_current_file(fake)
     assert fake.run_console.calls
     assert "demo.py" in fake.run_console.calls[0][0]
