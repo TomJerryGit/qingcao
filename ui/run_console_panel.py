@@ -99,3 +99,7 @@ class RunConsolePanel(QDockWidget):
 
     def _error(self, _err):
         self.output.append("\n[启动失败: %s]" % self.process.errorString())
+
+    def closeEvent(self, event):
+        self.stop()
+        super().closeEvent(event)

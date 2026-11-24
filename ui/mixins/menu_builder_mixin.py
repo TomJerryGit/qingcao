@@ -211,6 +211,8 @@ class MenuBuilderMixin:
         self._add_action(self.tools_menu, "▶ 运行当前文件", "F5", self._run_current_file)
         self._add_action(self.tools_menu, "▶ 在内嵌控制台运行当前文件", None,
                          self._run_current_file_in_terminal)
+        self._add_action(self.tools_menu, "🖥 显示运行控制台", None,
+                         self._show_run_console)
         # P6: F12 = 转到定义，把 LspClient.request_definition 接进生产路径
         self._add_action(self.tools_menu, "🔎 转到定义", "F12", self._goto_definition)
 

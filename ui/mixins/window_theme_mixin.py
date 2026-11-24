@@ -484,8 +484,8 @@ class WindowThemeMixin:
         return (shutil.which("python") or shutil.which("python3")
                 or "python")
 
-    def _run_in_terminal(self, filepath):
-        """在软件内嵌运行控制台执行交互脚本。"""
+    def _show_run_console(self):
+        """创建/显示内嵌运行控制台（不启动程序）。"""
         try:
             from PyQt5.QtCore import Qt
 
@@ -498,6 +498,17 @@ class WindowThemeMixin:
                 self.addDockWidget(Qt.BottomDockWidgetArea, panel)
             panel.show()
             panel.raise_()
+            return panel
+        except Exception as e:
+            logger.error("显示运行控制台失败: %s", e)
+            return None
+
+    def _run_in_terminal(self, filepath):
+        """在软件内嵌运行控制台执行交互脚本。"""
+        try:
+            panel = self._show_run_console()
+            if panel is None:
+                return False
             panel.run_file(filepath, self._python_executable())
             self.status_bar.showMessage("已在运行控制台启动（支持输入）", 4000)
             return True
