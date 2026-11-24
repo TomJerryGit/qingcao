@@ -498,6 +498,7 @@ class WindowThemeMixin:
                 self.addDockWidget(Qt.BottomDockWidgetArea, panel)
             panel.show()
             panel.raise_()
+            panel.input.setFocus()
             return panel
         except Exception as e:
             logger.error("显示运行控制台失败: %s", e)

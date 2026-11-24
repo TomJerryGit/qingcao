@@ -209,7 +209,7 @@ class MenuBuilderMixin:
 
         # P8-2: F5 = 运行当前文件（原来的"插入日期时间"已改绑 Ctrl+Alt+D）
         self._add_action(self.tools_menu, "▶ 运行当前文件", "F5", self._run_current_file)
-        self._add_action(self.tools_menu, "▶ 在内嵌控制台运行当前文件", None,
+        self._add_action(self.tools_menu, "▶ 在内嵌控制台运行当前文件", "Ctrl+F5",
                          self._run_current_file_in_terminal)
         self._add_action(self.tools_menu, "🖥 显示运行控制台", None,
                          self._show_run_console)

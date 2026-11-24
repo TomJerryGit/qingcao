@@ -77,10 +77,16 @@ class RunConsolePanel(QDockWidget):
         self.output.insertPlainText(text)
         self.output.verticalScrollBar().setValue(self.output.verticalScrollBar().maximum())
 
+    def _ensure_newline(self):
+        text = self.output.toPlainText()
+        if text and not text.endswith("\n"):
+            self.output.insertPlainText("\n")
+
     def send_input(self):
         if self.process.state() == QProcess.NotRunning:
             return
         text = self.input.text()
+        self._ensure_newline()
         self.output.append("> " + text)
         self.process.write((text + "\n").encode("utf-8"))
         self.input.clear()
