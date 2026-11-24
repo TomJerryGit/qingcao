@@ -306,6 +306,12 @@ class PanelRegistryMixin:
             # 面板勾选的"正则/大小写/全词/转义/多行"必须传到替换端，
             # 否则正则搜索会按字面量替换（详见 _on_global_replace）。
             self.gsearch.replace_requested.connect(self._on_global_replace)
+            try:
+                from ui.dock_title import install_close_button
+
+                install_close_button(self.gsearch, "全局搜索")
+            except Exception:
+                pass
             self.addDockWidget(Qt.BottomDockWidgetArea, self.gsearch)
             self.gsearch.hide()
         except Exception as e:
@@ -382,6 +388,12 @@ class PanelRegistryMixin:
 
             self.perf_monitor = PerfMonitor(self)
             self.perf_monitor.setObjectName("PerfMonitor")
+            try:
+                from ui.dock_title import install_close_button
+
+                install_close_button(self.perf_monitor, "性能监控")
+            except Exception:
+                pass
             self.addDockWidget(Qt.BottomDockWidgetArea, self.perf_monitor)
             self.perf_monitor.hide()
         except Exception as e:
