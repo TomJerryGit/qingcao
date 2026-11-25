@@ -6,6 +6,7 @@ on:
     - cron: "0 3 * * *"   # 每日 03:00 UTC（11:00 CST）
   push:
     branches: [main]
+    tags: ["v*"]
 
 permissions:
   contents: read
