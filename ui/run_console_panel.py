@@ -53,6 +53,12 @@ class RunConsolePanel(QDockWidget):
         self.process.finished.connect(self._finished)
         self.process.errorOccurred.connect(self._error)
         self.input.setEnabled(False)
+        try:
+            from ui.dock_title import install_close_button
+
+            install_close_button(self, "运行控制台")
+        except Exception:
+            pass
 
     def run_file(self, filepath, interpreter="python"):
         self.stop()
@@ -109,3 +115,14 @@ class RunConsolePanel(QDockWidget):
     def closeEvent(self, event):
         self.stop()
         super().closeEvent(event)
+
+    def refresh_theme(self, theme=None):
+        try:
+            from ui.dock_title import _theme_foreground
+
+            fg = _theme_foreground(self)
+            if theme is not None:
+                fg = getattr(theme.colors, "foreground", fg)
+            self.setStyleSheet("QDockWidget::title{color:%s;}" % fg)
+        except Exception:
+            pass

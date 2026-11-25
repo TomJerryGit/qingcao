@@ -579,6 +579,33 @@ class Plugin(DebugGuardsMixin, PluginBase):
                 dock.setWidget(self._panel)
                 win.addDockWidget(Qt.BottomDockWidgetArea, dock)
                 self._panel_dock = dock
+                try:
+                    from ui.dock_title import install_close_button
+
+                    install_close_button(dock, "Python 调试")
+                except Exception:
+                    pass
+                try:
+                    from infrastructure.theme_loader import ThemeLoader
+
+                    def _dock_refresh(theme=None):
+                        try:
+                            fg = "#d4d4d4"
+                            if theme is not None:
+                                fg = theme.colors.foreground
+                            else:
+                                name = getattr(win, "_current_theme_name", "dark_night")
+                                th = ThemeLoader().load_by_name(name)
+                                if th is not None:
+                                    fg = th.colors.foreground
+                            dock.setStyleSheet("QDockWidget::title{color:%s;}" % fg)
+                        except Exception:
+                            pass
+
+                    _dock_refresh()
+                    dock.refresh_theme = _dock_refresh
+                except Exception:
+                    pass
             except Exception as exc:
                 self._notify_error("无法打开调试面板", str(exc))
                 return None

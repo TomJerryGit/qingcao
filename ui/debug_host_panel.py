@@ -19,6 +19,12 @@ class DebugHostPanel(QDockWidget):
         super().__init__("调试器（宿主）", parent)
         self.service = service
         self.setObjectName("DebugHostPanel")
+        try:
+            from ui.dock_title import install_close_button
+
+            install_close_button(self, "Python 调试")
+        except Exception:
+            pass
         body = QWidget(self)
         layout = QVBoxLayout(body)
         self.status = QLabel("未启动")
