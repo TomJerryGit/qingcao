@@ -73,6 +73,18 @@ class RunConsolePanel(QDockWidget):
         self.input.setEnabled(True)
         self.input.setFocus()
 
+    def run_batch(self, batch_path, cwd=None, label=""):
+        self.stop()
+        self.output.clear()
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("PYTHONIOENCODING", "utf-8")
+        self.process.setProcessEnvironment(env)
+        self.process.setWorkingDirectory(cwd or os.path.dirname(batch_path) or ".")
+        self.output.append("> " + (label or batch_path) + "\n")
+        self.process.start("cmd.exe", ["/c", batch_path])
+        self.input.setEnabled(True)
+        self.input.setFocus()
+
     def _read(self):
         data = bytes(self.process.readAllStandardOutput())
         try:

@@ -532,7 +532,34 @@ class WindowThemeMixin:
         if not filepath:
             self.status_bar.showMessage("请先保存文件再运行", 4000)
             return
-        self._run_in_terminal(filepath)
+        if filepath.lower().endswith(".java"):
+            self._run_java(filepath)
+        else:
+            self._run_in_terminal(filepath)
+
+    def _run_java(self, filepath):
+        """编译并运行单个 .java 文件（内嵌控制台）。"""
+        try:
+            from core.java_runner import prepare
+
+            spec = prepare(filepath)
+            if not spec.get("ok"):
+                self.status_bar.showMessage("Java 运行失败: " + spec.get("error", ""), 6000)
+                return False
+            panel = self._show_run_console()
+            if panel is None:
+                return False
+            panel.run_batch(spec["batch"], cwd=spec["cwd"],
+                            label="javac + java " + os.path.basename(filepath))
+            self.status_bar.showMessage("Java 编译/运行中（内嵌控制台）", 4000)
+            return True
+        except Exception as e:
+            logger.error("Java 运行失败: %s", e)
+            try:
+                self.status_bar.showMessage(f"Java 运行失败: {e}", 5000)
+            except Exception:
+                pass
+            return False
 
     def _run_current_file(self):
         """运行当前文件（P8-2: F5）。
@@ -554,6 +581,10 @@ class WindowThemeMixin:
 
             if not filepath:
                 self.status_bar.showMessage("请先保存文件再运行", 4000)
+                return
+
+            if filepath.lower().endswith(".java"):
+                self._run_java(filepath)
                 return
 
             # 交互式 input() 脚本：调试运行无控制台输入，改走 PTY 终端
