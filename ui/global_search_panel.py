@@ -255,17 +255,26 @@ class GlobalSearchPanel(QDockWidget):
 
         # 应用样式
         self._apply_style()
+        self._apply_initial_theme()
+
+    def _apply_initial_theme(self):
+        try:
+            from infrastructure.theme_loader import ThemeLoader
+
+            name = getattr(self.main_window, "_current_theme_name", "")
+            if name:
+                theme = ThemeLoader().load_by_name(name)
+                if theme is not None:
+                    self.refresh_theme(theme)
+        except Exception:
+            pass
 
     def refresh_theme(self, theme):
-        """主题变更时刷新样式（v3.0）"""
+        """主题变更时刷新样式（使用主题 token 重新生成 QSS）。"""
         try:
-            from infrastructure.theme_loader import adapt_qss_colors
+            from ui.panel_theme import panel_qss
 
-            if not hasattr(self, "_original_qss") or not self._original_qss:
-                self._original_qss = self.styleSheet()
-            if self._original_qss:
-                qss = adapt_qss_colors(self._original_qss, theme)
-                self.setStyleSheet(qss)
+            self.setStyleSheet(panel_qss(theme))
         except Exception as e:
             print(f"[{self.__class__.__name__}] refresh_theme 失败: {e}")
 

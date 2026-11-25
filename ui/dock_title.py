@@ -42,6 +42,8 @@ def install_close_button(dock: QDockWidget, title: str = ""):
     close_btn.clicked.connect(dock.close)
     layout.addWidget(close_btn)
 
+    original_refresh = getattr(dock, "refresh_theme", None)
+
     def _refresh(theme=None):
         fg = _theme_foreground(dock)
         if theme is not None:
@@ -49,7 +51,16 @@ def install_close_button(dock: QDockWidget, title: str = ""):
                 fg = theme.colors.foreground
             except Exception:
                 pass
-        bar.setStyleSheet("QWidget{background: transparent;} QLabel{color: %s; font-weight: 600;} QToolButton{color: %s; border: none; padding: 0 4px;}" % (fg, fg))
+        bar.setStyleSheet(
+            "QWidget{background: transparent;} "
+            "QLabel{color: %s; font-weight: 600;} "
+            "QToolButton{color: %s; border: none; padding: 0 4px;}" % (fg, fg)
+        )
+        if callable(original_refresh):
+            try:
+                original_refresh(theme)
+            except Exception:
+                pass
 
     _refresh()
     dock.refresh_theme = _refresh

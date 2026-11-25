@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """性能监控面板"""
+
 import os
 import time
 
@@ -30,6 +31,7 @@ class PerfMonitor(QDockWidget):
 
         self._build_ui()
         self._apply_style()
+        self._apply_initial_theme()
 
         # 定时刷新
         self.timer = QTimer(self)
@@ -112,13 +114,25 @@ class PerfMonitor(QDockWidget):
 
         self.setWidget(container)
 
+    def _apply_initial_theme(self):
+        try:
+            from infrastructure.theme_loader import ThemeLoader
+
+            name = getattr(self.main_window, "_current_theme_name", "")
+            if name:
+                theme = ThemeLoader().load_by_name(name)
+                if theme is not None:
+                    self.refresh_theme(theme)
+        except Exception:
+            pass
 
     def refresh_theme(self, theme):
         """主题变更时刷新样式（v3.0）"""
         try:
             from infrastructure.theme_loader import adapt_qss_colors
+
             # 保存原始 QSS（只保存一次）
-            if not hasattr(self, '_original_qss') or not self._original_qss:
+            if not hasattr(self, "_original_qss") or not self._original_qss:
                 self._original_qss = self.styleSheet()
             if self._original_qss:
                 qss = adapt_qss_colors(self._original_qss, theme)
@@ -181,9 +195,8 @@ class PerfMonitor(QDockWidget):
         """
         nbytes = int(sc.length())
 
-        cached = getattr(sc, '_qc_char_count_cache', None)
-        if (isinstance(cached, tuple) and len(cached) == 2
-                and cached[0] == nbytes):
+        cached = getattr(sc, "_qc_char_count_cache", None)
+        if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == nbytes:
             return int(cached[1]), nbytes
 
         chars = len(sc.text())
@@ -209,6 +222,7 @@ class PerfMonitor(QDockWidget):
             # 系统资源
             try:
                 import psutil
+
                 proc = psutil.Process(os.getpid())
                 mem_mb = proc.memory_info().rss / 1024 / 1024
                 self.mem_label.setText("%.1f MB" % mem_mb)
@@ -221,7 +235,7 @@ class PerfMonitor(QDockWidget):
                 self.mem_label.setText("(未安装 psutil)")
 
             # 编辑器状态
-            if self.main_window and hasattr(self.main_window, 'tabs'):
+            if self.main_window and hasattr(self.main_window, "tabs"):
                 tabs = self.main_window.tabs
                 self.tab_label.setText(str(tabs.count()))
 
@@ -236,7 +250,7 @@ class PerfMonitor(QDockWidget):
                 total_bytes = 0
                 for i in range(tabs.count()):
                     w = tabs.widget(i)
-                    if hasattr(w, 'proxy') and w.proxy and w.proxy.sc:
+                    if hasattr(w, "proxy") and w.proxy and w.proxy.sc:
                         try:
                             chars, nbytes = self._count_chars(w.proxy.sc)
                             total_chars += chars
@@ -244,30 +258,23 @@ class PerfMonitor(QDockWidget):
                         except Exception:
                             pass
                 self.chars_label.setText(self._format_count(total_chars))
-                self.chars_label.setToolTip(
-                    "字符 %d / 字节 %d" % (total_chars, total_bytes)
-                )
+                self.chars_label.setToolTip("字符 %d / 字节 %d" % (total_chars, total_bytes))
 
                 # 撤销栈
                 proxy = tabs.current_proxy()
-                if proxy and hasattr(proxy, 'undo_manager'):
+                if proxy and hasattr(proxy, "undo_manager"):
                     try:
-                        self.undo_label.setText(
-                            str(len(proxy.undo_manager.undo_stack))
-                        )
+                        self.undo_label.setText(str(len(proxy.undo_manager.undo_stack)))
                     except Exception:
                         pass
 
             # 事件总线
             try:
                 from app.event_bus import bus
+
                 stats = bus.get_stats()
-                self.event_count_label.setText(
-                    str(stats.get('total_events', 0))
-                )
-                self.pending_label.setText(
-                    str(stats.get('pending_count', 0))
-                )
+                self.event_count_label.setText(str(stats.get("total_events", 0)))
+                self.pending_label.setText(str(stats.get("pending_count", 0)))
             except Exception:
                 pass
 
@@ -277,6 +284,7 @@ class PerfMonitor(QDockWidget):
     def _force_gc(self):
         """强制垃圾回收"""
         import gc
+
         count = gc.collect()
         print("[PerfMonitor] GC 回收 %d 个对象" % count)
         self._refresh()
@@ -285,6 +293,7 @@ class PerfMonitor(QDockWidget):
         """清空事件历史"""
         try:
             from app.event_bus import bus
+
             bus.clear_history()
             self._refresh()
         except Exception:
