@@ -603,7 +603,6 @@ class Plugin(DebugGuardsMixin, PluginBase):
                             pass
 
                     _dock_refresh()
-                    dock.refresh_theme = _dock_refresh
                 except Exception:
                     pass
             except Exception as exc:
