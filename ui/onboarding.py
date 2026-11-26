@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""首启向导（v2.24.x UX）：语言 / 主题 / 插件市场 3 步。"""
+"""首启向导（Lite UX）：语言 / 主题 / 快速上手 3 步。"""
 
 from PyQt5.QtWidgets import (
     QDialog,

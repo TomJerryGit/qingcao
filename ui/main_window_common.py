@@ -150,7 +150,6 @@ ACTION_NAME_BY_TEXT = {
     "⌨ 命令面板": "tools.command_palette",
     "📂 文件切换": "tools.quick_open",
     "⚙ 首选项...": "tools.preferences",
-    "🧩 插件市场": "tools.plugin_store",
     "🔌 插件管理": "tools.plugin_manage",
 }
 

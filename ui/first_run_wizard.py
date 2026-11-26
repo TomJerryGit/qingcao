@@ -227,7 +227,7 @@ class PluginsPage(QWizardPage):
     def __init__(self):
         super().__init__()
         self.setTitle("常用插件")
-        self.setSubTitle("选择需要的插件（之后可在插件市场调整）。")
+        self.setSubTitle("选择需要的内置插件（之后可在插件管理中调整）。")
         layout = QVBoxLayout(self)
         self._checks = {}
         for name, label in (
