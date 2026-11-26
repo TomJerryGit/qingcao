@@ -213,6 +213,28 @@ class MainWindow(
         except Exception as e:
             logging.debug("默认快捷键应用失败: %s", e)
 
+        self._apply_accessible_names()
+
+    def _apply_accessible_names(self):
+        """补齐 Qt 内部/纯图标控件的无障碍名称。"""
+        try:
+            from PyQt5.QtWidgets import QComboBox, QToolButton
+
+            for name, label in (
+                ("qt_menubar_ext_button", "更多菜单"),
+                ("qt_toolbar_ext_button", "更多工具栏项"),
+            ):
+                btn = self.findChild(QToolButton, name)
+                if btn is not None and not btn.accessibleName():
+                    btn.setAccessibleName(label)
+                    btn.setToolTip(label)
+            for combo in self.findChildren(QComboBox):
+                if (combo.isVisible() and not combo.accessibleName()
+                        and not combo.toolTip()):
+                    combo.setAccessibleName("选项")
+        except Exception:
+            pass
+
     # ========================================================
     # 面板惰性构造（P1-3）
     # ========================================================
