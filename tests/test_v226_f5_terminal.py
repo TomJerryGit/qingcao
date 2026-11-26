@@ -1,5 +1,6 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """F5 智能运行：input() 分支进入内嵌控制台"""
+
 import os
 import sys
 
