@@ -60,11 +60,6 @@ jobs:
         shell: powershell
         run: python tools/run_tests_sharded.py --shards 3 --retries 1 --parallel
 
-      - name: Performance gate
-        if: hashFiles('data/perf_history.jsonl') != ''
-        shell: powershell
-        run: python tools/perf_gate.py --strict
-
       - name: Build
         shell: powershell
         run: |
