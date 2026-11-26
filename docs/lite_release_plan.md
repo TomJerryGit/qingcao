@@ -27,7 +27,7 @@
 - [ ] 全量测试通过（或仅已知 flaky 放行）
 - [ ] 冷启动 ≤ 2 秒
 - [ ] 安装/卸载/覆盖安装通过
-- [ ] 4 套主题截图无不可读文字
+- [ ] 4 套主题截图无不可读文字（`python tools/theme_e2e_screenshots.py --check`）
 - [ ] Release 单 workflow 自动完成并含 4 资产
 - [ ] README 只描述保留功能
 
