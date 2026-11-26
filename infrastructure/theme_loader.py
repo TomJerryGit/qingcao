@@ -2,21 +2,9 @@
 # ruff: noqa: F401, F403, F405
 """主题加载器/管理器（v2.23 拆分）。模型与内置主题位于 theme_model.py。"""
 
+from infrastructure.theme_contrast import readable_fg as _readable_fg
 from infrastructure.theme_model import *  # noqa: F401,F403
 from infrastructure.theme_model import _LAZY_THEME_FILTER  # noqa: F401
-
-
-def _readable_fg(bg: str, light: str = "#ffffff", dark: str = "#000000") -> str:
-    """返回在 bg 上可读的前景色（黑/白）。"""
-    try:
-        h = bg.lstrip("#")
-        if len(h) == 3:
-            h = "".join(ch * 2 for ch in h)
-        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return dark if lum > 0.55 else light
-    except Exception:
-        return light
 
 
 class ThemeLoader(QObject):
@@ -611,8 +599,7 @@ class ThemeLoader(QObject):
                 color: {c.menubar_fg};
                 border-bottom: 1px solid {c.border};
                 padding: 2px;
-                font-size: 10pt;
-                font-weight: 600;
+                font-size: 10pt; font-weight: 600;
             }}
             QMenuBar::item {{
                 padding: 4px 10px;
