@@ -169,6 +169,15 @@ QUICK_ACTIONS = [
 ]
 
 
+try:
+    from core.feature_policy import show_market
+
+    if not show_market():
+        QUICK_ACTIONS = [a for a in QUICK_ACTIONS if a[3] != "plugin_store"]
+except Exception:
+    pass
+
+
 # ============================================================
 # 欢迎页头部
 # ============================================================
