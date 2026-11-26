@@ -126,7 +126,7 @@ python -m venv venv
 venv\Scripts\activate
 
 # 3. 安装依赖
-pip install -r requirements.txt
+pip install -r requirements.txt  # 可复现安装用 requirements-lock.txt
 
 # 4. 启动编辑器
 python main.py
@@ -389,7 +389,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 安装开发依赖
-pip install -r requirements.txt
+pip install -r requirements.txt  # 可复现安装用 requirements-lock.txt
 pip install pytest pytest-qt coverage ruff black isort pyinstaller
 ```
 

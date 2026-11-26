@@ -56,6 +56,12 @@ jobs:
         shell: powershell
         run: python -m ruff check .
 
+      - name: Security smoke
+        shell: powershell
+        run: |
+          python tools/audit_sandbox_rpc.py
+          python tools/audit_network_threads.py
+
       - name: Run tests
         shell: powershell
         run: python tools/run_tests_sharded.py --shards 3 --retries 1 --parallel

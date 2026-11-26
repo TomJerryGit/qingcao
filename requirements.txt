@@ -8,6 +8,7 @@
 # ============================================================
 # 安装:
 #   pip install -r requirements.txt
+#   可复现安装: pip install -r requirements-lock.txt
 #
 # 只装核心（推荐生产环境）:
 #   pip install -r requirements.txt

@@ -302,14 +302,9 @@ class DataMixin:
         if not self.require_permission(PERMISSION_PROCESS):
             return None
         try:
-            import io
-            from contextlib import redirect_stderr, redirect_stdout
+            from core.python_exec import run_python_code
 
-            stdout_cap = io.StringIO()
-            stderr_cap = io.StringIO()
-            with redirect_stdout(stdout_cap), redirect_stderr(stderr_cap):
-                exec(code, {})
-            return stdout_cap.getvalue() + stderr_cap.getvalue()
+            return run_python_code(code)
         except Exception as e:
             return f"错误: {e}"
 

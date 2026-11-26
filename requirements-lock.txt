@@ -1,10 +1,12 @@
-# 当前验证环境冻结（直接依赖）；CI/发布建议使用：pip install -r requirements-lock.txt
+﻿# 青草编辑器直接依赖锁定（Windows 构建环境，2026-11-26）
+# 用途：可复现安装/审计；传递依赖仍由 pip 解析。
 PyQt5==5.15.11
+PyQt5-sip==12.19.0
 QScintilla==2.14.1
 chardet==7.4.3
-keyring==25.7.0
-psutil==7.2.2
-pypinyin==0.55.0
-pywinpty==3.1.2
-reportlab==5.0.1
 requests==2.34.2
+psutil==7.2.2
+pywinpty==3.1.2 ; sys_platform == "win32"
+keyring==25.7.0
+reportlab==5.0.1
+pypinyin==0.55.0

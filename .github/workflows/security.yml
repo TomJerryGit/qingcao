@@ -31,6 +31,12 @@ jobs:
         run: |
           python -m pip_audit -r requirements.txt             --format markdown --output pip-audit-source.md || true
           cat pip-audit-source.md 2>/dev/null || true
+      - name: Audit locked requirements
+        continue-on-error: true
+        run: |
+          python -m pip_audit -r requirements-lock.txt --format markdown --output pip-audit-lock.md || true
+          cat pip-audit-lock.md 2>/dev/null || true
+
       - name: Audit Linux CI requirements
         continue-on-error: true
         run: |
