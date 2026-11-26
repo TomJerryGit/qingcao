@@ -133,8 +133,10 @@ class EditorTextOpsMixin:
             if not re.match(r"^[\d\s\+\-\*\/\(\)\.\^\%]+$", expr):
                 return False
 
-            # 计算
-            result = eval(expr, {"__builtins__": {}})
+            # 计算（AST 受限求值，不使用 eval）
+            from core.safe_expr import evaluate as _safe_eval
+
+            result = _safe_eval(expr)
 
             if isinstance(result, (int, float)):
                 # 格式化结果
