@@ -2,14 +2,24 @@
 
 > 青草枯荣，野火重生。
 
-轻量 · 极速 · 可扩展的跨平台代码编辑器。基于 **PyQt5** + **QScintilla** 构建，内置 LSP、插件系统、AI 助手、宏录制等现代化功能。
+**轻量、免费、本地优先的 Windows Python 编辑器，AI 可选。** 基于 **PyQt5** + **QScintilla** 构建。
 
 [![Version](https://img.shields.io/badge/version-2.26.42-brightgreen.svg)](#)
-[![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](#)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#)
+[![Lite](https://img.shields.io/badge/edition-Lite-brightgreen.svg)](PRODUCT.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
+
+## Lite 版说明
+
+- 当前定位：轻量、免费、本地优先的 Windows Python 编辑器；
+- 默认隐藏插件市场/评分/使用统计等冻结入口；
+- Java 仅实验性单文件运行，不含 Maven/Gradle/JUnit/断点调试；
+- 不做 macOS/Linux 官方支持，不收集遥测。
+
+详见 [PRODUCT.md](PRODUCT.md)、[功能冻结清单](docs/feature_freeze.md)、[5 分钟上手](docs/first_5_minutes.md)。
 
 ## 界面语言 / UI Language
 
@@ -85,12 +95,12 @@ English UI is officially supported since v2.20; 繁體中文 since v2.21: Settin
 
 | 项目 | 要求 |
 |------|------|
-| Python | 3.8 / 3.9 / 3.10 / 3.11（推荐 3.11） |
-| 操作系统 | Windows 10+ / Ubuntu 20.04+ / macOS 10.14+ |
+| Python | 3.11+（运行用户脚本时使用系统 Python） |
+| 操作系统 | Windows 10 / 11 x64 |
 | 内存 | 至少 4 GB（推荐 8 GB） |
 | 磁盘 | 至少 500 MB 可用空间 |
 
-> ⚠️ **Python 3.13+** 可能缺少 PyQt5 wheel，建议使用 Python 3.8 ~ 3.11。
+> ⚠️ 非 Windows 平台不提供官方支持。
 
 ---
 
@@ -98,25 +108,22 @@ English UI is officially supported since v2.20; 繁體中文 since v2.21: Settin
 
 ### 方式一：下载发行版（推荐新手）
 
-前往 [Releases](https://github.com/qingcao-editor/qingcao/releases) 下载对应平台的安装包：
+前往 [Releases](https://github.com/TomJerryGit/qingcao/releases) 下载 Windows 安装包或便携 ZIP：
 
-- **Windows**：`QingCaoEditor_Setup_v2.26.42.exe`
-- **macOS**：`QingCaoEditor_v2.26.42.dmg`
-- **Linux**：`QingCaoEditor_v2.26.42_linux_x64.tar.gz` 或 `.deb`
+- **安装器**：`QingCaoEditor_Setup_v2.26.42.exe`
+- **便携版**：`QingCaoEditor-v2.26.42-windows.zip`
 
 ### 方式二：从源码运行（推荐开发者）
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/qingcao-editor/qingcao.git
+git clone https://github.com/TomJerryGit/qingcao.git
 cd qingcao
 
 # 2. 创建虚拟环境（推荐）
 python -m venv venv
 # Windows:
 venv\Scripts\activate
-# Linux / macOS:
-source venv/bin/activate
 
 # 3. 安装依赖
 pip install -r requirements.txt
@@ -125,15 +132,9 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### 方式三：从 pip 安装（实验性）
+### 方式三：从 pip 安装
 
-> ⚠️ 目前**尚未**发布到 PyPI，也没有注册 `qingcao` 命令行入口
-> （仓库中不存在 `pyproject.toml` / `entry_points`）。
-> 请使用方法一或方法二。
-```bash
-pip install qingcao-editor
-qingcao
-```
+> ⚠️ 尚未发布到 PyPI，请使用方法一或方法二。
 
 ## 🏃 快速开始
 
@@ -381,7 +382,7 @@ python main.py [选项] [文件...]
 ### 环境准备
 
 ```bash
-git clone https://github.com/qingcao-editor/qingcao.git
+git clone https://github.com/TomJerryGit/qingcao.git
 cd qingcao
 
 python -m venv venv
@@ -444,11 +445,6 @@ python build.py --debug
 # Windows 安装包（需要 Inno Setup 6+）
 python build_installer.py
 
-# Linux 打包（.tar.gz + .deb）
-python build_linux.py
-
-# macOS 打包（.app + .dmg）
-python build_macos.py
 ## 📸 截图
 
 截图待补充。欢迎提交 PR 添加。
