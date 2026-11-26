@@ -39,10 +39,12 @@ def test_wait_all_uses_latest(monkeypatch):
     assert mod.wait_all("o/r", "sha", None, 1, 0, tuple(runs)) is True
 
 
-def test_release_workflow_has_gate():
+def test_release_workflow_is_self_contained():
     text = open(os.path.join(ROOT, ".github", "workflows", "release.yml"), encoding="utf-8").read()
-    assert "ci_release_gate.py" in text
-    assert "needs: gates" in text
+    assert "ci_release_gate.py" not in text
+    assert "needs: gates" not in text
+    assert "Run tests" in text
+    assert "release_verify.py" in text
 
 
 def test_fallback_alternative_success(monkeypatch):

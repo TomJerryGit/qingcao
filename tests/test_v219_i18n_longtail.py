@@ -126,6 +126,7 @@ def test_menu_sample_english(qapp, monkeypatch):
     from PyQt5.QtWidgets import QAction, QMessageBox
 
     monkeypatch.setenv("QINGCAO_LANG", "en_US")
+    monkeypatch.setenv("QINGCAO_LITE", "0")
     from core.i18n_json import clear_cache
 
     clear_cache()
