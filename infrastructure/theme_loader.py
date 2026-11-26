@@ -587,12 +587,10 @@ class ThemeLoader(QObject):
                 color: {c.window_fg};
                 font-size: 12px;
             }}
-
             /* ============ 主窗口 ============ */
             QMainWindow {{
                 background-color: {c.window_bg};
             }}
-
             /* ============ 菜单栏 ============ */
             QMenuBar {{
                 background-color: {c.menubar_bg};
