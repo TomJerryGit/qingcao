@@ -283,12 +283,13 @@ class FinishPage(QWizardPage):
         layout = QVBoxLayout(self)
 
         info = QLabel(
+            "接下来 5 分钟：\n"
+            "  1. 按 F5 运行示例文件\n"
+            "  2. 修改示例后按 Ctrl+S 保存\n"
+            "  3. Ctrl+Shift+P 打开命令面板\n"
+            "  4. Ctrl+Shift+F 全局搜索\n"
+            "  5. 视图 → 主题，切换外观\n\n"
             '所有设置都可以在"工具 → 首选项"中修改。\n\n'
-            "快速上手：\n"
-            "  · Ctrl+Shift+P 打开命令面板\n"
-            "  · Ctrl+P 快速打开文件\n"
-            "  · Ctrl+Shift+F 全局搜索\n"
-            "  · F11 无干扰模式\n\n"
             "青草枯荣，野火重生。"
         )
         info.setWordWrap(True)
@@ -299,17 +300,14 @@ class FinishPage(QWizardPage):
         self.auto_update_cb.setChecked(True)
         layout.addWidget(self.auto_update_cb)
 
-        self.telemetry_cb = QCheckBox("发送匿名使用统计（帮助改进）")
-        self.telemetry_cb.setChecked(False)
-        layout.addWidget(self.telemetry_cb)
-
         layout.addStretch()
 
     def is_auto_update(self):
         return self.auto_update_cb.isChecked()
 
     def is_telemetry(self):
-        return self.telemetry_cb.isChecked()
+        # Lite/免费版默认不采集遥测
+        return False
 
 
 class FirstRunWizard(QWizard):
@@ -446,6 +444,8 @@ def apply_wizard_selections(window, wizard):
     io.open(path, "w", encoding="utf-8", newline="\n").write(content)
     try:
         window.tabs.open_file(path)
+        window.status_bar.showMessage(
+            "5 分钟上手：按 F5 运行示例，Ctrl+S 保存，Ctrl+Shift+P 命令面板", 8000)
     except Exception:
         pass
     return path
