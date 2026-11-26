@@ -31,17 +31,18 @@
 |---|---|---|
 | `eval_expression` 使用 `eval` | 中 | 已替换为 `core/safe_expr.py` AST 受限求值；仅允许数字/运算符 |
 | 插件 `run_command` 使用 `shell=True` | 高（若插件不可信） | 已由 `process` 权限门控；仅信任插件；文档标注 |
-| 插件 `run_python` 在宿主 `exec` | 高（若插件不可信） | 同上；建议后续只允许隔离进程执行 |
+| 插件 `run_python` 在宿主 `exec` | 高（若插件不可信） | **已改为独立子进程执行**（core/python_exec.py） |
 | 依赖范围宽、无 hash/lock | 中 | 建议 CI 增加 `pip-audit` 与固定依赖 |
-| Release 未跑安全审计 | 中 | 单 workflow 目前只跑 Lint/Test；建议加入安全 smoke |
+| Release 未跑安全审计 | 中 | 已加入 Security smoke；pip-audit 在 Security Audit 工作流 |
 
 ## 建议
 
-1. CI 安装 `pip-audit`，对 `requirements.txt` 扫描；
+1. CI 的 pip-audit 目前非阻断，后续可改为阻断；
 2. 生成锁文件（`pip-compile`/`pip freeze`）并定期更新；
 3. 不安装不可信插件；`process` 权限视为完全信任；
 4. 后续将 `run_python` 迁移到隔离子进程；
-5. Release 增加 `audit_sandbox_rpc.py` + `audit_network_threads.py` 快速门禁。
+5. 已将 `audit_sandbox_rpc.py` + `audit_network_threads.py` 加入 Release。
+6. 不安装不可信插件；`process` 权限视为完全信任。
 
 ## 结论
 
