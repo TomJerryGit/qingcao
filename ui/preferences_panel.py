@@ -260,7 +260,13 @@ class AppearancePage(QWidget):
 
         market_btn = QPushButton("🎨 市场")
         market_btn.clicked.connect(self._on_market)
-        pick_row.addWidget(market_btn)
+        try:
+            from core.feature_policy import show_market
+
+            if show_market():
+                pick_row.addWidget(market_btn)
+        except Exception:
+            pick_row.addWidget(market_btn)
 
         open_dir_btn = QPushButton("📁 目录")
         open_dir_btn.clicked.connect(self._on_open_dir)

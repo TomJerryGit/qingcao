@@ -268,7 +268,10 @@ class MenuBuilderMixin:
         self._setup_export_menu()
 
         self.tools_menu.addSeparator()
-        self._add_action(self.tools_menu, "🧩 插件市场", None, self._show_plugin_store)
+        from core.feature_policy import show_market
+
+        if show_market():
+            self._add_action(self.tools_menu, "🧩 插件市场", None, self._show_plugin_store)
         self._add_action(self.tools_menu, "🔌 插件管理", None, self._show_plugins_panel)
         self._add_action(self.tools_menu, "⌨ 快捷键编辑器", None, self._show_keymap_editor)
         self.tools_menu.addSeparator()
@@ -496,7 +499,8 @@ class MenuBuilderMixin:
 
         # 编辑 / 市场 / 导入 / 导出 / 删除
         self._add_action(self.theme_menu, "📝 编辑当前主题...", None, self._show_theme_editor)
-        self._add_action(self.theme_menu, "🎨 主题市场...", None, self._show_theme_market)
+        if show_market():
+            self._add_action(self.theme_menu, "🎨 主题市场...", None, self._show_theme_market)
         self.theme_menu.addSeparator()
         self._add_action(self.theme_menu, "📥 导入主题包...", None, self._import_theme_pack)
         self._add_action(self.theme_menu, "📤 导出当前主题...", None, self._export_theme_pack)
@@ -880,6 +884,7 @@ class MenuBuilderMixin:
             self._add_action(m, "⌨ 快捷键编辑器（方案）…", None, self._show_keymap_editor)
             m.addSeparator()
             self._add_action(m, "🎨 主题编辑器…", None, self._show_theme_editor)
+            if show_market():
             self._add_action(m, "🎨 主题市场…", None, self._show_theme_market)
             self._add_action(m, "📥 导入主题包…", None, self._import_theme_pack)
             self._add_action(m, "📤 导出主题包…", None, self._export_theme_pack)
