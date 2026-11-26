@@ -41,6 +41,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from core.feature_policy import show_market
 from core.i18n_json import AVAILABLE as _I18N_LANGS
 from core.i18n_json import current_language as _i18n_lang
 from core.i18n_json import set_language as _i18n_set_language
@@ -885,7 +886,7 @@ class MenuBuilderMixin:
             m.addSeparator()
             self._add_action(m, "🎨 主题编辑器…", None, self._show_theme_editor)
             if show_market():
-            self._add_action(m, "🎨 主题市场…", None, self._show_theme_market)
+                self._add_action(m, "🎨 主题市场…", None, self._show_theme_market)
             self._add_action(m, "📥 导入主题包…", None, self._import_theme_pack)
             self._add_action(m, "📤 导出主题包…", None, self._export_theme_pack)
             self._add_action(m, "📂 打开主题目录", None, self._open_theme_dir)
