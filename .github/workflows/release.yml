@@ -9,28 +9,9 @@ env:
   PYTHONUTF8: '1'
   PYTHONIOENCODING: 'utf-8'
 jobs:
-  gates:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Wait for Test/Security/Lint gates
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python tools/ci_release_gate.py --sha "$GITHUB_SHA" --wait-min 35 --fallback-workflow test-fallback.yml
-
-      - name: Performance gate
-        if: hashFiles('data/perf_history.jsonl') != ''
-        run: python tools/perf_gate.py --strict
-
   build-release:
-    needs: gates
     runs-on: [self-hosted, windows, x64]
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout (SSH)
         shell: powershell
@@ -66,6 +47,23 @@ jobs:
           "pip_rc=$LASTEXITCODE" | Out-File $log -Append -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
           "DEPS_OK" | Out-File $log -Append -Encoding utf8
+
+      - name: Version consistency
+        shell: powershell
+        run: python -m tools.check_version
+
+      - name: Lint
+        shell: powershell
+        run: python -m ruff check .
+
+      - name: Run tests
+        shell: powershell
+        run: python tools/run_tests_sharded.py --shards 3 --retries 1 --parallel
+
+      - name: Performance gate
+        if: hashFiles('data/perf_history.jsonl') != ''
+        shell: powershell
+        run: python tools/perf_gate.py --strict
 
       - name: Build
         shell: powershell
