@@ -437,7 +437,7 @@ class ThemeLoader(QObject):
             p.setColor(QPalette.ButtonText, QColor(c.window_fg))
             p.setColor(QPalette.BrightText, QColor(c.error))
             p.setColor(QPalette.Highlight, QColor(c.selection))
-            p.setColor(QPalette.HighlightedText, QColor(c.selection_foreground))
+            p.setColor(QPalette.HighlightedText, QColor(_readable_fg(c.menu_selection)))
             p.setColor(QPalette.ToolTipBase, QColor(c.menu_bg))
             p.setColor(QPalette.ToolTipText, QColor(c.menu_fg))
             p.setColor(QPalette.Link, QColor(c.info))
