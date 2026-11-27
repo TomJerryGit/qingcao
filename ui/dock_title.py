@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """给 QDockWidget 安装带「✕」的标题栏。"""
 
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QToolButton, QWidget
 
 
