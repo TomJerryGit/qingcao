@@ -1,5 +1,15 @@
 ﻿## [Unreleased]
 
+## [2.26.43] - 2026-11-26
+
+### 安全 / 无障碍
+
+- run_python 改为隔离子进程；
+- 受限表达式求值替换 eval；
+- 直接依赖锁定 requirements-lock.txt；
+- Release 安全 smoke；
+- 无阻碍运行时/焦点审计。
+
 ## [2.26.42] - 2026-11-26
 
 ### Lite 收口

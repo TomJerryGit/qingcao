@@ -4,7 +4,7 @@
 
 **轻量、免费、本地优先的 Windows Python 编辑器，AI 可选。** 基于 **PyQt5** + **QScintilla** 构建。
 
-[![Version](https://img.shields.io/badge/version-2.26.42-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-2.26.43-brightgreen.svg)](#)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#)
 [![Lite](https://img.shields.io/badge/edition-Lite-brightgreen.svg)](PRODUCT.md)
@@ -110,8 +110,8 @@ English UI is officially supported since v2.20; 繁體中文 since v2.21: Settin
 
 前往 [Releases](https://github.com/TomJerryGit/qingcao/releases) 下载 Windows 安装包或便携 ZIP：
 
-- **安装器**：`QingCaoEditor_Setup_v2.26.42.exe`
-- **便携版**：`QingCaoEditor-v2.26.42-windows.zip`
+- **安装器**：`QingCaoEditor_Setup_v2.26.43.exe`
+- **便携版**：`QingCaoEditor-v2.26.43-windows.zip`
 
 ### 方式二：从源码运行（推荐开发者）
 
