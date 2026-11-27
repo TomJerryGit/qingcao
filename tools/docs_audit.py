@@ -24,7 +24,7 @@ def check_version():
     r = subprocess.run(
         [sys.executable, "-m", "tools.check_version"], cwd=ROOT, capture_output=True, text=True
     )
-    return (r.returncode == 0, (r.stdout + r.stderr).strip())
+    return (r.returncode == 0, ((r.stdout or "") + (r.stderr or "")).strip())
 
 
 def check_notes(ver):
