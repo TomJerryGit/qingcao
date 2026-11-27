@@ -17,7 +17,7 @@
 | 插件审计 | 12 pass / 1 review / 2 warn |
 | 表达式求值 eval | **已替换为 AST 受限求值** |
 | Release 签名 | Ed25519 `.sig` 已生成 |
-| 依赖漏洞扫描 | 未安装 pip-audit，未执行 |
+| 依赖漏洞扫描 | ✅ pip-audit 实测：`requirements.txt` 25 依赖，**无已知漏洞** |
 
 ## 插件审计说明
 
@@ -34,6 +34,13 @@
 | 插件 `run_python` 在宿主 `exec` | 高（若插件不可信） | **已改为独立子进程执行**（core/python_exec.py） |
 | 依赖范围宽、无 hash/lock | 中 | 建议 CI 增加 `pip-audit` 与固定依赖 |
 | Release 未跑安全审计 | 中 | 已加入 Security smoke；pip-audit 在 Security Audit 工作流 |
+
+## pip-audit 实测（2026-11-27）
+
+- 环境：临时 venv + pip-audit；
+- `requirements.txt`：25 个依赖，**No known vulnerabilities found**；
+- `requirements-lock.txt`：**No known vulnerabilities found**；
+- 注意：pip-audit 在 Windows GBK locale 下需要 `PYTHONUTF8=1`，CI 已加入该环境变量。
 
 ## 建议
 

@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
+
 concurrency:
   group: security-audit
   cancel-in-progress: true
