@@ -9,12 +9,12 @@ def test_default_shortcut_applied(qapp):
 
     win = QMainWindow()
     menu = QMenu("工具", win)
-    act = QAction("🧩 插件市场", win)
+    act = QAction("⚙ 首选项…", win)
     menu.addAction(act)
     win.menuBar().addMenu(menu)
     try:
         assert apply_default_shortcuts(win) >= 1
-        assert act.shortcut().toString() == "Ctrl+Shift+M"
+        assert act.shortcut().toString() == "Ctrl+,"
     finally:
         win.close()
 

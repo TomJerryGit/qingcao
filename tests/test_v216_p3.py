@@ -11,11 +11,12 @@ from PyQt5.QtCore import QSettings  # noqa: F401
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def test_theme_e2e_screenshots_generated():
+def test_theme_e2e_screenshots_generated(tmp_path):
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     out = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "tools", "theme_e2e_screenshots.py")],
+        [sys.executable, os.path.join(ROOT, "tools", "theme_e2e_screenshots.py"),
+         "--out", str(tmp_path)],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -25,7 +26,7 @@ def test_theme_e2e_screenshots_generated():
         timeout=300,
     )
     assert out.returncode == 0, out.stdout + out.stderr
-    baseline = os.path.join(ROOT, "docs", "theme_baseline")
+    baseline = str(tmp_path)
     files = [f for f in os.listdir(baseline) if f.endswith(".png")]
     assert len(files) >= 8, files
     for theme in ("dark_night", "light_clean", "eye_protect", "high_contrast"):
